@@ -1,54 +1,86 @@
+import { useEffect, useState } from "react";
+import { getDashboardData } from "../services/dashboardService";
+
 export default function Dashboard() {
+
+  const [dashboard, setDashboard] = useState({
+    totalObras: 0,
+    obras: []
+  });
+
+  useEffect(() => {
+    carregar();
+  }, []);
+
+  async function carregar() {
+    const dados = await getDashboardData();
+    setDashboard(dados);
+  }
+
   return (
-    <div style={{
-      background:"#F7F4EF",
-      minHeight:"100vh",
-      padding:"32px",
-      fontFamily:"Inter, sans-serif"
-    }}>
+    <div
+      style={{
+        background: "#F7F4EF",
+        minHeight: "100vh",
+        padding: 40
+      }}
+    >
+      <h1>ORNARE WORKS</h1>
 
-      <h1 style={{
-        margin:0,
-        color:"#2B2B2B"
-      }}>
-        Ornare Gestão de Obras
-      </h1>
+      <p>Dashboard Executivo</p>
 
-      <p style={{
-        color:"#777",
-        marginTop:8
-      }}>
-        Dashboard Executivo
-      </p>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4,1fr)",
+          gap: 16,
+          marginTop: 30
+        }}
+      >
+        <Card
+          titulo="Obras Ativas"
+          valor={dashboard.totalObras}
+        />
 
-      <div style={{
-        display:"grid",
-        gridTemplateColumns:"repeat(4,1fr)",
-        gap:"16px",
-        marginTop:"32px"
-      }}>
+        <Card
+          titulo="Em Montagem"
+          valor={
+            dashboard.obras.filter(
+              o => o.status === "Em montagem"
+            ).length
+          }
+        />
 
-        <Card titulo="Obras Ativas" valor="27" />
-        <Card titulo="Em Montagem" valor="8" />
-        <Card titulo="Pendências" valor="5" />
-        <Card titulo="Concluídas" valor="14" />
+        <Card
+          titulo="Pendências"
+          valor="0"
+        />
 
+        <Card
+          titulo="Concluídas"
+          valor={
+            dashboard.obras.filter(
+              o => o.status === "Concluída"
+            ).length
+          }
+        />
       </div>
 
-      <div style={{
-        background:"#fff",
-        padding:"24px",
-        borderRadius:"16px",
-        marginTop:"32px"
-      }}>
-
-        <h2>Obras em Andamento</h2>
+      <div
+        style={{
+          background: "#fff",
+          padding: 24,
+          marginTop: 30,
+          borderRadius: 16
+        }}
+      >
+        <h2>Obras</h2>
 
         <table width="100%">
           <thead>
             <tr>
-              <th align="left">Obra</th>
-              <th align="left">Supervisor</th>
+              <th align="left">Nome</th>
+              <th align="left">Cliente</th>
               <th align="left">Status</th>
               <th align="left">Progresso</th>
             </tr>
@@ -56,52 +88,43 @@ export default function Dashboard() {
 
           <tbody>
 
-            <tr>
-              <td>Residência Gustavo</td>
-              <td>João</td>
-              <td>Montagem</td>
-              <td>78%</td>
-            </tr>
-
-            <tr>
-              <td>Marco Puerta</td>
-              <td>Pedro</td>
-              <td>Ajustes</td>
-              <td>92%</td>
-            </tr>
+            {dashboard.obras.map((obra) => (
+              <tr key={obra.id}>
+                <td>{obra.nome}</td>
+                <td>{obra.cliente_nome}</td>
+                <td>{obra.status}</td>
+                <td>{obra.progresso}%</td>
+              </tr>
+            ))}
 
           </tbody>
 
         </table>
-
       </div>
-
     </div>
-  )
+  );
 }
 
 function Card({ titulo, valor }) {
   return (
-    <div style={{
-      background:"#fff",
-      borderRadius:"16px",
-      padding:"24px",
-      boxShadow:"0 2px 10px rgba(0,0,0,0.05)"
-    }}>
-      <div style={{
-        color:"#777",
-        fontSize:"14px"
-      }}>
-        {titulo}
-      </div>
+    <div
+      style={{
+        background: "#fff",
+        borderRadius: 16,
+        padding: 24
+      }}
+    >
+      <div>{titulo}</div>
 
-      <div style={{
-        fontSize:"32px",
-        marginTop:"8px",
-        fontWeight:"600"
-      }}>
+      <div
+        style={{
+          fontSize: 32,
+          fontWeight: 700,
+          marginTop: 10
+        }}
+      >
         {valor}
       </div>
     </div>
-  )
+  );
 }
