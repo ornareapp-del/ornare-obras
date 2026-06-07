@@ -205,6 +205,7 @@ export default function ObraDetalhe() {
       {aba === 'Gastos' && <AbaGastos obraId={id} />}
       {aba === 'Fotos' && <AbaFotos obraId={id} />}
       {aba === 'Histórico' && <AbaHistorico obraId={id} />}
+      {aba === 'Cliente' && <AbaCliente obraId={id} />}
 
       {!['Visão Geral','Tarefas','Checklist','Ocorrências','Gastos','Fotos','Histórico','Cliente'].includes(aba) && (
         <div style={{ textAlign: 'center', padding: '60px 0', color: '#bbb' }}>
@@ -634,6 +635,150 @@ function AbaFotos({ obraId }) {
           </div>
         </div>
       ))}
+    </div>
+  )
+}
+function AbaCliente({ obraId }) {
+  const [comunicados, setComunicados] = useState([])
+  const [contatos, setContatos] = useState([])
+  const [loadingC, setLoadingC] = useState(true)
+  const [showComForm, setShowComForm] = useState(false)
+  const [showConForm, setShowConForm] = useState(false)
+  const [salvando, setSalvando] = useState(false)
+  const [novoCom, setNovoCom] = useState({ titulo: '', mensagem: '' })
+  const [novoCon, setNovoCon] = useState({ nome: '', cargo: '', telefone: '' })
+
+  useEffect(() => { carregar() }, [])
+
+  async function carregar() {
+    const [{ data: c }, { data: ct }] = await Promise.all([
+      supabase.from('comunicados_cliente').select('*').eq('obra_id', obraId).order('created_at', { ascending: false }),
+      supabase.from('contatos_cliente').select('*').eq('obra_id', obraId),
+    ])
+    setComunicados(c || [])
+    setContatos(ct || [])
+    setLoadingC(false)
+  }
+
+  async function salvarComunicado() {
+    if (!novoCom.titulo.trim()) return
+    setSalvando(true)
+    await supabase.from('comunicados_cliente').insert([{ ...novoCom, obra_id: obraId }])
+    setNovoCom({ titulo: '', mensagem: '' })
+    setShowComForm(false)
+    await carregar()
+    setSalvando(false)
+  }
+
+  async function salvarContato() {
+    if (!novoCon.nome.trim()) return
+    setSalvando(true)
+    await supabase.from('contatos_cliente').insert([{ ...novoCon, obra_id: obraId }])
+    setNovoCon({ nome: '', cargo: '', telefone: '' })
+    setShowConForm(false)
+    await carregar()
+    setSalvando(false)
+  }
+
+  async function deletarComunicado(id) {
+    await supabase.from('comunicados_cliente').delete().eq('id', id)
+    await carregar()
+  }
+
+  const linkPortal = `${window.location.origin}/cliente/${obraId}`
+
+  return (
+    <div>
+      {/* Link portal */}
+      <div style={{ background: '#f9f7f4', border: '1px solid var(--color-border)', borderRadius: 12, padding: '16px 20px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 11, color: 'var(--color-gold)', fontWeight: 600, marginBottom: 4 }}>Link do Portal do Cliente</div>
+          <div style={{ fontSize: 12, color: 'var(--color-ink-muted)', wordBreak: 'break-all' }}>{linkPortal}</div>
+        </div>
+        <button onClick={() => { navigator.clipboard.writeText(linkPortal) }} style={{ background: 'var(--color-ink)', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 12, cursor: 'pointer', flexShrink: 0 }}>
+          Copiar link
+        </button>
+      </div>
+
+      {/* Comunicados */}
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase' }}>Comunicados ao cliente</div>
+          <button onClick={() => setShowComForm(!showComForm)} style={{ background: 'var(--color-ink)', color: '#fff', border: 'none', borderRadius: 7, padding: '7px 14px', fontSize: 12, cursor: 'pointer' }}>
+            {showComForm ? '✕' : '+ Comunicado'}
+          </button>
+        </div>
+        {showComForm && (
+          <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: 18, marginBottom: 14 }}>
+            <div style={{ marginBottom: 10 }}>
+              <Label>Título</Label>
+              <FInput value={novoCom.titulo} onChange={v => setNovoCom(p => ({ ...p, titulo: v }))} placeholder="Título do comunicado" />
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <Label>Mensagem</Label>
+              <textarea value={novoCom.mensagem} onChange={e => setNovoCom(p => ({ ...p, mensagem: e.target.value }))} rows={3} style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1px solid #ddd', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button onClick={salvarComunicado} disabled={salvando} style={{ background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 7, padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                {salvando ? 'Salvando...' : 'Publicar'}
+              </button>
+            </div>
+          </div>
+        )}
+        {loadingC ? <div style={{ color: '#bbb' }}>Carregando...</div>
+          : comunicados.length === 0 ? <div style={{ color: '#bbb', fontSize: 13 }}>Nenhum comunicado enviado.</div>
+          : comunicados.map(c => (
+            <div key={c.id} style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 16px', marginBottom: 8, display: 'flex', gap: 12 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--color-ink)', marginBottom: 4 }}>{c.titulo}</div>
+                <div style={{ fontSize: 13, color: 'var(--color-ink-muted)', lineHeight: 1.5 }}>{c.mensagem}</div>
+                <div style={{ fontSize: 11, color: '#bbb', marginTop: 6 }}>{new Date(c.created_at).toLocaleDateString('pt-BR')}</div>
+              </div>
+              <button onClick={() => deletarComunicado(c.id)} style={{ background: 'none', border: 'none', color: '#ccc', cursor: 'pointer', fontSize: 16, padding: 4, alignSelf: 'flex-start' }}>✕</button>
+            </div>
+          ))
+        }
+      </div>
+
+      {/* Contatos */}
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase' }}>Contatos visíveis ao cliente</div>
+          <button onClick={() => setShowConForm(!showConForm)} style={{ background: 'var(--color-ink)', color: '#fff', border: 'none', borderRadius: 7, padding: '7px 14px', fontSize: 12, cursor: 'pointer' }}>
+            {showConForm ? '✕' : '+ Contato'}
+          </button>
+        </div>
+        {showConForm && (
+          <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: 18, marginBottom: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <div><Label>Nome</Label><FInput value={novoCon.nome} onChange={v => setNovoCon(p => ({ ...p, nome: v }))} placeholder="Nome" /></div>
+              <div><Label>Cargo</Label><FInput value={novoCon.cargo} onChange={v => setNovoCon(p => ({ ...p, cargo: v }))} placeholder="Ex: Supervisor" /></div>
+              <div style={{ gridColumn: '1/-1' }}><Label>Telefone (WhatsApp)</Label><FInput value={novoCon.telefone} onChange={v => setNovoCon(p => ({ ...p, telefone: v }))} placeholder="(48) 99999-9999" /></div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button onClick={salvarContato} disabled={salvando} style={{ background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 7, padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                {salvando ? 'Salvando...' : 'Adicionar'}
+              </button>
+            </div>
+          </div>
+        )}
+        {contatos.map(c => (
+          <div key={c.id} style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 16px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#b09a7a22', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#b09a7a' }}>
+              {(c.nome || '?')[0].toUpperCase()}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--color-ink)' }}>{c.nome}</div>
+              <div style={{ fontSize: 11.5, color: '#888' }}>{c.cargo}{c.telefone ? ` · ${c.telefone}` : ''}</div>
+            </div>
+            {c.telefone && (
+              <a href={`https://wa.me/55${c.telefone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" style={{ background: '#25D366', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 12px', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+                WhatsApp
+              </a>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

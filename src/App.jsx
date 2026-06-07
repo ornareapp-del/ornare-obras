@@ -7,25 +7,14 @@ import Layout from './components/Layout'
 import DashboardGestao from './pages/gestao/DashboardGestao'
 import Obras from './pages/gestao/Obras'
 import ObraDetalhe from './pages/gestao/ObraDetalhe'
+import NovaObra from './pages/gestao/NovaObra'
 import Agenda from './pages/gestao/Agenda'
 import Equipe from './pages/gestao/Equipe'
 import Ocorrencias from './pages/gestao/Ocorrencias'
 import Gastos from './pages/gestao/Gastos'
 import Tarefas from './pages/gestao/Tarefas'
-import NovaObra from './pages/gestao/NovaObra'
 import PortalCliente from './pages/cliente/PortalCliente'
-// dentro do <Route element={<PrivateLayout />}>:
-function AppRoutes() {
-  return (
-    <Routes>
-      {/* Aqui dentro você coloca as rotas do seu layout privado */}
-      <Route element={<PrivateLayout />}>
-        <Route path="/obras/nova" element={<NovaObra />} />
-        <Route path="/cliente/:id" element={<PortalCliente />} />
-      </Route>
-    </Routes>
-  );
-}
+import MontadorDashboard from './pages/montador/MontadorDashboard'
 
 function PrivateLayout() {
   const { user } = useStore()
@@ -40,7 +29,7 @@ function App() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) { setUser(session.user); fetchProfile(session.user.id) }
     })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
       if (session?.user) { setUser(session.user); fetchProfile(session.user.id) }
       else { setUser(null); setProfile(null) }
     })
@@ -56,9 +45,12 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
+        <Route path="/cliente/:id" element={<PortalCliente />} />
+        <Route path="/montador" element={user ? <MontadorDashboard /> : <Navigate to="/login" />} />
         <Route element={<PrivateLayout />}>
           <Route path="/" element={<DashboardGestao />} />
           <Route path="/obras" element={<Obras />} />
+          <Route path="/obras/nova" element={<NovaObra />} />
           <Route path="/obras/:id" element={<ObraDetalhe />} />
           <Route path="/agenda" element={<Agenda />} />
           <Route path="/equipe" element={<Equipe />} />
