@@ -18,10 +18,11 @@ import MontadorDashboard from './pages/montador/MontadorDashboard'
 import Splash from './pages/Splash'
 
 function RootRedirect() {
-  const { profile } = useStore()
-  if (!profile) return null
+  const { profile, user } = useStore()
+  if (!user) return <Navigate to="/login" replace />
+  if (!profile) return <Navigate to="/dashboard" replace />
   if (profile.role === 'montador') return <Navigate to="/montador" replace />
-  if (profile.role === 'supervisor') return <Navigate to="/supervisor" replace />
+  if (profile.role === 'supervisor') return <Navigate to="/dashboard" replace />
   return <Navigate to="/dashboard" replace />
 }
 
@@ -39,24 +40,17 @@ function PrivateRoute({ children }) {
 
 export default function App() {
   const { user, setUser, setProfile } = useStore()
-  const [pronto, setPronto] = useState(false)
-  const [splashOk, setSplashOk] = useState(false)
+  const [showSplash, setShowSplash] = useState(true)
 
   useEffect(() => {
-    let subscription
-
-    const fallback = setTimeout(() => setPronto(true), 4000)
-
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
         setUser(session.user)
         await fetchProfile(session.user.id)
       }
-      setPronto(true)
-      clearTimeout(fallback)
     })
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_e, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_e, session) => {
       if (session?.user) {
         setUser(session.user)
         await fetchProfile(session.user.id)
@@ -65,12 +59,8 @@ export default function App() {
         setProfile(null)
       }
     })
-    subscription = sub
 
-    return () => {
-      subscription?.unsubscribe()
-      clearTimeout(fallback)
-    }
+    return () => subscription.unsubscribe()
   }, [])
 
   async function fetchProfile(userId) {
@@ -78,8 +68,8 @@ export default function App() {
     if (data) setProfile(data)
   }
 
-  if (!splashOk || !pronto) {
-    return <Splash onDone={() => setSplashOk(true)} />
+  if (showSplash) {
+    return <Splash onDone={() => setShowSplash(false)} />
   }
 
   return (
