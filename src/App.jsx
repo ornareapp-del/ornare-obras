@@ -39,21 +39,26 @@ function PrivateRoute({ children }) {
 
 export default function App() {
   const { user, setUser, setProfile } = useStore()
-  const [iniciando, setIniciando] = useState(true)
-  const [showSplash, setShowSplash] = useState(true)
+  const [pronto, setPronto] = useState(false)
+  const [splashOk, setSplashOk] = useState(false)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
         setUser(session.user)
-        fetchProfile(session.user.id).then(() => setIniciando(false))
-      } else {
-        setIniciando(false)
+        await fetchProfile(session.user.id)
       }
+      setPronto(true)
     })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
-      if (session?.user) { setUser(session.user); fetchProfile(session.user.id) }
-      else { setUser(null); setProfile(null) }
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_e, session) => {
+      if (session?.user) {
+        setUser(session.user)
+        await fetchProfile(session.user.id)
+      } else {
+        setUser(null)
+        setProfile(null)
+      }
     })
     return () => subscription.unsubscribe()
   }, [])
@@ -63,12 +68,12 @@ export default function App() {
     if (data) setProfile(data)
   }
 
-  if (showSplash) return <Splash onDone={() => setShowSplash(false)} />
-  if (iniciando) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#f5f2ee', fontFamily: 'var(--font-sans)', color: '#bbb', fontSize: 14 }}>
-      Carregando...
-    </div>
-  )
+  // Mostra splash até os dois estarem prontos
+  const mostrarSplash = !splashOk || !pronto
+
+  if (mostrarSplash) {
+    return <Splash onDone={() => setSplashOk(true)} />
+  }
 
   return (
     <BrowserRouter>
