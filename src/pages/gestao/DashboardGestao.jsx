@@ -148,7 +148,7 @@ export default function DashboardGestao() {
             <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 12 }}>
               {k.label}
             </div>
-            <div style={{ fontFamily: 'var(--font-serif)', fontSize: 42, fontWeight: 500, color: 'var(--color-ink)', lineHeight: 1 }}>
+            <div style={{ fontFamily: 'var(--font-sans)', fontSize: 40, fontWeight: 300, fontWeight: 500, color: 'var(--color-ink)', lineHeight: 1 }}>
               {loading ? '—' : k.value}
             </div>
             <div style={{ fontSize: 11, color: 'var(--color-ink-faint)', marginTop: 8 }}>{k.desc}</div>
