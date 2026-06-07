@@ -17,8 +17,9 @@ const s = {
     minHeight: '100vh'
   },
   main: {
-    marginLeft: 260,
-    padding: 36,
-    boxSizing: 'border-box'
+    marginLeft: 280,
+    padding: '42px 48px',
+    boxSizing: 'border-box',
+    minHeight: '100vh'
   }
 }
