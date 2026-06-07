@@ -1,59 +1,93 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
+
+const NAV = [
+  { to: '/gestao/dashboard', icon: '▦', label: 'Dashboard' },
+  { to: '/gestao/obras', icon: '◫', label: 'Obras' },
+  { to: '/gestao/tarefas', icon: '✓', label: 'Tarefas' },
+  { to: '/gestao/agenda', icon: '▭', label: 'Agenda' },
+  { to: '/gestao/equipe', icon: '◎', label: 'Equipe' },
+  { to: '/gestao/ocorrencias', icon: '△', label: 'Ocorrências' },
+  { to: '/gestao/gastos', icon: '◇', label: 'Gastos' },
+]
 
 export default function Sidebar() {
+  const navigate = useNavigate()
+
+  async function handleLogout() {
+    await supabase.auth.signOut()
+    navigate('/login')
+  }
+
   return (
-    <aside style={s.sidebar}>
-      <div style={s.brand}>
-        <div style={s.logo}>ORNARE</div>
-        <div style={s.sublogo}>WORKS</div>
+    <aside style={{
+      width: 220,
+      background: 'var(--color-surface)',
+      borderRight: '1px solid var(--color-border)',
+      display: 'flex',
+      flexDirection: 'column',
+      flexShrink: 0,
+      height: '100vh',
+    }}>
+      {/* Logo */}
+      <div style={{
+        padding: '28px 28px 24px',
+        borderBottom: '1px solid var(--color-border)',
+      }}>
+        <div style={{
+          fontFamily: 'var(--font-serif)',
+          fontSize: 20,
+          fontWeight: 600,
+          letterSpacing: 4,
+          color: 'var(--color-ink)',
+        }}>ORNARE</div>
+        <div style={{
+          fontSize: 9,
+          letterSpacing: 3,
+          color: 'var(--color-gold)',
+          marginTop: 3,
+        }}>WORKS</div>
       </div>
 
-      <nav style={s.nav}>
-        <Item to="/" texto="Dashboard" />
-        <Item to="/obras" texto="Obras" />
-        <Item to="/tarefas" texto="Tarefas" />
-        <Item to="/agenda" texto="Agenda" />
-        <Item to="/equipe" texto="Equipe" />
-        <Item to="/ocorrencias" texto="Ocorrencias" />
-        <Item to="/gastos" texto="Gastos" />
+      {/* Nav */}
+      <nav style={{ flex: 1, padding: '20px 0' }}>
+        {NAV.map(({ to, icon, label }) => (
+          <NavLink key={to} to={to} style={({ isActive }) => ({
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '10px 24px',
+            fontSize: 12.5,
+            color: isActive ? 'var(--color-ink)' : 'var(--color-ink-muted)',
+            fontWeight: isActive ? 500 : 400,
+            borderLeft: isActive ? '2px solid var(--color-gold)' : '2px solid transparent',
+            background: isActive ? 'var(--color-border-light)' : 'transparent',
+            transition: 'all 0.15s',
+            letterSpacing: 0.3,
+          })}>
+            <span style={{ fontSize: 14, opacity: 0.7 }}>{icon}</span>
+            {label}
+          </NavLink>
+        ))}
       </nav>
+
+      {/* Footer */}
+      <div style={{ padding: '16px 24px', borderTop: '1px solid var(--color-border)' }}>
+        <button
+          onClick={handleLogout}
+          style={{
+            background: 'none',
+            border: 'none',
+            fontSize: 12,
+            color: 'var(--color-ink-muted)',
+            cursor: 'pointer',
+            padding: 0,
+            letterSpacing: 0.3,
+          }}
+        >
+          ← Sair
+        </button>
+      </div>
     </aside>
   )
-}
-
-function Item({ to, texto }) {
-  return (
-    <NavLink
-      to={to}
-      end={to === '/'}
-      style={({ isActive }) => ({
-        ...s.item,
-        background: isActive ? '#F7F4EF' : 'transparent',
-        color: isActive ? '#2B2B2B' : '#D8CCB8',
-        fontWeight: isActive ? 700 : 400,
-        textDecoration: 'none'
-      })}
-    >
-      {texto}
-    </NavLink>
-  )
-}
-
-const s = {
-  sidebar: {
-    width: 280,
-    background: '#2B2B2B',
-    color: '#fff',
-    minHeight: '100vh',
-    padding: 30,
-    boxSizing: 'border-box',
-    position: 'fixed',
-    left: 0,
-    top: 0
-  },
-  brand: { marginBottom: 54 },
-  logo: { fontFamily: 'Georgia, serif', fontSize: 31, letterSpacing: 8 },
-  sublogo: { fontSize: 11, letterSpacing: 4, color: '#B89B68', marginTop: 8 },
-  nav: { display: 'flex', flexDirection: 'column', gap: 12 },
-  item: { padding: '14px 18px', borderRadius: 14, fontSize: 14, display: 'block' }
 }
