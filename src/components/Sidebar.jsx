@@ -9,11 +9,11 @@ export default function Sidebar() {
         <Item texto="Obras" />
         <Item texto="Agenda" />
         <Item texto="Equipe" />
-        <Item texto="Ocorrências" />
+        <Item texto="Ocorrencias" />
         <Item texto="Gastos" />
-        <Item texto="Relatórios" />
+        <Item texto="Relatorios" />
         <Item texto="Portal Cliente" />
-        <Item texto="Configurações" />
+        <Item texto="Configuracoes" />
       </nav>
     </aside>
   )
