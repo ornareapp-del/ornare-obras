@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 const NAV = [
-  { to: '/dashboard', label: 'Dashboard', icon: IconGrid, end: true },
+  { to: '/dashboard',   label: 'Dashboard',   icon: IconGrid,     end: true },
   { to: '/obras',       label: 'Obras',       icon: IconBuilding        },
   { to: '/tarefas',     label: 'Tarefas',     icon: IconCheck           },
   { to: '/agenda',      label: 'Agenda',      icon: IconCalendar        },
@@ -32,7 +32,6 @@ export default function Sidebar({ collapsed, setCollapsed, isMobile }) {
       zIndex: 50, flexShrink: 0,
     }}>
 
-      {/* Header */}
       <div style={{
         padding: collapsed ? '18px 0' : '22px 20px 18px',
         borderBottom: '1px solid var(--color-border)',
@@ -40,31 +39,28 @@ export default function Sidebar({ collapsed, setCollapsed, isMobile }) {
         justifyContent: collapsed && !isMobile ? 'center' : 'space-between',
         gap: 8, overflow: 'hidden',
       }}>
-       {(!collapsed || isMobile) && (
-  <div style={{ overflow: 'hidden' }}>
-    <img
-      src="/logo-ornare.png"
-      alt="Ornare"
-      style={{ height: 28, objectFit: 'contain' }}
-      onError={e => { e.target.style.display = 'none' }}
-    />
-    <div style={{ fontSize: 8, letterSpacing: 4, color: 'var(--color-gold)', marginTop: 2 }}>WORKS</div>
-  </div>
-)}
-      onError={e => { e.target.style.display = 'none' }}
-    />
-    <div style={{ fontSize: 8, letterSpacing: 4, color: 'var(--color-gold)', marginTop: 2 }}>WORKS</div>
-  </div>
-)}
+        {(!collapsed || isMobile) && (
+          <div style={{ overflow: 'hidden' }}>
+            <img
+              src="/logo-ornare.png"
+              alt="Ornare"
+              style={{ height: 28, objectFit: 'contain', display: 'block' }}
+              onError={e => { e.target.style.display = 'none' }}
+            />
+            <div style={{ fontSize: 8, letterSpacing: 4, color: 'var(--color-gold)', marginTop: 2 }}>WORKS</div>
+          </div>
+        )}
+
         {!isMobile && (
           <button onClick={() => setCollapsed(c => !c)} style={{
             background: 'none', border: 'none', cursor: 'pointer',
             color: 'var(--color-ink-muted)', padding: 6, borderRadius: 8,
-            display: 'flex', alignItems: 'center', transition: 'background 0.15s',
+            display: 'flex', alignItems: 'center',
           }}>
             {collapsed ? <IconChevronRight /> : <IconChevronLeft />}
           </button>
         )}
+
         {isMobile && (
           <button onClick={() => setCollapsed(true)} style={{
             background: 'none', border: 'none', cursor: 'pointer',
@@ -75,9 +71,7 @@ export default function Sidebar({ collapsed, setCollapsed, isMobile }) {
         )}
       </div>
 
-      {/* Nav */}
       <nav style={{ flex: 1, padding: '12px 0', overflowY: 'auto', overflowX: 'hidden' }}>
-        {/* Label seção */}
         {!collapsed && (
           <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', padding: '8px 20px 6px', opacity: 0.8 }}>
             Gestão
@@ -88,8 +82,7 @@ export default function Sidebar({ collapsed, setCollapsed, isMobile }) {
           <NavLink key={to} to={to} end={end}
             onClick={() => isMobile && setCollapsed(true)}
             style={({ isActive }) => ({
-              display: 'flex', alignItems: 'center',
-              gap: 12,
+              display: 'flex', alignItems: 'center', gap: 12,
               padding: collapsed && !isMobile ? '12px 0' : '10px 16px',
               justifyContent: collapsed && !isMobile ? 'center' : 'flex-start',
               fontSize: 13,
@@ -109,10 +102,7 @@ export default function Sidebar({ collapsed, setCollapsed, isMobile }) {
                 {collapsed && !isMobile && isActive && (
                   <div style={{ position: 'absolute', left: 0, top: '20%', bottom: '20%', width: 3, background: 'var(--color-gold)', borderRadius: '0 2px 2px 0' }} />
                 )}
-                <span style={{
-                  display: 'flex', alignItems: 'center', flexShrink: 0,
-                  color: isActive ? 'var(--color-gold)' : 'inherit'
-                }}>
+                <span style={{ display: 'flex', alignItems: 'center', flexShrink: 0, color: isActive ? 'var(--color-gold)' : 'inherit' }}>
                   <Icon />
                 </span>
                 {(!collapsed || isMobile) && <span>{label}</span>}
@@ -122,13 +112,12 @@ export default function Sidebar({ collapsed, setCollapsed, isMobile }) {
         ))}
       </nav>
 
-      {/* Footer */}
       <div style={{
         padding: collapsed && !isMobile ? '14px 0' : '14px 16px',
         borderTop: '1px solid var(--color-border)',
         display: 'flex', justifyContent: collapsed && !isMobile ? 'center' : 'flex-start',
       }}>
-        <button onClick={logout} title="Sair" style={{
+        <button onClick={logout} style={{
           background: 'none', border: 'none', fontSize: 12,
           color: 'var(--color-ink-muted)', cursor: 'pointer',
           display: 'flex', alignItems: 'center', gap: 8, padding: 4, borderRadius: 6,
@@ -141,7 +130,6 @@ export default function Sidebar({ collapsed, setCollapsed, isMobile }) {
   )
 }
 
-/* ── Ícones ── */
 function IconGrid() { return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> }
 function IconBuilding() { return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6"/></svg> }
 function IconCheck() { return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><polyline points="9 12 11 14 15 10"/></svg> }
