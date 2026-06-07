@@ -204,8 +204,9 @@ export default function ObraDetalhe() {
       {aba === 'Ocorrências' && <AbaOcorrencias obraId={id} />}
       {aba === 'Gastos' && <AbaGastos obraId={id} />}
       {aba === 'Fotos' && <AbaFotos obraId={id} />}
+      {aba === 'Histórico' && <AbaHistorico obraId={id} />}
 
-      {!['Visão Geral', 'Tarefas', 'Checklist', 'Ocorrências', 'Gastos', 'Fotos'].includes(aba) && (
+      {!['Visão Geral','Tarefas','Checklist','Ocorrências','Gastos','Fotos','Histórico','Cliente'].includes(aba) && (
         <div style={{ textAlign: 'center', padding: '60px 0', color: '#bbb' }}>
           <strong style={{ color: 'var(--color-gold)' }}>{aba}</strong> — em desenvolvimento.
         </div>
@@ -601,6 +602,38 @@ function AbaFotos({ obraId }) {
             </div>
           )
       }
+    </div>
+  )
+}function AbaHistorico({ obraId }) {
+  const [historico, setHistorico] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => { carregar() }, [])
+
+  async function carregar() {
+    const { data } = await supabase.from('historico_obra').select('*, profiles(full_name)').eq('obra_id', obraId).order('created_at', { ascending: false })
+    setHistorico(data || [])
+    setLoading(false)
+  }
+
+  if (loading) return <div style={{ color: '#bbb' }}>Carregando...</div>
+  if (historico.length === 0) return <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhum registro no histórico.</div>
+
+  return (
+    <div style={{ position: 'relative', paddingLeft: 24 }}>
+      <div style={{ position: 'absolute', left: 7, top: 0, bottom: 0, width: 2, background: 'var(--color-border)' }} />
+      {historico.map((h, i) => (
+        <div key={h.id} style={{ position: 'relative', marginBottom: 20 }}>
+          <div style={{ position: 'absolute', left: -21, top: 4, width: 10, height: 10, borderRadius: '50%', background: 'var(--color-gold)', border: '2px solid #fff' }} />
+          <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 18px' }}>
+            <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--color-ink)', marginBottom: 4 }}>{h.descricao || h.acao || 'Registro'}</div>
+            <div style={{ display: 'flex', gap: 14, fontSize: 11, color: '#aaa' }}>
+              <span>{new Date(h.created_at).toLocaleDateString('pt-BR')} {new Date(h.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+              {h.profiles?.full_name && <span>👤 {h.profiles.full_name}</span>}
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   )
 }

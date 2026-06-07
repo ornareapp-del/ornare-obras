@@ -13,8 +13,19 @@ import Ocorrencias from './pages/gestao/Ocorrencias'
 import Gastos from './pages/gestao/Gastos'
 import Tarefas from './pages/gestao/Tarefas'
 import NovaObra from './pages/gestao/NovaObra'
+import PortalCliente from './pages/cliente/PortalCliente'
 // dentro do <Route element={<PrivateLayout />}>:
-<Route path="/obras/nova" element={<NovaObra />} />
+function AppRoutes() {
+  return (
+    <Routes>
+      {/* Aqui dentro você coloca as rotas do seu layout privado */}
+      <Route element={<PrivateLayout />}>
+        <Route path="/obras/nova" element={<NovaObra />} />
+        <Route path="/cliente/:id" element={<PortalCliente />} />
+      </Route>
+    </Routes>
+  );
+}
 
 function PrivateLayout() {
   const { user } = useStore()
