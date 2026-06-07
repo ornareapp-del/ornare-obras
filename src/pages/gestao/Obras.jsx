@@ -92,7 +92,17 @@ export default function Obras() {
         {obras.map((obra) => (
 
           <div
-            key={obra.id}
+  key={obra.id}
+  onClick={() => navigate(`/obras/${obra.id}`)}
+  style={{
+    background:"#fff",
+    padding:20,
+    borderRadius:12,
+    marginBottom:15,
+    cursor:"pointer",
+    boxShadow:"0 2px 12px rgba(0,0,0,.05)"
+  }}
+>
             style={{
               background:"#fff",
               padding:20,
