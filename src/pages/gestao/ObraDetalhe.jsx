@@ -27,7 +27,7 @@ export default function ObraDetalhe() {
   if (!obra) {
     return (
       <Layout>
-        <h2>Carregando...</h2>
+        <h2>Carregando obra...</h2>
       </Layout>
     );
   }
@@ -35,9 +35,22 @@ export default function ObraDetalhe() {
   return (
     <Layout>
 
-      <h1>{obra.nome}</h1>
+      <div style={{
+        display:"flex",
+        justifyContent:"space-between",
+        alignItems:"center"
+      }}>
 
-      <p>{obra.cliente_nome}</p>
+        <div>
+          <h1>{obra.nome}</h1>
+          <p>{obra.cliente_nome}</p>
+        </div>
+
+        <button>
+          Editar Obra
+        </button>
+
+      </div>
 
       <div
         style={{
@@ -57,19 +70,20 @@ export default function ObraDetalhe() {
 
       <div
         style={{
-          marginTop:40,
-          display:"flex",
-          gap:10,
-          flexWrap:"wrap"
+          display:"grid",
+          gridTemplateColumns:"repeat(6,1fr)",
+          gap:15,
+          marginTop:40
         }}
       >
-        <button>Tarefas</button>
-        <button>Checklist</button>
-        <button>Fotos</button>
-        <button>Ocorrências</button>
-        <button>Gastos</button>
-        <button>Cliente</button>
-        <button>Histórico</button>
+
+        <Modulo nome="Tarefas" />
+        <Modulo nome="Checklist" />
+        <Modulo nome="Fotos" />
+        <Modulo nome="Ocorrências" />
+        <Modulo nome="Gastos" />
+        <Modulo nome="Histórico" />
+
       </div>
 
     </Layout>
@@ -82,11 +96,28 @@ function Card({ titulo, valor }) {
       style={{
         background:"#fff",
         padding:20,
-        borderRadius:14
+        borderRadius:14,
+        boxShadow:"0 4px 20px rgba(0,0,0,.05)"
       }}
     >
       <small>{titulo}</small>
       <h3>{valor}</h3>
+    </div>
+  );
+}
+
+function Modulo({ nome }) {
+  return (
+    <div
+      style={{
+        background:"#fff",
+        padding:20,
+        borderRadius:14,
+        textAlign:"center",
+        cursor:"pointer"
+      }}
+    >
+      {nome}
     </div>
   );
 }
