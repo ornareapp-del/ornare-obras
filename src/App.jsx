@@ -43,15 +43,20 @@ export default function App() {
   const [splashOk, setSplashOk] = useState(false)
 
   useEffect(() => {
+    let subscription
+
+    const fallback = setTimeout(() => setPronto(true), 4000)
+
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
         setUser(session.user)
         await fetchProfile(session.user.id)
       }
       setPronto(true)
+      clearTimeout(fallback)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_e, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_e, session) => {
       if (session?.user) {
         setUser(session.user)
         await fetchProfile(session.user.id)
@@ -60,7 +65,12 @@ export default function App() {
         setProfile(null)
       }
     })
-    return () => subscription.unsubscribe()
+    subscription = sub
+
+    return () => {
+      subscription?.unsubscribe()
+      clearTimeout(fallback)
+    }
   }, [])
 
   async function fetchProfile(userId) {
@@ -68,10 +78,7 @@ export default function App() {
     if (data) setProfile(data)
   }
 
-  // Mostra splash até os dois estarem prontos
-  const mostrarSplash = !splashOk || !pronto
-
-  if (mostrarSplash) {
+  if (!splashOk || !pronto) {
     return <Splash onDone={() => setSplashOk(true)} />
   }
 

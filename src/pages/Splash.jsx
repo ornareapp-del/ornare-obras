@@ -30,15 +30,14 @@ export default function Splash({ onDone }) {
         <img
           src="/logo-ornare.png"
           alt="Ornare"
-          style={{ height: 64, objectFit: 'contain', display: 'block', margin: '0 auto 12px', filter: 'brightness(10)' }}
-          onError={e => { e.target.style.display = 'none' }}
+          style={{
+            height: 80,
+            objectFit: 'contain',
+            display: 'block',
+            margin: '0 auto 16px',
+            filter: 'invert(1) brightness(2)',
+          }}
         />
-        <div style={{
-          fontFamily: "'Cormorant Garamond', serif",
-          fontSize: 48, fontWeight: 600,
-          letterSpacing: 12, color: '#f5f2ee',
-          marginBottom: 8,
-        }}>ORNARE</div>
         <div style={{
           fontSize: 10, letterSpacing: 5, color: '#b09a7a',
           opacity: fase >= 2 ? 1 : 0,
