@@ -20,6 +20,8 @@ const s = {
     marginLeft: 280,
     padding: '42px 48px',
     boxSizing: 'border-box',
-    minHeight: '100vh'
+    minHeight: '100vh',
+    maxWidth: '100vw',
+    overflowX: 'hidden'
   }
 }

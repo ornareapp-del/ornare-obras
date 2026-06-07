@@ -175,18 +175,18 @@ const s = {
     padding: '14px 22px',
     cursor: 'pointer'
   },
-  kpis: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(4,1fr)',
-    gap: 20,
-    marginBottom: 26
-  },
+ kpis: {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+  gap: 20,
+  marginBottom: 26
+},
   grid: {
-    display: 'grid',
-    gridTemplateColumns: '2fr 1fr',
-    gap: 24,
-    marginBottom: 26
-  },
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 2fr) minmax(280px, 1fr)',
+  gap: 24,
+  marginBottom: 26
+},
   highlightCard: {
     background: '#fff',
     borderRadius: 24,
@@ -279,10 +279,11 @@ const s = {
     margin: 0,
     color: '#2B2B2B'
   },
-  table: {
-    width: '100%',
-    borderCollapse: 'collapse'
-  },
+ table: {
+  width: '100%',
+  borderCollapse: 'collapse',
+  minWidth: 650
+},
   badge: {
     background: '#F1E7D6',
     color: '#7A5D2E',
