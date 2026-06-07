@@ -216,11 +216,261 @@ export default function ObraDetalhe() {
         </div>
       )}
 
-      {!['Visão Geral', 'Tarefas'].includes(aba) && (
-        <div style={{ textAlign: 'center', padding: '60px 0', color: '#bbb' }}>
-          <strong style={{ color: 'var(--color-gold)' }}>{aba}</strong> — em desenvolvimento.
+      {aba === 'Checklist' && <AbaChecklist obraId={id} />}
+{aba === 'Ocorrências' && <AbaOcorrencias obraId={id} />}
+{aba === 'Gastos' && <AbaGastos obraId={id} />}
+{!['Visão Geral', 'Tarefas', 'Checklist', 'Ocorrências', 'Gastos'].includes(aba) && (
+  <div style={{ textAlign: 'center', padding: '60px 0', color: '#bbb' }}>
+    <strong style={{ color: 'var(--color-gold)' }}>{aba}</strong> — em desenvolvimento.
+  </div>
+)}
+
+function AbaChecklist({ obraId }) {
+  const [itens, setItens] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [novoItem, setNovoItem] = useState('')
+  const [salvando, setSalvando] = useState(false)
+
+  useEffect(() => { carregar() }, [])
+
+  async function carregar() {
+    const { data } = await supabase.from('checklist_items').select('*, checklist_respostas(resposta, created_at)').eq('obra_id', obraId)
+    setItens(data || [])
+    setLoading(false)
+  }
+
+  async function adicionar() {
+    if (!novoItem.trim()) return
+    setSalvando(true)
+    await supabase.from('checklist_items').insert([{ obra_id: obraId, descricao: novoItem, concluido: false }])
+    setNovoItem('')
+    await carregar()
+    setSalvando(false)
+  }
+
+  async function toggleConcluido(item) {
+    await supabase.from('checklist_items').update({ concluido: !item.concluido }).eq('id', item.id)
+    await carregar()
+  }
+
+  const concluidos = itens.filter(i => i.concluido).length
+
+  return (
+    <div>
+      {itens.length > 0 && (
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--color-ink-muted)', marginBottom: 6 }}>
+            <span>{concluidos} de {itens.length} itens</span>
+            <span style={{ color: 'var(--color-gold)', fontWeight: 600 }}>{Math.round(concluidos / itens.length * 100)}%</span>
+          </div>
+          <div style={{ height: 4, background: 'var(--color-border-light)', borderRadius: 2 }}>
+            <div style={{ height: 4, background: 'var(--color-gold)', borderRadius: 2, width: `${Math.round(concluidos / itens.length * 100)}%`, transition: 'width 0.3s' }} />
+          </div>
         </div>
       )}
+
+      <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+        <input value={novoItem} onChange={e => setNovoItem(e.target.value)} onKeyDown={e => e.key === 'Enter' && adicionar()} placeholder="Novo item do checklist..." style={{ flex: 1, padding: '9px 14px', borderRadius: 8, border: '1px solid var(--color-border)', fontSize: 13, fontFamily: 'inherit' }} />
+        <button onClick={adicionar} disabled={salvando} style={{ background: 'var(--color-ink)', color: '#f9f7f4', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 13, cursor: 'pointer' }}>
+          + Adicionar
+        </button>
+      </div>
+
+      {loading ? <div style={{ color: '#bbb' }}>Carregando...</div>
+        : itens.length === 0 ? <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhum item no checklist.</div>
+        : itens.map(item => (
+          <div key={item.id} onClick={() => toggleConcluido(item)} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 16px', background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, marginBottom: 8, cursor: 'pointer' }}>
+            <div style={{ width: 20, height: 20, borderRadius: 5, border: `2px solid ${item.concluido ? '#5aab6e' : '#ddd'}`, background: item.concluido ? '#5aab6e' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
+              {item.concluido && <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>✓</span>}
+            </div>
+            <span style={{ fontSize: 13.5, color: item.concluido ? '#aaa' : 'var(--color-ink)', textDecoration: item.concluido ? 'line-through' : 'none' }}>
+              {item.descricao}
+            </span>
+          </div>
+        ))
+      }
+    </div>
+  )
+}
+
+function AbaOcorrencias({ obraId }) {
+  const [ocorrencias, setOcorrencias] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [salvando, setSalvando] = useState(false)
+  const [nova, setNova] = useState({ titulo: '', descricao: '', categoria: 'geral', gravidade: 'baixa' })
+
+  useEffect(() => { carregar() }, [])
+
+  async function carregar() {
+    const { data } = await supabase.from('ocorrencias').select('*').eq('obra_id', obraId).order('created_at', { ascending: false })
+    setOcorrencias(data || [])
+    setLoading(false)
+  }
+
+  async function salvar() {
+    if (!nova.titulo.trim()) return
+    setSalvando(true)
+    await supabase.from('ocorrencias').insert([{ ...nova, obra_id: obraId }])
+    setNova({ titulo: '', descricao: '', categoria: 'geral', gravidade: 'baixa' })
+    setShowForm(false)
+    await carregar()
+    setSalvando(false)
+  }
+
+  const gravCor = { baixa: '#5aab6e', media: '#b09a7a', alta: '#d94a4a' }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+        <button onClick={() => setShowForm(!showForm)} style={{ background: 'var(--color-ink)', color: '#f9f7f4', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}>
+          {showForm ? '✕ Cancelar' : '+ Nova Ocorrência'}
+        </button>
+      </div>
+
+      {showForm && (
+        <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, padding: 22, marginBottom: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div style={{ gridColumn: '1/-1' }}>
+              <Label>Título *</Label>
+              <FInput value={nova.titulo} onChange={v => setNova(p => ({ ...p, titulo: v }))} placeholder="Descreva a ocorrência" />
+            </div>
+            <div style={{ gridColumn: '1/-1' }}>
+              <Label>Detalhes</Label>
+              <textarea value={nova.descricao} onChange={e => setNova(p => ({ ...p, descricao: e.target.value }))} rows={3} style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1px solid #ddd', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              <Label>Categoria</Label>
+              <FSelect value={nova.categoria} onChange={v => setNova(p => ({ ...p, categoria: v }))}>
+                <option value="geral">Geral</option>
+                <option value="atraso">Atraso</option>
+                <option value="dano">Dano</option>
+                <option value="retrabalho">Retrabalho</option>
+                <option value="acesso">Acesso</option>
+              </FSelect>
+            </div>
+            <div>
+              <Label>Gravidade</Label>
+              <FSelect value={nova.gravidade} onChange={v => setNova(p => ({ ...p, gravidade: v }))}>
+                <option value="baixa">Baixa</option>
+                <option value="media">Média</option>
+                <option value="alta">Alta</option>
+              </FSelect>
+            </div>
+          </div>
+          <div style={{ marginTop: 14, display: 'flex', justifyContent: 'flex-end' }}>
+            <button onClick={salvar} disabled={salvando} style={{ background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              {salvando ? 'Salvando...' : 'Registrar'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {loading ? <div style={{ color: '#bbb' }}>Carregando...</div>
+        : ocorrencias.length === 0 ? <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhuma ocorrência registrada.</div>
+        : ocorrencias.map(oc => (
+          <div key={oc.id} style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '16px 18px', marginBottom: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: gravCor[oc.gravidade] || '#ccc', flexShrink: 0 }} />
+              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-ink)' }}>{oc.titulo}</span>
+              <span style={{ fontSize: 10, padding: '2px 9px', borderRadius: 20, background: '#f0ece6', color: '#888', marginLeft: 'auto' }}>{oc.categoria}</span>
+            </div>
+            {oc.descricao && <p style={{ margin: 0, fontSize: 13, color: 'var(--color-ink-muted)', lineHeight: 1.5 }}>{oc.descricao}</p>}
+            <div style={{ fontSize: 11, color: '#bbb', marginTop: 8 }}>{new Date(oc.created_at).toLocaleDateString('pt-BR')}</div>
+          </div>
+        ))
+      }
+    </div>
+  )
+}
+
+function AbaGastos({ obraId }) {
+  const [gastos, setGastos] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [salvando, setSalvando] = useState(false)
+  const [novo, setNovo] = useState({ descricao: '', valor: '', categoria: 'material', data: '' })
+
+  useEffect(() => { carregar() }, [])
+
+  async function carregar() {
+    const { data } = await supabase.from('gastos').select('*').eq('obra_id', obraId).order('data', { ascending: false })
+    setGastos(data || [])
+    setLoading(false)
+  }
+
+  async function salvar() {
+    if (!novo.descricao.trim() || !novo.valor) return
+    setSalvando(true)
+    await supabase.from('gastos').insert([{ ...novo, obra_id: obraId, valor: parseFloat(novo.valor) }])
+    setNovo({ descricao: '', valor: '', categoria: 'material', data: '' })
+    setShowForm(false)
+    await carregar()
+    setSalvando(false)
+  }
+
+  const total = gastos.reduce((s, g) => s + (parseFloat(g.valor) || 0), 0)
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '12px 20px' }}>
+          <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 4 }}>Total</div>
+          <div style={{ fontSize: 22, fontWeight: 600, color: 'var(--color-ink)' }}>R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+        </div>
+        <button onClick={() => setShowForm(!showForm)} style={{ background: 'var(--color-ink)', color: '#f9f7f4', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}>
+          {showForm ? '✕ Cancelar' : '+ Novo Gasto'}
+        </button>
+      </div>
+
+      {showForm && (
+        <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, padding: 22, marginBottom: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div style={{ gridColumn: '1/-1' }}>
+              <Label>Descrição *</Label>
+              <FInput value={novo.descricao} onChange={v => setNovo(p => ({ ...p, descricao: v }))} placeholder="Ex: Material de proteção" />
+            </div>
+            <div>
+              <Label>Valor (R$) *</Label>
+              <FInput type="number" value={novo.valor} onChange={v => setNovo(p => ({ ...p, valor: v }))} placeholder="0,00" />
+            </div>
+            <div>
+              <Label>Data</Label>
+              <FInput type="date" value={novo.data} onChange={v => setNovo(p => ({ ...p, data: v }))} />
+            </div>
+            <div style={{ gridColumn: '1/-1' }}>
+              <Label>Categoria</Label>
+              <FSelect value={novo.categoria} onChange={v => setNovo(p => ({ ...p, categoria: v }))}>
+                <option value="material">Material</option>
+                <option value="mao_de_obra">Mão de obra</option>
+                <option value="transporte">Transporte</option>
+                <option value="ferramental">Ferramental</option>
+                <option value="outro">Outro</option>
+              </FSelect>
+            </div>
+          </div>
+          <div style={{ marginTop: 14, display: 'flex', justifyContent: 'flex-end' }}>
+            <button onClick={salvar} disabled={salvando} style={{ background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              {salvando ? 'Salvando...' : 'Registrar'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {loading ? <div style={{ color: '#bbb' }}>Carregando...</div>
+        : gastos.length === 0 ? <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhum gasto registrado.</div>
+        : gastos.map(g => (
+          <div key={g.id} style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 18px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--color-ink)' }}>{g.descricao}</div>
+              <div style={{ fontSize: 11, color: '#aaa', marginTop: 3 }}>{g.categoria}{g.data ? ` · ${new Date(g.data).toLocaleDateString('pt-BR')}` : ''}</div>
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-ink)' }}>
+              R$ {parseFloat(g.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </div>
+          </div>
+        ))
+      }
     </div>
   )
 }
