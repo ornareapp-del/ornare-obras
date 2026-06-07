@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { tarefasService } from '../../services/tarefasService'
+// já tem supabase importado, não precisa adicionar
 
 const ST = {
   'Em montagem':  { label: 'Em montagem',  bg: '#edf7f0', color: '#3a7d4f' },
@@ -202,8 +203,9 @@ export default function ObraDetalhe() {
       {aba === 'Checklist' && <AbaChecklist obraId={id} />}
       {aba === 'Ocorrências' && <AbaOcorrencias obraId={id} />}
       {aba === 'Gastos' && <AbaGastos obraId={id} />}
+      {aba === 'Fotos' && <AbaFotos obraId={id} />}
 
-      {!['Visão Geral', 'Tarefas', 'Checklist', 'Ocorrências', 'Gastos'].includes(aba) && (
+      {!['Visão Geral', 'Tarefas', 'Checklist', 'Ocorrências', 'Gastos', 'Fotos'].includes(aba) && (
         <div style={{ textAlign: 'center', padding: '60px 0', color: '#bbb' }}>
           <strong style={{ color: 'var(--color-gold)' }}>{aba}</strong> — em desenvolvimento.
         </div>
@@ -516,4 +518,89 @@ function FInput({ onChange, ...props }) {
 }
 function FSelect({ onChange, children, ...props }) {
   return <select {...props} onChange={e => onChange(e.target.value)} style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1px solid #ddd', fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit', background: '#fff' }}>{children}</select>
+}
+function AbaFotos({ obraId }) {
+  const [fotos, setFotos] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [uploading, setUploading] = useState(false)
+  const [preview, setPreview] = useState(null)
+
+  useEffect(() => { carregar() }, [])
+
+  async function carregar() {
+    const { data } = await supabase.from('fotos').select('*').eq('obra_id', obraId).order('created_at', { ascending: false })
+    setFotos(data || [])
+    setLoading(false)
+  }
+
+  async function handleUpload(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    setUploading(true)
+    const ext = file.name.split('.').pop()
+    const path = `${obraId}/${Date.now()}.${ext}`
+    const { error: upErr } = await supabase.storage.from('fotos-obras').upload(path, file)
+    if (!upErr) {
+      const { data: urlData } = supabase.storage.from('fotos-obras').getPublicUrl(path)
+      await supabase.from('fotos').insert([{ obra_id: obraId, url: urlData.publicUrl, aprovada: false, legenda: file.name }])
+      await carregar()
+    }
+    setUploading(false)
+    e.target.value = ''
+  }
+
+  async function aprovar(foto) {
+    await supabase.from('fotos').update({ aprovada: !foto.aprovada }).eq('id', foto.id)
+    await carregar()
+  }
+
+  async function deletar(foto) {
+    await supabase.from('fotos').delete().eq('id', foto.id)
+    await carregar()
+  }
+
+  return (
+    <div>
+      {preview && (
+        <div onClick={() => setPreview(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out' }}>
+          <img src={preview} style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 8, objectFit: 'contain' }} />
+        </div>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div style={{ fontSize: 12, color: 'var(--color-ink-muted)' }}>{fotos.length} foto{fotos.length !== 1 ? 's' : ''} · {fotos.filter(f => f.aprovada).length} aprovada{fotos.filter(f => f.aprovada).length !== 1 ? 's' : ''}</div>
+        <label style={{ background: 'var(--color-ink)', color: '#f9f7f4', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}>
+          {uploading ? 'Enviando...' : '+ Upload Foto'}
+          <input type="file" accept="image/*" onChange={handleUpload} style={{ display: 'none' }} disabled={uploading} />
+        </label>
+      </div>
+
+      {loading ? <div style={{ color: '#bbb' }}>Carregando...</div>
+        : fotos.length === 0
+          ? <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhuma foto enviada.</div>
+          : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 14 }}>
+              {fotos.map(foto => (
+                <div key={foto.id} style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>
+                  <div onClick={() => setPreview(foto.url)} style={{ cursor: 'zoom-in', height: 150, overflow: 'hidden' }}>
+                    <img src={foto.url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  </div>
+                  <div style={{ padding: '10px 12px' }}>
+                    <div style={{ fontSize: 11, color: 'var(--color-ink-muted)', marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{foto.legenda}</div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={() => aprovar(foto)} style={{ flex: 1, padding: '5px 0', borderRadius: 6, border: 'none', fontSize: 11, cursor: 'pointer', background: foto.aprovada ? '#edf7f0' : '#f5f5f5', color: foto.aprovada ? '#3a7d4f' : '#888', fontWeight: 500 }}>
+                        {foto.aprovada ? '✓ Aprovada' : 'Aprovar'}
+                      </button>
+                      <button onClick={() => deletar(foto)} style={{ padding: '5px 10px', borderRadius: 6, border: 'none', fontSize: 11, cursor: 'pointer', background: '#fdecea', color: '#a03030' }}>
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+      }
+    </div>
+  )
 }

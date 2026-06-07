@@ -12,6 +12,9 @@ import Equipe from './pages/gestao/Equipe'
 import Ocorrencias from './pages/gestao/Ocorrencias'
 import Gastos from './pages/gestao/Gastos'
 import Tarefas from './pages/gestao/Tarefas'
+import NovaObra from './pages/gestao/NovaObra'
+// dentro do <Route element={<PrivateLayout />}>:
+<Route path="/obras/nova" element={<NovaObra />} />
 
 function PrivateLayout() {
   const { user } = useStore()
