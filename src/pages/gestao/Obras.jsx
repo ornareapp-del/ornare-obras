@@ -1,267 +1,135 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import Layout from "../../components/Layout";
-import { supabase } from "../../lib/supabase";
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { supabase } from '../../lib/supabase'
+
+const ST = {
+  'Em montagem':  { label: 'Em montagem',  bg: '#edf7f0', color: '#3a7d4f', dot: '#5aab6e' },
+  'Em andamento': { label: 'Em andamento', bg: '#edf7f0', color: '#3a7d4f', dot: '#5aab6e' },
+  'Concluída':    { label: 'Concluída',    bg: '#eef2f8', color: '#3a5580', dot: '#7090c0' },
+  'Pausada':      { label: 'Pausada',      bg: '#fdf3e3', color: '#a0692a', dot: '#d4a055' },
+  'Cancelada':    { label: 'Cancelada',    bg: '#fdecea', color: '#a03030', dot: '#d45555' },
+  'Planejamento': { label: 'Planejamento', bg: '#f5f0ff', color: '#6040a0', dot: '#9070c0' },
+}
+function getStatus(s) {
+  return ST[s] || { label: s || '—', bg: '#f0ece6', color: '#888', dot: '#ccc' }
+}
 
 export default function Obras() {
+  const navigate = useNavigate()
+  const [obras, setObras] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [filtro, setFiltro] = useState('Todas')
 
-  const navigate = useNavigate();
+  useEffect(() => { carregar() }, [])
 
-  const [obras, setObras] = useState([]);
-  const [showModal, setShowModal] = useState(false);
-
-  const [form, setForm] = useState({
-    nome: "",
-    cliente_nome: "",
-    cidade: "",
-    endereco: "",
-    status: "Obra cadastrada",
-    progresso: 0,
-    cliente_email: "",
-    cliente_telefone: "",
-    comercial_nome: "",
-    valor_contrato: "",
-    observacoes: ""
-  });
-
-  useEffect(() => {
-    carregarObras();
-  }, []);
-
-  async function carregarObras() {
-
-    const { data } = await supabase
-      .from("obras")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    setObras(data || []);
+  async function carregar() {
+    const { data } = await supabase.from('obras').select('*').order('created_at', { ascending: false })
+    setObras(data || [])
+    setLoading(false)
   }
 
-  async function salvarObra() {
-
-    const { error } = await supabase
-      .from("obras")
-      .insert([form]);
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    setShowModal(false);
-
-    setForm({
-      nome: "",
-      cliente_nome: "",
-      cidade: "",
-      endereco: "",
-      status: "Obra cadastrada",
-      progresso: 0,
-      cliente_email: "",
-      cliente_telefone: "",
-      comercial_nome: "",
-      valor_contrato: "",
-      observacoes: ""
-    });
-
-    carregarObras();
-  }
+  const statusFiltros = ['Todas', 'Em montagem', 'Em andamento', 'Pausada', 'Concluída']
+  const obrasFiltradas = filtro === 'Todas' ? obras : obras.filter(o => o.status === filtro)
 
   return (
-    <Layout>
+    <div style={{ padding: '40px 48px', maxWidth: 1200, margin: '0 auto' }}>
 
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center"
-        }}
-      >
-        <h1>Obras</h1>
-
-        <button
-          onClick={() => setShowModal(true)}
-          style={{
-            background: "#222",
-            color: "#fff",
-            border: "none",
-            padding: "12px 20px",
-            borderRadius: "10px",
-            cursor: "pointer"
-          }}
-        >
-          Nova Obra
-        </button>
-
-      </div>
-
-      <div style={{ marginTop: 30 }}>
-
-        {obras.map((obra) => (
-
-          <div
-            key={obra.id}
-            onClick={() => navigate(`/obras/${obra.id}`)}
-            style={{
-              background: "#fff",
-              padding: 20,
-              borderRadius: 12,
-              marginBottom: 15,
-              cursor: "pointer",
-              boxShadow: "0 2px 12px rgba(0,0,0,.05)"
-            }}
-          >
-
-            <h3>{obra.nome}</h3>
-
-            <p>
-              <strong>Cliente:</strong> {obra.cliente_nome}
-            </p>
-
-            <p>
-              <strong>Cidade:</strong> {obra.cidade}
-            </p>
-
-            <p>
-              <strong>Status:</strong> {obra.status}
-            </p>
-
-            <p>
-              <strong>Progresso:</strong> {obra.progresso}%
-            </p>
-
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 36 }}>
+        <div>
+          <div style={{ fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 8 }}>
+            Gestão
           </div>
-
-        ))}
-
-      </div>
-
-      {showModal && (
-
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,.4)",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center"
-          }}
-        >
-
-          <div
-            style={{
-              background: "#fff",
-              width: 600,
-              padding: 30,
-              borderRadius: 15,
-              display: "flex",
-              flexDirection: "column",
-              gap: 10
-            }}
-          >
-
-            <h2>Nova Obra</h2>
-
-            <input
-              placeholder="Nome da obra"
-              value={form.nome}
-              onChange={(e) =>
-                setForm({ ...form, nome: e.target.value })
-              }
-            />
-
-            <input
-              placeholder="Cliente"
-              value={form.cliente_nome}
-              onChange={(e) =>
-                setForm({ ...form, cliente_nome: e.target.value })
-              }
-            />
-
-            <input
-              placeholder="Cidade"
-              value={form.cidade}
-              onChange={(e) =>
-                setForm({ ...form, cidade: e.target.value })
-              }
-            />
-
-            <input
-              placeholder="Endereço"
-              value={form.endereco}
-              onChange={(e) =>
-                setForm({ ...form, endereco: e.target.value })
-              }
-            />
-
-            <input
-              placeholder="Email do Cliente"
-              value={form.cliente_email}
-              onChange={(e) =>
-                setForm({ ...form, cliente_email: e.target.value })
-              }
-            />
-
-            <input
-              placeholder="Telefone do Cliente"
-              value={form.cliente_telefone}
-              onChange={(e) =>
-                setForm({ ...form, cliente_telefone: e.target.value })
-              }
-            />
-
-            <input
-              placeholder="Nome Comercial"
-              value={form.comercial_nome}
-              onChange={(e) =>
-                setForm({ ...form, comercial_nome: e.target.value })
-              }
-            />
-
-            <input
-              placeholder="Valor Contrato"
-              value={form.valor_contrato}
-              onChange={(e) =>
-                setForm({ ...form, valor_contrato: e.target.value })
-              }
-            />
-
-            <textarea
-              placeholder="Observações"
-              value={form.observacoes}
-              onChange={(e) =>
-                setForm({ ...form, observacoes: e.target.value })
-              }
-            />
-
-            <div
-              style={{
-                display: "flex",
-                gap: 10,
-                marginTop: 20
-              }}
-            >
-
-              <button onClick={salvarObra}>
-                Salvar
-              </button>
-
-              <button
-                onClick={() => setShowModal(false)}
-              >
-                Cancelar
-              </button>
-
-            </div>
-
-          </div>
-
+          <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: 38, fontWeight: 500, color: 'var(--color-ink)', lineHeight: 1.1, margin: 0 }}>
+            Obras
+          </h1>
+          <p style={{ fontSize: 13, color: 'var(--color-ink-muted)', marginTop: 6 }}>
+            {obras.length} obra{obras.length !== 1 ? 's' : ''} cadastrada{obras.length !== 1 ? 's' : ''}
+          </p>
         </div>
+        <button
+          onClick={() => navigate('/obras/nova')}
+          style={{
+            background: 'var(--color-ink)', color: '#f9f7f4', border: 'none',
+            borderRadius: 8, padding: '10px 22px', fontSize: 12.5, fontWeight: 500, letterSpacing: 0.5,
+          }}
+        >
+          + Nova Obra
+        </button>
+      </div>
 
+      {/* Filtros */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
+        {statusFiltros.map(f => (
+          <button
+            key={f}
+            onClick={() => setFiltro(f)}
+            style={{
+              padding: '6px 16px', borderRadius: 20, fontSize: 12, border: 'none', cursor: 'pointer',
+              background: filtro === f ? 'var(--color-ink)' : '#fff',
+              color: filtro === f ? '#f9f7f4' : 'var(--color-ink-muted)',
+              border: filtro === f ? 'none' : '1px solid var(--color-border)',
+              fontWeight: filtro === f ? 500 : 400,
+            }}
+          >
+            {f}
+          </button>
+        ))}
+      </div>
+
+      {/* Lista */}
+      {loading ? (
+        <div style={{ color: '#bbb', fontSize: 13, padding: 40 }}>Carregando...</div>
+      ) : obrasFiltradas.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '60px 0', color: '#bbb' }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>🏗️</div>
+          <div>Nenhuma obra encontrada.</div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {obrasFiltradas.map(obra => {
+            const st = getStatus(obra.status)
+            return (
+              <div
+                key={obra.id}
+                onClick={() => navigate(`/obras/${obra.id}`)}
+                style={{
+                  background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12,
+                  padding: '20px 24px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 20,
+                  transition: 'box-shadow 0.15s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.07)'}
+                onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
+              >
+                <div style={{ width: 10, height: 10, borderRadius: '50%', background: st.dot, flexShrink: 0 }} />
+
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
+                    <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-ink)' }}>{obra.nome}</span>
+                    <span style={{ fontSize: 10, padding: '2px 10px', borderRadius: 20, background: st.bg, color: st.color, fontWeight: 500 }}>
+                      {st.label}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--color-ink-muted)' }}>
+                    {obra.cliente_nome}{obra.cidade ? ` · ${obra.cidade}` : ''}
+                    {obra.data_previsao ? ` · Previsão: ${new Date(obra.data_previsao).toLocaleDateString('pt-BR')}` : ''}
+                  </div>
+                </div>
+
+                {obra.progresso > 0 && (
+                  <div style={{ minWidth: 120, textAlign: 'right' }}>
+                    <div style={{ fontSize: 11, color: 'var(--color-gold)', marginBottom: 4 }}>{obra.progresso}%</div>
+                    <div style={{ height: 4, background: 'var(--color-border-light)', borderRadius: 2, width: 120 }}>
+                      <div style={{ height: 4, background: 'var(--color-gold)', borderRadius: 2, width: `${obra.progresso}%` }} />
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ fontSize: 18, color: 'var(--color-ink-faint)' }}>›</div>
+              </div>
+            )
+          })}
+        </div>
       )}
-
-    </Layout>
-  );
+    </div>
+  )
 }
