@@ -5,5 +5,4 @@ export const useStore = create((set) => ({
   profile: null,
   setUser: (user) => set({ user }),
   setProfile: (profile) => set({ profile }),
-  logout: () => set({ user: null, profile: null }),
 }))

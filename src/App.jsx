@@ -16,10 +16,24 @@ import Tarefas from './pages/gestao/Tarefas'
 import PortalCliente from './pages/cliente/PortalCliente'
 import MontadorDashboard from './pages/montador/MontadorDashboard'
 
+function RootRedirect() {
+  const { profile } = useStore()
+  if (!profile) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#bbb' }}>Carregando...</div>
+  if (profile.role === 'montador') return <Navigate to="/montador" />
+  if (profile.role === 'cliente') return <Navigate to="/cliente-area" />
+  return <Navigate to="/dashboard" />
+}
+
 function PrivateLayout() {
   const { user } = useStore()
   if (!user) return <Navigate to="/login" />
   return <Layout />
+}
+
+function PrivateRoute({ children }) {
+  const { user } = useStore()
+  if (!user) return <Navigate to="/login" />
+  return children
 }
 
 function App() {
@@ -46,9 +60,10 @@ function App() {
       <Routes>
         <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
         <Route path="/cliente/:id" element={<PortalCliente />} />
-        <Route path="/montador" element={user ? <MontadorDashboard /> : <Navigate to="/login" />} />
+        <Route path="/" element={user ? <RootRedirect /> : <Navigate to="/login" />} />
+        <Route path="/montador" element={<PrivateRoute><MontadorDashboard /></PrivateRoute>} />
         <Route element={<PrivateLayout />}>
-          <Route path="/" element={<DashboardGestao />} />
+          <Route path="/dashboard" element={<DashboardGestao />} />
           <Route path="/obras" element={<Obras />} />
           <Route path="/obras/nova" element={<NovaObra />} />
           <Route path="/obras/:id" element={<ObraDetalhe />} />
@@ -57,7 +72,7 @@ function App() {
           <Route path="/ocorrencias" element={<Ocorrencias />} />
           <Route path="/gastos" element={<Gastos />} />
           <Route path="/tarefas" element={<Tarefas />} />
-          <Route path="*" element={<Navigate to="/" />} />
+          <Route path="*" element={<Navigate to="/dashboard" />} />
         </Route>
       </Routes>
     </BrowserRouter>

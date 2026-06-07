@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 const NAV = [
-  { to: '/',            label: 'Dashboard',   icon: IconGrid,     end: true },
+  { to: '/dashboard', label: 'Dashboard', icon: IconGrid, end: true },
   { to: '/obras',       label: 'Obras',       icon: IconBuilding        },
   { to: '/tarefas',     label: 'Tarefas',     icon: IconCheck           },
   { to: '/agenda',      label: 'Agenda',      icon: IconCalendar        },
@@ -41,14 +41,18 @@ export default function Sidebar({ collapsed, setCollapsed, isMobile }) {
         gap: 8, overflow: 'hidden',
       }}>
         {(!collapsed || isMobile) && (
-          <div style={{ overflow: 'hidden' }}>
-            <div style={{
-              fontFamily: 'var(--font-serif)', fontSize: 17, fontWeight: 600,
-              letterSpacing: 5, color: 'var(--color-ink)', whiteSpace: 'nowrap'
-            }}>ORNARE</div>
-            <div style={{ fontSize: 8, letterSpacing: 4, color: 'var(--color-gold)', marginTop: 1 }}>WORKS</div>
-          </div>
-        )}
+  <div style={{ overflow: 'hidden' }}>
+    {/* Troque o src pela logo real quando tiver */}
+    <img
+      src="/logo-ornare.png"
+      alt="Ornare"
+      style={{ height: 32, objectFit: 'contain' }}
+      onError={e => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'block' }}
+    />
+    <div style={{ display: 'none', fontFamily: 'var(--font-serif)', fontSize: 17, fontWeight: 600, letterSpacing: 5, color: 'var(--color-ink)' }}>ORNARE</div>
+    <div style={{ fontSize: 8, letterSpacing: 4, color: 'var(--color-gold)', marginTop: 1 }}>WORKS</div>
+  </div>
+)}
         {!isMobile && (
           <button onClick={() => setCollapsed(c => !c)} style={{
             background: 'none', border: 'none', cursor: 'pointer',
