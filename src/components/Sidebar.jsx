@@ -40,17 +40,20 @@ export default function Sidebar({ collapsed, setCollapsed, isMobile }) {
         justifyContent: collapsed && !isMobile ? 'center' : 'space-between',
         gap: 8, overflow: 'hidden',
       }}>
-        {(!collapsed || isMobile) && (
+       {(!collapsed || isMobile) && (
   <div style={{ overflow: 'hidden' }}>
-    {/* Troque o src pela logo real quando tiver */}
     <img
       src="/logo-ornare.png"
       alt="Ornare"
-      style={{ height: 32, objectFit: 'contain' }}
-      onError={e => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'block' }}
+      style={{ height: 28, objectFit: 'contain' }}
+      onError={e => { e.target.style.display = 'none' }}
     />
-    <div style={{ display: 'none', fontFamily: 'var(--font-serif)', fontSize: 17, fontWeight: 600, letterSpacing: 5, color: 'var(--color-ink)' }}>ORNARE</div>
-    <div style={{ fontSize: 8, letterSpacing: 4, color: 'var(--color-gold)', marginTop: 1 }}>WORKS</div>
+    <div style={{ fontSize: 8, letterSpacing: 4, color: 'var(--color-gold)', marginTop: 2 }}>WORKS</div>
+  </div>
+)}
+      onError={e => { e.target.style.display = 'none' }}
+    />
+    <div style={{ fontSize: 8, letterSpacing: 4, color: 'var(--color-gold)', marginTop: 2 }}>WORKS</div>
   </div>
 )}
         {!isMobile && (
