@@ -11,6 +11,7 @@ export default function Sidebar() {
       <nav style={s.nav}>
         <Item to="/" texto="Dashboard" />
         <Item to="/obras" texto="Obras" />
+        <Item to="/tarefas" texto="Tarefas" />
         <Item to="/agenda" texto="Agenda" />
         <Item to="/equipe" texto="Equipe" />
         <Item to="/ocorrencias" texto="Ocorrencias" />
