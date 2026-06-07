@@ -1,51 +1,11 @@
-import Layout from "../../components/Layout";
-
 export default function Tarefas() {
   return (
-    <Layout>
-
-      <div style={{
-        display:"flex",
-        justifyContent:"space-between",
-        alignItems:"center"
-      }}>
-
-        <h1>Tarefas</h1>
-
-        <button
-          style={{
-            background:"#222",
-            color:"#fff",
-            border:"none",
-            padding:"12px 20px",
-            borderRadius:"10px",
-            cursor:"pointer"
-          }}
-        >
-          Nova Tarefa
-        </button>
-
+    <div style={{ padding: '40px 48px', maxWidth: 1200, margin: '0 auto' }}>
+      <div style={{ fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 8 }}>Gestão</div>
+      <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: 38, fontWeight: 500, color: 'var(--color-ink)', margin: '0 0 32px' }}>Tarefas</h1>
+      <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, padding: '32px 28px', color: 'var(--color-ink-muted)', fontSize: 14 }}>
+        Módulo em desenvolvimento.
       </div>
-
-      <div
-        style={{
-          marginTop:30,
-          background:"#fff",
-          padding:25,
-          borderRadius:14
-        }}
-      >
-
-        <h3>Módulo em construção</h3>
-
-        <p>
-          Aqui ficarão as tarefas da obra,
-          responsáveis, status,
-          prioridades e acompanhamento.
-        </p>
-
-      </div>
-
-    </Layout>
-  );
+    </div>
+  )
 }
