@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { supabase } from './lib/supabase'
 import { useStore } from './store/useStore'
@@ -15,33 +15,41 @@ import Gastos from './pages/gestao/Gastos'
 import Tarefas from './pages/gestao/Tarefas'
 import PortalCliente from './pages/cliente/PortalCliente'
 import MontadorDashboard from './pages/montador/MontadorDashboard'
+import Splash from './pages/Splash'
 
 function RootRedirect() {
   const { profile } = useStore()
-  if (!profile) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#bbb' }}>Carregando...</div>
-  if (profile.role === 'montador') return <Navigate to="/montador" />
-  if (profile.role === 'cliente') return <Navigate to="/cliente-area" />
-  return <Navigate to="/dashboard" />
+  if (!profile) return null
+  if (profile.role === 'montador') return <Navigate to="/montador" replace />
+  if (profile.role === 'supervisor') return <Navigate to="/supervisor" replace />
+  return <Navigate to="/dashboard" replace />
 }
 
 function PrivateLayout() {
   const { user } = useStore()
-  if (!user) return <Navigate to="/login" />
+  if (!user) return <Navigate to="/login" replace />
   return <Layout />
 }
 
 function PrivateRoute({ children }) {
   const { user } = useStore()
-  if (!user) return <Navigate to="/login" />
+  if (!user) return <Navigate to="/login" replace />
   return children
 }
 
-function App() {
+export default function App() {
   const { user, setUser, setProfile } = useStore()
+  const [iniciando, setIniciando] = useState(true)
+  const [showSplash, setShowSplash] = useState(true)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) { setUser(session.user); fetchProfile(session.user.id) }
+      if (session?.user) {
+        setUser(session.user)
+        fetchProfile(session.user.id).then(() => setIniciando(false))
+      } else {
+        setIniciando(false)
+      }
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
       if (session?.user) { setUser(session.user); fetchProfile(session.user.id) }
@@ -55,13 +63,20 @@ function App() {
     if (data) setProfile(data)
   }
 
+  if (showSplash) return <Splash onDone={() => setShowSplash(false)} />
+  if (iniciando) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#f5f2ee', fontFamily: 'var(--font-sans)', color: '#bbb', fontSize: 14 }}>
+      Carregando...
+    </div>
+  )
+
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
+        <Route path="/login" element={!user ? <Login /> : <Navigate to="/" replace />} />
         <Route path="/cliente/:id" element={<PortalCliente />} />
-        <Route path="/" element={user ? <RootRedirect /> : <Navigate to="/login" />} />
         <Route path="/montador" element={<PrivateRoute><MontadorDashboard /></PrivateRoute>} />
+        <Route path="/" element={user ? <RootRedirect /> : <Navigate to="/login" replace />} />
         <Route element={<PrivateLayout />}>
           <Route path="/dashboard" element={<DashboardGestao />} />
           <Route path="/obras" element={<Obras />} />
@@ -72,11 +87,9 @@ function App() {
           <Route path="/ocorrencias" element={<Ocorrencias />} />
           <Route path="/gastos" element={<Gastos />} />
           <Route path="/tarefas" element={<Tarefas />} />
-          <Route path="*" element={<Navigate to="/dashboard" />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
       </Routes>
     </BrowserRouter>
   )
 }
-
-export default App
