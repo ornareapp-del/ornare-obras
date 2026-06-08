@@ -1,35 +1,46 @@
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Inter:wght@300;400;500;600&display=swap');
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --color-bg: #f5f2ee;
-  --color-surface: #f9f7f4;
-  --color-white: #ffffff;
-  --color-border: #e8e2d9;
-  --color-border-light: #f0ece6;
-  --color-gold: #b09a7a;
-  --color-gold-light: #c8b49a;
-  --color-ink: #1a1814;
-  --color-ink-mid: #555555;
-  --color-ink-muted: #999999;
-  --color-ink-faint: #bbbbbb;
-  --font-serif: 'Cormorant Garamond', Georgia, serif;
-  --font-sans: 'DM Sans', system-ui, sans-serif;
-  --radius-sm: 8px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
+  --bg:           #F5F3EF;
+  --surface:      #FFFFFF;
+  --border:       #E5E7EB;
+  --border-light: #F3F4F6;
+  --ink:          #171717;
+  --ink-2:        #374151;
+  --ink-3:        #6B7280;
+  --ink-4:        #9CA3AF;
+  --gold:         #B59A6A;
+  --blue:         #1E3A5F;
+  --blue-light:   #EFF4FA;
+  --blue-mid:     #2563EB;
+  --green:        #2E7D32;
+  --green-light:  #E8F5E9;
+  --orange:       #F57C00;
+  --orange-light: #FFF3E0;
+  --red:          #C62828;
+  --red-light:    #FFEBEE;
+  --font-title:   'Playfair Display', Georgia, serif;
+  --font-ui:      'Inter', system-ui, sans-serif;
+  --r-sm:         6px;
+  --r-md:         8px;
+  --r-lg:         12px;
+  --r-xl:         16px;
+  --shadow-sm:    0 1px 3px rgba(0,0,0,0.08);
+  --shadow-md:    0 4px 16px rgba(0,0,0,0.08);
+  --shadow-lg:    0 8px 32px rgba(0,0,0,0.12);
 }
 
 body {
-  font-family: var(--font-sans);
-  background: var(--color-bg);
-  color: var(--color-ink);
+  font-family: var(--font-ui);
+  background: var(--bg);
+  color: var(--ink);
   -webkit-font-smoothing: antialiased;
   font-size: 14px;
   line-height: 1.5;
 }
 
-button { font-family: var(--font-sans); cursor: pointer; }
-input, select, textarea { font-family: var(--font-sans); }
+button { font-family: var(--font-ui); cursor: pointer; }
+input, select, textarea { font-family: var(--font-ui); }
 a { text-decoration: none; color: inherit; }
