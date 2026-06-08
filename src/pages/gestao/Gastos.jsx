@@ -50,63 +50,83 @@ function Modal({ obras, profiles, onClose, onSaved }) {
           <button style={ms.close} onClick={onClose}>✕</button>
         </div>
 
-        {erro && <div style={ms.erro}>{erro}</div>}
+        <div style={ms.body}>
+          {erro && <div style={ms.erro}>{erro}</div>}
 
-        <div style={ms.grid}>
-          <div style={ms.full}>
-            <label style={ms.label}>Descrição *</label>
-            <input style={ms.input} value={form.descricao}
-              onChange={e => set('descricao', e.target.value)}
-              placeholder="Ex: Combustível ida à obra..." />
-          </div>
+          <div style={ms.grid}>
+            <div style={ms.full}>
+              <label style={ms.label}>Descrição *</label>
+              <input style={ms.input} value={form.descricao}
+                onChange={e => set('descricao', e.target.value)}
+                placeholder="Ex: Combustível ida à obra..." />
+            </div>
 
-          <div>
-            <label style={ms.label}>Categoria *</label>
-            <select style={ms.input} value={form.categoria}
-              onChange={e => set('categoria', e.target.value)}>
-              {CATEGORIAS.map(c => (
-                <option key={c.value} value={c.value}>{c.label}</option>
-              ))}
-            </select>
-          </div>
+            <div>
+              <label style={ms.label}>Categoria *</label>
+              <select style={ms.input} value={form.categoria}
+                onChange={e => set('categoria', e.target.value)}>
+                {CATEGORIAS.map(c => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))}
+              </select>
+            </div>
 
-          <div>
-            <label style={ms.label}>Valor (R$) *</label>
-            <input style={ms.input} value={form.valor}
-              onChange={e => set('valor', e.target.value)}
-              placeholder="0,00" />
-          </div>
+            <div>
+              <label style={ms.label}>Valor (R$) *</label>
+              <input style={ms.input} value={form.valor}
+                onChange={e => set('valor', e.target.value)}
+                placeholder="0,00" />
+            </div>
 
-          <div>
-            <label style={ms.label}>Data *</label>
-            <input style={ms.input} type="date" value={form.data}
-              onChange={e => set('data', e.target.value)} />
-          </div>
+            <div>
+              <label style={ms.label}>Data *</label>
+              <input style={ms.input} type="date" value={form.data}
+                onChange={e => set('data', e.target.value)} />
+            </div>
 
-          <div>
-            <label style={ms.label}>Obra</label>
-            <select style={ms.input} value={form.obra_id}
-              onChange={e => set('obra_id', e.target.value)}>
-              <option value="">— Sem obra vinculada —</option>
-              {obras.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
-            </select>
-          </div>
+            <div>
+              <label style={ms.label}>Obra</label>
+              <select style={ms.input} value={form.obra_id}
+                onChange={e => set('obra_id', e.target.value)}>
+                <option value="">— Sem obra vinculada —</option>
+                {obras.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
+              </select>
+            </div>
 
-          <div>
-            <label style={ms.label}>Responsável</label>
-            <select style={ms.input} value={form.responsavel_id}
-              onChange={e => set('responsavel_id', e.target.value)}>
-              <option value="">— Selecione —</option>
-              {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-            </select>
-          </div>
+            <div>
+              <label style={ms.label}>Responsável</label>
+              <select style={ms.input} value={form.responsavel_id}
+                onChange={e => set('responsavel_id', e.target.value)}>
+                <option value="">— Selecione —</option>
+                {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+              </select>
+            </div>
 
-          <div style={ms.full}>
-            <label style={ms.label}>Observação</label>
-            <textarea style={{ ...ms.input, height: 72, resize: 'vertical' }}
-              value={form.observacao}
-              onChange={e => set('observacao', e.target.value)}
-              placeholder="Informações adicionais..." />
+            <div style={ms.full}>
+              <label style={ms.label}>Comprovante (foto ou PDF)</label>
+              <label style={ms.uploadArea}>
+                <input type="file" accept="image/*,application/pdf"
+                  style={{ display: 'none' }}
+                  onChange={e => set('arquivo', e.target.files[0])} />
+                {form.arquivo ? (
+                  <span style={{ color: 'var(--color-ink)', fontSize: 13 }}>
+                    📎 {form.arquivo.name}
+                  </span>
+                ) : (
+                  <span style={{ color: '#aaa', fontSize: 13 }}>
+                    📎 Toque para anexar comprovante
+                  </span>
+                )}
+              </label>
+            </div>
+
+            <div style={ms.full}>
+              <label style={ms.label}>Observação</label>
+              <textarea style={{ ...ms.input, height: 72, resize: 'vertical' }}
+                value={form.observacao}
+                onChange={e => set('observacao', e.target.value)}
+                placeholder="Informações adicionais..." />
+            </div>
           </div>
         </div>
 
@@ -295,16 +315,18 @@ const s = {
 
 const ms = {
   bg: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 },
-  box: { background: '#fff', borderRadius: 14, padding: '28px 32px', width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
+  box: { background: '#fff', borderRadius: 14, width: '100%', maxWidth: 560, maxHeight: '90vh', display: 'flex', flexDirection: 'column' },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '24px 28px 0', flexShrink: 0 },
   title: { fontFamily: 'var(--font-serif)', fontSize: 24, fontWeight: 500, margin: 0 },
   close: { background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: '#999' },
+  body: { overflowY: 'auto', padding: '20px 28px', flex: 1 },
   grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 },
   full: { gridColumn: '1/-1' },
   label: { display: 'block', fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: '#888', marginBottom: 6 },
   input: { width: '100%', border: '1px solid #e0dbd4', borderRadius: 8, padding: '9px 12px', fontSize: 13, fontFamily: 'inherit', color: 'var(--color-ink)', background: '#fafaf8', outline: 'none', boxSizing: 'border-box' },
+  uploadArea: { display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px dashed #e0dbd4', borderRadius: 8, padding: '16px', cursor: 'pointer', background: '#fafaf8', width: '100%', boxSizing: 'border-box' },
   erro: { background: '#fceee9', borderLeft: '3px solid #c4421e', color: '#5c2010', padding: '10px 14px', borderRadius: 6, fontSize: 12, marginBottom: 16 },
-  footer: { display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 24, paddingTop: 20, borderTop: '1px solid #f0ece6' },
+  footer: { display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '16px 28px', borderTop: '1px solid #f0ece6', flexShrink: 0 },
   btnCancel: { background: 'none', border: '1px solid #e0dbd4', borderRadius: 8, padding: '9px 18px', fontSize: 13, cursor: 'pointer', color: '#888' },
   btnSave: { background: 'var(--color-blue)', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
 }
