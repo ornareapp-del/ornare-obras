@@ -34,9 +34,14 @@ function Modal({ obras, profiles, onClose, onSaved }) {
     }
     setSaving(true)
     const { error } = await supabase.from('gastos').insert({
-      ...form,
+      obra_id: form.obra_id || null,
+      categoria: form.categoria,
+      descricao: form.descricao,
       valor: parseFloat(form.valor.replace(',', '.')),
-      criado_por: profile?.id
+      data: form.data,
+      responsavel_id: form.responsavel_id || null,
+      observacao: form.observacao || null,
+      criado_por: profile?.id,
     })
     if (error) { setErro(error.message); setSaving(false); return }
     onSaved()
