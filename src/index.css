@@ -1,46 +1,44 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Inter:wght@300;400;500;600&display=swap');
-
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:           #F5F3EF;
-  --surface:      #FFFFFF;
-  --border:       #E5E7EB;
-  --border-light: #F3F4F6;
-  --ink:          #171717;
-  --ink-2:        #374151;
-  --ink-3:        #6B7280;
-  --ink-4:        #9CA3AF;
-  --gold:         #B59A6A;
-  --blue:         #1E3A5F;
-  --blue-light:   #EFF4FA;
-  --blue-mid:     #2563EB;
-  --green:        #2E7D32;
-  --green-light:  #E8F5E9;
-  --orange:       #F57C00;
-  --orange-light: #FFF3E0;
-  --red:          #C62828;
-  --red-light:    #FFEBEE;
-  --font-title:   'Playfair Display', Georgia, serif;
-  --font-ui:      'Inter', system-ui, sans-serif;
-  --r-sm:         6px;
-  --r-md:         8px;
-  --r-lg:         12px;
-  --r-xl:         16px;
-  --shadow-sm:    0 1px 3px rgba(0,0,0,0.08);
-  --shadow-md:    0 4px 16px rgba(0,0,0,0.08);
-  --shadow-lg:    0 8px 32px rgba(0,0,0,0.12);
+  --gold: #B8963E;
+  --gold-light: #D4AF6A;
+  --gold-pale: #F5EDD8;
+  --sand: #FAF7F2;
+  --fendi: #F0EBE1;
+  --off-white: #FDFCFA;
+  --graphite: #2C2B28;
+  --graphite-mid: #5C5A54;
+  --graphite-light: #9C9A94;
+  --border: #E8E3D8;
+  --border-light: #F0ECE4;
+  --white: #FFFFFF;
+  --red: #C4421E;
+  --green: #2D7A4A;
+  --blue: #2B6AC4;
+  --shadow: 0 2px 16px rgba(44,43,40,0.07);
+  --radius: 10px;
+  --radius-sm: 6px;
+  --radius-lg: 14px;
 }
 
 body {
-  font-family: var(--font-ui);
-  background: var(--bg);
-  color: var(--ink);
-  -webkit-font-smoothing: antialiased;
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--sand);
+  color: var(--graphite);
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
 }
 
-button { font-family: var(--font-ui); cursor: pointer; }
-input, select, textarea { font-family: var(--font-ui); }
-a { text-decoration: none; color: inherit; }
+h1,h2,h3 {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+}
+
+input, select, textarea, button {
+  font-family: inherit;
+}
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
