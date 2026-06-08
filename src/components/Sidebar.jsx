@@ -47,8 +47,8 @@ export default function Sidebar({ collapsed, setCollapsed, isMobile }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden' }}>
             <img src="/logo-ornare.png" alt="Ornare" style={{ height: 24, objectFit: 'contain', filter: 'brightness(10)', flexShrink: 0 }} onError={e => e.target.style.display='none'} />
             <div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#fff', letterSpacing: 2 }}>ORNARE</div>
-              <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', letterSpacing: 1 }}>WORKS</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', letterSpacing: 2 }}>ORNARE</div>
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', letterSpacing: 1 }}>WORKS</div>
             </div>
           </div>
         )}
@@ -71,7 +71,7 @@ export default function Sidebar({ collapsed, setCollapsed, isMobile }) {
       {/* Nav */}
       <nav style={{ flex: 1, padding: '8px 0', overflowY: 'auto', overflowX: 'hidden' }}>
         {!collapsed && (
-          <div style={{ fontSize: 9, letterSpacing: 2, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', padding: '12px 16px 6px' }}>
+          <div style={{ fontSize: 10, letterSpacing: 2, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', padding: '12px 16px 6px' }}>
             Menu
           </div>
         )}
@@ -83,7 +83,7 @@ export default function Sidebar({ collapsed, setCollapsed, isMobile }) {
               padding: collapsed && !isMobile ? '10px 0' : '9px 12px',
               margin: collapsed && !isMobile ? '2px 0' : '1px 8px',
               justifyContent: collapsed && !isMobile ? 'center' : 'flex-start',
-              fontSize: 13, fontWeight: isActive ? 500 : 400,
+              fontSize: 14, fontWeight: isActive ? 500 : 400,
               color: isActive ? '#fff' : 'rgba(255,255,255,0.55)',
               borderRadius: collapsed && !isMobile ? 0 : 8,
               background: isActive ? 'rgba(255,255,255,0.12)' : 'transparent',

@@ -17,12 +17,10 @@ import PortalCliente from './pages/cliente/PortalCliente'
 import MontadorDashboard from './pages/montador/MontadorDashboard'
 import Splash from './pages/Splash'
 
-function RootRedirect() {
-  const { profile, user } = useStore()
+function RedirectByRole({ user, profile }) {
   if (!user) return <Navigate to="/login" replace />
   if (!profile) return <Navigate to="/dashboard" replace />
   if (profile.role === 'montador') return <Navigate to="/montador" replace />
-  if (profile.role === 'supervisor') return <Navigate to="/dashboard" replace />
   return <Navigate to="/dashboard" replace />
 }
 
@@ -39,7 +37,7 @@ function PrivateRoute({ children }) {
 }
 
 export default function App() {
-  const { user, setUser, setProfile } = useStore()
+  const { user, profile, setUser, setProfile } = useStore()
   const [showSplash, setShowSplash] = useState(true)
 
   useEffect(() => {
@@ -49,7 +47,6 @@ export default function App() {
         await fetchProfile(session.user.id)
       }
     })
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_e, session) => {
       if (session?.user) {
         setUser(session.user)
@@ -59,7 +56,6 @@ export default function App() {
         setProfile(null)
       }
     })
-
     return () => subscription.unsubscribe()
   }, [])
 
@@ -68,17 +64,22 @@ export default function App() {
     if (data) setProfile(data)
   }
 
-  if (showSplash) {
-    return <Splash onDone={() => setShowSplash(false)} />
-  }
+  if (showSplash) return <Splash onDone={() => setShowSplash(false)} />
 
   return (
     <BrowserRouter>
       <Routes>
+        {/* Públicas */}
         <Route path="/login" element={!user ? <Login /> : <Navigate to="/" replace />} />
         <Route path="/cliente/:id" element={<PortalCliente />} />
+
+        {/* Raiz — redireciona por role */}
+        <Route path="/" element={<RedirectByRole user={user} profile={profile} />} />
+
+        {/* Montador — layout próprio mobile */}
         <Route path="/montador" element={<PrivateRoute><MontadorDashboard /></PrivateRoute>} />
-        <Route path="/" element={user ? <RootRedirect /> : <Navigate to="/login" replace />} />
+
+        {/* Gestão — layout com sidebar */}
         <Route element={<PrivateLayout />}>
           <Route path="/dashboard" element={<DashboardGestao />} />
           <Route path="/obras" element={<Obras />} />
