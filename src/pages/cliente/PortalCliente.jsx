@@ -72,7 +72,7 @@ export default function PortalCliente() {
         </div>
         {obra.cliente_telefone && (
           
-            href={"https://wa.me/55" + obra.cliente_telefone.replace(/[^0-9]/g, '')}
+            href={["https://wa.me/55", obra.cliente_telefone.replace(/[^0-9]/g, '')].join('')}
             target="_blank"
             rel="noreferrer"
             style={s.btnWhatsApp}>
