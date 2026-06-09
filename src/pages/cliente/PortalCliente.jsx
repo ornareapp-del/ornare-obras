@@ -79,7 +79,7 @@ export default function PortalCliente() {
 
       <div style={s.header}>
         <div>
-          <img src="/logo-ornare.png" style={{ height: 106, objectFit: 'contain', filter: 'brightness(0) invert(1)' }} alt="Ornare" />
+          <img src="/logo-ornare.png" style={{ height: 126, objectFit: 'contain', filter: 'brightness(0) invert(1)' }} alt="Ornare" />
           <div style={s.logoSub}>GESTAO DE OBRAS</div>
         </div>
         {obra.cliente_telefone && (
