@@ -79,7 +79,7 @@ export default function PortalCliente() {
 
       <div style={s.header}>
         <div>
-          <img src="/logo-ornare.png" style={{ height: 32, objectFit: 'contain', filter: 'brightness(0) invert(1)' }} alt="Ornare" />
+          <img src="/logo-ornare.png" style={{ height: 56, objectFit: 'contain', filter: 'brightness(0) invert(1)' }} alt="Ornare" />
           <div style={s.logoSub}>GESTAO DE OBRAS</div>
         </div>
         {obra.cliente_telefone && (
@@ -281,11 +281,11 @@ const s = {
  bgOverlay: { position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(15,14,12,0.55) 0%, rgba(15,14,12,0.75) 40%, rgba(15,14,12,0.92) 100%)' },
   header: { position: 'relative', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)' },
   logoText: { fontFamily: 'Georgia, serif', fontSize: 18, fontWeight: 400, letterSpacing: 6, color: '#f5f2ee' },
-  logoSub: { fontSize: 7, letterSpacing: 3, color: '#D4AF6A', marginTop: 2, textTransform: 'uppercase' },
+ logoSub: { fontSize: 8, letterSpacing: 3, color: '#D4AF6A', marginTop: 3, textTransform: 'uppercase', fontFamily: 'Georgia, serif' },
  btnWhatsApp: { display: 'flex', alignItems: 'center', gap: 8, background: 'transparent', color: '#D4AF6A', border: '1px solid #D4AF6A', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 600, textDecoration: 'none' },
   hero: { position: 'relative', zIndex: 10, padding: '48px 24px 32px', maxWidth: 680, margin: '0 auto' },
   heroTag: { fontSize: 9, letterSpacing: 4, color: '#D4AF6A', textTransform: 'uppercase', marginBottom: 12 },
-  heroTitle: { fontFamily: 'Georgia, serif', fontSize: 30, fontWeight: 400, color: '#f5f2ee', margin: '0 0 8px', lineHeight: 1.25 },
+ heroTitle: { fontFamily: 'Georgia, serif', fontSize: 30, fontWeight: 400, color: '#f5f2ee', margin: '0 0 8px', lineHeight: 1.25 },
   heroSub: { fontSize: 13, color: 'rgba(255,255,255,0.35)', marginBottom: 32 },
   metricsRow: { display: 'flex', gap: 10, marginBottom: 28, flexWrap: 'wrap' },
   metricCard: { flex: 1, minWidth: 90, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '16px 18px' },
