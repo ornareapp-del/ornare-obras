@@ -37,7 +37,7 @@ export default function PortalCliente() {
 
   if (loading) return (
     <div style={s.loadingScreen}>
-      <div style={s.loadingLogo}>ORNARE</div>
+      <img src="/logo-ornare.png" style={{ height: 48, filter: 'brightness(0) invert(1)', opacity: 0.6 }} alt="Ornare" />
     </div>
   )
 
@@ -79,7 +79,7 @@ export default function PortalCliente() {
 
       <div style={s.header}>
         <div>
-          <img src="/logo-ornare.png" style={{ height: 126, objectFit: 'contain', filter: 'brightness(0) invert(1)' }} alt="Ornare" />
+          <img src="/logo-ornare.png" style={s.logoImg} alt="Ornare" />
           <div style={s.logoSub}>GESTAO DE OBRAS</div>
         </div>
         {obra.cliente_telefone && (
@@ -90,8 +90,8 @@ export default function PortalCliente() {
       </div>
 
       <div style={s.hero}>
-        <div style={s.heroTag}>Sua Obra</div>
-        <h1 style={s.heroTitle}>{obra.nome}</h1>
+        <div style={s.heroTag}>SUA OBRA</div>
+        <h1 style={s.heroTitle}>{obra.nome.toUpperCase()}</h1>
         <div style={s.heroSub}>
           {obra.cliente_nome}
           {obra.cidade ? ' - ' + obra.cidade : ''}
@@ -108,9 +108,7 @@ export default function PortalCliente() {
           </div>
           <div style={s.metricCard}>
             <div style={s.metricLabel}>Conclusao</div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: '#D4AF6A', fontFamily: 'Georgia, serif' }}>
-              {progresso}%
-            </div>
+            <div style={s.metricValueGold}>{progresso}%</div>
           </div>
         </div>
 
@@ -120,7 +118,7 @@ export default function PortalCliente() {
             <span style={s.progressPct}>{progresso}%</span>
           </div>
           <div style={s.progressTrack}>
-            <div style={{ height: 2, background: 'linear-gradient(90deg, #B8963E, #D4AF6A)', borderRadius: 2, width: progresso + '%', transition: 'width 1.2s ease' }} />
+            <div style={{ height: 4, background: 'linear-gradient(90deg, #B8963E, #D4AF6A)', borderRadius: 4, width: progresso + '%', transition: 'width 1.2s ease' }} />
           </div>
         </div>
       </div>
@@ -142,35 +140,50 @@ export default function PortalCliente() {
 
       <div style={s.content}>
 
-        {aba  === 'status' && (
+        {aba === 'status' && (
           <div>
-           <div style={{ ...s.glass, marginBottom: 16 }}>
-  <div style={s.glassLabel}>Situacao atual</div>
-  <div style={{ fontSize: 20, fontWeight: 700, color: '#f5f2ee', marginBottom: 16 }}>{obra.status}</div>
-  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-    {obra.data_inicio && (
-      <div style={{ flex: 1, minWidth: 120 }}>
-        <div style={{ fontSize: 9, letterSpacing: 2, color: '#D4AF6A', textTransform: 'uppercase', marginBottom: 6 }}>Inicio</div>
-        <div style={{ fontSize: 13, color: '#f5f2ee' }}>{new Date(obra.data_inicio + 'T00:00:00').toLocaleDateString('pt-BR')}</div>
-      </div>
-    )}
-    {obra.data_previsao && (
-      <div style={{ flex: 1, minWidth: 120 }}>
-        <div style={{ fontSize: 9, letterSpacing: 2, color: '#D4AF6A', textTransform: 'uppercase', marginBottom: 6 }}>Previsao</div>
-        <div style={{ fontSize: 13, color: '#f5f2ee' }}>{previsao}</div>
-      </div>
-    )}
-    <div style={{ flex: 1, minWidth: 120 }}>
-      <div style={{ fontSize: 9, letterSpacing: 2, color: '#D4AF6A', textTransform: 'uppercase', marginBottom: 6 }}>Progresso</div>
-      <div style={{ fontSize: 13, color: '#D4AF6A', fontWeight: 700 }}>{progresso}%</div>
-    </div>
-  </div>
-  <div style={{ marginTop: 16 }}>
-    <div style={{ height: 6, background: 'rgba(255,255,255,0.08)', borderRadius: 4 }}>
-      <div style={{ height: 6, background: 'linear-gradient(90deg, #B8963E, #D4AF6A)', borderRadius: 4, width: progresso + '%', transition: 'width 1.2s ease' }} />
-    </div>
-  </div>
-</div>
+            <div style={{ ...s.glass, marginBottom: 16 }}>
+              <div style={s.glassLabel}>Situacao atual</div>
+              <div style={s.situacaoStatus}>{obra.status}</div>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 16 }}>
+                {obra.data_inicio && (
+                  <div style={{ flex: 1, minWidth: 120 }}>
+                    <div style={s.glassLabel}>Inicio</div>
+                    <div style={s.situacaoDetalhe}>{new Date(obra.data_inicio + 'T00:00:00').toLocaleDateString('pt-BR')}</div>
+                  </div>
+                )}
+                {obra.data_previsao && (
+                  <div style={{ flex: 1, minWidth: 120 }}>
+                    <div style={s.glassLabel}>Previsao</div>
+                    <div style={s.situacaoDetalhe}>{previsao}</div>
+                  </div>
+                )}
+                <div style={{ flex: 1, minWidth: 120 }}>
+                  <div style={s.glassLabel}>Progresso</div>
+                  <div style={{ ...s.situacaoDetalhe, color: '#D4AF6A', fontWeight: 700 }}>{progresso}%</div>
+                </div>
+              </div>
+              <div style={{ marginTop: 20 }}>
+                <div style={{ height: 6, background: 'rgba(255,255,255,0.08)', borderRadius: 4 }}>
+                  <div style={{ height: 6, background: 'linear-gradient(90deg, #B8963E, #D4AF6A)', borderRadius: 4, width: progresso + '%', transition: 'width 1.2s ease' }} />
+                </div>
+              </div>
+            </div>
+
+            <div style={s.glass}>
+              <div style={s.glassLabel}>Detalhes da obra</div>
+              {[
+                { label: 'Endereco', value: [obra.rua, obra.numero, obra.complemento].filter(Boolean).join(', ') || obra.endereco },
+                { label: 'Bairro', value: obra.bairro },
+                { label: 'Cidade', value: obra.cidade },
+                { label: 'Contrato', value: obra.numero_contrato },
+              ].filter(function(d) { return d.value }).map(d => (
+                <div key={d.label} style={s.detailRow}>
+                  <span style={s.detailLabel}>{d.label}</span>
+                  <span style={s.detailValue}>{d.value}</span>
+                </div>
+              ))}
+            </div>
 
             {comunicados.length > 0 && (
               <div style={{ ...s.glass, marginTop: 16 }}>
@@ -188,7 +201,6 @@ export default function PortalCliente() {
           <div>
             {fotos.length === 0 ? (
               <div style={s.empty}>
-                <div style={s.emptyIcon}>[ ]</div>
                 <div style={s.emptyText}>Nenhuma foto disponivel ainda</div>
                 <div style={s.emptySubText}>As fotos aprovadas pela equipe aparecerao aqui</div>
               </div>
@@ -215,7 +227,6 @@ export default function PortalCliente() {
           <div>
             {comunicados.length === 0 ? (
               <div style={s.empty}>
-                <div style={s.emptyIcon}>[ ]</div>
                 <div style={s.emptyText}>Nenhum comunicado disponivel</div>
               </div>
             ) : comunicados.map(c => (
@@ -273,59 +284,60 @@ export default function PortalCliente() {
 }
 
 const s = {
-  root: { minHeight: '100vh', background: '#0f0e0c', fontFamily: 'DM Sans, sans-serif', color: '#f5f2ee', position: 'relative', overflowX: 'hidden' },
+  root: { minHeight: '100vh', background: '#0f0e0c', fontFamily: 'Georgia, serif', color: '#f5f2ee', position: 'relative', overflowX: 'hidden' },
   loadingScreen: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#0f0e0c', gap: 20 },
-  loadingLogo: { fontFamily: 'Georgia, serif', fontSize: 24, letterSpacing: 8, color: '#D4AF6A' },
   bgWrap: { position: 'fixed', inset: 0, zIndex: 0 },
   bgImg: { width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top', opacity: 0.35, filter: 'sepia(20%) brightness(0.8)' },
- bgOverlay: { position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(15,14,12,0.55) 0%, rgba(15,14,12,0.75) 40%, rgba(15,14,12,0.92) 100%)' },
- header: { position: 'relative', zIndex: 10, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)' },
-  logoText: { fontFamily: 'Georgia, serif', fontSize: 18, fontWeight: 400, letterSpacing: 6, color: '#f5f2ee' },
- logoSub: { fontSize: 8, letterSpacing: 3, color: '#D4AF6A', marginTop: 1, textTransform: 'uppercase', fontFamily: 'Georgia, serif' },
- btnWhatsApp: { display: 'flex', alignItems: 'center', gap: 8, background: 'transparent', color: '#D4AF6A', border: '1px solid #D4AF6A', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 600, textDecoration: 'none' },
+  bgOverlay: { position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(15,14,12,0.55) 0%, rgba(15,14,12,0.75) 40%, rgba(15,14,12,0.92) 100%)' },
+  header: { position: 'relative', zIndex: 10, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)' },
+  logoImg: { height: 56, objectFit: 'contain', filter: 'brightness(0) invert(1)', display: 'block' },
+  logoSub: { fontSize: 8, letterSpacing: 3, color: '#D4AF6A', marginTop: 4, textTransform: 'uppercase', fontFamily: 'Georgia, serif' },
+  btnWhatsApp: { display: 'flex', alignItems: 'center', gap: 8, background: 'transparent', color: '#D4AF6A', border: '1px solid #D4AF6A', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 600, textDecoration: 'none', fontFamily: 'Georgia, serif' },
   hero: { position: 'relative', zIndex: 10, padding: '48px 24px 32px', maxWidth: 680, margin: '0 auto' },
-heroTitle: { fontFamily: 'Georgia, serif', fontSize: 30, fontWeight: 400, color: '#f5f2ee', margin: '0 0 8px', lineHeight: 1.25, textTransform: 'uppercase', letterSpacing: 2 },
- heroTitle: { fontFamily: 'Georgia, serif', fontSize: 30, fontWeight: 400, color: '#f5f2ee', margin: '0 0 8px', lineHeight: 1.25 },
-  heroSub: { fontSize: 13, color: 'rgba(255,255,255,0.35)', marginBottom: 32 },
+  heroTag: { fontSize: 9, letterSpacing: 4, color: '#D4AF6A', textTransform: 'uppercase', marginBottom: 12, fontFamily: 'Georgia, serif' },
+  heroTitle: { fontFamily: 'Georgia, serif', fontSize: 30, fontWeight: 400, color: '#f5f2ee', margin: '0 0 8px', lineHeight: 1.25, textTransform: 'uppercase', letterSpacing: 3 },
+  heroSub: { fontSize: 13, color: 'rgba(255,255,255,0.45)', marginBottom: 32, fontFamily: 'Georgia, serif' },
   metricsRow: { display: 'flex', gap: 10, marginBottom: 28, flexWrap: 'wrap' },
   metricCard: { flex: 1, minWidth: 90, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '16px 18px' },
- metricLabel: { fontSize: 9, letterSpacing: 2, color: '#D4AF6A', textTransform: 'uppercase', marginBottom: 8, opacity: 1 },
-  metricValue: { fontSize: 14, fontWeight: 600, color: '#f5f2ee', lineHeight: 1.3 },
+  metricLabel: { fontSize: 9, letterSpacing: 2, color: '#D4AF6A', textTransform: 'uppercase', marginBottom: 8, fontFamily: 'Georgia, serif' },
+  metricValue: { fontSize: 14, fontWeight: 400, color: '#f5f2ee', lineHeight: 1.3, fontFamily: 'Georgia, serif' },
+  metricValueGold: { fontSize: 22, fontWeight: 400, color: '#D4AF6A', fontFamily: 'Georgia, serif' },
   progressWrap: { marginTop: 4 },
-  progressHeader: { display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 8 },
-  progressLabel: { color: 'rgba(255,255,255,0.6)' },
-  progressPct: { color: '#D4AF6A', fontWeight: 600 },
- progressTrack: { height: 4, background: 'rgba(255,255,255,0.1)', borderRadius: 4 },
+  progressHeader: { display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 8, fontFamily: 'Georgia, serif' },
+  progressLabel: { color: 'rgba(255,255,255,0.5)' },
+  progressPct: { color: '#D4AF6A' },
+  progressTrack: { height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 4 },
   tabsWrap: { position: 'relative', zIndex: 10, borderBottom: '1px solid rgba(255,255,255,0.06)', maxWidth: 680, margin: '0 auto' },
   tabs: { display: 'flex', overflowX: 'auto', padding: '0 24px' },
-  tab: { background: 'none', border: 'none', cursor: 'pointer', padding: '14px 18px', fontSize: 12.5, whiteSpace: 'nowrap', letterSpacing: 0.3, marginBottom: -1, transition: 'color .2s', fontFamily: 'inherit' },
+  tab: { background: 'none', border: 'none', cursor: 'pointer', padding: '14px 18px', fontSize: 13, whiteSpace: 'nowrap', letterSpacing: 1, marginBottom: -1, transition: 'color .2s', fontFamily: 'Georgia, serif' },
   content: { position: 'relative', zIndex: 10, maxWidth: 680, margin: '0 auto', padding: '28px 24px 60px' },
   glass: { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '22px 24px' },
-  glassLabel: { fontSize: 9, letterSpacing: 2, color: '#D4AF6A', textTransform: 'uppercase', marginBottom: 16 },
+  glassLabel: { fontSize: 9, letterSpacing: 2, color: '#D4AF6A', textTransform: 'uppercase', marginBottom: 10, fontFamily: 'Georgia, serif' },
+  situacaoStatus: { fontSize: 20, fontWeight: 400, color: '#f5f2ee', fontFamily: 'Georgia, serif', marginBottom: 4 },
+  situacaoDetalhe: { fontSize: 14, color: '#f5f2ee', fontFamily: 'Georgia, serif' },
   detailRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', gap: 12 },
- detailLabel: { fontSize: 12, color: 'rgba(255,255,255,0.55)', flexShrink: 0 },
-  detailValue: { fontSize: 13, color: '#f5f2ee', fontWeight: 500, textAlign: 'right' },
-  comunicadoTitulo: { fontSize: 15, fontWeight: 600, color: '#f5f2ee', marginBottom: 8 },
-  comunicadoText: { fontSize: 14, color: 'rgba(255,255,255,0.6)', lineHeight: 1.7 },
-  comunicadoData: { fontSize: 10, color: 'rgba(255,255,255,0.2)', marginTop: 12, letterSpacing: 1 },
+  detailLabel: { fontSize: 12, color: 'rgba(255,255,255,0.45)', flexShrink: 0, fontFamily: 'Georgia, serif' },
+  detailValue: { fontSize: 13, color: '#f5f2ee', textAlign: 'right', fontFamily: 'Georgia, serif' },
+  comunicadoTitulo: { fontSize: 15, color: '#f5f2ee', marginBottom: 8, fontFamily: 'Georgia, serif' },
+  comunicadoText: { fontSize: 14, color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, fontFamily: 'Georgia, serif' },
+  comunicadoData: { fontSize: 10, color: 'rgba(255,255,255,0.2)', marginTop: 12, letterSpacing: 1, fontFamily: 'Georgia, serif' },
   fotoGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 },
   fotoCard: { borderRadius: 10, overflow: 'hidden', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', cursor: 'zoom-in' },
   fotoImg: { width: '100%', height: 140, objectFit: 'cover', display: 'block' },
-  fotoPlaceholder: { height: 140, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'rgba(255,255,255,0.2)' },
-  fotoCaption: { padding: '8px 10px', fontSize: 11, color: 'rgba(255,255,255,0.4)' },
+  fotoPlaceholder: { height: 140, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'rgba(255,255,255,0.2)', fontFamily: 'Georgia, serif' },
+  fotoCaption: { padding: '8px 10px', fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: 'Georgia, serif' },
   contatoRow: { display: 'flex', alignItems: 'center', gap: 14 },
-  contatoAvatar: { width: 44, height: 44, borderRadius: '50%', background: 'rgba(212,175,106,0.15)', border: '1px solid rgba(212,175,106,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700, color: '#D4AF6A', flexShrink: 0 },
+  contatoAvatar: { width: 44, height: 44, borderRadius: '50%', background: 'rgba(212,175,106,0.15)', border: '1px solid rgba(212,175,106,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, color: '#D4AF6A', flexShrink: 0, fontFamily: 'Georgia, serif' },
   contatoInfo: { flex: 1 },
-  contatoNome: { fontSize: 14, fontWeight: 600, color: '#f5f2ee' },
-  contatoCargo: { fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 2 },
-  btnContato: { display: 'inline-flex', alignItems: 'center', gap: 8, background: '#25D366', color: '#fff', borderRadius: 10, padding: '10px 18px', fontSize: 13, fontWeight: 600, textDecoration: 'none' },
-  btnContatoOutline: { display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.06)', color: '#f5f2ee', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '10px 18px', fontSize: 13, textDecoration: 'none' },
+  contatoNome: { fontSize: 14, color: '#f5f2ee', fontFamily: 'Georgia, serif' },
+  contatoCargo: { fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 2, fontFamily: 'Georgia, serif' },
+  btnContato: { display: 'inline-flex', alignItems: 'center', gap: 8, background: '#25D366', color: '#fff', borderRadius: 10, padding: '10px 18px', fontSize: 13, textDecoration: 'none', fontFamily: 'Georgia, serif' },
+  btnContatoOutline: { display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.06)', color: '#f5f2ee', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '10px 18px', fontSize: 13, textDecoration: 'none', fontFamily: 'Georgia, serif' },
   empty: { textAlign: 'center', padding: '60px 20px' },
-  emptyIcon: { fontSize: 36, marginBottom: 14, opacity: 0.3 },
-  emptyText: { fontSize: 14, color: 'rgba(255,255,255,0.25)', marginBottom: 6 },
-  emptySubText: { fontSize: 12, color: 'rgba(255,255,255,0.15)' },
+  emptyText: { fontSize: 14, color: 'rgba(255,255,255,0.25)', marginBottom: 6, fontFamily: 'Georgia, serif' },
+  emptySubText: { fontSize: 12, color: 'rgba(255,255,255,0.15)', fontFamily: 'Georgia, serif' },
   previewBg: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.96)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out' },
   previewImg: { maxWidth: '94vw', maxHeight: '94vh', borderRadius: 8, objectFit: 'contain' },
-  previewClose: { position: 'absolute', top: 20, right: 24, background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: 24, cursor: 'pointer' },
-  footer: { position: 'relative', zIndex: 10, textAlign: 'center', padding: '20px 0 40px', fontSize: 9, color: 'rgba(255,255,255,0.15)', letterSpacing: 3 },
+  previewClose: { position: 'absolute', top: 20, right: 24, background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: 24, cursor: 'pointer', fontFamily: 'Georgia, serif' },
+  footer: { position: 'relative', zIndex: 10, textAlign: 'center', padding: '20px 0 40px', fontSize: 9, color: 'rgba(255,255,255,0.15)', letterSpacing: 3, fontFamily: 'Georgia, serif' },
 }
