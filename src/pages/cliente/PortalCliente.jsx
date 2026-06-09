@@ -79,7 +79,7 @@ export default function PortalCliente() {
 
       <div style={s.header}>
         <div>
-          <div style={s.logoText}>ORNARE</div>
+          <img src="/logo-ornare.png" style={{ height: 32, objectFit: 'contain', filter: 'brightness(0) invert(1)' }} alt="Ornare" />
           <div style={s.logoSub}>GESTAO DE OBRAS</div>
         </div>
         {obra.cliente_telefone && (
@@ -142,24 +142,35 @@ export default function PortalCliente() {
 
       <div style={s.content}>
 
-        {aba === 'status' && (
+        {aba  === 'status' && (
           <div>
-            <div style={s.glass}>
-              <div style={s.glassLabel}>Detalhes da obra</div>
-              {[
-                { label: 'Endereco', value: [obra.rua, obra.numero, obra.complemento].filter(Boolean).join(', ') || obra.endereco },
-                { label: 'Bairro', value: obra.bairro },
-                { label: 'Cidade', value: obra.cidade },
-                { label: 'Inicio', value: obra.data_inicio ? new Date(obra.data_inicio + 'T00:00:00').toLocaleDateString('pt-BR') : null },
-                { label: 'Previsao de entrega', value: previsao },
-                { label: 'Contrato', value: obra.numero_contrato },
-              ].filter(function(d) { return d.value }).map(d => (
-                <div key={d.label} style={s.detailRow}>
-                  <span style={s.detailLabel}>{d.label}</span>
-                  <span style={s.detailValue}>{d.value}</span>
-                </div>
-              ))}
-            </div>
+           <div style={{ ...s.glass, marginBottom: 16 }}>
+  <div style={s.glassLabel}>Situacao atual</div>
+  <div style={{ fontSize: 20, fontWeight: 700, color: '#f5f2ee', marginBottom: 16 }}>{obra.status}</div>
+  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+    {obra.data_inicio && (
+      <div style={{ flex: 1, minWidth: 120 }}>
+        <div style={{ fontSize: 9, letterSpacing: 2, color: '#D4AF6A', textTransform: 'uppercase', marginBottom: 6 }}>Inicio</div>
+        <div style={{ fontSize: 13, color: '#f5f2ee' }}>{new Date(obra.data_inicio + 'T00:00:00').toLocaleDateString('pt-BR')}</div>
+      </div>
+    )}
+    {obra.data_previsao && (
+      <div style={{ flex: 1, minWidth: 120 }}>
+        <div style={{ fontSize: 9, letterSpacing: 2, color: '#D4AF6A', textTransform: 'uppercase', marginBottom: 6 }}>Previsao</div>
+        <div style={{ fontSize: 13, color: '#f5f2ee' }}>{previsao}</div>
+      </div>
+    )}
+    <div style={{ flex: 1, minWidth: 120 }}>
+      <div style={{ fontSize: 9, letterSpacing: 2, color: '#D4AF6A', textTransform: 'uppercase', marginBottom: 6 }}>Progresso</div>
+      <div style={{ fontSize: 13, color: '#D4AF6A', fontWeight: 700 }}>{progresso}%</div>
+    </div>
+  </div>
+  <div style={{ marginTop: 16 }}>
+    <div style={{ height: 6, background: 'rgba(255,255,255,0.08)', borderRadius: 4 }}>
+      <div style={{ height: 6, background: 'linear-gradient(90deg, #B8963E, #D4AF6A)', borderRadius: 4, width: progresso + '%', transition: 'width 1.2s ease' }} />
+    </div>
+  </div>
+</div>
 
             {comunicados.length > 0 && (
               <div style={{ ...s.glass, marginTop: 16 }}>
@@ -271,20 +282,20 @@ const s = {
   header: { position: 'relative', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)' },
   logoText: { fontFamily: 'Georgia, serif', fontSize: 18, fontWeight: 400, letterSpacing: 6, color: '#f5f2ee' },
   logoSub: { fontSize: 7, letterSpacing: 3, color: '#D4AF6A', marginTop: 2, textTransform: 'uppercase' },
-  btnWhatsApp: { display: 'flex', alignItems: 'center', gap: 8, background: '#25D366', color: '#fff', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 600, textDecoration: 'none' },
+ btnWhatsApp: { display: 'flex', alignItems: 'center', gap: 8, background: 'transparent', color: '#D4AF6A', border: '1px solid #D4AF6A', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 600, textDecoration: 'none' },
   hero: { position: 'relative', zIndex: 10, padding: '48px 24px 32px', maxWidth: 680, margin: '0 auto' },
   heroTag: { fontSize: 9, letterSpacing: 4, color: '#D4AF6A', textTransform: 'uppercase', marginBottom: 12 },
   heroTitle: { fontFamily: 'Georgia, serif', fontSize: 30, fontWeight: 400, color: '#f5f2ee', margin: '0 0 8px', lineHeight: 1.25 },
   heroSub: { fontSize: 13, color: 'rgba(255,255,255,0.35)', marginBottom: 32 },
   metricsRow: { display: 'flex', gap: 10, marginBottom: 28, flexWrap: 'wrap' },
   metricCard: { flex: 1, minWidth: 90, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '16px 18px' },
-  metricLabel: { fontSize: 9, letterSpacing: 2, color: '#D4AF6A', textTransform: 'uppercase', marginBottom: 8 },
+ metricLabel: { fontSize: 9, letterSpacing: 2, color: '#D4AF6A', textTransform: 'uppercase', marginBottom: 8, opacity: 1 },
   metricValue: { fontSize: 14, fontWeight: 600, color: '#f5f2ee', lineHeight: 1.3 },
   progressWrap: { marginTop: 4 },
   progressHeader: { display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 8 },
-  progressLabel: { color: 'rgba(255,255,255,0.3)' },
+  progressLabel: { color: 'rgba(255,255,255,0.6)' },
   progressPct: { color: '#D4AF6A', fontWeight: 600 },
-  progressTrack: { height: 2, background: 'rgba(255,255,255,0.08)', borderRadius: 2 },
+ progressTrack: { height: 4, background: 'rgba(255,255,255,0.1)', borderRadius: 4 },
   tabsWrap: { position: 'relative', zIndex: 10, borderBottom: '1px solid rgba(255,255,255,0.06)', maxWidth: 680, margin: '0 auto' },
   tabs: { display: 'flex', overflowX: 'auto', padding: '0 24px' },
   tab: { background: 'none', border: 'none', cursor: 'pointer', padding: '14px 18px', fontSize: 12.5, whiteSpace: 'nowrap', letterSpacing: 0.3, marginBottom: -1, transition: 'color .2s', fontFamily: 'inherit' },
@@ -292,7 +303,7 @@ const s = {
   glass: { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '22px 24px' },
   glassLabel: { fontSize: 9, letterSpacing: 2, color: '#D4AF6A', textTransform: 'uppercase', marginBottom: 16 },
   detailRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', gap: 12 },
-  detailLabel: { fontSize: 12, color: 'rgba(255,255,255,0.3)', flexShrink: 0 },
+ detailLabel: { fontSize: 12, color: 'rgba(255,255,255,0.55)', flexShrink: 0 },
   detailValue: { fontSize: 13, color: '#f5f2ee', fontWeight: 500, textAlign: 'right' },
   comunicadoTitulo: { fontSize: 15, fontWeight: 600, color: '#f5f2ee', marginBottom: 8 },
   comunicadoText: { fontSize: 14, color: 'rgba(255,255,255,0.6)', lineHeight: 1.7 },
