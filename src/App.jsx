@@ -16,11 +16,13 @@ import Tarefas from './pages/gestao/Tarefas'
 import PortalCliente from './pages/cliente/PortalCliente'
 import MontadorDashboard from './pages/montador/MontadorDashboard'
 import Splash from './pages/Splash'
+import DashboardSupervisor from './pages/supervisor/DashboardSupervisor'
 
 function RedirectByRole({ user, profile }) {
   if (!user) return <Navigate to="/login" replace />
   if (!profile) return <Navigate to="/dashboard" replace />
   if (profile.role === 'montador') return <Navigate to="/montador" replace />
+  if (profile.role === 'supervisor') return <Navigate to="/supervisor" replace />
   return <Navigate to="/dashboard" replace />
 }
 
@@ -82,6 +84,7 @@ export default function App() {
         {/* Gestão — layout com sidebar */}
         <Route element={<PrivateLayout />}>
           <Route path="/dashboard" element={<DashboardGestao />} />
+          <Route path="/supervisor" element={<DashboardSupervisor />} />
           <Route path="/obras" element={<Obras />} />
           <Route path="/obras/nova" element={<NovaObra />} />
           <Route path="/obras/:id" element={<ObraDetalhe />} />
