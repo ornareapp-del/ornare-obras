@@ -43,14 +43,16 @@ export default function NovaObra() {
 arquiteto_email: '',
 arquiteto_telefone: '',
 gasto_meta: '',
+executivista_nome: '',
+comercial_id: '',
   })
 
-  useEffect(() => {
-    supabase.from('profiles')
-      .select('id, full_name')
-      .eq('role', 'supervisor')
-      .then(({ data }) => setSupervisores(data || []))
-  }, [])
+useEffect(() => {
+  supabase.from('profiles')
+    .select('id, full_name, role')
+    .in('role', ['gestao', 'supervisor'])
+    .then(({ data }) => setSupervisores(data || []))
+}, [])
 
   function set(k, v) { setForm(p => ({ ...p, [k]: v })) }
 
@@ -100,6 +102,8 @@ gasto_meta: '',
 arquiteto_email: form.arquiteto_email || null,
 arquiteto_telefone: form.arquiteto_telefone || null,
 gasto_meta: form.gasto_meta ? parseFloat(form.gasto_meta) : null,
+executivista_nome: form.executivista_nome || null,
+comercial_id: form.comercial_id || null,
     }]).select().single()
 
     if (error) { setErro(`Erro: ${error.message}`); setSalvando(false); return }
@@ -153,6 +157,12 @@ gasto_meta: form.gasto_meta ? parseFloat(form.gasto_meta) : null,
             </Campo>
           </Grid>
         </Secao>
+        <Campo label="Executivista">
+  <FInput value={form.executivista_nome} onChange={v => set('executivista_nome', v)} placeholder="Nome do executivista" />
+</Campo>
+<Campo label="Gasto máximo previsto (R$)">
+  <FInput value={form.gasto_meta} onChange={v => set('gasto_meta', v)} placeholder="0,00" />
+</Campo>
 
         {/* Cliente */}
         <Secao titulo="Dados do Cliente">
@@ -167,8 +177,11 @@ gasto_meta: form.gasto_meta ? parseFloat(form.gasto_meta) : null,
               <FInput value={form.cliente_telefone} onChange={v => set('cliente_telefone', v)} placeholder="(48) 99999-9999" />
             </Campo>
             <Campo label="Comercial responsável">
-              <FInput value={form.comercial_nome} onChange={v => set('comercial_nome', v)} placeholder="Nome do vendedor" />
-            </Campo>
+  <FSelect value={form.comercial_id} onChange={v => set('comercial_id', v)}>
+    <option value="">— Selecione —</option>
+    {supervisores.map(s => <option key={s.id} value={s.id}>{s.full_name}</option>)}
+  </FSelect>
+</Campo>
             <Campo label="Valor do contrato (R$)">
               <FInput value={form.valor_contrato} onChange={v => set('valor_contrato', v)} placeholder="0,00" />
             </Campo>
