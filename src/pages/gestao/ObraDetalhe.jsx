@@ -1,41 +1,45 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { useStore } from '../../store/useStore'
 import { tarefasService } from '../../services/tarefasService'
-// já tem supabase importado, não precisa adicionar
 
 const ST = {
-  'Em montagem':  { label: 'Em montagem',  bg: '#edf7f0', color: '#3a7d4f' },
-  'Em andamento': { label: 'Em andamento', bg: '#edf7f0', color: '#3a7d4f' },
-  'Concluída':    { label: 'Concluída',    bg: '#eef2f8', color: '#3a5580' },
-  'Pausada':      { label: 'Pausada',      bg: '#fdf3e3', color: '#a0692a' },
-  'Cancelada':    { label: 'Cancelada',    bg: '#fdecea', color: '#a03030' },
-  'Planejamento': { label: 'Planejamento', bg: '#f5f0ff', color: '#6040a0' },
+  'Em montagem':        { label: 'Em montagem',        bg: '#edf7f0', color: '#3a7d4f' },
+  'Em andamento':       { label: 'Em andamento',       bg: '#edf7f0', color: '#3a7d4f' },
+  'Concluida':          { label: 'Concluida',          bg: '#eef2f8', color: '#3a5580' },
+  'Pausada':            { label: 'Pausada',            bg: '#fdf3e3', color: '#a0692a' },
+  'Cancelada':          { label: 'Cancelada',          bg: '#fdecea', color: '#a03030' },
+  'Planejamento':       { label: 'Planejamento',       bg: '#f5f0ff', color: '#6040a0' },
+  'Aguardando inicio':  { label: 'Ag. inicio',         bg: '#f5f5f5', color: '#616161' },
+  'Montagem agendada':  { label: 'Mont. agendada',     bg: '#E3F2FD', color: '#1565C0' },
 }
 const STATUS_TAREFA = {
   pendente:     { label: 'Pendente',     color: '#b09a7a' },
   em_andamento: { label: 'Em andamento', color: '#4a90d9' },
-  concluida:    { label: 'Concluída',    color: '#5aab6e' },
+  concluida:    { label: 'Concluida',    color: '#5aab6e' },
   bloqueada:    { label: 'Bloqueada',    color: '#d94a4a' },
 }
 const PRIORIDADE = {
   baixa: { label: 'Baixa', color: '#aaa' },
-  media: { label: 'Média', color: '#b09a7a' },
+  media: { label: 'Media', color: '#b09a7a' },
   alta:  { label: 'Alta',  color: '#d94a4a' },
 }
-const ABAS = ['Visão Geral', 'Tarefas', 'Checklist', 'Fotos', 'Ocorrências', 'Gastos', 'Cliente', 'Histórico']
+const ABAS = ['Visao Geral', 'Tarefas', 'Checklist', 'Fotos', 'Ocorrencias', 'Gastos', 'Chat', 'Cliente', 'Historico']
 
 export default function ObraDetalhe() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [obra, setObra] = useState(null)
-  const [aba, setAba] = useState('Visão Geral')
+  const [aba, setAba] = useState('Visao Geral')
   const [loading, setLoading] = useState(true)
   const [tarefas, setTarefas] = useState([])
   const [profiles, setProfiles] = useState([])
   const [progresso, setProgresso] = useState(0)
   const [showForm, setShowForm] = useState(false)
   const [salvando, setSalvando] = useState(false)
+  const [editando, setEditando] = useState(false)
+  const [formObra, setFormObra] = useState({})
   const [nova, setNova] = useState({ titulo: '', descricao: '', prioridade: 'media', prazo: '', responsavel_id: '', status: 'pendente' })
 
   useEffect(() => { carregarObra(); carregarProfiles() }, [id])
@@ -44,10 +48,11 @@ export default function ObraDetalhe() {
   async function carregarObra() {
     const { data } = await supabase.from('obras').select('*').eq('id', id).single()
     setObra(data)
+    setFormObra(data || {})
     setLoading(false)
   }
   async function carregarProfiles() {
-    const { data } = await supabase.from('profiles').select('id, full_name, email')
+    const { data } = await supabase.from('profiles').select('id, full_name, email, role')
     setProfiles(data || [])
   }
   async function carregarTarefas() {
@@ -69,33 +74,99 @@ export default function ObraDetalhe() {
     await tarefasService.atualizarStatus(tarefaId, status)
     await carregarTarefas()
   }
+  async function salvarEdicaoObra() {
+    setSalvando(true)
+    await supabase.from('obras').update({
+      status: formObra.status,
+      progresso: formObra.progresso,
+      data_previsao: formObra.data_previsao,
+      observacoes: formObra.observacoes,
+      arquiteto_nome: formObra.arquiteto_nome,
+      arquiteto_email: formObra.arquiteto_email,
+      arquiteto_telefone: formObra.arquiteto_telefone,
+      gasto_meta: formObra.gasto_meta,
+    }).eq('id', id)
+    await carregarObra()
+    setEditando(false)
+    setSalvando(false)
+  }
 
   if (loading) return <div style={{ padding: 60, color: '#bbb', textAlign: 'center' }}>Carregando...</div>
-  if (!obra) return <div style={{ padding: 60, color: '#bbb' }}>Obra não encontrada.</div>
+  if (!obra) return <div style={{ padding: 60, color: '#bbb' }}>Obra nao encontrada.</div>
 
   const st = ST[obra.status] || { label: obra.status, bg: '#f0ece6', color: '#888' }
 
   return (
-    <div style={{ padding: '40px 48px', maxWidth: 1100, margin: '0 auto' }}>
+    <div style={{ padding: '32px 40px', maxWidth: 1100, margin: '0 auto' }}>
       <button onClick={() => navigate('/obras')} style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--color-ink-muted)', cursor: 'pointer', padding: 0, marginBottom: 16 }}>
-        ← Obras
+        Obras
       </button>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
         <div>
           <div style={{ fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6 }}>Detalhe da Obra</div>
           <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: 32, fontWeight: 500, color: 'var(--color-ink)', margin: 0 }}>{obra.nome}</h1>
-          <div style={{ fontSize: 13, color: 'var(--color-ink-muted)', marginTop: 4 }}>{obra.cliente_nome}{obra.cidade ? ` · ${obra.cidade}` : ''}</div>
+          <div style={{ fontSize: 13, color: 'var(--color-ink-muted)', marginTop: 4 }}>
+            {obra.cliente_nome}{obra.cidade ? ` · ${obra.cidade}` : ''}
+            {obra.numero_contrato ? ` · Contrato ${obra.numero_contrato}` : ''}
+          </div>
         </div>
-        <span style={{ padding: '5px 14px', borderRadius: 20, background: st.bg, color: st.color, fontSize: 12, fontWeight: 500 }}>{st.label}</span>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <span style={{ padding: '5px 14px', borderRadius: 20, background: st.bg, color: st.color, fontSize: 12, fontWeight: 500 }}>{st.label}</span>
+          <button onClick={() => setEditando(!editando)} style={{ background: editando ? '#fdecea' : 'var(--color-ink)', color: editando ? '#a03030' : '#f9f7f4', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 12, cursor: 'pointer' }}>
+            {editando ? 'Cancelar' : 'Editar obra'}
+          </button>
+        </div>
       </div>
+
+      {editando && (
+        <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, padding: '20px 24px', marginBottom: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
+            <div>
+              <Label>Status</Label>
+              <FSelect value={formObra.status || ''} onChange={v => setFormObra(p => ({ ...p, status: v }))}>
+                {Object.keys(ST).map(s => <option key={s} value={s}>{ST[s].label}</option>)}
+              </FSelect>
+            </div>
+            <div>
+              <Label>Progresso (%)</Label>
+              <FInput type="number" min="0" max="100" value={formObra.progresso || 0} onChange={v => setFormObra(p => ({ ...p, progresso: parseInt(v) || 0 }))} />
+            </div>
+            <div>
+              <Label>Previsao de termino</Label>
+              <FInput type="date" value={formObra.data_previsao || ''} onChange={v => setFormObra(p => ({ ...p, data_previsao: v }))} />
+            </div>
+            <div>
+              <Label>Arquiteto responsavel</Label>
+              <FInput value={formObra.arquiteto_nome || ''} onChange={v => setFormObra(p => ({ ...p, arquiteto_nome: v }))} placeholder="Nome do arquiteto" />
+            </div>
+            <div>
+              <Label>Email arquiteto</Label>
+              <FInput value={formObra.arquiteto_email || ''} onChange={v => setFormObra(p => ({ ...p, arquiteto_email: v }))} placeholder="email@exemplo.com" />
+            </div>
+            <div>
+              <Label>Gasto meta (R$)</Label>
+              <FInput type="number" value={formObra.gasto_meta || ''} onChange={v => setFormObra(p => ({ ...p, gasto_meta: v }))} placeholder="0,00" />
+            </div>
+            <div style={{ gridColumn: '1/-1' }}>
+              <Label>Observacoes internas</Label>
+              <textarea value={formObra.observacoes || ''} onChange={e => setFormObra(p => ({ ...p, observacoes: e.target.value }))} rows={3} style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1px solid #ddd', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }} />
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
+            <button onClick={salvarEdicaoObra} disabled={salvando} style={{ background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              {salvando ? 'Salvando...' : 'Salvar alteracoes'}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 14, margin: '24px 0 32px', flexWrap: 'wrap' }}>
         {[
-          { label: 'Início', value: obra.data_inicio ? new Date(obra.data_inicio).toLocaleDateString('pt-BR') : '—' },
-          { label: 'Previsão', value: obra.data_previsao ? new Date(obra.data_previsao).toLocaleDateString('pt-BR') : '—' },
-          { label: 'Progresso', value: `${obra.progresso || 0}%` },
-          { label: 'Contrato', value: obra.valor_contrato ? `R$ ${Number(obra.valor_contrato).toLocaleString('pt-BR')}` : '—' },
+          { label: 'Inicio', value: obra.data_inicio ? new Date(obra.data_inicio + 'T00:00:00').toLocaleDateString('pt-BR') : '-' },
+          { label: 'Previsao', value: obra.data_previsao ? new Date(obra.data_previsao + 'T00:00:00').toLocaleDateString('pt-BR') : '-' },
+          { label: 'Progresso', value: (obra.progresso || 0) + '%' },
+          { label: 'Contrato', value: obra.valor_contrato ? 'R$ ' + Number(obra.valor_contrato).toLocaleString('pt-BR') : '-' },
         ].map(k => (
           <div key={k.label} style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 20px', minWidth: 120 }}>
             <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6 }}>{k.label}</div>
@@ -112,12 +183,12 @@ export default function ObraDetalhe() {
             color: aba === a ? 'var(--color-gold)' : 'var(--color-ink-muted)',
             fontWeight: aba === a ? 600 : 400,
             borderBottom: aba === a ? '2px solid var(--color-gold)' : '2px solid transparent',
-            marginBottom: -1,
+            marginBottom: -1, fontFamily: 'inherit',
           }}>{a}</button>
         ))}
       </div>
 
-      {aba === 'Visão Geral' && (
+      {aba === 'Visao Geral' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <Card titulo="Cliente">
             <Info label="Nome" value={obra.cliente_nome} />
@@ -125,14 +196,26 @@ export default function ObraDetalhe() {
             <Info label="Telefone" value={obra.cliente_telefone} />
           </Card>
           <Card titulo="Obra">
-            <Info label="Endereço" value={obra.endereco} />
-            <Info label="Cidade" value={obra.cidade} />
-            <Info label="Comercial" value={obra.comercial_nome} />
+            <Info label="Endereco" value={[obra.rua, obra.numero, obra.complemento].filter(Boolean).join(', ') || obra.endereco} />
+            <Info label="Bairro / Cidade" value={[obra.bairro, obra.cidade, obra.uf].filter(Boolean).join(', ')} />
+            <Info label="CEP" value={obra.cep} />
+          </Card>
+          <Card titulo="Equipe responsavel">
+            <Info label="Supervisor" value={profiles.find(p => p.id === obra.supervisor_id)?.full_name} />
+            <Info label="Comercial" value={profiles.find(p => p.id === obra.comercial_id)?.full_name || obra.comercial_nome} />
+            <Info label="Executivista" value={obra.executivista_nome} />
+          </Card>
+          <Card titulo="Arquiteto responsavel">
+            <Info label="Nome" value={obra.arquiteto_nome} />
+            <Info label="E-mail" value={obra.arquiteto_email} />
+            <Info label="Telefone" value={obra.arquiteto_telefone} />
           </Card>
           {obra.observacoes && (
-            <Card titulo="Observações" style={{ gridColumn: '1/-1' }}>
-              <p style={{ margin: 0, fontSize: 13, color: 'var(--color-ink-mid)', lineHeight: 1.7 }}>{obra.observacoes}</p>
-            </Card>
+            <div style={{ gridColumn: '1/-1' }}>
+              <Card titulo="Observacoes internas">
+                <p style={{ margin: 0, fontSize: 13, color: 'var(--color-ink-muted)', lineHeight: 1.7 }}>{obra.observacoes}</p>
+              </Card>
+            </div>
           )}
         </div>
       )}
@@ -142,35 +225,35 @@ export default function ObraDetalhe() {
           {tarefas.length > 0 && (
             <div style={{ marginBottom: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--color-ink-muted)', marginBottom: 6 }}>
-                <span>{tarefas.filter(t => t.status === 'concluida').length} de {tarefas.length} concluídas</span>
+                <span>{tarefas.filter(t => t.status === 'concluida').length} de {tarefas.length} concluidas</span>
                 <span style={{ color: 'var(--color-gold)', fontWeight: 600 }}>{progresso}%</span>
               </div>
-              <div style={{ height: 4, background: 'var(--color-border-light)', borderRadius: 2 }}>
-                <div style={{ height: 4, background: 'var(--color-gold)', borderRadius: 2, width: `${progresso}%`, transition: 'width 0.4s' }} />
+              <div style={{ height: 4, background: 'var(--color-border)', borderRadius: 2 }}>
+                <div style={{ height: 4, background: 'var(--color-gold)', borderRadius: 2, width: progresso + '%', transition: 'width 0.4s' }} />
               </div>
             </div>
           )}
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
             <button onClick={() => setShowForm(!showForm)} style={{ background: 'var(--color-ink)', color: '#f9f7f4', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}>
-              {showForm ? '✕ Cancelar' : '+ Nova Tarefa'}
+              {showForm ? 'Cancelar' : '+ Nova Tarefa'}
             </button>
           </div>
           {showForm && (
             <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, padding: 22, marginBottom: 20 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div style={{ gridColumn: '1/-1' }}>
-                  <Label>Título *</Label>
-                  <FInput value={nova.titulo} onChange={v => setNova(p => ({ ...p, titulo: v }))} placeholder="Título da tarefa" />
+                  <Label>Titulo *</Label>
+                  <FInput value={nova.titulo} onChange={v => setNova(p => ({ ...p, titulo: v }))} placeholder="Titulo da tarefa" />
                 </div>
                 <div style={{ gridColumn: '1/-1' }}>
-                  <Label>Descrição</Label>
+                  <Label>Descricao</Label>
                   <textarea value={nova.descricao} onChange={e => setNova(p => ({ ...p, descricao: e.target.value }))} rows={2} style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1px solid #ddd', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }} />
                 </div>
                 <div>
                   <Label>Prioridade</Label>
                   <FSelect value={nova.prioridade} onChange={v => setNova(p => ({ ...p, prioridade: v }))}>
                     <option value="baixa">Baixa</option>
-                    <option value="media">Média</option>
+                    <option value="media">Media</option>
                     <option value="alta">Alta</option>
                   </FSelect>
                 </div>
@@ -179,9 +262,9 @@ export default function ObraDetalhe() {
                   <FInput type="date" value={nova.prazo} onChange={v => setNova(p => ({ ...p, prazo: v }))} />
                 </div>
                 <div style={{ gridColumn: '1/-1' }}>
-                  <Label>Responsável</Label>
+                  <Label>Responsavel</Label>
                   <FSelect value={nova.responsavel_id} onChange={v => setNova(p => ({ ...p, responsavel_id: v }))}>
-                    <option value="">Sem responsável</option>
+                    <option value="">Sem responsavel</option>
                     {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name || p.email}</option>)}
                   </FSelect>
                 </div>
@@ -201,17 +284,12 @@ export default function ObraDetalhe() {
       )}
 
       {aba === 'Checklist' && <AbaChecklist obraId={id} />}
-      {aba === 'Ocorrências' && <AbaOcorrencias obraId={id} />}
-      {aba === 'Gastos' && <AbaGastos obraId={id} />}
+      {aba === 'Ocorrencias' && <AbaOcorrencias obraId={id} />}
+      {aba === 'Gastos' && <AbaGastos obraId={id} obraInfo={obra} />}
       {aba === 'Fotos' && <AbaFotos obraId={id} />}
-      {aba === 'Histórico' && <AbaHistorico obraId={id} />}
+      {aba === 'Historico' && <AbaHistorico obraId={id} />}
+      {aba === 'Chat' && <AbaChat obraId={id} />}
       {aba === 'Cliente' && <AbaCliente obraId={id} />}
-
-      {!['Visão Geral','Tarefas','Checklist','Ocorrências','Gastos','Fotos','Histórico','Cliente'].includes(aba) && (
-        <div style={{ textAlign: 'center', padding: '60px 0', color: '#bbb' }}>
-          <strong style={{ color: 'var(--color-gold)' }}>{aba}</strong> — em desenvolvimento.
-        </div>
-      )}
     </div>
   )
 }
@@ -225,7 +303,7 @@ function AbaChecklist({ obraId }) {
   useEffect(() => { carregar() }, [])
 
   async function carregar() {
-    const { data } = await supabase.from('checklist_items').select('*').eq('obra_id', obraId)
+    const { data } = await supabase.from('checklist_items').select('*').eq('obra_id', obraId).order('created_at')
     setItens(data || [])
     setLoading(false)
   }
@@ -253,25 +331,24 @@ function AbaChecklist({ obraId }) {
             <span>{concluidos} de {itens.length} itens</span>
             <span style={{ color: 'var(--color-gold)', fontWeight: 600 }}>{pct}%</span>
           </div>
-          <div style={{ height: 4, background: 'var(--color-border-light)', borderRadius: 2 }}>
-            <div style={{ height: 4, background: 'var(--color-gold)', borderRadius: 2, width: `${pct}%`, transition: 'width 0.3s' }} />
+          <div style={{ height: 4, background: 'var(--color-border)', borderRadius: 2 }}>
+            <div style={{ height: 4, background: 'var(--color-gold)', borderRadius: 2, width: pct + '%', transition: 'width 0.3s' }} />
           </div>
         </div>
       )}
       <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
-        <input value={novoItem} onChange={e => setNovoItem(e.target.value)} onKeyDown={e => e.key === 'Enter' && adicionar()} placeholder="Novo item do checklist..." style={{ flex: 1, padding: '9px 14px', borderRadius: 8, border: '1px solid var(--color-border)', fontSize: 13, fontFamily: 'inherit' }} />
+        <input value={novoItem} onChange={e => setNovoItem(e.target.value)} onKeyDown={e => e.key === 'Enter' && adicionar()} placeholder="Novo item do checklist..." style={{ flex: 1, padding: '9px 14px', borderRadius: 8, border: '1px solid var(--color-border)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
         <button onClick={adicionar} disabled={salvando} style={{ background: 'var(--color-ink)', color: '#f9f7f4', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 13, cursor: 'pointer' }}>
           + Adicionar
         </button>
       </div>
-      {loading
-        ? <div style={{ color: '#bbb' }}>Carregando...</div>
+      {loading ? <div style={{ color: '#bbb' }}>Carregando...</div>
         : itens.length === 0
           ? <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhum item no checklist.</div>
           : itens.map(item => (
             <div key={item.id} onClick={() => toggle(item)} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 16px', background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, marginBottom: 8, cursor: 'pointer' }}>
-              <div style={{ width: 20, height: 20, borderRadius: 5, border: `2px solid ${item.concluido ? '#5aab6e' : '#ddd'}`, background: item.concluido ? '#5aab6e' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
-                {item.concluido && <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>✓</span>}
+              <div style={{ width: 20, height: 20, borderRadius: 5, border: '2px solid ' + (item.concluido ? '#5aab6e' : '#ddd'), background: item.concluido ? '#5aab6e' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                {item.concluido && <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>v</span>}
               </div>
               <span style={{ fontSize: 13.5, color: item.concluido ? '#aaa' : 'var(--color-ink)', textDecoration: item.concluido ? 'line-through' : 'none' }}>
                 {item.descricao}
@@ -293,7 +370,7 @@ function AbaOcorrencias({ obraId }) {
   useEffect(() => { carregar() }, [])
 
   async function carregar() {
-    const { data } = await supabase.from('ocorrencias').select('*').eq('obra_id', obraId).order('created_at', { ascending: false })
+    const { data } = await supabase.from('ocorrencias').select('*, responsavel:profiles!ocorrencias_responsavel_id_fkey(full_name)').eq('obra_id', obraId).order('created_at', { ascending: false })
     setOcorrencias(data || [])
     setLoading(false)
   }
@@ -313,15 +390,15 @@ function AbaOcorrencias({ obraId }) {
     <div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
         <button onClick={() => setShowForm(!showForm)} style={{ background: 'var(--color-ink)', color: '#f9f7f4', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}>
-          {showForm ? '✕ Cancelar' : '+ Nova Ocorrência'}
+          {showForm ? 'Cancelar' : '+ Nova Ocorrencia'}
         </button>
       </div>
       {showForm && (
         <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, padding: 22, marginBottom: 20 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div style={{ gridColumn: '1/-1' }}>
-              <Label>Título *</Label>
-              <FInput value={nova.titulo} onChange={v => setNova(p => ({ ...p, titulo: v }))} placeholder="Descreva a ocorrência" />
+              <Label>Titulo *</Label>
+              <FInput value={nova.titulo} onChange={v => setNova(p => ({ ...p, titulo: v }))} placeholder="Descreva a ocorrencia" />
             </div>
             <div style={{ gridColumn: '1/-1' }}>
               <Label>Detalhes</Label>
@@ -335,13 +412,14 @@ function AbaOcorrencias({ obraId }) {
                 <option value="dano">Dano</option>
                 <option value="retrabalho">Retrabalho</option>
                 <option value="acesso">Acesso</option>
+                <option value="material">Material faltante</option>
               </FSelect>
             </div>
             <div>
               <Label>Gravidade</Label>
               <FSelect value={nova.gravidade} onChange={v => setNova(p => ({ ...p, gravidade: v }))}>
                 <option value="baixa">Baixa</option>
-                <option value="media">Média</option>
+                <option value="media">Media</option>
                 <option value="alta">Alta</option>
               </FSelect>
             </div>
@@ -353,16 +431,15 @@ function AbaOcorrencias({ obraId }) {
           </div>
         </div>
       )}
-      {loading
-        ? <div style={{ color: '#bbb' }}>Carregando...</div>
+      {loading ? <div style={{ color: '#bbb' }}>Carregando...</div>
         : ocorrencias.length === 0
-          ? <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhuma ocorrência registrada.</div>
+          ? <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhuma ocorrencia registrada.</div>
           : ocorrencias.map(oc => (
-            <div key={oc.id} style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '16px 18px', marginBottom: 10 }}>
+            <div key={oc.id} style={{ background: '#fff', border: '1px solid var(--color-border)', borderLeft: '4px solid ' + (gravCor[oc.gravidade] || '#ccc'), borderRadius: 10, padding: '16px 18px', marginBottom: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: gravCor[oc.gravidade] || '#ccc', flexShrink: 0 }} />
                 <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-ink)' }}>{oc.titulo}</span>
                 <span style={{ fontSize: 10, padding: '2px 9px', borderRadius: 20, background: '#f0ece6', color: '#888', marginLeft: 'auto' }}>{oc.categoria}</span>
+                <span style={{ fontSize: 10, padding: '2px 9px', borderRadius: 20, background: (gravCor[oc.gravidade] || '#ccc') + '22', color: gravCor[oc.gravidade] || '#888' }}>{oc.gravidade}</span>
               </div>
               {oc.descricao && <p style={{ margin: 0, fontSize: 13, color: 'var(--color-ink-muted)', lineHeight: 1.5 }}>{oc.descricao}</p>}
               <div style={{ fontSize: 11, color: '#bbb', marginTop: 8 }}>{new Date(oc.created_at).toLocaleDateString('pt-BR')}</div>
@@ -373,7 +450,7 @@ function AbaOcorrencias({ obraId }) {
   )
 }
 
-function AbaGastos({ obraId }) {
+function AbaGastos({ obraId, obraInfo }) {
   const [gastos, setGastos] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -398,24 +475,44 @@ function AbaGastos({ obraId }) {
   }
 
   const total = gastos.reduce((s, g) => s + (parseFloat(g.valor) || 0), 0)
+  const meta = parseFloat(obraInfo?.gasto_meta) || 0
+  const pctGasto = meta > 0 ? Math.min(Math.round(total / meta * 100), 100) : 0
+  const corGasto = pctGasto >= 90 ? '#d94a4a' : pctGasto >= 70 ? '#b09a7a' : '#5aab6e'
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '12px 20px' }}>
-          <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 4 }}>Total</div>
-          <div style={{ fontSize: 22, fontWeight: 600, color: 'var(--color-ink)' }}>R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: meta > 0 ? '1fr 1fr 1fr' : '1fr auto', gap: 12, marginBottom: 20, alignItems: 'center' }}>
+        <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 20px' }}>
+          <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 4 }}>Total gasto</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-ink)' }}>R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
         </div>
-        <button onClick={() => setShowForm(!showForm)} style={{ background: 'var(--color-ink)', color: '#f9f7f4', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}>
-          {showForm ? '✕ Cancelar' : '+ Novo Gasto'}
-        </button>
+        {meta > 0 && (
+          <>
+            <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 20px' }}>
+              <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 4 }}>Meta / Limite</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-ink)' }}>R$ {meta.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+            </div>
+            <div style={{ background: pctGasto >= 90 ? '#fdecea' : '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 20px' }}>
+              <div style={{ fontSize: 9, letterSpacing: 2, color: pctGasto >= 90 ? '#d94a4a' : 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 4 }}>Utilizado</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: corGasto }}>{pctGasto}%</div>
+              <div style={{ height: 4, background: '#f0ece6', borderRadius: 2, marginTop: 8 }}>
+                <div style={{ height: 4, borderRadius: 2, background: corGasto, width: pctGasto + '%', transition: 'width .3s' }} />
+              </div>
+            </div>
+          </>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button onClick={() => setShowForm(!showForm)} style={{ background: 'var(--color-ink)', color: '#f9f7f4', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 12.5, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            {showForm ? 'Cancelar' : '+ Novo Gasto'}
+          </button>
+        </div>
       </div>
       {showForm && (
         <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, padding: 22, marginBottom: 20 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div style={{ gridColumn: '1/-1' }}>
-              <Label>Descrição *</Label>
-              <FInput value={novo.descricao} onChange={v => setNovo(p => ({ ...p, descricao: v }))} placeholder="Ex: Material de proteção" />
+              <Label>Descricao *</Label>
+              <FInput value={novo.descricao} onChange={v => setNovo(p => ({ ...p, descricao: v }))} placeholder="Ex: Material de protecao" />
             </div>
             <div>
               <Label>Valor (R$) *</Label>
@@ -428,10 +525,14 @@ function AbaGastos({ obraId }) {
             <div style={{ gridColumn: '1/-1' }}>
               <Label>Categoria</Label>
               <FSelect value={novo.categoria} onChange={v => setNovo(p => ({ ...p, categoria: v }))}>
+                <option value="combustivel">Combustivel</option>
+                <option value="pedagio">Pedagio</option>
+                <option value="hospedagem">Hospedagem</option>
+                <option value="alimentacao">Alimentacao</option>
+                <option value="frete">Frete</option>
+                <option value="terceiros">Terceiros</option>
+                <option value="ferragens">Ferragens</option>
                 <option value="material">Material</option>
-                <option value="mao_de_obra">Mão de obra</option>
-                <option value="transporte">Transporte</option>
-                <option value="ferramental">Ferramental</option>
                 <option value="outro">Outro</option>
               </FSelect>
             </div>
@@ -443,15 +544,14 @@ function AbaGastos({ obraId }) {
           </div>
         </div>
       )}
-      {loading
-        ? <div style={{ color: '#bbb' }}>Carregando...</div>
+      {loading ? <div style={{ color: '#bbb' }}>Carregando...</div>
         : gastos.length === 0
           ? <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhum gasto registrado.</div>
           : gastos.map(g => (
             <div key={g.id} style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 18px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 16 }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--color-ink)' }}>{g.descricao}</div>
-                <div style={{ fontSize: 11, color: '#aaa', marginTop: 3 }}>{g.categoria}{g.data ? ` · ${new Date(g.data + 'T00:00:00').toLocaleDateString('pt-BR')}` : ''}</div>
+                <div style={{ fontSize: 11, color: '#aaa', marginTop: 3 }}>{g.categoria}{g.data ? ' · ' + new Date(g.data + 'T00:00:00').toLocaleDateString('pt-BR') : ''}</div>
               </div>
               <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-ink)' }}>
                 R$ {parseFloat(g.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
@@ -463,64 +563,89 @@ function AbaGastos({ obraId }) {
   )
 }
 
-function CardTarefa({ tarefa, onMudarStatus }) {
-  const st = STATUS_TAREFA[tarefa.status] || STATUS_TAREFA.pendente
-  const pr = PRIORIDADE[tarefa.prioridade] || PRIORIDADE.media
-  const [mudando, setMudando] = useState(false)
+function AbaChat({ obraId }) {
+  const { user, profile } = useStore()
+  const [mensagens, setMensagens] = useState([])
+  const [texto, setTexto] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [enviando, setEnviando] = useState(false)
 
-  async function handleStatus(e) {
-    setMudando(true)
-    await onMudarStatus(tarefa.id, e.target.value)
-    setMudando(false)
+  useEffect(() => { carregar() }, [])
+
+  async function carregar() {
+    const { data } = await supabase
+      .from('mensagens_obra')
+      .select('*, autor:profiles(full_name, role)')
+      .eq('obra_id', obraId)
+      .order('created_at', { ascending: true })
+    setMensagens(data || [])
+    setLoading(false)
   }
 
+  async function enviar() {
+    if (!texto.trim()) return
+    setEnviando(true)
+    await supabase.from('mensagens_obra').insert([{
+      obra_id: obraId,
+      user_id: user.id,
+      mensagem: texto.trim(),
+    }])
+    setTexto('')
+    await carregar()
+    setEnviando(false)
+  }
+
+  const ROLE_COR = { gestao: '#3a5580', supervisor: '#3a7d4f', montador: '#b09a7a', cliente: '#888', vendedor: '#9070c0' }
+
   return (
-    <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 18px', display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 10 }}>
-      <div style={{ width: 3, borderRadius: 2, alignSelf: 'stretch', background: pr.color, flexShrink: 0 }} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--color-ink)' }}>{tarefa.titulo}</span>
-          <span style={{ fontSize: 10, padding: '2px 9px', borderRadius: 20, background: st.color + '18', color: st.color, fontWeight: 600 }}>{st.label}</span>
-        </div>
-        {tarefa.descricao && <p style={{ margin: '4px 0 0', fontSize: 12.5, color: 'var(--color-ink-muted)', lineHeight: 1.5 }}>{tarefa.descricao}</p>}
-        <div style={{ display: 'flex', gap: 14, marginTop: 6, flexWrap: 'wrap' }}>
-          {tarefa.prazo && <span style={{ fontSize: 11, color: '#aaa' }}>📅 {new Date(tarefa.prazo + 'T00:00:00').toLocaleDateString('pt-BR')}</span>}
-          {tarefa.responsavel?.full_name && <span style={{ fontSize: 11, color: '#aaa' }}>👤 {tarefa.responsavel.full_name}</span>}
-          <span style={{ fontSize: 11, color: pr.color }}>● {pr.label}</span>
-        </div>
+    <div>
+      <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 16 }}>
+        Chat da obra - visivel para toda a equipe
       </div>
-      <select value={tarefa.status} onChange={handleStatus} disabled={mudando} style={{ fontSize: 11.5, padding: '5px 9px', borderRadius: 7, border: '1px solid #ddd', background: '#fafaf8', color: st.color, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
-        {Object.entries(STATUS_TAREFA).map(([v, { label }]) => <option key={v} value={v}>{label}</option>)}
-      </select>
+      <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, padding: 16, marginBottom: 16, minHeight: 200, maxHeight: 400, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {loading ? (
+          <div style={{ color: '#bbb', fontSize: 13 }}>Carregando...</div>
+        ) : mensagens.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px 0', color: '#bbb', fontSize: 13 }}>
+            Nenhuma mensagem ainda. Seja o primeiro a escrever!
+          </div>
+        ) : mensagens.map(m => {
+          const isMe = m.user_id === user?.id
+          const cor = ROLE_COR[m.autor?.role] || '#888'
+          const initials = (m.autor?.full_name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
+          return (
+            <div key={m.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flexDirection: isMe ? 'row-reverse' : 'row' }}>
+              <div style={{ width: 32, height: 32, borderRadius: '50%', background: cor + '22', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: cor, flexShrink: 0 }}>
+                {initials}
+              </div>
+              <div style={{ maxWidth: '70%' }}>
+                <div style={{ fontSize: 10, color: '#aaa', marginBottom: 3, textAlign: isMe ? 'right' : 'left' }}>
+                  {m.autor?.full_name || 'Usuario'} · {new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                </div>
+                <div style={{ background: isMe ? 'var(--color-ink)' : '#f5f2ee', color: isMe ? '#f9f7f4' : 'var(--color-ink)', borderRadius: isMe ? '12px 12px 2px 12px' : '12px 12px 12px 2px', padding: '10px 14px', fontSize: 13, lineHeight: 1.5 }}>
+                  {m.mensagem}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <input
+          value={texto}
+          onChange={e => setTexto(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && !e.shiftKey && enviar()}
+          placeholder="Escreva uma mensagem..."
+          style={{ flex: 1, padding: '10px 14px', borderRadius: 8, border: '1px solid var(--color-border)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
+        />
+        <button onClick={enviar} disabled={enviando || !texto.trim()} style={{ background: 'var(--color-ink)', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+          {enviando ? '...' : 'Enviar'}
+        </button>
+      </div>
     </div>
   )
 }
 
-function Card({ titulo, children, style = {} }) {
-  return (
-    <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, padding: '20px 24px', ...style }}>
-      <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', fontWeight: 600, marginBottom: 14 }}>{titulo}</div>
-      {children}
-    </div>
-  )
-}
-function Info({ label, value }) {
-  return (
-    <div style={{ marginBottom: 10 }}>
-      <div style={{ fontSize: 10, color: '#aaa', marginBottom: 2 }}>{label}</div>
-      <div style={{ fontSize: 13.5, color: 'var(--color-ink)', fontWeight: 500 }}>{value || '—'}</div>
-    </div>
-  )
-}
-function Label({ children }) {
-  return <div style={{ fontSize: 11, color: '#888', marginBottom: 5, fontWeight: 500 }}>{children}</div>
-}
-function FInput({ onChange, ...props }) {
-  return <input {...props} onChange={e => onChange(e.target.value)} style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1px solid #ddd', fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit' }} />
-}
-function FSelect({ onChange, children, ...props }) {
-  return <select {...props} onChange={e => onChange(e.target.value)} style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1px solid #ddd', fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit', background: '#fff' }}>{children}</select>
-}
 function AbaFotos({ obraId }) {
   const [fotos, setFotos] = useState([])
   const [loading, setLoading] = useState(true)
@@ -540,11 +665,11 @@ function AbaFotos({ obraId }) {
     if (!file) return
     setUploading(true)
     const ext = file.name.split('.').pop()
-    const path = `${obraId}/${Date.now()}.${ext}`
+    const path = obraId + '/' + Date.now() + '.' + ext
     const { error: upErr } = await supabase.storage.from('fotos-obras').upload(path, file)
     if (!upErr) {
       const { data: urlData } = supabase.storage.from('fotos-obras').getPublicUrl(path)
-      await supabase.from('fotos').insert([{ obra_id: obraId, url: urlData.publicUrl, aprovada: false, legenda: file.name }])
+      await supabase.from('fotos').insert([{ obra_id: obraId, url: urlData.publicUrl, aprovada: false, observacao: file.name, storage_path: path }])
       await carregar()
     }
     setUploading(false)
@@ -565,18 +690,18 @@ function AbaFotos({ obraId }) {
     <div>
       {preview && (
         <div onClick={() => setPreview(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out' }}>
-          <img src={preview} style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 8, objectFit: 'contain' }} />
+          <img src={preview} alt="preview" style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 8, objectFit: 'contain' }} />
         </div>
       )}
-
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <div style={{ fontSize: 12, color: 'var(--color-ink-muted)' }}>{fotos.length} foto{fotos.length !== 1 ? 's' : ''} · {fotos.filter(f => f.aprovada).length} aprovada{fotos.filter(f => f.aprovada).length !== 1 ? 's' : ''}</div>
+        <div style={{ fontSize: 12, color: 'var(--color-ink-muted)' }}>
+          {fotos.length} foto{fotos.length !== 1 ? 's' : ''} · {fotos.filter(f => f.aprovada).length} aprovada{fotos.filter(f => f.aprovada).length !== 1 ? 's' : ''}
+        </div>
         <label style={{ background: 'var(--color-ink)', color: '#f9f7f4', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}>
           {uploading ? 'Enviando...' : '+ Upload Foto'}
           <input type="file" accept="image/*" onChange={handleUpload} style={{ display: 'none' }} disabled={uploading} />
         </label>
       </div>
-
       {loading ? <div style={{ color: '#bbb' }}>Carregando...</div>
         : fotos.length === 0
           ? <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhuma foto enviada.</div>
@@ -584,17 +709,17 @@ function AbaFotos({ obraId }) {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 14 }}>
               {fotos.map(foto => (
                 <div key={foto.id} style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>
-                  <div onClick={() => setPreview(foto.url)} style={{ cursor: 'zoom-in', height: 150, overflow: 'hidden' }}>
-                    <img src={foto.url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <div onClick={() => setPreview(foto.url)} style={{ cursor: 'zoom-in', height: 150, overflow: 'hidden', background: '#f5f5f5' }}>
+                    {foto.url && <img src={foto.url} alt={foto.observacao} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
                   </div>
                   <div style={{ padding: '10px 12px' }}>
-                    <div style={{ fontSize: 11, color: 'var(--color-ink-muted)', marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{foto.legenda}</div>
+                    <div style={{ fontSize: 11, color: 'var(--color-ink-muted)', marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{foto.observacao}</div>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button onClick={() => aprovar(foto)} style={{ flex: 1, padding: '5px 0', borderRadius: 6, border: 'none', fontSize: 11, cursor: 'pointer', background: foto.aprovada ? '#edf7f0' : '#f5f5f5', color: foto.aprovada ? '#3a7d4f' : '#888', fontWeight: 500 }}>
-                        {foto.aprovada ? '✓ Aprovada' : 'Aprovar'}
+                        {foto.aprovada ? 'Aprovada' : 'Aprovar'}
                       </button>
                       <button onClick={() => deletar(foto)} style={{ padding: '5px 10px', borderRadius: 6, border: 'none', fontSize: 11, cursor: 'pointer', background: '#fdecea', color: '#a03030' }}>
-                        ✕
+                        X
                       </button>
                     </div>
                   </div>
@@ -605,7 +730,9 @@ function AbaFotos({ obraId }) {
       }
     </div>
   )
-}function AbaHistorico({ obraId }) {
+}
+
+function AbaHistorico({ obraId }) {
   const [historico, setHistorico] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -618,19 +745,19 @@ function AbaFotos({ obraId }) {
   }
 
   if (loading) return <div style={{ color: '#bbb' }}>Carregando...</div>
-  if (historico.length === 0) return <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhum registro no histórico.</div>
+  if (historico.length === 0) return <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhum registro no historico.</div>
 
   return (
     <div style={{ position: 'relative', paddingLeft: 24 }}>
       <div style={{ position: 'absolute', left: 7, top: 0, bottom: 0, width: 2, background: 'var(--color-border)' }} />
-      {historico.map((h, i) => (
+      {historico.map(h => (
         <div key={h.id} style={{ position: 'relative', marginBottom: 20 }}>
           <div style={{ position: 'absolute', left: -21, top: 4, width: 10, height: 10, borderRadius: '50%', background: 'var(--color-gold)', border: '2px solid #fff' }} />
           <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 18px' }}>
             <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--color-ink)', marginBottom: 4 }}>{h.descricao || h.acao || 'Registro'}</div>
             <div style={{ display: 'flex', gap: 14, fontSize: 11, color: '#aaa' }}>
               <span>{new Date(h.created_at).toLocaleDateString('pt-BR')} {new Date(h.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
-              {h.profiles?.full_name && <span>👤 {h.profiles.full_name}</span>}
+              {h.profiles?.full_name && <span>{h.profiles.full_name}</span>}
             </div>
           </div>
         </div>
@@ -638,6 +765,7 @@ function AbaFotos({ obraId }) {
     </div>
   )
 }
+
 function AbaCliente({ obraId }) {
   const [comunicados, setComunicados] = useState([])
   const [contatos, setContatos] = useState([])
@@ -685,34 +813,32 @@ function AbaCliente({ obraId }) {
     await carregar()
   }
 
-  const linkPortal = `${window.location.origin}/cliente/${obraId}`
+  const linkPortal = window.location.origin + '/cliente/' + obraId
 
   return (
     <div>
-      {/* Link portal */}
       <div style={{ background: '#f9f7f4', border: '1px solid var(--color-border)', borderRadius: 12, padding: '16px 20px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 11, color: 'var(--color-gold)', fontWeight: 600, marginBottom: 4 }}>Link do Portal do Cliente</div>
           <div style={{ fontSize: 12, color: 'var(--color-ink-muted)', wordBreak: 'break-all' }}>{linkPortal}</div>
         </div>
-        <button onClick={() => { navigator.clipboard.writeText(linkPortal) }} style={{ background: 'var(--color-ink)', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 12, cursor: 'pointer', flexShrink: 0 }}>
+        <button onClick={() => navigator.clipboard.writeText(linkPortal)} style={{ background: 'var(--color-ink)', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 12, cursor: 'pointer', flexShrink: 0 }}>
           Copiar link
         </button>
       </div>
 
-      {/* Comunicados */}
       <div style={{ marginBottom: 28 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase' }}>Comunicados ao cliente</div>
           <button onClick={() => setShowComForm(!showComForm)} style={{ background: 'var(--color-ink)', color: '#fff', border: 'none', borderRadius: 7, padding: '7px 14px', fontSize: 12, cursor: 'pointer' }}>
-            {showComForm ? '✕' : '+ Comunicado'}
+            {showComForm ? 'Cancelar' : '+ Comunicado'}
           </button>
         </div>
         {showComForm && (
           <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: 18, marginBottom: 14 }}>
             <div style={{ marginBottom: 10 }}>
-              <Label>Título</Label>
-              <FInput value={novoCom.titulo} onChange={v => setNovoCom(p => ({ ...p, titulo: v }))} placeholder="Título do comunicado" />
+              <Label>Titulo</Label>
+              <FInput value={novoCom.titulo} onChange={v => setNovoCom(p => ({ ...p, titulo: v }))} placeholder="Titulo do comunicado" />
             </div>
             <div style={{ marginBottom: 12 }}>
               <Label>Mensagem</Label>
@@ -734,18 +860,17 @@ function AbaCliente({ obraId }) {
                 <div style={{ fontSize: 13, color: 'var(--color-ink-muted)', lineHeight: 1.5 }}>{c.mensagem}</div>
                 <div style={{ fontSize: 11, color: '#bbb', marginTop: 6 }}>{new Date(c.created_at).toLocaleDateString('pt-BR')}</div>
               </div>
-              <button onClick={() => deletarComunicado(c.id)} style={{ background: 'none', border: 'none', color: '#ccc', cursor: 'pointer', fontSize: 16, padding: 4, alignSelf: 'flex-start' }}>✕</button>
+              <button onClick={() => deletarComunicado(c.id)} style={{ background: 'none', border: 'none', color: '#ccc', cursor: 'pointer', fontSize: 16, padding: 4, alignSelf: 'flex-start' }}>X</button>
             </div>
           ))
         }
       </div>
 
-      {/* Contatos */}
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase' }}>Contatos visíveis ao cliente</div>
+          <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase' }}>Contatos visiveis ao cliente</div>
           <button onClick={() => setShowConForm(!showConForm)} style={{ background: 'var(--color-ink)', color: '#fff', border: 'none', borderRadius: 7, padding: '7px 14px', fontSize: 12, cursor: 'pointer' }}>
-            {showConForm ? '✕' : '+ Contato'}
+            {showConForm ? 'Cancelar' : '+ Contato'}
           </button>
         </div>
         {showConForm && (
@@ -769,10 +894,10 @@ function AbaCliente({ obraId }) {
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--color-ink)' }}>{c.nome}</div>
-              <div style={{ fontSize: 11.5, color: '#888' }}>{c.cargo}{c.telefone ? ` · ${c.telefone}` : ''}</div>
+              <div style={{ fontSize: 11.5, color: '#888' }}>{c.cargo}{c.telefone ? ' · ' + c.telefone : ''}</div>
             </div>
             {c.telefone && (
-              <a href={`https://wa.me/55${c.telefone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" style={{ background: '#25D366', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 12px', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+              <a href={'https://wa.me/55' + c.telefone.replace(/[^0-9]/g, '')} target="_blank" rel="noreferrer" style={{ background: '#25D366', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 12px', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
                 WhatsApp
               </a>
             )}
@@ -781,4 +906,63 @@ function AbaCliente({ obraId }) {
       </div>
     </div>
   )
+}
+
+function CardTarefa({ tarefa, onMudarStatus }) {
+  const st = STATUS_TAREFA[tarefa.status] || STATUS_TAREFA.pendente
+  const pr = PRIORIDADE[tarefa.prioridade] || PRIORIDADE.media
+  const [mudando, setMudando] = useState(false)
+
+  async function handleStatus(e) {
+    setMudando(true)
+    await onMudarStatus(tarefa.id, e.target.value)
+    setMudando(false)
+  }
+
+  return (
+    <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 18px', display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 10 }}>
+      <div style={{ width: 3, borderRadius: 2, alignSelf: 'stretch', background: pr.color, flexShrink: 0 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--color-ink)' }}>{tarefa.titulo}</span>
+          <span style={{ fontSize: 10, padding: '2px 9px', borderRadius: 20, background: st.color + '18', color: st.color, fontWeight: 600 }}>{st.label}</span>
+        </div>
+        {tarefa.descricao && <p style={{ margin: '4px 0 0', fontSize: 12.5, color: 'var(--color-ink-muted)', lineHeight: 1.5 }}>{tarefa.descricao}</p>}
+        <div style={{ display: 'flex', gap: 14, marginTop: 6, flexWrap: 'wrap' }}>
+          {tarefa.prazo && <span style={{ fontSize: 11, color: '#aaa' }}>Prazo: {new Date(tarefa.prazo + 'T00:00:00').toLocaleDateString('pt-BR')}</span>}
+          {tarefa.responsavel?.full_name && <span style={{ fontSize: 11, color: '#aaa' }}>{tarefa.responsavel.full_name}</span>}
+          <span style={{ fontSize: 11, color: pr.color }}>{pr.label}</span>
+        </div>
+      </div>
+      <select value={tarefa.status} onChange={handleStatus} disabled={mudando} style={{ fontSize: 11.5, padding: '5px 9px', borderRadius: 7, border: '1px solid #ddd', background: '#fafaf8', color: st.color, fontWeight: 600, cursor: 'pointer', flexShrink: 0, fontFamily: 'inherit' }}>
+        {Object.entries(STATUS_TAREFA).map(([v, { label }]) => <option key={v} value={v}>{label}</option>)}
+      </select>
+    </div>
+  )
+}
+
+function Card({ titulo, children }) {
+  return (
+    <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, padding: '20px 24px' }}>
+      <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', fontWeight: 600, marginBottom: 14 }}>{titulo}</div>
+      {children}
+    </div>
+  )
+}
+function Info({ label, value }) {
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ fontSize: 10, color: '#aaa', marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 13.5, color: 'var(--color-ink)', fontWeight: 500 }}>{value || '-'}</div>
+    </div>
+  )
+}
+function Label({ children }) {
+  return <div style={{ fontSize: 11, color: '#888', marginBottom: 5, fontWeight: 500 }}>{children}</div>
+}
+function FInput({ onChange, ...props }) {
+  return <input {...props} onChange={e => onChange(e.target.value)} style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1px solid #ddd', fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none' }} />
+}
+function FSelect({ onChange, children, ...props }) {
+  return <select {...props} onChange={e => onChange(e.target.value)} style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1px solid #ddd', fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit', background: '#fff' }}>{children}</select>
 }
