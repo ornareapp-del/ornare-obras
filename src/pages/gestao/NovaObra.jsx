@@ -39,6 +39,10 @@ export default function NovaObra() {
     data_previsao: '',
     status: 'Aguardando início',
     observacoes: '',
+    arquiteto_nome: '',
+arquiteto_email: '',
+arquiteto_telefone: '',
+gasto_meta: '',
   })
 
   useEffect(() => {
@@ -92,6 +96,10 @@ export default function NovaObra() {
       status: form.status,
       observacoes: form.observacoes || null,
       progresso: 0,
+      arquiteto_nome: form.arquiteto_nome || null,
+arquiteto_email: form.arquiteto_email || null,
+arquiteto_telefone: form.arquiteto_telefone || null,
+gasto_meta: form.gasto_meta ? parseFloat(form.gasto_meta) : null,
     }]).select().single()
 
     if (error) { setErro(`Erro: ${error.message}`); setSalvando(false); return }
@@ -166,6 +174,24 @@ export default function NovaObra() {
             </Campo>
           </Grid>
         </Secao>
+
+        {/* Arquiteto */}
+<Secao titulo="Arquiteto Responsável">
+  <Grid>
+    <Campo label="Nome do arquiteto">
+      <FInput value={form.arquiteto_nome} onChange={v => set('arquiteto_nome', v)} placeholder="Nome completo" />
+    </Campo>
+    <Campo label="E-mail">
+      <FInput type="email" value={form.arquiteto_email} onChange={v => set('arquiteto_email', v)} placeholder="email@exemplo.com" />
+    </Campo>
+    <Campo label="Telefone">
+      <FInput value={form.arquiteto_telefone} onChange={v => set('arquiteto_telefone', v)} placeholder="(48) 99999-9999" />
+    </Campo>
+    <Campo label="Gasto máximo previsto (R$)">
+      <FInput value={form.gasto_meta} onChange={v => set('gasto_meta', v)} placeholder="0,00" />
+    </Campo>
+  </Grid>
+</Secao>
 
         {/* Endereço */}
         <Secao titulo="Endereço da Obra">
