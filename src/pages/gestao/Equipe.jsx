@@ -41,22 +41,22 @@ function ModalNovoUsuario({ onClose, onSaved }) {
     if (error) { setErro(error.message); setSaving(false); return }
 
     // Cria o profile
-    if (data?.user) {
-      const { error: pe } = await supabase.from('profiles').upsert({
-        id: data.user.id,
+if (data?.user) {
+      await new Promise(r => setTimeout(r, 1500))
+      await supabase.from('profiles').update({
         full_name: form.full_name,
-        email: form.email,
         role: form.role,
         cargo: form.cargo || null,
         telefone: form.telefone || null,
         ativo: true,
-      })
-      if (pe) { setErro(pe.message); setSaving(false); return }
+      }).eq('id', data.user.id)
     }
 
     setOk(true)
     setSaving(false)
   }
+
+  
 
   if (ok) return (
     <div style={ms.bg}>
