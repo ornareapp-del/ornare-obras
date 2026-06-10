@@ -1,71 +1,61 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 
-const ROLES = ['gestao','supervisor','montador','cliente']
-const ROLE_LABEL = { gestao:'Gestão', supervisor:'Supervisor', montador:'Montador', cliente:'Cliente' }
-const ROLE_COLOR = { gestao:'#3a5580', supervisor:'#3a7d4f', montador:'#b09a7a', cliente:'#888' }
+const ROLES = ['gestao','supervisor','montador','vendedor','cliente']
+const ROLE_LABEL = { gestao:'Gestao', supervisor:'Supervisor', montador:'Montador', vendedor:'Vendedor', cliente:'Cliente' }
+const ROLE_COLOR = { gestao:'#3a5580', supervisor:'#3a7d4f', montador:'#b09a7a', vendedor:'#9070c0', cliente:'#888' }
 const ROLE_DESC = {
-  gestao: 'Obras, agenda, equipe e relatórios',
+  gestao: 'Obras, agenda, equipe e relatorios',
   supervisor: 'Obras sob sua responsabilidade',
   montador: 'Tarefas e check-in/check-out',
+  vendedor: 'Acompanhamento comercial das obras',
   cliente: 'Portal do cliente (acesso externo)',
 }
 
 function ModalNovoUsuario({ onClose, onSaved }) {
-  const [form, setForm] = useState({ full_name: '', email: '', senha: '', role: 'montador', cargo: '', telefone: '' })
+  const [form, setForm] = useState({ full_name: '', email: '', senha: '', role: 'montador', cargo: '', telefone: '', supervisor_id: '' })
+  const [supervisores, setSupervisores] = useState([])
   const [saving, setSaving] = useState(false)
   const [erro, setErro] = useState('')
   const [ok, setOk] = useState(false)
 
+  useEffect(() => {
+    supabase.from('profiles').select('id, full_name').eq('role', 'supervisor').then(({ data }) => setSupervisores(data || []))
+  }, [])
+
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
   async function salvar() {
-    if (!form.full_name || !form.email || !form.senha) {
-      setErro('Preencha nome, e-mail e senha.'); return
-    }
-    if (form.senha.length < 6) {
-      setErro('A senha deve ter pelo menos 6 caracteres.'); return
-    }
+    if (!form.full_name || !form.email || !form.senha) { setErro('Preencha nome, e-mail e senha.'); return }
+    if (form.senha.length < 6) { setErro('Senha minima de 6 caracteres.'); return }
     setSaving(true)
     setErro('')
-
-    // Cria via signup normal — funciona sem admin API
     const { data, error } = await supabase.auth.signUp({
       email: form.email,
       password: form.senha,
-      options: {
-        data: { full_name: form.full_name }
-      }
+      options: { data: { full_name: form.full_name } }
     })
-
     if (error) { setErro(error.message); setSaving(false); return }
-
-    // Cria o profile
-if (data?.user) {
+    if (data?.user) {
       await new Promise(r => setTimeout(r, 1500))
       await supabase.from('profiles').update({
         full_name: form.full_name,
         role: form.role,
         cargo: form.cargo || null,
         telefone: form.telefone || null,
+        supervisor_id: form.role === 'montador' ? (form.supervisor_id || null) : null,
         ativo: true,
       }).eq('id', data.user.id)
     }
-
     setOk(true)
     setSaving(false)
   }
 
-  
-
   if (ok) return (
     <div style={ms.bg}>
       <div style={{ ...ms.box, textAlign: 'center', padding: '48px 32px' }}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
-        <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: 24, marginBottom: 8 }}>Usuário criado!</h2>
-        <p style={{ color: '#888', fontSize: 13, marginBottom: 8 }}>
-          <strong>{form.full_name}</strong> já pode acessar o sistema.
-        </p>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>✓</div>
+        <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: 24, marginBottom: 8 }}>Usuario criado!</h2>
         <div style={{ background: '#f0f7ff', borderRadius: 8, padding: '12px 16px', fontSize: 13, marginBottom: 24, textAlign: 'left' }}>
           <div><strong>E-mail:</strong> {form.email}</div>
           <div><strong>Senha:</strong> {form.senha}</div>
@@ -80,41 +70,31 @@ if (data?.user) {
     <div style={ms.bg} onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={ms.box}>
         <div style={ms.header}>
-          <h2 style={ms.title}>Novo Usuário</h2>
-          <button style={ms.close} onClick={onClose}>✕</button>
+          <h2 style={ms.title}>Novo Usuario</h2>
+          <button style={ms.close} onClick={onClose}>X</button>
         </div>
         <div style={ms.body}>
           {erro && <div style={ms.erro}>{erro}</div>}
           <div style={ms.grid}>
             <div style={ms.full}>
               <label style={ms.label}>Nome completo *</label>
-              <input style={ms.input} value={form.full_name}
-                onChange={e => set('full_name', e.target.value)}
-                placeholder="Nome do usuário" />
+              <input style={ms.input} value={form.full_name} onChange={e => set('full_name', e.target.value)} placeholder="Nome do usuario" />
             </div>
             <div>
               <label style={ms.label}>E-mail *</label>
-              <input style={ms.input} type="email" value={form.email}
-                onChange={e => set('email', e.target.value)}
-                placeholder="email@exemplo.com" />
+              <input style={ms.input} type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="email@exemplo.com" />
             </div>
             <div>
               <label style={ms.label}>Senha inicial *</label>
-              <input style={ms.input} type="text" value={form.senha}
-                onChange={e => set('senha', e.target.value)}
-                placeholder="Mínimo 6 caracteres" />
+              <input style={ms.input} type="text" value={form.senha} onChange={e => set('senha', e.target.value)} placeholder="Minimo 6 caracteres" />
             </div>
             <div>
               <label style={ms.label}>Cargo</label>
-              <input style={ms.input} value={form.cargo}
-                onChange={e => set('cargo', e.target.value)}
-                placeholder="Ex: Montador Sênior" />
+              <input style={ms.input} value={form.cargo} onChange={e => set('cargo', e.target.value)} placeholder="Ex: Montador Senior" />
             </div>
             <div>
               <label style={ms.label}>Telefone</label>
-              <input style={ms.input} value={form.telefone}
-                onChange={e => set('telefone', e.target.value)}
-                placeholder="(48) 99999-9999" />
+              <input style={ms.input} value={form.telefone} onChange={e => set('telefone', e.target.value)} placeholder="(48) 99999-9999" />
             </div>
             <div style={ms.full}>
               <label style={ms.label}>Perfil de acesso *</label>
@@ -122,23 +102,30 @@ if (data?.user) {
                 {ROLES.map(r => (
                   <div key={r} onClick={() => set('role', r)} style={{
                     ...ms.roleCard,
-                    border: form.role === r ? `2px solid ${ROLE_COLOR[r]}` : '1px solid #e0dbd4',
+                    border: form.role === r ? '2px solid ' + ROLE_COLOR[r] : '1px solid #e0dbd4',
                     background: form.role === r ? ROLE_COLOR[r] + '12' : '#fafaf8',
                   }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: form.role === r ? ROLE_COLOR[r] : 'var(--color-ink)', marginBottom: 3 }}>
-                      {ROLE_LABEL[r]}
-                    </div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: form.role === r ? ROLE_COLOR[r] : 'var(--color-ink)', marginBottom: 3 }}>{ROLE_LABEL[r]}</div>
                     <div style={{ fontSize: 10, color: '#aaa', lineHeight: 1.4 }}>{ROLE_DESC[r]}</div>
                   </div>
                 ))}
               </div>
             </div>
+            {form.role === 'montador' && supervisores.length > 0 && (
+              <div style={ms.full}>
+                <label style={ms.label}>Supervisor responsavel</label>
+                <select style={ms.input} value={form.supervisor_id} onChange={e => set('supervisor_id', e.target.value)}>
+                  <option value="">-- Selecione --</option>
+                  {supervisores.map(s => <option key={s.id} value={s.id}>{s.full_name}</option>)}
+                </select>
+              </div>
+            )}
           </div>
         </div>
         <div style={ms.footer}>
           <button style={ms.btnCancel} onClick={onClose}>Cancelar</button>
           <button style={ms.btnSave} onClick={salvar} disabled={saving}>
-            {saving ? 'Criando...' : 'Criar Usuário'}
+            {saving ? 'Criando...' : 'Criar Usuario'}
           </button>
         </div>
       </div>
@@ -153,12 +140,14 @@ export default function Equipe() {
   const [editando, setEditando] = useState(null)
   const [salvando, setSalvando] = useState(false)
   const [modal, setModal] = useState(false)
+  const [supervisores, setSupervisores] = useState([])
 
   useEffect(() => { carregar() }, [])
 
   async function carregar() {
     const { data } = await supabase.from('profiles').select('*').order('full_name')
     setProfiles(data || [])
+    setSupervisores((data || []).filter(p => p.role === 'supervisor'))
     setLoading(false)
   }
 
@@ -169,6 +158,7 @@ export default function Equipe() {
       role: editando.role,
       cargo: editando.cargo,
       telefone: editando.telefone,
+      supervisor_id: editando.role === 'montador' ? (editando.supervisor_id || null) : null,
       ativo: editando.ativo,
     }).eq('id', id)
     setEditando(null)
@@ -178,6 +168,12 @@ export default function Equipe() {
 
   async function toggleAtivo(p) {
     await supabase.from('profiles').update({ ativo: !p.ativo }).eq('id', p.id)
+    await carregar()
+  }
+
+  async function excluir(p) {
+    if (!window.confirm('Excluir o usuario ' + p.full_name + '? Esta acao nao pode ser desfeita.')) return
+    await supabase.from('profiles').delete().eq('id', p.id)
     await carregar()
   }
 
@@ -193,15 +189,11 @@ export default function Equipe() {
 
       <div style={s.header}>
         <div>
-          <div style={s.breadcrumb}>Gestão</div>
+          <div style={s.breadcrumb}>Gestao</div>
           <h1 style={s.title}>Equipe</h1>
-          <p style={s.sub}>
-            {profiles.length} membro{profiles.length !== 1 ? 's' : ''} · {profiles.filter(p => p.ativo !== false).length} ativos
-          </p>
+          <p style={s.sub}>{profiles.length} membro{profiles.length !== 1 ? 's' : ''} · {profiles.filter(p => p.ativo !== false).length} ativos</p>
         </div>
-        <button style={s.btnNew} onClick={() => setModal(true)}>
-          + Novo Usuário
-        </button>
+        <button style={s.btnNew} onClick={() => setModal(true)}>+ Novo Usuario</button>
       </div>
 
       <div style={s.filters}>
@@ -211,7 +203,6 @@ export default function Equipe() {
             background: filtro === f ? 'var(--color-ink)' : '#fff',
             color: filtro === f ? '#f9f7f4' : 'var(--color-ink-muted)',
             border: filtro === f ? 'none' : '1px solid var(--color-border)',
-            fontWeight: filtro === f ? 500 : 400,
           }}>
             {f === 'todos' ? 'Todos' : ROLE_LABEL[f]}
           </button>
@@ -224,8 +215,7 @@ export default function Equipe() {
         <div style={s.emptyBox}>
           <div style={s.emptyIcon}>👥</div>
           <div style={s.emptyTitle}>Nenhum membro encontrado</div>
-          <div style={s.emptySub}>Adicione membros à equipe para começar</div>
-          <button style={s.btnNew} onClick={() => setModal(true)}>+ Criar Primeiro Usuário</button>
+          <button style={s.btnNew} onClick={() => setModal(true)}>+ Criar Primeiro Usuario</button>
         </div>
       ) : (
         <div style={s.list}>
@@ -234,6 +224,7 @@ export default function Equipe() {
             const ativo = p.ativo !== false
             const initials = (p.full_name || p.email || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
             const isEditando = editando?.id === p.id
+            const supNome = supervisores.find(s => s.id === p.supervisor_id)?.full_name
 
             return (
               <div key={p.id} style={{ ...s.item, opacity: ativo ? 1 : 0.6 }}>
@@ -242,34 +233,34 @@ export default function Equipe() {
                     <div style={s.editGrid}>
                       <div>
                         <label style={s.label}>Nome</label>
-                        <input style={s.input} value={editando.full_name || ''}
-                          onChange={e => setEditando(ed => ({ ...ed, full_name: e.target.value }))} />
+                        <input style={s.input} value={editando.full_name || ''} onChange={e => setEditando(ed => ({ ...ed, full_name: e.target.value }))} />
                       </div>
                       <div>
                         <label style={s.label}>Cargo</label>
-                        <input style={s.input} value={editando.cargo || ''}
-                          onChange={e => setEditando(ed => ({ ...ed, cargo: e.target.value }))}
-                          placeholder="Ex: Montador Sênior" />
+                        <input style={s.input} value={editando.cargo || ''} onChange={e => setEditando(ed => ({ ...ed, cargo: e.target.value }))} placeholder="Ex: Montador Senior" />
                       </div>
                       <div>
                         <label style={s.label}>Telefone</label>
-                        <input style={s.input} value={editando.telefone || ''}
-                          onChange={e => setEditando(ed => ({ ...ed, telefone: e.target.value }))} />
+                        <input style={s.input} value={editando.telefone || ''} onChange={e => setEditando(ed => ({ ...ed, telefone: e.target.value }))} />
                       </div>
                       <div>
                         <label style={s.label}>Perfil</label>
-                        <select style={s.input} value={editando.role}
-                          onChange={e => setEditando(ed => ({ ...ed, role: e.target.value }))}>
+                        <select style={s.input} value={editando.role} onChange={e => setEditando(ed => ({ ...ed, role: e.target.value }))}>
                           {ROLES.map(r => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
                         </select>
                       </div>
+                      {editando.role === 'montador' && (
+                        <div style={{ gridColumn: '1/-1' }}>
+                          <label style={s.label}>Supervisor responsavel</label>
+                          <select style={s.input} value={editando.supervisor_id || ''} onChange={e => setEditando(ed => ({ ...ed, supervisor_id: e.target.value }))}>
+                            <option value="">-- Selecione --</option>
+                            {supervisores.map(sv => <option key={sv.id} value={sv.id}>{sv.full_name}</option>)}
+                          </select>
+                        </div>
+                      )}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <input type="checkbox" checked={editando.ativo !== false}
-                          onChange={e => setEditando(ed => ({ ...ed, ativo: e.target.checked }))}
-                          id={`ativo-${p.id}`} />
-                        <label htmlFor={`ativo-${p.id}`} style={{ fontSize: 13, color: '#666', cursor: 'pointer' }}>
-                          Usuário ativo
-                        </label>
+                        <input type="checkbox" checked={editando.ativo !== false} onChange={e => setEditando(ed => ({ ...ed, ativo: e.target.checked }))} id={'ativo-' + p.id} />
+                        <label htmlFor={'ativo-' + p.id} style={{ fontSize: 13, color: '#666', cursor: 'pointer' }}>Usuario ativo</label>
                       </div>
                     </div>
                     <div style={s.editActions}>
@@ -283,10 +274,11 @@ export default function Equipe() {
                   <div style={s.itemRow}>
                     <div style={{ ...s.avatar, background: cor + '18', color: cor }}>{initials}</div>
                     <div style={s.itemInfo}>
-                      <div style={s.itemName}>{p.full_name || '—'}</div>
+                      <div style={s.itemName}>{p.full_name || '-'}</div>
                       {p.cargo && <div style={s.itemCargo}>{p.cargo}</div>}
                       <div style={s.itemEmail}>{p.email}</div>
                       {p.telefone && <div style={s.itemEmail}>{p.telefone}</div>}
+                      {supNome && <div style={{ ...s.itemEmail, color: '#3a7d4f' }}>Supervisor: {supNome}</div>}
                       <div style={s.itemBadges}>
                         <span style={{ ...s.badge, background: cor + '18', color: cor }}>{ROLE_LABEL[p.role] || p.role}</span>
                         <span style={{ ...s.badge, background: ativo ? '#edf7f0' : '#f5f5f5', color: ativo ? '#3a7d4f' : '#aaa' }}>
@@ -296,9 +288,11 @@ export default function Equipe() {
                     </div>
                     <div style={s.itemActions}>
                       <button style={s.btnEdit} onClick={() => setEditando({ ...p })}>Editar</button>
-                      <button style={{ ...s.btnEdit, color: ativo ? '#d94a4a' : '#3a7d4f' }}
-                        onClick={() => toggleAtivo(p)}>
+                      <button style={{ ...s.btnEdit, color: ativo ? '#d94a4a' : '#3a7d4f' }} onClick={() => toggleAtivo(p)}>
                         {ativo ? 'Desativar' : 'Ativar'}
+                      </button>
+                      <button style={{ ...s.btnEdit, color: '#d94a4a', borderColor: '#fdecea' }} onClick={() => excluir(p)}>
+                        Excluir
                       </button>
                     </div>
                   </div>
@@ -320,7 +314,7 @@ const s = {
   sub: { fontSize: 13, color: 'var(--color-ink-muted)', marginTop: 4 },
   btnNew: { background: 'var(--color-blue)', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' },
   filters: { display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' },
-  filterBtn: { padding: '6px 16px', borderRadius: 20, fontSize: 12, cursor: 'pointer' },
+  filterBtn: { padding: '6px 16px', borderRadius: 20, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' },
   list: { display: 'flex', flexDirection: 'column', gap: 10 },
   item: { background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, padding: '18px 22px' },
   itemRow: { display: 'flex', alignItems: 'center', gap: 14 },
@@ -331,19 +325,18 @@ const s = {
   itemEmail: { fontSize: 12, color: '#aaa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   itemBadges: { display: 'flex', gap: 6, marginTop: 6 },
   badge: { fontSize: 10, padding: '2px 10px', borderRadius: 20, fontWeight: 600 },
-  itemActions: { display: 'flex', gap: 8, flexShrink: 0 },
-  btnEdit: { background: 'none', border: '1px solid var(--color-border)', borderRadius: 8, padding: '7px 14px', fontSize: 12, cursor: 'pointer', color: 'var(--color-ink-muted)' },
+  itemActions: { display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap' },
+  btnEdit: { background: 'none', border: '1px solid var(--color-border)', borderRadius: 8, padding: '7px 14px', fontSize: 12, cursor: 'pointer', color: 'var(--color-ink-muted)', fontFamily: 'inherit' },
   editGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 },
   editActions: { display: 'flex', gap: 10, justifyContent: 'flex-end' },
   label: { display: 'block', fontSize: 10, letterSpacing: 1.2, textTransform: 'uppercase', color: '#888', marginBottom: 5 },
   input: { width: '100%', border: '1px solid #e0dbd4', borderRadius: 7, padding: '9px 12px', fontSize: 13, fontFamily: 'inherit', background: '#fafaf8', outline: 'none', boxSizing: 'border-box' },
-  btnCancel: { background: 'none', border: '1px solid #e0dbd4', borderRadius: 8, padding: '8px 16px', fontSize: 12, cursor: 'pointer', color: '#888' },
+  btnCancel: { background: 'none', border: '1px solid #e0dbd4', borderRadius: 8, padding: '8px 16px', fontSize: 12, cursor: 'pointer', color: '#888', fontFamily: 'inherit' },
   btnSaveSmall: { background: 'var(--color-blue)', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 20px', fontSize: 12, fontWeight: 600, cursor: 'pointer' },
   empty: { textAlign: 'center', padding: '40px 0', color: '#bbb' },
   emptyBox: { textAlign: 'center', padding: '60px 20px', background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12 },
   emptyIcon: { fontSize: 40, marginBottom: 12 },
-  emptyTitle: { fontSize: 16, fontWeight: 600, color: 'var(--color-ink)', marginBottom: 6 },
-  emptySub: { fontSize: 13, color: '#aaa', marginBottom: 20 },
+  emptyTitle: { fontSize: 16, fontWeight: 600, color: 'var(--color-ink)', marginBottom: 20 },
 }
 
 const ms = {
@@ -361,6 +354,6 @@ const ms = {
   roleCard: { padding: '12px 14px', borderRadius: 10, cursor: 'pointer', transition: 'all .15s' },
   erro: { background: '#fceee9', borderLeft: '3px solid #c4421e', color: '#5c2010', padding: '10px 14px', borderRadius: 6, fontSize: 12, marginBottom: 16 },
   footer: { display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '16px 28px', borderTop: '1px solid #f0ece6', flexShrink: 0 },
-  btnCancel: { background: 'none', border: '1px solid #e0dbd4', borderRadius: 8, padding: '9px 18px', fontSize: 13, cursor: 'pointer', color: '#888' },
+  btnCancel: { background: 'none', border: '1px solid #e0dbd4', borderRadius: 8, padding: '9px 18px', fontSize: 13, cursor: 'pointer', color: '#888', fontFamily: 'inherit' },
   btnSave: { background: 'var(--color-blue)', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
 }
