@@ -15,14 +15,15 @@ import Gastos from './pages/gestao/Gastos'
 import Tarefas from './pages/gestao/Tarefas'
 import PortalCliente from './pages/cliente/PortalCliente'
 import MontadorDashboard from './pages/montador/MontadorDashboard'
-import Splash from './pages/Splash'
 import DashboardSupervisor from './pages/supervisor/DashboardSupervisor'
+import Splash from './pages/Splash'
 
 function RedirectByRole({ user, profile }) {
   if (!user) return <Navigate to="/login" replace />
   if (!profile) return <Navigate to="/dashboard" replace />
   if (profile.role === 'montador') return <Navigate to="/montador" replace />
   if (profile.role === 'supervisor') return <Navigate to="/supervisor" replace />
+  if (profile.role === 'cliente') return <Navigate to={'/cliente/' + profile.obra_id} replace />
   return <Navigate to="/dashboard" replace />
 }
 
@@ -71,17 +72,17 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Públicas */}
+        {/* Publicas */}
         <Route path="/login" element={!user ? <Login /> : <Navigate to="/" replace />} />
         <Route path="/cliente/:id" element={<PortalCliente />} />
 
-        {/* Raiz — redireciona por role */}
+        {/* Raiz - redireciona por role */}
         <Route path="/" element={<RedirectByRole user={user} profile={profile} />} />
 
-        {/* Montador — layout próprio mobile */}
+        {/* Montador - layout proprio mobile */}
         <Route path="/montador" element={<PrivateRoute><MontadorDashboard /></PrivateRoute>} />
 
-        {/* Gestão — layout com sidebar */}
+        {/* Gestao e Supervisor e Vendedor - layout com sidebar */}
         <Route element={<PrivateLayout />}>
           <Route path="/dashboard" element={<DashboardGestao />} />
           <Route path="/supervisor" element={<DashboardSupervisor />} />
