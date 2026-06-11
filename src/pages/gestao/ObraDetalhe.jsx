@@ -210,6 +210,10 @@ export default function ObraDetalhe() {
             <Info label="E-mail" value={obra.arquiteto_email} />
             <Info label="Telefone" value={obra.arquiteto_telefone} />
           </Card>
+          {/* ALOCACAO DE MONTADORES */}
+          <div style={{ gridColumn: '1/-1' }}>
+            <AbaEquipeObra obraId={id} />
+          </div>
           {obra.observacoes && (
             <div style={{ gridColumn: '1/-1' }}>
               <Card titulo="Observacoes internas">
@@ -294,6 +298,8 @@ export default function ObraDetalhe() {
   )
 }
 
+// ─── ABA CHECKLIST ────────────────────────────────────────────────────────────
+
 function AbaChecklist({ obraId }) {
   const [itens, setItens] = useState([])
   const [loading, setLoading] = useState(true)
@@ -359,6 +365,8 @@ function AbaChecklist({ obraId }) {
     </div>
   )
 }
+
+// ─── ABA OCORRENCIAS ──────────────────────────────────────────────────────────
 
 function AbaOcorrencias({ obraId }) {
   const [ocorrencias, setOcorrencias] = useState([])
@@ -449,6 +457,8 @@ function AbaOcorrencias({ obraId }) {
     </div>
   )
 }
+
+// ─── ABA GASTOS ───────────────────────────────────────────────────────────────
 
 function AbaGastos({ obraId, obraInfo }) {
   const [gastos, setGastos] = useState([])
@@ -563,6 +573,8 @@ function AbaGastos({ obraId, obraInfo }) {
   )
 }
 
+// ─── ABA CHAT ─────────────────────────────────────────────────────────────────
+
 function AbaChat({ obraId }) {
   const { user, profile } = useStore()
   const [mensagens, setMensagens] = useState([])
@@ -645,6 +657,8 @@ function AbaChat({ obraId }) {
     </div>
   )
 }
+
+// ─── ABA FOTOS ────────────────────────────────────────────────────────────────
 
 function AbaFotos({ obraId }) {
   const [fotos, setFotos] = useState([])
@@ -732,6 +746,8 @@ function AbaFotos({ obraId }) {
   )
 }
 
+// ─── ABA HISTORICO ────────────────────────────────────────────────────────────
+
 function AbaHistorico({ obraId }) {
   const [historico, setHistorico] = useState([])
   const [loading, setLoading] = useState(true)
@@ -765,6 +781,8 @@ function AbaHistorico({ obraId }) {
     </div>
   )
 }
+
+// ─── ABA CLIENTE ──────────────────────────────────────────────────────────────
 
 function AbaCliente({ obraId }) {
   const [comunicados, setComunicados] = useState([])
@@ -907,6 +925,82 @@ function AbaCliente({ obraId }) {
     </div>
   )
 }
+
+// ─── ABA EQUIPE OBRA (ALOCACAO DE MONTADORES) ─────────────────────────────────
+
+function AbaEquipeObra({ obraId }) {
+  const [montadores, setMontadores] = useState([])
+  const [todos, setTodos] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [adicionando, setAdicionando] = useState(false)
+  const [selecionado, setSelecionado] = useState('')
+
+  useEffect(() => { carregar() }, [])
+
+  async function carregar() {
+    const [{ data: m }, { data: t }] = await Promise.all([
+      supabase.from('obra_montadores')
+        .select('*, montador:profiles!obra_montadores_montador_id_fkey(id, full_name, cargo)')
+        .eq('obra_id', obraId),
+      supabase.from('profiles').select('id, full_name, cargo').eq('role', 'montador').order('full_name'),
+    ])
+    setMontadores(m || [])
+    setTodos(t || [])
+    setLoading(false)
+  }
+
+  async function alocar() {
+    if (!selecionado) return
+    setAdicionando(true)
+    await supabase.from('obra_montadores').upsert({ obra_id: obraId, montador_id: selecionado })
+    setSelecionado('')
+    await carregar()
+    setAdicionando(false)
+  }
+
+  async function remover(montadorId) {
+    await supabase.from('obra_montadores').delete().eq('obra_id', obraId).eq('montador_id', montadorId)
+    await carregar()
+  }
+
+  const naoAlocados = todos.filter(t => !montadores.find(m => m.montador_id === t.id))
+
+  return (
+    <Card titulo="Montadores alocados nesta obra">
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+        <select
+          value={selecionado}
+          onChange={e => setSelecionado(e.target.value)}
+          style={{ flex: 1, padding: '8px 12px', borderRadius: 7, border: '1px solid #ddd', fontSize: 13, fontFamily: 'inherit', background: '#fff' }}>
+          <option value="">-- Selecione montador --</option>
+          {naoAlocados.map(m => <option key={m.id} value={m.id}>{m.full_name}{m.cargo ? ' · ' + m.cargo : ''}</option>)}
+        </select>
+        <button onClick={alocar} disabled={!selecionado || adicionando} style={{ background: 'var(--color-ink)', color: '#fff', border: 'none', borderRadius: 7, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+          {adicionando ? '...' : '+ Alocar'}
+        </button>
+      </div>
+      {loading ? <div style={{ color: '#bbb', fontSize: 13 }}>Carregando...</div>
+        : montadores.length === 0 ? <div style={{ color: '#bbb', fontSize: 13 }}>Nenhum montador alocado.</div>
+        : montadores.map(m => (
+          <div key={m.montador_id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--color-border)' }}>
+            <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#b09a7a22', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#b09a7a' }}>
+              {(m.montador?.full_name || '?')[0].toUpperCase()}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-ink)' }}>{m.montador?.full_name}</div>
+              {m.montador?.cargo && <div style={{ fontSize: 11, color: '#aaa' }}>{m.montador.cargo}</div>}
+            </div>
+            <button onClick={() => remover(m.montador_id)} style={{ background: 'none', border: 'none', color: '#ccc', cursor: 'pointer', fontSize: 13, padding: '4px 8px' }}>
+              Remover
+            </button>
+          </div>
+        ))
+      }
+    </Card>
+  )
+}
+
+// ─── COMPONENTES AUXILIARES ───────────────────────────────────────────────────
 
 function CardTarefa({ tarefa, onMudarStatus }) {
   const st = STATUS_TAREFA[tarefa.status] || STATUS_TAREFA.pendente
