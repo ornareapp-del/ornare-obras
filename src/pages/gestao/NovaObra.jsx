@@ -1,58 +1,62 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { copiarChecklistPadrao } from '../../services/checklistService'
 
 const STATUS_LIST = [
-  'Aguardando início','Medição agendada','Em medição',
-  'Projeto em conferência','Em produção','Pronta para entrega',
-  'Aguardando montagem','Montagem agendada','Em montagem',
-  'Pausada','Vistoria final','Concluída','Cancelada'
+  'Aguardando inicio', 'Medicao agendada', 'Em medicao',
+  'Projeto em conferencia', 'Em producao', 'Pronta para entrega',
+  'Aguardando montagem', 'Montagem agendada', 'Em montagem',
+  'Pausada', 'Vistoria final', 'Concluida', 'Cancelada',
 ]
 
-const AMBIENTES_PADRAO = ['Cozinha','Living','Suíte','Closet','Banheiro','Lavabo','Escritório','Gourmet']
+const AMBIENTES_PADRAO = ['Cozinha', 'Living', 'Suite', 'Closet', 'Banheiro', 'Lavabo', 'Escritorio', 'Gourmet']
+
+const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO']
 
 export default function NovaObra() {
   const navigate = useNavigate()
-  const [salvando, setSalvando] = useState(false)
-  const [erro, setErro] = useState('')
-  const [ambientesSel, setAmbientesSel] = useState([])
-  const [ambienteCustom, setAmbienteCustom] = useState('')
-  const [supervisores, setSupervisores] = useState([])
+  const [salvando,        setSalvando]        = useState(false)
+  const [erro,            setErro]            = useState('')
+  const [ambientesSel,    setAmbientesSel]    = useState([])
+  const [ambienteCustom,  setAmbienteCustom]  = useState('')
+  const [supervisores,    setSupervisores]    = useState([])
   const [form, setForm] = useState({
-    nome: '',
-    numero_contrato: '',
-    pedido_ornare: '',
-    cliente_nome: '',
-    cliente_email: '',
-    cliente_telefone: '',
-    rua: '',
-    numero: '',
-    complemento: '',
-    bairro: '',
-    cidade: '',
-    uf: '',
-    cep: '',
-    supervisor_id: '',
-    comercial_nome: '',
-    valor_contrato: '',
-    data_inicio: '',
-    data_previsao: '',
-    status: 'Aguardando início',
-    observacoes: '',
-    arquiteto_nome: '',
-arquiteto_email: '',
-arquiteto_telefone: '',
-gasto_meta: '',
-executivista_nome: '',
-comercial_id: '',
+    nome:              '',
+    numero_contrato:   '',
+    pedido_ornare:     '',
+    cliente_nome:      '',
+    cliente_email:     '',
+    cliente_telefone:  '',
+    rua:               '',
+    numero:            '',
+    complemento:       '',
+    bairro:            '',
+    cidade:            '',
+    uf:                '',
+    cep:               '',
+    supervisor_id:     '',
+    comercial_id:      '',
+    comercial_nome:    '',
+    executivista_nome: '',
+    arquiteto_nome:    '',
+    arquiteto_email:   '',
+    arquiteto_telefone:'',
+    valor_contrato:    '',
+    gasto_meta:        '',
+    data_inicio:       '',
+    data_previsao:     '',
+    status:            'Aguardando inicio',
+    observacoes:       '',
   })
 
-useEffect(() => {
-  supabase.from('profiles')
-    .select('id, full_name, role')
-    .in('role', ['gestao', 'supervisor'])
-    .then(({ data }) => setSupervisores(data || []))
-}, [])
+  useEffect(() => {
+    supabase.from('profiles')
+      .select('id, full_name, role')
+      .in('role', ['gestao', 'supervisor', 'vendedor'])
+      .order('full_name')
+      .then(({ data }) => setSupervisores(data || []))
+  }, [])
 
   function set(k, v) { setForm(p => ({ ...p, [k]: v })) }
 
@@ -67,8 +71,8 @@ useEffect(() => {
   }
 
   async function salvar() {
-    if (!form.nome.trim()) { setErro('Nome da obra é obrigatório.'); return }
-    if (!form.cliente_nome.trim()) { setErro('Nome do cliente é obrigatório.'); return }
+    if (!form.nome.trim())        { setErro('Nome da obra e obrigatorio.');    return }
+    if (!form.cliente_nome.trim()) { setErro('Nome do cliente e obrigatorio.'); return }
     setErro('')
     setSalvando(true)
 
@@ -76,43 +80,47 @@ useEffect(() => {
       .filter(Boolean).join(', ')
 
     const { data, error } = await supabase.from('obras').insert([{
-      nome: form.nome,
-      numero_contrato: form.numero_contrato || null,
-      pedido_ornare: form.pedido_ornare || null,
-      cliente_nome: form.cliente_nome,
-      cliente_email: form.cliente_email || null,
-      cliente_telefone: form.cliente_telefone || null,
-      endereco: endereco_completo || null,
-      rua: form.rua || null,
-      numero: form.numero || null,
-      complemento: form.complemento || null,
-      bairro: form.bairro || null,
-      cidade: form.cidade || null,
-      uf: form.uf || null,
-      cep: form.cep || null,
-      supervisor_id: form.supervisor_id || null,
-      comercial_nome: form.comercial_nome || null,
-      valor_contrato: form.valor_contrato ? parseFloat(form.valor_contrato) : null,
-      data_inicio: form.data_inicio || null,
-      data_previsao: form.data_previsao || null,
-      status: form.status,
-      observacoes: form.observacoes || null,
-      progresso: 0,
-      arquiteto_nome: form.arquiteto_nome || null,
-arquiteto_email: form.arquiteto_email || null,
-arquiteto_telefone: form.arquiteto_telefone || null,
-gasto_meta: form.gasto_meta ? parseFloat(form.gasto_meta) : null,
-executivista_nome: form.executivista_nome || null,
-comercial_id: form.comercial_id || null,
+      nome:              form.nome,
+      numero_contrato:   form.numero_contrato   || null,
+      pedido_ornare:     form.pedido_ornare     || null,
+      cliente_nome:      form.cliente_nome,
+      cliente_email:     form.cliente_email     || null,
+      cliente_telefone:  form.cliente_telefone  || null,
+      endereco:          endereco_completo       || null,
+      rua:               form.rua               || null,
+      numero:            form.numero             || null,
+      complemento:       form.complemento        || null,
+      bairro:            form.bairro             || null,
+      cidade:            form.cidade             || null,
+      uf:                form.uf                 || null,
+      cep:               form.cep                || null,
+      supervisor_id:     form.supervisor_id      || null,
+      comercial_id:      form.comercial_id       || null,
+      comercial_nome:    form.comercial_nome     || null,
+      executivista_nome: form.executivista_nome  || null,
+      arquiteto_nome:    form.arquiteto_nome     || null,
+      arquiteto_email:   form.arquiteto_email    || null,
+      arquiteto_telefone:form.arquiteto_telefone || null,
+      valor_contrato:    form.valor_contrato  ? parseFloat(form.valor_contrato)  : null,
+      gasto_meta:        form.gasto_meta      ? parseFloat(form.gasto_meta)      : null,
+      data_inicio:       form.data_inicio     || null,
+      data_previsao:     form.data_previsao   || null,
+      status:            form.status,
+      observacoes:       form.observacoes     || null,
+      progresso:         0,
     }]).select().single()
 
     if (error) { setErro(`Erro: ${error.message}`); setSalvando(false); return }
 
+    // ── ambientes
     if (ambientesSel.length > 0) {
       await supabase.from('obra_ambientes').insert(
         ambientesSel.map((nome, i) => ({ obra_id: data.id, nome, ordem: i, status: 'nao_iniciado' }))
       )
     }
+
+    // ── copiar checklist padrao automaticamente
+    await copiarChecklistPadrao(data.id)
 
     setSalvando(false)
     navigate(`/obras/${data.id}`)
@@ -121,9 +129,9 @@ comercial_id: form.comercial_id || null,
   return (
     <div style={s.page}>
       <div style={s.header}>
-        <button style={s.back} onClick={() => navigate('/obras')}>← Obras</button>
+        <button style={s.back} onClick={() => navigate('/obras')}>Obras</button>
         <div>
-          <div style={s.breadcrumb}>Gestão</div>
+          <div style={s.breadcrumb}>Gestao</div>
           <h1 style={s.title}>Nova Obra</h1>
         </div>
       </div>
@@ -132,13 +140,13 @@ comercial_id: form.comercial_id || null,
 
       <div style={s.sections}>
 
-        {/* Identificação */}
-        <Secao titulo="Identificação da Obra">
+        {/* ── Identificacao ───────────────────────────────────────────────── */}
+        <Secao titulo="Identificacao da Obra">
           <Grid>
             <Campo label="Nome da obra *" full>
-              <FInput value={form.nome} onChange={v => set('nome', v)} placeholder="Ex: Suíte Master — Res. Alves" />
+              <FInput value={form.nome} onChange={v => set('nome', v)} placeholder="Ex: Suite Master — Res. Alves" />
             </Campo>
-            <Campo label="Número do Contrato">
+            <Campo label="Numero do Contrato">
               <FInput value={form.numero_contrato} onChange={v => set('numero_contrato', v)} placeholder="Ex: 078/2026" />
             </Campo>
             <Campo label="Pedido Ornare">
@@ -146,25 +154,27 @@ comercial_id: form.comercial_id || null,
             </Campo>
             <Campo label="Status">
               <FSelect value={form.status} onChange={v => set('status', v)}>
-                {STATUS_LIST.map(s => <option key={s} value={s}>{s}</option>)}
+                {STATUS_LIST.map(st => <option key={st} value={st}>{st}</option>)}
               </FSelect>
             </Campo>
-            <Campo label="Supervisor responsável">
+            <Campo label="Supervisor responsavel">
               <FSelect value={form.supervisor_id} onChange={v => set('supervisor_id', v)}>
                 <option value="">— Selecione —</option>
-                {supervisores.map(s => <option key={s.id} value={s.id}>{s.full_name}</option>)}
+                {supervisores.filter(p => ['gestao','supervisor'].includes(p.role)).map(p => (
+                  <option key={p.id} value={p.id}>{p.full_name}</option>
+                ))}
               </FSelect>
+            </Campo>
+            <Campo label="Executivista">
+              <FInput value={form.executivista_nome} onChange={v => set('executivista_nome', v)} placeholder="Nome do executivista" />
+            </Campo>
+            <Campo label="Gasto maximo previsto (R$)">
+              <FInput type="number" value={form.gasto_meta} onChange={v => set('gasto_meta', v)} placeholder="0,00" />
             </Campo>
           </Grid>
         </Secao>
-        <Campo label="Executivista">
-  <FInput value={form.executivista_nome} onChange={v => set('executivista_nome', v)} placeholder="Nome do executivista" />
-</Campo>
-<Campo label="Gasto máximo previsto (R$)">
-  <FInput value={form.gasto_meta} onChange={v => set('gasto_meta', v)} placeholder="0,00" />
-</Campo>
 
-        {/* Cliente */}
+        {/* ── Cliente ─────────────────────────────────────────────────────── */}
         <Secao titulo="Dados do Cliente">
           <Grid>
             <Campo label="Nome do cliente *" full>
@@ -176,38 +186,37 @@ comercial_id: form.comercial_id || null,
             <Campo label="Telefone">
               <FInput value={form.cliente_telefone} onChange={v => set('cliente_telefone', v)} placeholder="(48) 99999-9999" />
             </Campo>
-            <Campo label="Comercial responsável">
-  <FSelect value={form.comercial_id} onChange={v => set('comercial_id', v)}>
-    <option value="">— Selecione —</option>
-    {supervisores.map(s => <option key={s.id} value={s.id}>{s.full_name}</option>)}
-  </FSelect>
-</Campo>
+            <Campo label="Comercial responsavel">
+              <FSelect value={form.comercial_id} onChange={v => set('comercial_id', v)}>
+                <option value="">— Selecione —</option>
+                {supervisores.map(p => (
+                  <option key={p.id} value={p.id}>{p.full_name}</option>
+                ))}
+              </FSelect>
+            </Campo>
             <Campo label="Valor do contrato (R$)">
-              <FInput value={form.valor_contrato} onChange={v => set('valor_contrato', v)} placeholder="0,00" />
+              <FInput type="number" value={form.valor_contrato} onChange={v => set('valor_contrato', v)} placeholder="0,00" />
             </Campo>
           </Grid>
         </Secao>
 
-        {/* Arquiteto */}
-<Secao titulo="Arquiteto Responsável">
-  <Grid>
-    <Campo label="Nome do arquiteto">
-      <FInput value={form.arquiteto_nome} onChange={v => set('arquiteto_nome', v)} placeholder="Nome completo" />
-    </Campo>
-    <Campo label="E-mail">
-      <FInput type="email" value={form.arquiteto_email} onChange={v => set('arquiteto_email', v)} placeholder="email@exemplo.com" />
-    </Campo>
-    <Campo label="Telefone">
-      <FInput value={form.arquiteto_telefone} onChange={v => set('arquiteto_telefone', v)} placeholder="(48) 99999-9999" />
-    </Campo>
-    <Campo label="Gasto máximo previsto (R$)">
-      <FInput value={form.gasto_meta} onChange={v => set('gasto_meta', v)} placeholder="0,00" />
-    </Campo>
-  </Grid>
-</Secao>
+        {/* ── Arquiteto ───────────────────────────────────────────────────── */}
+        <Secao titulo="Arquiteto Responsavel">
+          <Grid>
+            <Campo label="Nome do arquiteto">
+              <FInput value={form.arquiteto_nome} onChange={v => set('arquiteto_nome', v)} placeholder="Nome completo" />
+            </Campo>
+            <Campo label="E-mail">
+              <FInput type="email" value={form.arquiteto_email} onChange={v => set('arquiteto_email', v)} placeholder="email@exemplo.com" />
+            </Campo>
+            <Campo label="Telefone">
+              <FInput value={form.arquiteto_telefone} onChange={v => set('arquiteto_telefone', v)} placeholder="(48) 99999-9999" />
+            </Campo>
+          </Grid>
+        </Secao>
 
-        {/* Endereço */}
-        <Secao titulo="Endereço da Obra">
+        {/* ── Endereco ────────────────────────────────────────────────────── */}
+        <Secao titulo="Endereco da Obra">
           <Grid>
             <Campo label="CEP">
               <FInput value={form.cep} onChange={v => set('cep', v)} placeholder="00000-000" />
@@ -215,7 +224,7 @@ comercial_id: form.comercial_id || null,
             <Campo label="Rua / Logradouro">
               <FInput value={form.rua} onChange={v => set('rua', v)} placeholder="Rua, Avenida..." />
             </Campo>
-            <Campo label="Número">
+            <Campo label="Numero">
               <FInput value={form.numero} onChange={v => set('numero', v)} placeholder="Ex: 340" />
             </Campo>
             <Campo label="Complemento">
@@ -230,35 +239,33 @@ comercial_id: form.comercial_id || null,
             <Campo label="UF">
               <FSelect value={form.uf} onChange={v => set('uf', v)}>
                 <option value="">—</option>
-                {['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(u => (
-                  <option key={u} value={u}>{u}</option>
-                ))}
+                {UFS.map(u => <option key={u} value={u}>{u}</option>)}
               </FSelect>
             </Campo>
           </Grid>
         </Secao>
 
-        {/* Cronograma */}
+        {/* ── Cronograma ──────────────────────────────────────────────────── */}
         <Secao titulo="Cronograma">
           <Grid>
-            <Campo label="Data de início">
+            <Campo label="Data de inicio">
               <FInput type="date" value={form.data_inicio} onChange={v => set('data_inicio', v)} />
             </Campo>
-            <Campo label="Previsão de término">
+            <Campo label="Previsao de termino">
               <FInput type="date" value={form.data_previsao} onChange={v => set('data_previsao', v)} />
             </Campo>
           </Grid>
         </Secao>
 
-        {/* Ambientes */}
+        {/* ── Ambientes ───────────────────────────────────────────────────── */}
         <Secao titulo="Ambientes">
           <div style={s.ambienteGrid}>
             {AMBIENTES_PADRAO.map(a => (
               <div key={a} onClick={() => toggleAmbiente(a)} style={{
                 ...s.ambienteTag,
                 background: ambientesSel.includes(a) ? 'var(--color-ink)' : '#fff',
-                color: ambientesSel.includes(a) ? '#f9f7f4' : 'var(--color-ink-muted)',
-                border: ambientesSel.includes(a) ? 'none' : '1px solid var(--color-border)',
+                color:      ambientesSel.includes(a) ? '#f9f7f4' : 'var(--color-ink-muted)',
+                border:     ambientesSel.includes(a) ? 'none' : '1px solid var(--color-border)',
               }}>
                 {a}
               </div>
@@ -266,7 +273,7 @@ comercial_id: form.comercial_id || null,
           </div>
           {ambientesSel.filter(a => !AMBIENTES_PADRAO.includes(a)).map(a => (
             <div key={a} style={{ ...s.ambienteTag, background: 'var(--color-ink)', color: '#f9f7f4', border: 'none', display: 'inline-flex', marginRight: 6, marginTop: 6 }}>
-              {a} <span style={{ marginLeft: 6, cursor: 'pointer' }} onClick={() => toggleAmbiente(a)}>×</span>
+              {a} <span style={{ marginLeft: 6, cursor: 'pointer' }} onClick={() => toggleAmbiente(a)}>x</span>
             </div>
           ))}
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
@@ -275,13 +282,13 @@ comercial_id: form.comercial_id || null,
           </div>
         </Secao>
 
-        {/* Observações */}
-        <Secao titulo="Observações Internas">
+        {/* ── Observacoes ─────────────────────────────────────────────────── */}
+        <Secao titulo="Observacoes Internas">
           <textarea
             value={form.observacoes}
             onChange={e => set('observacoes', e.target.value)}
-            placeholder="Informações adicionais, acessos, contatos extras..."
-            style={{ ...s.textarea }} />
+            placeholder="Informacoes adicionais, acessos, contatos extras..."
+            style={s.textarea} />
         </Secao>
 
       </div>
@@ -289,12 +296,14 @@ comercial_id: form.comercial_id || null,
       <div style={s.footer}>
         <button style={s.btnCancel} onClick={() => navigate('/obras')}>Cancelar</button>
         <button style={s.btnSave} onClick={salvar} disabled={salvando}>
-          {salvando ? 'Salvando...' : '✓ Criar Obra'}
+          {salvando ? 'Salvando...' : 'Criar Obra'}
         </button>
       </div>
     </div>
   )
 }
+
+// ─── COMPONENTES AUXILIARES ───────────────────────────────────────────────────
 
 function Secao({ titulo, children }) {
   return (
@@ -316,25 +325,27 @@ function Campo({ label, children, full }) {
   )
 }
 function FInput({ onChange, ...props }) {
-  return <input {...props} onChange={e => onChange(e.target.value)} style={{ width: '100%', padding: '8px 12px', borderRadius: 7, border: '1px solid var(--color-border)', fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit', color: 'var(--color-ink)', background: '#fafaf8' }} />
+  return <input {...props} onChange={e => onChange(e.target.value)} style={{ width: '100%', padding: '8px 12px', borderRadius: 7, border: '1px solid var(--color-border)', fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit', color: 'var(--color-ink)', background: '#fafaf8', outline: 'none' }} />
 }
 function FSelect({ onChange, children, ...props }) {
   return <select {...props} onChange={e => onChange(e.target.value)} style={{ width: '100%', padding: '8px 12px', borderRadius: 7, border: '1px solid var(--color-border)', fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit', color: 'var(--color-ink)', background: '#fafaf8' }}>{children}</select>
 }
 
+// ─── ESTILOS ──────────────────────────────────────────────────────────────────
+
 const s = {
-  page: { padding: '32px 40px', maxWidth: 800, margin: '0 auto' },
-  header: { marginBottom: 28 },
-  back: { background: 'none', border: 'none', fontSize: 12, color: '#888', cursor: 'pointer', padding: 0, marginBottom: 12 },
-  breadcrumb: { fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6 },
-  title: { fontFamily: 'var(--font-serif)', fontSize: 36, fontWeight: 500, color: 'var(--color-ink)', margin: 0 },
-  sections: { display: 'flex', flexDirection: 'column', gap: 16 },
-  erro: { background: '#fceee9', borderLeft: '3px solid #c4421e', color: '#5c2010', padding: '10px 14px', borderRadius: 6, fontSize: 12, marginBottom: 16 },
+  page:         { padding: '32px 40px', maxWidth: 800, margin: '0 auto' },
+  header:       { marginBottom: 28 },
+  back:         { background: 'none', border: 'none', fontSize: 12, color: '#888', cursor: 'pointer', padding: 0, marginBottom: 12 },
+  breadcrumb:   { fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6 },
+  title:        { fontFamily: 'var(--font-serif)', fontSize: 36, fontWeight: 500, color: 'var(--color-ink)', margin: 0 },
+  sections:     { display: 'flex', flexDirection: 'column', gap: 16 },
+  erro:         { background: '#fceee9', borderLeft: '3px solid #c4421e', color: '#5c2010', padding: '10px 14px', borderRadius: 6, fontSize: 12, marginBottom: 16 },
   ambienteGrid: { display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
-  ambienteTag: { padding: '6px 14px', borderRadius: 20, fontSize: 12, cursor: 'pointer', transition: 'all .15s' },
-  textarea: { width: '100%', border: '1px solid var(--color-border)', borderRadius: 8, padding: '10px 12px', fontSize: 13, fontFamily: 'inherit', color: 'var(--color-ink)', background: '#fafaf8', height: 80, resize: 'vertical', boxSizing: 'border-box' },
-  btnAdd: { background: 'var(--color-ink)', color: '#f9f7f4', border: 'none', borderRadius: 7, padding: '8px 14px', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' },
-  footer: { display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--color-border)' },
-  btnCancel: { background: 'none', border: '1px solid var(--color-border)', borderRadius: 8, padding: '10px 20px', fontSize: 13, cursor: 'pointer', color: '#888' },
-  btnSave: { background: 'var(--color-blue)', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
+  ambienteTag:  { padding: '6px 14px', borderRadius: 20, fontSize: 12, cursor: 'pointer', transition: 'all .15s' },
+  textarea:     { width: '100%', border: '1px solid var(--color-border)', borderRadius: 8, padding: '10px 12px', fontSize: 13, fontFamily: 'inherit', color: 'var(--color-ink)', background: '#fafaf8', height: 80, resize: 'vertical', boxSizing: 'border-box' },
+  btnAdd:       { background: 'var(--color-ink)', color: '#f9f7f4', border: 'none', borderRadius: 7, padding: '8px 14px', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' },
+  footer:       { display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--color-border)' },
+  btnCancel:    { background: 'none', border: '1px solid var(--color-border)', borderRadius: 8, padding: '10px 20px', fontSize: 13, cursor: 'pointer', color: '#888' },
+  btnSave:      { background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
 }
