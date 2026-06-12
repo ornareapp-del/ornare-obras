@@ -1,62 +1,33 @@
 import { supabase } from '../lib/supabase'
 
-export const tarefasService = {
-  async listarPorObra(obraId) {
-    const { data, error } = await supabase
-      .from('tarefas')
-      .select(`
-        *,
-        responsavel:profiles(id, full_name, email)
-      `)
-      .eq('obra_id', obraId)
-      .order('created_at', { ascending: false })
+/**
+ * Copia todos os itens do checklist_padrao para checklist_items de uma obra.
+ * Deve ser chamado logo apos a criacao da obra.
+ *
+ * @param {string} obraId - UUID da obra recem criada
+ * @returns {Promise<{ count: number, error: any }>}
+ */
+export async function copiarChecklistPadrao(obraId) {
+  // busca itens padrao ordenados
+  const { data: itens, error: errBusca } = await supabase
+    .from('checklist_padrao')
+    .select('descricao, ordem')
+    .order('ordem', { ascending: true })
 
-    if (error) throw error
-    return data
-  },
-
-  async criar(tarefa) {
-    const { data, error } = await supabase
-      .from('tarefas')
-      .insert([tarefa])
-      .select()
-      .single()
-
-    if (error) throw error
-    return data
-  },
-
-  async atualizarStatus(id, status) {
-    const { data, error } = await supabase
-      .from('tarefas')
-      .update({ status })
-      .eq('id', id)
-      .select()
-      .single()
-
-    if (error) throw error
-    return data
-  },
-
-  async deletar(id) {
-    const { error } = await supabase
-      .from('tarefas')
-      .delete()
-      .eq('id', id)
-
-    if (error) throw error
-  },
-
-  async calcularProgresso(obraId) {
-    const { data, error } = await supabase
-      .from('tarefas')
-      .select('status')
-      .eq('obra_id', obraId)
-
-    if (error) throw error
-    if (!data || data.length === 0) return 0
-
-    const concluidas = data.filter(t => t.status === 'concluida').length
-    return Math.round((concluidas / data.length) * 100)
+  if (errBusca || !itens || itens.length === 0) {
+    return { count: 0, error: errBusca }
   }
+
+  const rows = itens.map(item => ({
+    obra_id:   obraId,
+    descricao: item.descricao,
+    concluido: false,
+    ordem:     item.ordem ?? 0,
+  }))
+
+  const { error: errInsert } = await supabase
+    .from('checklist_items')
+    .insert(rows)
+
+  return { count: rows.length, error: errInsert }
 }
