@@ -1,63 +1,51 @@
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-/* ─── GOOGLE FONTS ──────────────────────────────────────────────────────────── */
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:wght@300;400;500;600&display=swap');
 
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
 :root {
-  /* ── Paleta principal ───────────────────────────────────────────────────── */
-  --gold:            #C8A86A;   /* dourado principal — era #B8963E, mais rico */
+  --gold:            #C8A86A;
   --gold-light:      #DFC48A;
   --gold-pale:       #F5EDD8;
   --gold-muted:      rgba(200,168,106,0.15);
 
-  /* Fundos */
-  --sand:            #F5F2EE;   /* fundo geral de conteudo — era #FAF7F2 */
+  --sand:            #F5F2EE;
   --fendi:           #EDE9E3;
   --off-white:       #FDFCFA;
   --white:           #FFFFFF;
 
-  /* Sidebar */
-  --sidebar-bg:      #1A1A18;   /* grafite quente — novo */
+  --sidebar-bg:      #1A1A18;
   --sidebar-active:  rgba(200,168,106,0.14);
   --sidebar-border:  rgba(200,168,106,0.10);
 
-  /* Texto */
-  --graphite:        #1A1A18;   /* text-primary — harmoniza com sidebar */
+  --graphite:        #1A1A18;
   --graphite-mid:    #5C5A54;
   --graphite-light:  #9C9A94;
 
-  /* Bordas */
   --border:          #E4DED5;
   --border-light:    #EDE9E3;
 
-  /* Semanticas */
-  --red:             #B84040;   /* dessaturado — mais sofisticado que #C4421E */
+  --red:             #B84040;
   --green:           #2D7A4A;
-  --blue:            #3B6FD4;   /* mantido para compatibilidade pontual */
+  --blue:            #3B6FD4;
 
-  /* Sombras */
   --shadow:          0 2px 16px rgba(26,24,20,0.08);
   --shadow-md:       0 4px 24px rgba(26,24,20,0.12);
 
-  /* Radii */
   --radius:          10px;
   --radius-sm:       6px;
   --radius-lg:       14px;
 
-  /* ── CSS vars usadas pelos componentes JSX ──────────────────────────────── */
   --color-bg:        var(--sand);
   --color-ink:       var(--graphite);
   --color-ink-muted: var(--graphite-mid);
   --color-gold:      var(--gold);
   --color-border:    var(--border);
-  --color-blue:      var(--blue);          /* legacy — preferir --color-gold em novos CTAs */
+  --color-blue:      var(--blue);
 
-  /* Fontes */
   --font-serif:      'Cormorant Garamond', Georgia, serif;
   --font-sans:       'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-/* ─── BASE ───────────────────────────────────────────────────────────────────── */
 body {
   font-family: var(--font-sans);
   background: var(--sand);
@@ -81,19 +69,16 @@ a {
   text-decoration: none;
 }
 
-/* ─── SCROLLBAR ──────────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar          { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track    { background: transparent; }
 ::-webkit-scrollbar-thumb    { background: var(--border); border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--graphite-light); }
 
-/* ─── FOCUS RING ACESSIVEL ───────────────────────────────────────────────────── */
 :focus-visible {
   outline: 2px solid var(--gold);
   outline-offset: 2px;
 }
 
-/* ─── SELECAO DE TEXTO ───────────────────────────────────────────────────────── */
 ::selection {
   background: var(--gold-pale);
   color: var(--graphite);
