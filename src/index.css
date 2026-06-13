@@ -1,45 +1,100 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* ─── GOOGLE FONTS ──────────────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:wght@300;400;500;600&display=swap');
+
 :root {
-  --gold: #B8963E;
-  --gold-light: #D4AF6A;
-  --gold-pale: #F5EDD8;
-  --sand: #FAF7F2;
-  --fendi: #F0EBE1;
-  --off-white: #FDFCFA;
-  --graphite: #2C2B28;
-  --graphite-mid: #5C5A54;
-  --graphite-light: #9C9A94;
-  --border: #E8E3D8;
-  --border-light: #F0ECE4;
-  --white: #FFFFFF;
-  --red: #C4421E;
-  --green: #2D7A4A;
-  --blue: #2B6AC4;
-  --shadow: 0 2px 16px rgba(44,43,40,0.07);
-  --radius: 10px;
-  --radius-sm: 6px;
-  --radius-lg: 14px;
-  --color-blue: #3B6FD4;
+  /* ── Paleta principal ───────────────────────────────────────────────────── */
+  --gold:            #C8A86A;   /* dourado principal — era #B8963E, mais rico */
+  --gold-light:      #DFC48A;
+  --gold-pale:       #F5EDD8;
+  --gold-muted:      rgba(200,168,106,0.15);
+
+  /* Fundos */
+  --sand:            #F5F2EE;   /* fundo geral de conteudo — era #FAF7F2 */
+  --fendi:           #EDE9E3;
+  --off-white:       #FDFCFA;
+  --white:           #FFFFFF;
+
+  /* Sidebar */
+  --sidebar-bg:      #1A1A18;   /* grafite quente — novo */
+  --sidebar-active:  rgba(200,168,106,0.14);
+  --sidebar-border:  rgba(200,168,106,0.10);
+
+  /* Texto */
+  --graphite:        #1A1A18;   /* text-primary — harmoniza com sidebar */
+  --graphite-mid:    #5C5A54;
+  --graphite-light:  #9C9A94;
+
+  /* Bordas */
+  --border:          #E4DED5;
+  --border-light:    #EDE9E3;
+
+  /* Semanticas */
+  --red:             #B84040;   /* dessaturado — mais sofisticado que #C4421E */
+  --green:           #2D7A4A;
+  --blue:            #3B6FD4;   /* mantido para compatibilidade pontual */
+
+  /* Sombras */
+  --shadow:          0 2px 16px rgba(26,24,20,0.08);
+  --shadow-md:       0 4px 24px rgba(26,24,20,0.12);
+
+  /* Radii */
+  --radius:          10px;
+  --radius-sm:       6px;
+  --radius-lg:       14px;
+
+  /* ── CSS vars usadas pelos componentes JSX ──────────────────────────────── */
+  --color-bg:        var(--sand);
+  --color-ink:       var(--graphite);
+  --color-ink-muted: var(--graphite-mid);
+  --color-gold:      var(--gold);
+  --color-border:    var(--border);
+  --color-blue:      var(--blue);          /* legacy — preferir --color-gold em novos CTAs */
+
+  /* Fontes */
+  --font-serif:      'Cormorant Garamond', Georgia, serif;
+  --font-sans:       'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
+/* ─── BASE ───────────────────────────────────────────────────────────────────── */
 body {
-  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--font-sans);
   background: var(--sand);
   color: var(--graphite);
   font-size: 14px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-h1,h2,h3 {
-  font-family: 'Cormorant Garamond', Georgia, serif;
+h1, h2, h3 {
+  font-family: var(--font-serif);
 }
 
 input, select, textarea, button {
   font-family: inherit;
 }
 
-::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ─── SCROLLBAR ──────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar          { width: 4px; height: 4px; }
+::-webkit-scrollbar-track    { background: transparent; }
+::-webkit-scrollbar-thumb    { background: var(--border); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--graphite-light); }
+
+/* ─── FOCUS RING ACESSIVEL ───────────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+/* ─── SELECAO DE TEXTO ───────────────────────────────────────────────────────── */
+::selection {
+  background: var(--gold-pale);
+  color: var(--graphite);
+}
