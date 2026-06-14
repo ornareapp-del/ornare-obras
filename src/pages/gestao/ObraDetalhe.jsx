@@ -1218,27 +1218,141 @@ function AbaEquipeObra({ obraId }) {
   const [loading, setLoading] = useState(true)
   const [adicionando, setAdicionando] = useState(false)
   const [selecionado, setSelecionado] = useState('')
+  const [mensagem, setMensagem] = useState(null)
   useEffect(() => { carregar() }, [])
+  function avisar(tipo, texto) {
+    setMensagem({ tipo, texto })
+  }
+  function erroTexto(error, fallback) {
+    return error?.message || error?.details || fallback
+  }
   async function carregar() {
-    const [{ data: m }, { data: t }] = await Promise.all([
-      supabase.from('obra_montadores').select('*, montador:profiles!obra_montadores_montador_id_fkey(id, full_name, cargo)').eq('obra_id', obraId),
-      supabase.from('profiles').select('id, full_name, cargo').eq('role', 'montador').order('full_name'),
-    ])
-    setMontadores(m || []); setTodos(t || []); setLoading(false)
+    setLoading(true)
+    let listaMontadores = []
+
+    const { data: vinculadosJoin, error: joinError } = await supabase
+      .from('obra_montadores')
+      .select('obra_id, montador_id, montador:profiles!obra_montadores_montador_id_fkey(id, full_name, role)')
+      .eq('obra_id', obraId)
+
+    if (!joinError) {
+      listaMontadores = vinculadosJoin || []
+    } else {
+      const { data: vinculados, error: vinculadosError } = await supabase
+        .from('obra_montadores')
+        .select('obra_id, montador_id')
+        .eq('obra_id', obraId)
+
+      if (vinculadosError) {
+        avisar('erro', erroTexto(vinculadosError, 'Não foi possível carregar os montadores alocados.'))
+      } else {
+        const ids = [...new Set((vinculados || []).map(v => v.montador_id).filter(Boolean))]
+        if (ids.length) {
+          const { data: perfis, error: perfisError } = await supabase
+            .from('profiles')
+            .select('id, full_name, role')
+            .in('id', ids)
+
+          if (perfisError) {
+            avisar('erro', erroTexto(perfisError, 'Não foi possível carregar os dados dos montadores alocados.'))
+            listaMontadores = vinculados || []
+          } else {
+            listaMontadores = (vinculados || []).map(v => ({
+              ...v,
+              montador: (perfis || []).find(p => p.id === v.montador_id) || null,
+            }))
+          }
+        }
+      }
+    }
+
+    const { data: t, error: todosError } = await supabase
+      .from('profiles')
+      .select('id, full_name, role')
+      .eq('role', 'montador')
+      .order('full_name')
+
+    if (todosError) {
+      avisar('erro', erroTexto(todosError, 'Não foi possível carregar a lista de montadores.'))
+      setTodos([])
+    } else {
+      setTodos(t || [])
+    }
+
+    setMontadores(listaMontadores)
+    setLoading(false)
   }
   async function alocar() {
     if (!selecionado) return
+    setMensagem(null)
     setAdicionando(true)
-    await supabase.from('obra_montadores').upsert({ obra_id: obraId, montador_id: selecionado })
-    setSelecionado(''); await carregar(); setAdicionando(false)
+    const { data: existente, error: existeError } = await supabase
+      .from('obra_montadores')
+      .select('obra_id, montador_id')
+      .eq('obra_id', obraId)
+      .eq('montador_id', selecionado)
+      .maybeSingle()
+
+    if (existeError) {
+      avisar('erro', erroTexto(existeError, 'Não foi possível verificar se o montador já está alocado.'))
+      setAdicionando(false)
+      return
+    }
+
+    if (existente) {
+      avisar('info', 'Este montador já está alocado nesta obra.')
+      setAdicionando(false)
+      return
+    }
+
+    const { error: insertError } = await supabase
+      .from('obra_montadores')
+      .insert([{ obra_id: obraId, montador_id: selecionado }])
+
+    if (insertError) {
+      avisar('erro', erroTexto(insertError, 'Não foi possível alocar o montador.'))
+      setAdicionando(false)
+      return
+    }
+
+    setSelecionado('')
+    avisar('sucesso', 'Montador alocado com sucesso.')
+    await carregar()
+    setAdicionando(false)
   }
   async function remover(montadorId) {
-    await supabase.from('obra_montadores').delete().eq('obra_id', obraId).eq('montador_id', montadorId)
+    setMensagem(null)
+    const { error } = await supabase
+      .from('obra_montadores')
+      .delete()
+      .eq('obra_id', obraId)
+      .eq('montador_id', montadorId)
+
+    if (error) {
+      avisar('erro', erroTexto(error, 'Não foi possível remover o montador.'))
+      return
+    }
+
+    avisar('sucesso', 'Montador removido da obra.')
     await carregar()
   }
   const naoAlocados = todos.filter(t => !montadores.find(m => m.montador_id === t.id))
   return (
     <Card titulo="Montadores alocados nesta obra">
+      {mensagem && (
+        <div style={{
+          marginBottom: 12,
+          border: '1px solid ' + (mensagem.tipo === 'erro' ? '#f1c6c6' : mensagem.tipo === 'sucesso' ? '#c8e1d0' : '#e6d8bd'),
+          background: mensagem.tipo === 'erro' ? '#fff6f6' : mensagem.tipo === 'sucesso' ? '#f4fbf6' : '#fff8ec',
+          color: mensagem.tipo === 'erro' ? '#B84040' : mensagem.tipo === 'sucesso' ? '#2D7A4A' : '#9A6A22',
+          borderRadius: 8,
+          padding: '9px 11px',
+          fontSize: 12.5,
+          fontWeight: 600,
+        }}>
+          {mensagem.texto}
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
         <select value={selecionado} onChange={e => setSelecionado(e.target.value)} style={{ flex: 1, padding: '8px 12px', borderRadius: 7, border: '1px solid #ddd', fontSize: 13, fontFamily: 'inherit', background: '#fff' }}>
           <option value="">-- Selecione montador --</option>
@@ -1252,8 +1366,8 @@ function AbaEquipeObra({ obraId }) {
           <div key={m.montador_id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--color-border)' }}>
             <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#b09a7a22', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#b09a7a' }}>{(m.montador?.full_name || '?')[0].toUpperCase()}</div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-ink)' }}>{m.montador?.full_name}</div>
-              {m.montador?.cargo && <div style={{ fontSize: 11, color: '#aaa' }}>{m.montador.cargo}</div>}
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-ink)' }}>{m.montador?.full_name || 'Montador não encontrado'}</div>
+              {m.montador?.role && <div style={{ fontSize: 11, color: '#aaa' }}>{m.montador.role}</div>}
             </div>
             <button onClick={() => remover(m.montador_id)} style={{ background: 'none', border: 'none', color: '#ccc', cursor: 'pointer', fontSize: 13, padding: '4px 8px' }}>Remover</button>
           </div>
