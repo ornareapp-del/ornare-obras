@@ -13,15 +13,24 @@ const THEME = {
   dark: '#0F0E0C',
 }
 
-const ABAS = [
-  { id: 'andamento', label: 'Andamento' },
+const DESKTOP_NAV = [
+  { id: 'obra', label: 'Obra' },
   { id: 'cronograma', label: 'Cronograma' },
-  { id: 'fotos', label: 'Fotos' },
   { id: 'agenda', label: 'Agenda' },
-  { id: 'documentos', label: 'Documentos' },
+  { id: 'fotos', label: 'Fotos' },
   { id: 'mensagens', label: 'Mensagens' },
   { id: 'contatos', label: 'Contatos' },
 ]
+
+const MOBILE_NAV = [
+  { id: 'obra', label: 'Obra', icon: '⌂' },
+  { id: 'agenda', label: 'Agenda', icon: '◷' },
+  { id: 'fotos', label: 'Fotos', icon: '▣' },
+  { id: 'mensagens', label: 'Mensagens', icon: '◇' },
+  { id: 'contatos', label: 'Contatos', icon: '☎' },
+]
+
+const TIMELINE = ['Pré-Montagem', 'Produção', 'Montagem', 'Entrega', 'Pós-Venda']
 
 function safeArray(result) {
   return result?.data || []
@@ -31,6 +40,10 @@ function dataBR(value) {
   if (!value) return '-'
   const date = new Date(`${String(value).slice(0, 10)}T00:00:00`)
   return Number.isNaN(date.getTime()) ? '-' : date.toLocaleDateString('pt-BR')
+}
+
+function normalizar(value) {
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 }
 
 function nomePessoa(profile) {
@@ -50,8 +63,8 @@ function fotoUrl(foto) {
 function isAgendaCliente(item) {
   if (item.reuniao_interna) return false
   if (item.visivel_cliente === true || item.visibilidade === 'cliente' || item.visibilidade === 'publica') return true
-  const tipo = String(item.tipo || item.titulo || '').toLowerCase()
-  return ['visita', 'vistoria', 'montagem', 'entrega', 'assistência', 'assistencia', 'medição', 'medicao'].some(t => tipo.includes(t))
+  const tipo = normalizar(item.tipo || item.titulo)
+  return ['visita', 'vistoria', 'montagem', 'entrega', 'assistencia', 'medicao'].some(t => tipo.includes(t))
 }
 
 function isMensagemCliente(item) {
@@ -75,8 +88,9 @@ export default function PortalCliente() {
   })
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState('')
+  const [aba, setAba] = useState('obra')
   const [preview, setPreview] = useState(null)
-  const [aba, setAba] = useState('andamento')
+  const [touchStart, setTouchStart] = useState(null)
   const [filtrosFoto, setFiltrosFoto] = useState({ ambiente: '', categoria: '' })
   const [copiado, setCopiado] = useState('')
 
@@ -112,11 +126,8 @@ export default function PortalCliente() {
       return
     }
 
-    const falhasNaoCriticas = [cronograma, fotos, ambientes, agenda, comunicados, mensagens, contatos, profiles]
-      .filter(r => r.error)
-      .map(r => r.error.message)
-
-    if (falhasNaoCriticas.length) setErro(falhasNaoCriticas[0])
+    const falha = [cronograma, fotos, ambientes, agenda, comunicados, mensagens, contatos, profiles].find(r => r.error)
+    if (falha?.error) setErro(falha.error.message)
 
     setDados({
       obra: obra.data,
@@ -142,7 +153,7 @@ export default function PortalCliente() {
     const ambientesPorId = new Map(dados.ambientes.map(a => [a.id, a]))
     const supervisor = profilesPorId.get(cronograma.supervisor_id || obra.supervisor_id)
     const posVenda = profilesPorId.get(cronograma.comercial_id || obra.comercial_id)
-    const progresso = Number(cronograma.percentual_concluido ?? obra.progresso ?? 0)
+    const progresso = Math.max(0, Math.min(100, Number(cronograma.percentual_concluido ?? obra.progresso ?? 0)))
     const faseAtual = cronograma.visivel_cliente === false ? (obra.status || '-') : (cronograma.fase || obra.status || '-')
     const proximaEtapa = cronograma.visivel_cliente === false ? 'Acompanhamento pela equipe Ornare' : (cronograma.acao_recomendada || cronograma.etapa_atual || 'Acompanhamento pela equipe Ornare')
     const fotos = dados.fotos.filter(f => {
@@ -150,25 +161,32 @@ export default function PortalCliente() {
       const porCategoria = !filtrosFoto.categoria || f.categoria === filtrosFoto.categoria
       return porAmbiente && porCategoria
     })
-    const categorias = [...new Set(dados.fotos.map(f => f.categoria).filter(Boolean))].sort()
-    const documentos = [
-      { titulo: 'Relatório do Cliente', descricao: 'PDFs liberados pela equipe aparecerão aqui.' },
-      { titulo: 'Termos de Entrega', descricao: 'Documentos de aceite serão disponibilizados nesta área.' },
-    ]
+    const atualizacoes = [
+      cronograma.updated_at,
+      cronograma.created_at,
+      obra.updated_at,
+      obra.created_at,
+      dados.comunicados[0]?.created_at,
+      dados.fotos[0]?.created_at,
+    ].filter(Boolean).sort().reverse()
 
     return {
       obra,
       cronograma,
       supervisor,
       posVenda,
-      progresso: Math.max(0, Math.min(100, progresso)),
+      progresso,
       faseAtual,
       proximaEtapa,
       previsao: dataBR(cronograma.data_fim_prevista || obra.data_previsao),
+      ultimaAtualizacao: dataBR(atualizacoes[0]),
       fotos,
-      categorias,
+      categorias: [...new Set(dados.fotos.map(f => f.categoria).filter(Boolean))].sort(),
       ambientesPorId,
-      documentos,
+      documentos: [
+        { titulo: 'Relatório do Cliente', descricao: 'PDFs liberados pela equipe aparecerão aqui.' },
+        { titulo: 'Termos de Entrega', descricao: 'Documentos de aceite serão disponibilizados nesta área.' },
+      ],
       mensagens: [...dados.comunicados.map(c => ({ ...c, origem: 'Comunicado' })), ...dados.mensagens.map(m => ({ ...m, origem: 'Mensagem' }))],
     }
   }, [dados, filtrosFoto])
@@ -182,6 +200,18 @@ export default function PortalCliente() {
     } catch {
       setCopiado('')
     }
+  }
+
+  function navegarFoto(delta) {
+    if (preview === null || vm.fotos.length === 0) return
+    setPreview((preview + delta + vm.fotos.length) % vm.fotos.length)
+  }
+
+  function finalizarSwipe(x) {
+    if (touchStart === null) return
+    const diff = touchStart - x
+    if (Math.abs(diff) > 42) navegarFoto(diff > 0 ? 1 : -1)
+    setTouchStart(null)
   }
 
   if (loading) return (
@@ -203,10 +233,21 @@ export default function PortalCliente() {
     <main className="pc-page">
       <style>{css}</style>
 
-      {preview && (
-        <div className="pc-preview" onClick={() => setPreview(null)}>
-          <img src={preview} alt="Foto ampliada" />
-          <button onClick={() => setPreview(null)}>Fechar</button>
+      {preview !== null && vm.fotos[preview] && (
+        <div
+          className="pc-preview"
+          onClick={() => setPreview(null)}
+          onTouchStart={e => setTouchStart(e.touches[0].clientX)}
+          onTouchEnd={e => finalizarSwipe(e.changedTouches[0].clientX)}
+        >
+          <img src={vm.fotos[preview].publicUrl} alt={vm.fotos[preview].observacao || vm.fotos[preview].categoria || 'Foto ampliada'} />
+          <button className="pc-preview-close" onClick={() => setPreview(null)}>Fechar</button>
+          {vm.fotos.length > 1 && (
+            <>
+              <button className="pc-preview-prev" onClick={e => { e.stopPropagation(); navegarFoto(-1) }}>Anterior</button>
+              <button className="pc-preview-next" onClick={e => { e.stopPropagation(); navegarFoto(1) }}>Próxima</button>
+            </>
+          )}
         </div>
       )}
 
@@ -223,15 +264,18 @@ export default function PortalCliente() {
           <span className="pc-eyebrow">Minha Obra</span>
           <h1>{vm.obra.nome || 'Projeto Ornare'}</h1>
           <p>{vm.obra.cliente_nome || 'Cliente'} · {[vm.obra.cidade, vm.obra.uf].filter(Boolean).join(' / ') || 'Florianópolis'}</p>
-          <div className="pc-hero-meta">
+          <div className="pc-hero-dashboard">
+            <InfoPill label="Progresso" value={`${vm.progresso}%`} />
+            <InfoPill label="Fase atual" value={vm.faseAtual} />
+            <InfoPill label="Próxima etapa" value={vm.proximaEtapa} />
+            <InfoPill label="Data prevista" value={vm.previsao} />
             <InfoPill label="Supervisor" value={nomePessoa(vm.supervisor)} />
-            <InfoPill label="Previsão" value={vm.previsao} />
           </div>
         </div>
       </section>
 
       <nav className="pc-tabs">
-        {ABAS.map(item => (
+        {DESKTOP_NAV.map(item => (
           <button key={item.id} className={aba === item.id ? 'active' : ''} onClick={() => setAba(item.id)}>
             {item.label}
           </button>
@@ -242,142 +286,159 @@ export default function PortalCliente() {
       {copiado && <div className="pc-toast">{copiado} copiado.</div>}
 
       <section className="pc-content">
-        {aba === 'andamento' && (
-          <div className="pc-stack">
-            <Card destaque>
-              <div className="pc-card-head">
-                <span>Andamento Geral</span>
-                <strong>{vm.progresso}%</strong>
-              </div>
-              <div className="pc-progress"><i style={{ width: `${vm.progresso}%` }} /></div>
-              <div className="pc-status-grid">
-                <Metric label="Fase atual" value={vm.faseAtual} />
-                <Metric label="Próxima etapa" value={vm.proximaEtapa} />
-              </div>
-            </Card>
-
-            <Card title="Resumo do projeto">
-              <Detail label="Cliente" value={vm.obra.cliente_nome} />
-              <Detail label="Obra" value={vm.obra.nome} />
-              <Detail label="Cidade" value={[vm.obra.cidade, vm.obra.uf].filter(Boolean).join(' / ')} />
-              <Detail label="Supervisor responsável" value={nomePessoa(vm.supervisor)} />
-            </Card>
-          </div>
-        )}
-
-        {aba === 'cronograma' && (
-          <div className="pc-stack">
-            <Card title="Cronograma liberado">
-              <Detail label="Fase atual" value={vm.faseAtual} />
-              <Detail label="Próximas etapas" value={vm.proximaEtapa} />
-              <Detail label="Previsão de entrega" value={vm.previsao} />
-            </Card>
-            <div className="pc-timeline">
-              {['Pré-Montagem', 'Montagem', 'Entrega', 'Pós-Venda'].map(fase => (
-                <div key={fase} className={vm.faseAtual === fase ? 'active' : ''}>
-                  <i />
-                  <span>{fase}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
+        {aba === 'obra' && <HomeObra vm={vm} />}
+        {aba === 'cronograma' && <Cronograma vm={vm} />}
+        {aba === 'agenda' && <AgendaCliente agenda={dados.agenda} />}
         {aba === 'fotos' && (
-          <div className="pc-stack">
-            <div className="pc-filter-card">
-              <select value={filtrosFoto.ambiente} onChange={e => setFiltrosFoto(p => ({ ...p, ambiente: e.target.value }))}>
-                <option value="">Todos os ambientes</option>
-                {dados.ambientes.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
-              </select>
-              <select value={filtrosFoto.categoria} onChange={e => setFiltrosFoto(p => ({ ...p, categoria: e.target.value }))}>
-                <option value="">Todas as categorias</option>
-                {vm.categorias.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            {vm.fotos.length === 0 ? (
-              <Empty title="Nenhuma foto disponível ainda" text="As fotos aprovadas pela equipe Ornare aparecerão aqui." />
-            ) : (
-              <div className="pc-gallery">
-                {vm.fotos.map(foto => (
-                  <button key={foto.id} onClick={() => foto.publicUrl && setPreview(foto.publicUrl)}>
-                    {foto.publicUrl ? <img src={foto.publicUrl} alt={foto.observacao || foto.categoria} /> : <span>Foto</span>}
-                    <div>
-                      <strong>{foto.categoria}</strong>
-                      <small>{vm.ambientesPorId.get(foto.ambiente_id)?.nome || 'Geral'}</small>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <FotosCliente
+            vm={vm}
+            ambientes={dados.ambientes}
+            filtros={filtrosFoto}
+            setFiltros={setFiltrosFoto}
+            abrirFoto={setPreview}
+          />
         )}
-
-        {aba === 'agenda' && (
-          <div className="pc-stack">
-            {dados.agenda.length === 0 ? (
-              <Empty title="Nenhum evento liberado" text="Visitas, montagem, vistoria e entrega aparecerão aqui quando forem confirmadas." />
-            ) : dados.agenda.map(item => (
-              <Card key={item.id}>
-                <div className="pc-agenda-row">
-                  <div>
-                    <span>{dataBR(item.data)}</span>
-                    {item.hora_inicio && <small>{String(item.hora_inicio).slice(0, 5)}</small>}
-                  </div>
-                  <div>
-                    <strong>{item.titulo || item.tipo || 'Compromisso'}</strong>
-                    {item.observacao && <p>{item.observacao}</p>}
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-
-        {aba === 'documentos' && (
-          <div className="pc-stack">
-            {vm.documentos.map(doc => (
-              <Card key={doc.titulo}>
-                <div className="pc-doc">
-                  <div>
-                    <strong>{doc.titulo}</strong>
-                    <p>{doc.descricao}</p>
-                  </div>
-                  <span>Em breve</span>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-
-        {aba === 'mensagens' && (
-          <div className="pc-stack">
-            {vm.mensagens.length === 0 ? (
-              <Empty title="Nenhum comunicado no momento" text="Atualizações importantes da sua obra serão centralizadas nesta área." />
-            ) : vm.mensagens.map(item => (
-              <Card key={`${item.origem}-${item.id}`}>
-                <div className="pc-message">
-                  <span>{item.origem} · {dataBR(item.created_at)}</span>
-                  {item.titulo && <strong>{item.titulo}</strong>}
-                  <p>{item.mensagem || item.texto || item.descricao}</p>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-
-        {aba === 'contatos' && (
-          <div className="pc-stack">
-            <Contato title="Supervisor" pessoa={vm.supervisor} onCopy={copiar} />
-            <Contato title="Pós-venda" pessoa={vm.posVenda} onCopy={copiar} />
-            {dados.contatos.map(contato => <Contato key={contato.id} title={contato.tipo || contato.nome || 'Contato'} pessoa={contato} onCopy={copiar} />)}
-            <Contato title="Loja" pessoa={{ full_name: 'Ornare Florianópolis', email: 'florianopolis@ornare.com.br', telefone: '(48) 99999-9999' }} onCopy={copiar} />
-          </div>
-        )}
+        {aba === 'mensagens' && <MensagensCliente mensagens={vm.mensagens} />}
+        {aba === 'contatos' && <ContatosCliente vm={vm} contatos={dados.contatos} copiar={copiar} />}
       </section>
+
+      <nav className="pc-bottom-nav">
+        {MOBILE_NAV.map(item => (
+          <button key={item.id} className={aba === item.id ? 'active' : ''} onClick={() => setAba(item.id)}>
+            <span>{item.icon}</span>
+            {item.label}
+          </button>
+        ))}
+      </nav>
 
       <footer className="pc-footer">ORNARE · Acompanhamento de Obra</footer>
     </main>
+  )
+}
+
+function HomeObra({ vm }) {
+  return (
+    <div className="pc-stack">
+      <Card destaque>
+        <div className="pc-card-head">
+          <span>Progresso Geral</span>
+          <strong>{vm.progresso}%</strong>
+        </div>
+        <div className="pc-progress"><i style={{ width: `${vm.progresso}%` }} /></div>
+        <div className="pc-dashboard-grid">
+          <Metric label="Fase atual" value={vm.faseAtual} />
+          <Metric label="Próxima etapa" value={vm.proximaEtapa} />
+          <Metric label="Data prevista" value={vm.previsao} />
+          <Metric label="Supervisor" value={nomePessoa(vm.supervisor)} />
+          <Metric label="Última atualização" value={vm.ultimaAtualizacao} />
+        </div>
+      </Card>
+      <Timeline faseAtual={vm.faseAtual} />
+      <Card title="Documentos">
+        <div className="pc-doc-list">
+          {vm.documentos.map(doc => <Documento key={doc.titulo} doc={doc} />)}
+        </div>
+      </Card>
+    </div>
+  )
+}
+
+function Cronograma({ vm }) {
+  return (
+    <div className="pc-stack">
+      <Card title="Cronograma liberado">
+        <Detail label="Fase atual" value={vm.faseAtual} />
+        <Detail label="Próximas etapas" value={vm.proximaEtapa} />
+        <Detail label="Previsão de entrega" value={vm.previsao} />
+      </Card>
+      <Timeline faseAtual={vm.faseAtual} />
+    </div>
+  )
+}
+
+function AgendaCliente({ agenda }) {
+  if (agenda.length === 0) {
+    return <Empty title="Nenhum evento liberado" text="Visitas, montagem, vistoria e entrega aparecerão aqui quando forem confirmadas." />
+  }
+  return (
+    <div className="pc-stack">
+      {agenda.map(item => (
+        <Card key={item.id}>
+          <div className="pc-agenda-row">
+            <div>
+              <span>{dataBR(item.data)}</span>
+              {item.hora_inicio && <small>{String(item.hora_inicio).slice(0, 5)}</small>}
+            </div>
+            <div>
+              <strong>{item.titulo || item.tipo || 'Compromisso'}</strong>
+              {item.observacao && <p>{item.observacao}</p>}
+            </div>
+          </div>
+        </Card>
+      ))}
+    </div>
+  )
+}
+
+function FotosCliente({ vm, ambientes, filtros, setFiltros, abrirFoto }) {
+  return (
+    <div className="pc-stack">
+      <div className="pc-filter-card">
+        <select value={filtros.ambiente} onChange={e => setFiltros(p => ({ ...p, ambiente: e.target.value }))}>
+          <option value="">Todos os ambientes</option>
+          {ambientes.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
+        </select>
+        <select value={filtros.categoria} onChange={e => setFiltros(p => ({ ...p, categoria: e.target.value }))}>
+          <option value="">Todas as categorias</option>
+          {vm.categorias.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </div>
+      {vm.fotos.length === 0 ? (
+        <Empty title="Nenhuma foto disponível ainda" text="As fotos aprovadas pela equipe Ornare aparecerão aqui." />
+      ) : (
+        <div className="pc-gallery">
+          {vm.fotos.map((foto, index) => (
+            <button key={foto.id} onClick={() => foto.publicUrl && abrirFoto(index)}>
+              {foto.publicUrl ? <img src={foto.publicUrl} alt={foto.observacao || foto.categoria} /> : <span>Foto</span>}
+              <div>
+                <strong>{foto.categoria}</strong>
+                <small>{vm.ambientesPorId.get(foto.ambiente_id)?.nome || 'Geral'}</small>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MensagensCliente({ mensagens }) {
+  if (mensagens.length === 0) {
+    return <Empty title="Nenhum comunicado no momento" text="Atualizações importantes da sua obra serão centralizadas nesta área." />
+  }
+  return (
+    <div className="pc-feed">
+      {mensagens.map(item => (
+        <Card key={`${item.origem}-${item.id}`}>
+          <div className="pc-message">
+            <span>{item.origem} · {dataBR(item.created_at)}</span>
+            {item.titulo && <strong>{item.titulo}</strong>}
+            <p>{item.mensagem || item.texto || item.descricao}</p>
+          </div>
+        </Card>
+      ))}
+    </div>
+  )
+}
+
+function ContatosCliente({ vm, contatos, copiar }) {
+  return (
+    <div className="pc-stack">
+      <Contato title="Supervisor" pessoa={vm.supervisor} onCopy={copiar} />
+      <Contato title="Pós-venda" pessoa={vm.posVenda} onCopy={copiar} />
+      {contatos.map(contato => <Contato key={contato.id} title={contato.tipo || contato.nome || 'Contato'} pessoa={contato} onCopy={copiar} />)}
+      <Contato title="Loja" pessoa={{ full_name: 'Ornare Florianópolis', email: 'florianopolis@ornare.com.br', telefone: '(48) 99999-9999' }} onCopy={copiar} />
+    </div>
   )
 }
 
@@ -401,6 +462,32 @@ function Metric({ label, value }) {
 function Detail({ label, value }) {
   if (!value) return null
   return <div className="pc-detail"><span>{label}</span><strong>{value}</strong></div>
+}
+
+function Timeline({ faseAtual }) {
+  const atual = normalizar(faseAtual)
+  return (
+    <div className="pc-timeline">
+      {TIMELINE.map(fase => (
+        <div key={fase} className={normalizar(faseAtual).includes(normalizar(fase)) || normalizar(fase).includes(atual) ? 'active' : ''}>
+          <i />
+          <span>{fase}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function Documento({ doc }) {
+  return (
+    <div className="pc-doc">
+      <div>
+        <strong>{doc.titulo}</strong>
+        <p>{doc.descricao}</p>
+      </div>
+      <span>Em breve</span>
+    </div>
+  )
 }
 
 function Empty({ title, text }) {
@@ -435,27 +522,28 @@ const css = `
 .pc-page{min-height:100vh;background:${THEME.warm};color:${THEME.ink};font-family:var(--font-sans, Inter, system-ui, sans-serif);overflow-x:hidden}
 .pc-loading{min-height:100vh;background:${THEME.dark};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;color:#fff;letter-spacing:2px;text-transform:uppercase;font-size:11px}
 .pc-loading img{height:54px;filter:brightness(0) invert(1);opacity:.8}
-.pc-hero{position:relative;min-height:420px;color:#fff;overflow:hidden}
+.pc-hero{position:relative;min-height:350px;color:#fff;overflow:hidden}
 .pc-hero-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top;filter:brightness(.72) saturate(.9)}
-.pc-hero-overlay{position:absolute;inset:0;background:linear-gradient(180deg,rgba(15,14,12,.52),rgba(15,14,12,.62) 48%,rgba(246,243,238,1) 100%)}
-.pc-top{position:relative;z-index:2;padding:24px 22px;display:flex;justify-content:space-between;align-items:flex-start}
-.pc-top img{height:48px;filter:brightness(0) invert(1)}
+.pc-hero-overlay{position:absolute;inset:0;background:linear-gradient(180deg,rgba(15,14,12,.54),rgba(15,14,12,.58) 44%,rgba(246,243,238,1) 100%)}
+.pc-top{position:relative;z-index:2;padding:22px;display:flex;justify-content:space-between;align-items:flex-start}
+.pc-top img{height:44px;filter:brightness(0) invert(1)}
 .pc-top span{display:block;margin-top:5px;color:${THEME.gold};font-size:9px;letter-spacing:3px;text-transform:uppercase}
-.pc-hero-content{position:relative;z-index:2;max-width:920px;margin:0 auto;padding:58px 22px 92px}
-.pc-eyebrow{display:block;color:${THEME.gold};font-size:10px;letter-spacing:3px;text-transform:uppercase;font-weight:900;margin-bottom:12px}
-.pc-hero h1{font-family:var(--font-serif, Georgia, serif);font-size:54px;line-height:1.02;font-weight:500;margin:0;max-width:820px}
-.pc-hero p{font-size:16px;color:rgba(255,255,255,.78);margin:14px 0 0}
-.pc-hero-meta{display:flex;gap:10px;flex-wrap:wrap;margin-top:28px}
-.pc-pill{min-width:170px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);border-radius:14px;padding:13px 15px;backdrop-filter:blur(10px)}
-.pc-pill span{display:block;color:${THEME.gold};font-size:9px;letter-spacing:2px;text-transform:uppercase;font-weight:900;margin-bottom:6px}
-.pc-pill strong{display:block;color:#fff;font-size:14px;line-height:1.3}
-.pc-tabs{position:sticky;top:0;z-index:10;margin:-48px auto 0;max-width:960px;display:flex;gap:6px;overflow-x:auto;padding:7px;background:rgba(255,254,252,.88);border:1px solid ${THEME.border};border-radius:16px;backdrop-filter:blur(16px);box-shadow:0 18px 40px rgba(29,28,25,.08)}
+.pc-hero-content{position:relative;z-index:2;max-width:980px;margin:0 auto;padding:24px 22px 74px}
+.pc-eyebrow{display:block;color:${THEME.gold};font-size:10px;letter-spacing:3px;text-transform:uppercase;font-weight:900;margin-bottom:10px}
+.pc-hero h1{font-family:var(--font-serif, Georgia, serif);font-size:46px;line-height:1.02;font-weight:500;margin:0;max-width:760px}
+.pc-hero p{font-size:15px;color:rgba(255,255,255,.78);margin:10px 0 0}
+.pc-hero-dashboard{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:24px}
+.pc-pill{background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);border-radius:14px;padding:12px 13px;backdrop-filter:blur(10px);min-width:0}
+.pc-pill span{display:block;color:${THEME.gold};font-size:8.5px;letter-spacing:1.7px;text-transform:uppercase;font-weight:900;margin-bottom:6px}
+.pc-pill strong{display:block;color:#fff;font-size:13px;line-height:1.25;overflow:hidden;text-overflow:ellipsis}
+.pc-tabs{position:sticky;top:0;z-index:10;margin:-40px auto 0;max-width:960px;display:flex;gap:6px;overflow-x:auto;padding:7px;background:rgba(255,254,252,.9);border:1px solid ${THEME.border};border-radius:16px;backdrop-filter:blur(16px);box-shadow:0 18px 40px rgba(29,28,25,.08)}
 .pc-tabs button{border:0;background:transparent;color:${THEME.muted};border-radius:11px;padding:10px 13px;font-size:12px;font-weight:800;white-space:nowrap;cursor:pointer}
 .pc-tabs button.active{background:${THEME.ink};color:#fff}
+.pc-bottom-nav{display:none}
 .pc-alert{max-width:960px;margin:14px auto 0;border:1px solid #F0C8C8;background:#FFF7F7;color:#A33E3E;border-radius:12px;padding:11px 14px;font-size:13px;font-weight:700}
-.pc-toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:50;background:${THEME.ink};color:#fff;border-left:3px solid ${THEME.gold};border-radius:12px;padding:11px 15px;font-size:13px;font-weight:800;box-shadow:0 12px 32px rgba(0,0,0,.18)}
-.pc-content{max-width:960px;margin:0 auto;padding:24px 22px 64px}
-.pc-stack{display:grid;gap:14px}
+.pc-toast{position:fixed;left:50%;bottom:86px;transform:translateX(-50%);z-index:50;background:${THEME.ink};color:#fff;border-left:3px solid ${THEME.gold};border-radius:12px;padding:11px 15px;font-size:13px;font-weight:800;box-shadow:0 12px 32px rgba(0,0,0,.18)}
+.pc-content{max-width:960px;margin:0 auto;padding:22px 22px 64px}
+.pc-stack,.pc-feed{display:grid;gap:14px}
 .pc-card{background:${THEME.card};border:1px solid ${THEME.border};border-radius:18px;padding:20px;box-shadow:0 18px 42px rgba(29,28,25,.055)}
 .pc-card.destaque{border-top:3px solid ${THEME.gold}}
 .pc-card h2{font-size:15px;margin:0 0 16px;color:${THEME.ink}}
@@ -464,14 +552,14 @@ const css = `
 .pc-card-head strong{font-size:42px;color:${THEME.gold};line-height:1}
 .pc-progress{height:8px;background:#EEE7DC;border-radius:999px;overflow:hidden;margin-bottom:18px}
 .pc-progress i{display:block;height:100%;background:linear-gradient(90deg,${THEME.gold},#D9BD80);border-radius:999px}
-.pc-status-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.pc-metric{border:1px solid ${THEME.border};background:#FFFBF5;border-radius:14px;padding:14px}
+.pc-dashboard-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.pc-metric{border:1px solid ${THEME.border};background:#FFFBF5;border-radius:14px;padding:14px;min-width:0}
 .pc-metric span,.pc-detail span{display:block;color:${THEME.muted};font-size:10px;letter-spacing:1.4px;text-transform:uppercase;font-weight:900;margin-bottom:6px}
 .pc-metric strong{font-size:15px;color:${THEME.ink};line-height:1.35}
 .pc-detail{display:flex;justify-content:space-between;gap:16px;padding:12px 0;border-bottom:1px solid ${THEME.border}}
 .pc-detail:last-child{border-bottom:0}
 .pc-detail strong{text-align:right;color:${THEME.ink};font-size:14px;line-height:1.35}
-.pc-timeline{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.pc-timeline{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
 .pc-timeline div{background:${THEME.card};border:1px solid ${THEME.border};border-radius:14px;padding:13px 10px;color:${THEME.muted};font-size:12px;font-weight:900;text-align:center}
 .pc-timeline div.active{background:${THEME.ink};border-color:${THEME.ink};color:#fff}
 .pc-timeline i{display:block;width:8px;height:8px;border-radius:50%;background:${THEME.gold};margin:0 auto 8px}
@@ -479,7 +567,7 @@ const css = `
 .pc-filter-card select{width:100%;border:1px solid ${THEME.border};background:#FFFEFC;border-radius:10px;padding:11px;font-family:inherit;color:${THEME.ink}}
 .pc-gallery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .pc-gallery button{border:0;background:${THEME.card};border-radius:17px;overflow:hidden;padding:0;text-align:left;cursor:zoom-in;box-shadow:0 18px 42px rgba(29,28,25,.055)}
-.pc-gallery img,.pc-gallery button>span{display:block;width:100%;height:240px;object-fit:cover;background:#E8E0D5}
+.pc-gallery img,.pc-gallery button>span{display:block;width:100%;height:250px;object-fit:cover;background:#E8E0D5}
 .pc-gallery button>span{display:flex;align-items:center;justify-content:center;color:${THEME.muted}}
 .pc-gallery div{padding:12px 14px}
 .pc-gallery strong{display:block;font-size:13px;color:${THEME.ink}}
@@ -489,9 +577,11 @@ const css = `
 .pc-agenda-row small{display:block;color:${THEME.muted};margin-top:4px}
 .pc-agenda-row strong,.pc-doc strong,.pc-message strong{display:block;color:${THEME.ink};font-size:15px}
 .pc-agenda-row p,.pc-doc p,.pc-message p{margin:7px 0 0;color:${THEME.muted};font-size:13px;line-height:1.55}
-.pc-doc{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.pc-doc-list{display:grid;gap:10px}
+.pc-doc{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;border:1px solid ${THEME.border};border-radius:14px;padding:14px;background:#FFFBF5}
 .pc-doc span{border:1px solid ${THEME.border};border-radius:999px;padding:6px 10px;font-size:11px;color:${THEME.muted};white-space:nowrap}
 .pc-message>span{display:block;color:${THEME.gold};font-size:10px;letter-spacing:1.5px;text-transform:uppercase;font-weight:900;margin-bottom:8px}
+.pc-message p{white-space:pre-wrap}
 .pc-contact{display:flex;gap:14px;align-items:center}
 .pc-avatar{width:48px;height:48px;border-radius:50%;background:#F1E6D3;color:${THEME.gold};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;flex-shrink:0;text-transform:uppercase}
 .pc-contact span{display:block;color:${THEME.gold};font-size:10px;letter-spacing:1.4px;text-transform:uppercase;font-weight:900;margin-bottom:4px}
@@ -504,8 +594,52 @@ const css = `
 .pc-empty p{margin:0;font-size:13px;line-height:1.5}
 .pc-preview{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.94);display:flex;align-items:center;justify-content:center;padding:16px;cursor:zoom-out}
 .pc-preview img{max-width:96vw;max-height:92vh;border-radius:10px;object-fit:contain}
-.pc-preview button{position:absolute;top:18px;right:18px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);color:#fff;border-radius:10px;padding:9px 12px;cursor:pointer}
+.pc-preview button{position:absolute;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);color:#fff;border-radius:10px;padding:9px 12px;cursor:pointer}
+.pc-preview-close{top:18px;right:18px}
+.pc-preview-prev{left:18px;top:50%}
+.pc-preview-next{right:18px;top:50%}
 .pc-footer{text-align:center;padding:8px 20px 38px;color:#A79F93;font-size:10px;letter-spacing:2px;text-transform:uppercase}
-@media (max-width:640px){.pc-hero{min-height:385px}.pc-top{padding:18px 16px}.pc-top img{height:38px}.pc-hero-content{padding:50px 16px 82px}.pc-hero h1{font-size:35px}.pc-hero p{font-size:14px}.pc-pill{min-width:0;flex:1 1 140px}.pc-tabs{margin:-42px 12px 0;border-radius:14px}.pc-content{padding:18px 12px 48px}.pc-card{padding:16px;border-radius:16px}.pc-status-grid,.pc-filter-card,.pc-gallery{grid-template-columns:1fr}.pc-gallery img,.pc-gallery button>span{height:260px}.pc-timeline{grid-template-columns:1fr 1fr}.pc-agenda-row{grid-template-columns:1fr;gap:8px}.pc-detail{display:block}.pc-detail strong{text-align:left;display:block}.pc-card-head strong{font-size:36px}}
-@media (max-width:360px){.pc-hero h1{font-size:30px}.pc-tabs button{padding:9px 10px}.pc-gallery img,.pc-gallery button>span{height:220px}}
+@media (max-width:760px){
+  .pc-page{padding-bottom:78px}
+  .pc-hero{min-height:305px}
+  .pc-top{padding:16px 14px}
+  .pc-top img{height:34px}
+  .pc-hero-content{padding:18px 14px 42px}
+  .pc-hero h1{font-size:28px;line-height:1.05}
+  .pc-hero p{font-size:12.5px;margin-top:7px}
+  .pc-hero-dashboard{grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
+  .pc-pill{padding:9px 10px;border-radius:12px}
+  .pc-pill span{font-size:7.5px;margin-bottom:4px}
+  .pc-pill strong{font-size:12px}
+  .pc-tabs{display:none}
+  .pc-bottom-nav{position:fixed;left:10px;right:10px;bottom:10px;z-index:40;display:grid;grid-template-columns:repeat(5,1fr);gap:4px;background:rgba(255,254,252,.94);border:1px solid ${THEME.border};border-radius:18px;padding:7px;box-shadow:0 18px 42px rgba(29,28,25,.18);backdrop-filter:blur(16px)}
+  .pc-bottom-nav button{border:0;background:transparent;color:${THEME.muted};border-radius:13px;padding:7px 4px 6px;font-size:9.5px;font-weight:900;cursor:pointer}
+  .pc-bottom-nav button span{display:block;font-size:15px;line-height:1;margin-bottom:3px;color:${THEME.gold}}
+  .pc-bottom-nav button.active{background:${THEME.ink};color:#fff}
+  .pc-bottom-nav button.active span{color:#fff}
+  .pc-alert{margin:12px 12px 0}
+  .pc-content{padding:14px 12px 26px}
+  .pc-card{padding:15px;border-radius:16px}
+  .pc-card-head strong{font-size:34px}
+  .pc-dashboard-grid,.pc-filter-card,.pc-gallery{grid-template-columns:1fr}
+  .pc-timeline{grid-template-columns:1fr}
+  .pc-timeline div{display:flex;align-items:center;gap:10px;text-align:left;padding:12px}
+  .pc-timeline i{margin:0}
+  .pc-gallery img,.pc-gallery button>span{height:260px}
+  .pc-agenda-row{grid-template-columns:1fr;gap:8px}
+  .pc-detail{display:block}
+  .pc-detail strong{text-align:left;display:block}
+  .pc-doc{display:block}
+  .pc-doc span{display:inline-flex;margin-top:10px}
+  .pc-preview-prev,.pc-preview-next{display:none}
+}
+@media (max-width:360px){
+  .pc-hero{min-height:292px}
+  .pc-hero h1{font-size:25px}
+  .pc-hero-dashboard{gap:6px}
+  .pc-pill{padding:8px}
+  .pc-gallery img,.pc-gallery button>span{height:220px}
+  .pc-bottom-nav{left:6px;right:6px;bottom:6px}
+  .pc-bottom-nav button{font-size:8.8px}
+}
 `
