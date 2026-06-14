@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { KpiCard as DesignKpiCard, StatusBadge } from '../../components/DesignSystem'
 import { supabase } from '../../lib/supabase'
 
 const THEME = {
@@ -283,16 +284,11 @@ export default function BibliotecaMestre() {
 }
 
 function Kpi({ label, value, danger }) {
-  return (
-    <div className={danger ? 'bm-kpi danger' : 'bm-kpi'}>
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  )
+  return <DesignKpiCard label={label} value={value} danger={danger} />
 }
 
 function Badge({ children, muted, danger }) {
-  return <span className={danger ? 'bm-badge danger' : muted ? 'bm-badge muted' : 'bm-badge'}>{children}</span>
+  return <StatusBadge tone={danger ? 'danger' : muted ? 'info' : 'gold'}>{children}</StatusBadge>
 }
 
 const css = `

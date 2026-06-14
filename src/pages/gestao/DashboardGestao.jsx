@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { EmptyState, KpiCard as DesignKpiCard, PremiumCard } from '../../components/DesignSystem'
 
 const THEME = {
   bg: '#F6F3EE',
@@ -394,23 +395,15 @@ function obraNome(obras, id) {
 
 function Kpi({ label, value, sub, tone, loading }) {
   return (
-    <div className="dg-kpi" style={{ borderTopColor: tone }}>
-      <span style={{ color: tone }}>{label}</span>
-      <strong>{loading ? '-' : value}</strong>
-      <small>{sub}</small>
-    </div>
+    <DesignKpiCard label={label} value={loading ? '-' : value} helper={sub} tone={tone === THEME.danger ? 'danger' : tone === THEME.success ? 'success' : tone === THEME.warn ? 'warning' : 'gold'} />
   )
 }
 
 function Card({ title, action, onAction, children }) {
   return (
-    <section className="dg-card">
-      <div className="dg-card-head">
-        <h2>{title}</h2>
-        {action && <button onClick={onAction}>{action}</button>}
-      </div>
+    <PremiumCard title={title} action={action && <button className="ow-action-button secondary" onClick={onAction}>{action}</button>}>
       {children}
-    </section>
+    </PremiumCard>
   )
 }
 
@@ -451,7 +444,7 @@ function Line({ title, meta }) {
 }
 
 function Empty({ text }) {
-  return <div className="dg-empty">{text}</div>
+  return <EmptyState title={text} />
 }
 
 const css = `

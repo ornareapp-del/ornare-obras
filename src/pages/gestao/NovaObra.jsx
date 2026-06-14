@@ -131,7 +131,7 @@ export default function NovaObra() {
       <div style={s.header}>
         <button style={s.back} onClick={() => navigate('/obras')}>Obras</button>
         <div>
-          <div style={s.breadcrumb}>Gestao</div>
+          <div style={s.breadcrumb}>Gestão</div>
           <h1 style={s.title}>Nova Obra</h1>
         </div>
       </div>
@@ -201,7 +201,7 @@ export default function NovaObra() {
         </Secao>
 
         {/* ── Arquiteto ───────────────────────────────────────────────────── */}
-        <Secao titulo="Arquiteto Responsavel">
+        <Secao titulo="Arquiteto Responsável">
           <Grid>
             <Campo label="Nome do arquiteto">
               <FInput value={form.arquiteto_nome} onChange={v => set('arquiteto_nome', v)} placeholder="Nome completo" />
@@ -215,8 +215,8 @@ export default function NovaObra() {
           </Grid>
         </Secao>
 
-        {/* ── Endereco ────────────────────────────────────────────────────── */}
-        <Secao titulo="Endereco da Obra">
+        {/* ── Endereço ────────────────────────────────────────────────────── */}
+        <Secao titulo="Endereço da Obra">
           <Grid>
             <Campo label="CEP">
               <FInput value={form.cep} onChange={v => set('cep', v)} placeholder="00000-000" />
@@ -251,7 +251,7 @@ export default function NovaObra() {
             <Campo label="Data de inicio">
               <FInput type="date" value={form.data_inicio} onChange={v => set('data_inicio', v)} />
             </Campo>
-            <Campo label="Previsao de termino">
+            <Campo label="Previsão de término">
               <FInput type="date" value={form.data_previsao} onChange={v => set('data_previsao', v)} />
             </Campo>
           </Grid>
@@ -282,12 +282,12 @@ export default function NovaObra() {
           </div>
         </Secao>
 
-        {/* ── Observacoes ─────────────────────────────────────────────────── */}
-        <Secao titulo="Observacoes Internas">
+        {/* ── Observações ─────────────────────────────────────────────────── */}
+        <Secao titulo="Observações Internas">
           <textarea
             value={form.observacoes}
             onChange={e => set('observacoes', e.target.value)}
-            placeholder="Informacoes adicionais, acessos, contatos extras..."
+            placeholder="Informações adicionais, acessos, contatos extras..."
             style={s.textarea} />
         </Secao>
 

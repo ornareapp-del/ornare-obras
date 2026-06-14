@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { EmptyState, KpiCard as DesignKpiCard, PremiumCard } from '../../components/DesignSystem'
 import { supabase } from '../../lib/supabase'
 import { useStore } from '../../store/useStore'
 
@@ -23,7 +24,7 @@ const STATUS_OBRA = {
   'Concluída': { bg: '#EAF5EE', color: '#2D7A4A', label: 'Concluída' },
   'Pausada': { bg: '#FFF3E0', color: '#9A5B13', label: 'Pausada' },
   'Em producao': { bg: '#F4EFE6', color: '#8A6A38', label: 'Em producao' },
-  'Em produção': { bg: '#F4EFE6', color: '#8A6A38', label: 'Em producao' },
+  'Em produção': { bg: '#F4EFE6', color: '#8A6A38', label: 'Em produção' },
 }
 
 const norm = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
@@ -235,7 +236,7 @@ export default function DashboardSupervisor() {
     }))
     tarefasAtrasadas.slice(0, 4).forEach(t => acoes.push({
       tipo: 'Tarefa atrasada',
-      titulo: t.titulo || t.descricao || 'Tarefa sem titulo',
+      titulo: t.titulo || t.descricao || 'Tarefa sem título',
       detalhe: `${obraPorId.get(t.obra_id)?.nome || 'Obra'} - ${dataBR(t.prazo)}`,
       obraId: t.obra_id,
       cor: THEME.danger,
@@ -322,7 +323,7 @@ export default function DashboardSupervisor() {
     { label: 'Atrasadas', value: vm.kpis.atrasadas, sub: 'exigem plano', tone: vm.kpis.atrasadas ? THEME.danger : THEME.success },
     { label: 'Pendencias', value: vm.kpis.pendencias, sub: 'tarefas, ocorrencias e checklist', tone: vm.kpis.pendencias ? THEME.warn : THEME.success },
     { label: 'Fotos pendentes', value: vm.kpis.fotosPendentes, sub: 'aguardando validacao', tone: vm.kpis.fotosPendentes ? THEME.warn : THEME.success },
-    { label: 'Check-ins hoje', value: vm.kpis.checkinsHoje, sub: 'movimentacoes de equipe', tone: THEME.gold },
+    { label: 'Check-ins hoje', value: vm.kpis.checkinsHoje, sub: 'movimentações de equipe', tone: THEME.gold },
   ]
 
   return (
@@ -366,7 +367,7 @@ export default function DashboardSupervisor() {
           <div className="ds-health">
             <Health label="Entraram" value={vm.checkins.entraram} color={THEME.gold} loading={loading} />
             <Health label="Ainda não" value={vm.checkins.aindaNaoEntraram} color={THEME.warn} loading={loading} />
-            <Health label="Em servico" value={vm.checkins.emServico} color={THEME.success} loading={loading} />
+            <Health label="Em serviço" value={vm.checkins.emServico} color={THEME.success} loading={loading} />
           </div>
         </Card>
       </section>
@@ -412,13 +413,13 @@ export default function DashboardSupervisor() {
         </div>
 
         <div className="ds-stack">
-          <Card title="Proximas acoes">
-            {loading ? <Empty text="Carregando acoes..." /> : vm.acoes.length === 0 ? <Empty text="Operacao sem acoes urgentes." /> : vm.acoes.map((acao, i) => (
+          <Card title="Próximas ações">
+            {loading ? <Empty text="Carregando ações..." /> : vm.acoes.length === 0 ? <Empty text="Operação sem ações urgentes." /> : vm.acoes.map((acao, i) => (
               <button className="ds-action-row" key={`${acao.tipo}-${i}`} onClick={() => acao.obraId && navigate(`/obras/${acao.obraId}`)}>
                 <span style={{ background: acao.cor }} />
                 <div>
                   <strong>{acao.titulo}</strong>
-                  <small>{acao.tipo} - {acao.detalhe}</small>
+                  <small>{acao.tipo} · {acao.detalhe}</small>
                 </div>
               </button>
             ))}
@@ -431,7 +432,7 @@ export default function DashboardSupervisor() {
                 <Line
                   key={m.id}
                   label={m.nome}
-                  value={`${m.obras.length} obra${m.obras.length === 1 ? '' : 's'}${m.emServico ? ' - em servico' : ''}`}
+                  value={`${m.obras.length} obra${m.obras.length === 1 ? '' : 's'}${m.emServico ? ' · em serviço' : ''}`}
                 />
               ))}
             </div>
@@ -439,14 +440,14 @@ export default function DashboardSupervisor() {
 
           <Card title="Fotos">
             <MetricLine label="Fotos enviadas" value={vm.fotos.total} color={THEME.gold} loading={loading} />
-            <MetricLine label="Aguardando aprovacao" value={vm.fotos.pendentes} color={THEME.warn} loading={loading} />
+            <MetricLine label="Aguardando aprovação" value={vm.fotos.pendentes} color={THEME.warn} loading={loading} />
             <MetricLine label="Não conformidades" value={vm.fotos.naoConformidades} color={THEME.danger} loading={loading} />
           </Card>
 
           <Card title="Ocorrências">
             <MetricLine label="Abertas" value={vm.ocorrencias.abertas} color={THEME.warn} loading={loading} />
             <MetricLine label="Em andamento" value={vm.ocorrencias.andamento} color={THEME.blue} loading={loading} />
-            <MetricLine label="Criticas" value={vm.ocorrencias.criticas} color={THEME.danger} loading={loading} />
+            <MetricLine label="Críticas" value={vm.ocorrencias.criticas} color={THEME.danger} loading={loading} />
           </Card>
         </div>
       </section>
@@ -455,24 +456,18 @@ export default function DashboardSupervisor() {
 }
 
 function Kpi({ label, value, sub, tone, loading }) {
-  return (
-    <div className="ds-kpi" style={{ borderTopColor: tone }}>
-      <span style={{ color: tone }}>{label}</span>
-      <strong>{loading ? '-' : value}</strong>
-      <small>{sub}</small>
-    </div>
-  )
+  return <DesignKpiCard label={label} value={loading ? '-' : value} helper={sub} tone={tone} />
 }
 
 function Card({ title, action, onAction, children }) {
   return (
-    <section className="ds-card">
-      <div className="ds-card-head">
-        <h2>{title}</h2>
-        {action && <button onClick={onAction}>{action}</button>}
-      </div>
+    <PremiumCard
+      title={title}
+      className="ds-card"
+      action={action ? <button onClick={onAction}>{action}</button> : null}
+    >
       {children}
-    </section>
+    </PremiumCard>
   )
 }
 
@@ -493,7 +488,7 @@ function MiniAgenda({ label, items, loading }) {
         <strong>{loading ? '-' : items.length}</strong>
         <span>{label}</span>
       </div>
-      {primeiro && <small>{dataBR(primeiro.data)} - {primeiro.titulo || primeiro.tipo || 'Agenda'}</small>}
+      {primeiro && <small>{dataBR(primeiro.data)} · {primeiro.titulo || primeiro.tipo || 'Agenda'}</small>}
     </div>
   )
 }
@@ -527,7 +522,7 @@ function Line({ label, value, onClick }) {
 }
 
 function Empty({ text }) {
-  return <div className="ds-empty">{text}</div>
+  return <EmptyState title={text} />
 }
 
 const css = `

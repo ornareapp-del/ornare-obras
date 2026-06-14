@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { KpiCard as DesignKpiCard, StatusBadge } from '../../components/DesignSystem'
 import { supabase } from '../../lib/supabase'
 import { exportarPlanejamentoPdf } from '../../services/pdfService'
 
@@ -421,12 +422,7 @@ export default function Planejamento() {
 }
 
 function Kpi({ label, value, danger }) {
-  return (
-    <div className={danger ? 'pl-kpi danger' : 'pl-kpi'}>
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  )
+  return <DesignKpiCard label={label} value={value} danger={danger} />
 }
 
 function AtencaoPanel({ alertas, abrirObra }) {
@@ -678,7 +674,7 @@ function Gantt({ registros, meses, abrirObra }) {
 }
 
 function Badge({ color, children }) {
-  return <span className="pl-badge" style={{ color, background: `${color}18` }}>{children}</span>
+  return <StatusBadge style={{ color, background: `${color}18` }}>{children}</StatusBadge>
 }
 
 const css = `

@@ -301,7 +301,7 @@ export default function ObraDetalhe() {
                 {exportandoPdf ? 'Gerando...' : 'Exportar PDF'}
               </button>
               <button onClick={() => { setEditando(!editando); setFormObra(obra) }} style={acaoBtn(true, editando)}>
-                {editando ? 'Cancelar edicao' : 'Editar'}
+                {editando ? 'Cancelar edição' : 'Editar'}
               </button>
             </div>
           </div>
@@ -327,7 +327,7 @@ export default function ObraDetalhe() {
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <span style={{ padding: '5px 14px', borderRadius: 20, background: st.bg, color: st.color, fontSize: 12, fontWeight: 500 }}>{st.label}</span>
           <button onClick={() => { setEditando(!editando); setFormObra(obra) }} style={{ background: editando ? '#fdecea' : 'var(--color-ink)', color: editando ? '#a03030' : '#f9f7f4', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 12, cursor: 'pointer' }}>
-            {editando ? 'Cancelar edicao' : 'Editar obra'}
+            {editando ? 'Cancelar edição' : 'Editar obra'}
           </button>
         </div>
       </div>
@@ -458,8 +458,8 @@ export default function ObraDetalhe() {
             </GridEdit>
           </SecaoEdit>
 
-          <SecaoEdit titulo="Observacoes" last>
-            <CampoEdit label="Observacoes internas" full>
+          <SecaoEdit titulo="Observações" last>
+            <CampoEdit label="Observações internas" full>
               <textarea value={formObra.observacoes || ''} onChange={e => setFormObra(p => ({ ...p, observacoes: e.target.value }))} rows={4} style={textareaStyle} />
             </CampoEdit>
           </SecaoEdit>
@@ -469,7 +469,7 @@ export default function ObraDetalhe() {
               Cancelar
             </button>
             <button onClick={salvarEdicaoObra} disabled={salvando} style={{ background: THEME.gold, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-              {salvando ? 'Salvando...' : 'Salvar alteracoes'}
+              {salvando ? 'Salvando...' : 'Salvar alterações'}
             </button>
           </div>
         </div>
@@ -512,7 +512,7 @@ export default function ObraDetalhe() {
           </Card>
           {obra.observacoes && (
             <div style={{ gridColumn: '1/-1' }}>
-              <Card titulo="Observacoes internas">
+              <Card titulo="Observações internas">
                 <p style={{ margin: 0, fontSize: 13, color: THEME.muted, lineHeight: 1.7 }}>{obra.observacoes}</p>
               </Card>
             </div>
@@ -762,7 +762,7 @@ function AbaCronograma({ obraId, profiles, compacto }) {
   }
 
   if (loading) return <div style={{ color: THEME.muted }}>Carregando cronograma...</div>
-  if (!form) return <div style={{ color: THEME.danger }}>Cronograma indisponivel.</div>
+  if (!form) return <div style={{ color: THEME.danger }}>Cronograma indisponível.</div>
 
   const responsaveis = profiles || []
   const supervisores = responsaveis.filter(p => ['gestao', 'supervisor'].includes(p.role))
@@ -831,11 +831,11 @@ function AbaCronograma({ obraId, profiles, compacto }) {
       </Card>
 
       <div style={{ display: 'grid', gridTemplateColumns: compacto ? '1fr' : '1fr 1fr', gap: 16 }}>
-        <Card titulo="Aprovacoes">
+        <Card titulo="Aprovações">
           <div style={{ display: 'grid', gap: 12 }}>
-            <div><Label>Aprovacao tecnica</Label><FSelect value={form.aprovacao_tecnica_status || 'pendente'} onChange={v => setCampo('aprovacao_tecnica_status', v)}>{APROVACOES_CRONOGRAMA.map(a => <option key={a} value={a}>{textoAprovacao(a)}</option>)}</FSelect></div>
-            <div><Label>Aprovacao comercial</Label><FSelect value={form.aprovacao_comercial_status || 'pendente'} onChange={v => setCampo('aprovacao_comercial_status', v)}>{APROVACOES_CRONOGRAMA.map(a => <option key={a} value={a}>{textoAprovacao(a)}</option>)}</FSelect></div>
-            <div><Label>Aprovacao financeira</Label><FSelect value={form.aprovacao_financeira_status || 'pendente'} onChange={v => setCampo('aprovacao_financeira_status', v)}>{APROVACOES_CRONOGRAMA.map(a => <option key={a} value={a}>{textoAprovacao(a)}</option>)}</FSelect></div>
+            <div><Label>Aprovação técnica</Label><FSelect value={form.aprovacao_tecnica_status || 'pendente'} onChange={v => setCampo('aprovacao_tecnica_status', v)}>{APROVACOES_CRONOGRAMA.map(a => <option key={a} value={a}>{textoAprovacao(a)}</option>)}</FSelect></div>
+            <div><Label>Aprovação comercial</Label><FSelect value={form.aprovacao_comercial_status || 'pendente'} onChange={v => setCampo('aprovacao_comercial_status', v)}>{APROVACOES_CRONOGRAMA.map(a => <option key={a} value={a}>{textoAprovacao(a)}</option>)}</FSelect></div>
+            <div><Label>Aprovação financeira</Label><FSelect value={form.aprovacao_financeira_status || 'pendente'} onChange={v => setCampo('aprovacao_financeira_status', v)}>{APROVACOES_CRONOGRAMA.map(a => <option key={a} value={a}>{textoAprovacao(a)}</option>)}</FSelect></div>
           </div>
         </Card>
 
@@ -856,7 +856,7 @@ function AbaCronograma({ obraId, profiles, compacto }) {
 
       <Card titulo="Alertas e acao recomendada">
         <div style={{ display: 'grid', gap: 12 }}>
-          <div><Label>Alertas / observacoes</Label><textarea value={form.alertas_observacoes || ''} onChange={e => setCampo('alertas_observacoes', e.target.value)} rows={3} style={textareaStyle} /></div>
+          <div><Label>Alertas / observações</Label><textarea value={form.alertas_observacoes || ''} onChange={e => setCampo('alertas_observacoes', e.target.value)} rows={3} style={textareaStyle} /></div>
           <div><Label>Acao recomendada</Label><textarea value={form.acao_recomendada || ''} onChange={e => setCampo('acao_recomendada', e.target.value)} rows={3} style={textareaStyle} /></div>
         </div>
       </Card>
@@ -1235,7 +1235,7 @@ function AbaChat({ obraId }) {
               <div key={m.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flexDirection: isMe ? 'row-reverse' : 'row' }}>
                 <div style={{ width: 32, height: 32, borderRadius: '50%', background: cor + '22', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: cor, flexShrink: 0 }}>{ini}</div>
                 <div style={{ maxWidth: '70%' }}>
-                  <div style={{ fontSize: 10, color: '#aaa', marginBottom: 3, textAlign: isMe ? 'right' : 'left' }}>{m.autor?.full_name || 'Usuario'} · {new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+                  <div style={{ fontSize: 10, color: '#aaa', marginBottom: 3, textAlign: isMe ? 'right' : 'left' }}>{m.autor?.full_name || 'Usuário'} · {new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
                   <div style={{ background: isMe ? 'var(--color-ink)' : '#f5f2ee', color: isMe ? '#f9f7f4' : 'var(--color-ink)', borderRadius: isMe ? '12px 12px 2px 12px' : '12px 12px 12px 2px', padding: '10px 14px', fontSize: 13, lineHeight: 1.5 }}>{m.mensagem}</div>
                 </div>
               </div>
@@ -1352,7 +1352,7 @@ function AbaFotos({ obraId }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
           <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: THEME.muted }}>
             <input type="checkbox" checked={formFoto.visivel_cliente} onChange={e => setFormFoto(p => ({ ...p, visivel_cliente: e.target.checked }))} />
-            Visivel ao cliente apos aprovacao
+            Visível ao cliente após aprovação
           </label>
           <label style={{ background: formFoto.categoria ? THEME.ink : '#bbb', color: '#fff', borderRadius: 9, padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: formFoto.categoria ? 'pointer' : 'not-allowed' }}>
             {uploading ? 'Enviando...' : 'Selecionar e enviar'}
