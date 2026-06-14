@@ -1,339 +1,592 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useStore } from '../../store/useStore'
 
-const ST_TAREFA = {
-  pendente:     { label: 'Pendente',     color: '#b09a7a' },
-  em_andamento: { label: 'Em andamento', color: '#4a90d9' },
-  concluida:    { label: 'Concluida',    color: '#5aab6e' },
-  bloqueada:    { label: 'Bloqueada',    color: '#d94a4a' },
+const THEME = {
+  bg: '#F6F3EE',
+  card: '#FFFFFF',
+  border: '#E7E0D5',
+  ink: '#1D1C19',
+  muted: '#6D675E',
+  gold: '#B8965E',
+  danger: '#B84040',
+  warn: '#B8965E',
+  success: '#2D7A4A',
+  blue: '#3B5F86',
 }
 
-const ST_OBRA = {
-  'Em montagem':       { bg: '#EFF4FA', color: '#1E3A5F', dot: '#2563EB' },
-  'Montagem agendada': { bg: '#E3F2FD', color: '#1565C0', dot: '#1565C0' },
-  'Concluida':         { bg: '#E8F5E9', color: '#2E7D32', dot: '#2E7D32' },
-  'Pausada':           { bg: '#FFF3E0', color: '#E65100', dot: '#F57C00' },
-  'Em producao':       { bg: '#EFF4FA', color: '#1E3A5F', dot: '#1E3A5F' },
-}
-function getStObra(s) {
-  return ST_OBRA[s] || { bg: '#F5F5F5', color: '#616161', dot: '#9E9E9E' }
+const STATUS_OBRA = {
+  'Em montagem': { bg: '#EDF2F7', color: '#2B4C70', label: 'Em montagem' },
+  'Montagem agendada': { bg: '#EAF3FB', color: '#1E5A8A', label: 'Montagem agendada' },
+  'Concluida': { bg: '#EAF5EE', color: '#2D7A4A', label: 'Concluida' },
+  'Concluída': { bg: '#EAF5EE', color: '#2D7A4A', label: 'Concluida' },
+  'Pausada': { bg: '#FFF3E0', color: '#9A5B13', label: 'Pausada' },
+  'Em producao': { bg: '#F4EFE6', color: '#8A6A38', label: 'Em producao' },
+  'Em produção': { bg: '#F4EFE6', color: '#8A6A38', label: 'Em producao' },
 }
 
-// saude da obra para semaforo
-function saude(obra) {
-  const hoje = new Date()
-  const prev = obra.data_previsao ? new Date(obra.data_previsao + 'T00:00:00') : null
-  if (prev && prev < hoje)          return { cor: '#B84040', label: 'Atrasada' }
-  if (prev) {
-    const dias = (prev - hoje) / 86400000
-    if (dias <= 7)                  return { cor: '#C8A86A', label: 'Atencao' }
+const norm = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+
+const dataBR = value => value ? new Date(`${value}T00:00:00`).toLocaleDateString('pt-BR') : '-'
+
+const isConcluido = status => ['concluida', 'concluido', 'finalizada', 'finalizado'].includes(norm(status))
+
+const obraStatus = status => STATUS_OBRA[status] || { bg: '#F5F1EA', color: THEME.muted, label: status || '-' }
+
+const agendaTipo = item => {
+  const tipo = norm(item.tipo || item.titulo || item.descricao)
+  if (tipo.includes('vistoria')) return 'vistorias'
+  if (tipo.includes('assist')) return 'assistencias'
+  if (tipo.includes('reuniao') || tipo.includes('reuni')) return 'reunioes'
+  return 'montagens'
+}
+
+function saudeObra(obra, hoje) {
+  const previsao = obra.data_previsao || obra.data_previsao_entrega
+  const data = previsao ? new Date(`${previsao}T00:00:00`) : null
+  if (data && data < hoje && !isConcluido(obra.status)) return 'atrasada'
+  if (data) {
+    const dias = Math.ceil((data.getTime() - hoje.getTime()) / 86400000)
+    if (dias <= 7 && !isConcluido(obra.status)) return 'risco'
   }
-  return { cor: '#2D7A4A', label: 'No prazo' }
+  return 'prazo'
+}
+
+function safeArray(result) {
+  return result?.data || []
 }
 
 export default function DashboardSupervisor() {
-  const navigate  = useNavigate()
+  const navigate = useNavigate()
   const { profile } = useStore()
 
-  const [obras,       setObras]       = useState([])
-  const [tarefas,     setTarefas]     = useState([])
-  const [ocorrencias, setOcorrencias] = useState([])
-  const [checkins,    setCheckins]    = useState([])
-  const [loading,     setLoading]     = useState(true)
-  const [abaAtiva,    setAbaAtiva]    = useState('obras')
+  const [dados, setDados] = useState({
+    obras: [],
+    agenda: [],
+    tarefas: [],
+    ocorrencias: [],
+    checkins: [],
+    obraMontadores: [],
+    profiles: [],
+    checklist: [],
+    fotos: [],
+  })
+  const [loading, setLoading] = useState(true)
 
-  useEffect(() => { if (profile?.id) carregar() }, [profile])
+  useEffect(() => {
+    if (!profile?.id) return
+    let ativo = true
 
-  async function carregar() {
-    // busca ids das obras deste supervisor
-    const { data: minhasObras } = await supabase
-      .from('obras').select('id').eq('supervisor_id', profile.id)
-    const obraIds = (minhasObras || []).map(o => o.id)
+    async function carregar() {
+      setLoading(true)
 
-    const [
-      { data: o },
-      { data: t },
-      { data: oc },
-      { data: ci },
-    ] = await Promise.all([
-      supabase.from('obras')
+      const obrasResult = await supabase
+        .from('obras')
         .select('*')
         .eq('supervisor_id', profile.id)
-        .order('created_at', { ascending: false }),
-      obraIds.length
-        ? supabase.from('tarefas')
-            .select('*, obras(nome), responsavel:profiles!tarefas_responsavel_id_fkey(full_name)')
-            .in('obra_id', obraIds)
-            .neq('status', 'concluida')
-            .order('prazo', { ascending: true })
-        : { data: [] },
-      obraIds.length
-        ? supabase.from('ocorrencias')
-            .select('*, obras(nome)')
-            .in('obra_id', obraIds)
-            .eq('status', 'Aberta')
-            .order('created_at', { ascending: false })
-        : { data: [] },
-      supabase.from('checkins')
-        .select('*, profiles(full_name), obras(nome)')
-        .eq('user_id', profile.id)
         .order('created_at', { ascending: false })
-        .limit(5),
-    ])
 
-    setObras(o       || [])
-    setTarefas(t     || [])
-    setOcorrencias(oc || [])
-    setCheckins(ci   || [])
-    setLoading(false)
-  }
+      if (!ativo) return
 
-  async function mudarStatusTarefa(id, status) {
-    await supabase.from('tarefas').update({ status }).eq('id', id)
+      const obras = safeArray(obrasResult)
+      const obraIds = obras.map(o => o.id)
+
+      if (!obraIds.length) {
+        setDados(prev => ({ ...prev, obras }))
+        setLoading(false)
+        return
+      }
+
+      const [
+        agendaResult,
+        tarefasResult,
+        ocorrenciasResult,
+        obraMontadoresResult,
+        checklistResult,
+        fotosResult,
+      ] = await Promise.all([
+        supabase.from('agenda').select('*').in('obra_id', obraIds).order('data').order('hora_inicio'),
+        supabase.from('tarefas').select('*').in('obra_id', obraIds).order('prazo', { ascending: true }),
+        supabase.from('ocorrencias').select('*').in('obra_id', obraIds).order('created_at', { ascending: false }),
+        supabase.from('obra_montadores').select('obra_id, montador_id').in('obra_id', obraIds),
+        supabase.from('checklist_items').select('id, obra_id, descricao, concluido, concluido_em, ambiente_id').in('obra_id', obraIds),
+        supabase.from('fotos').select('*').in('obra_id', obraIds).order('created_at', { ascending: false }),
+      ])
+
+      if (!ativo) return
+
+      const obraMontadores = safeArray(obraMontadoresResult)
+      const montadorIds = [...new Set(obraMontadores.map(m => m.montador_id).filter(Boolean))]
+
+      const [profilesResult, checkinsResult] = await Promise.all([
+        montadorIds.length
+          ? supabase.from('profiles').select('id, full_name, email, role').in('id', montadorIds)
+          : { data: [] },
+        montadorIds.length
+          ? supabase.from('checkins').select('*').in('user_id', montadorIds).order('created_at', { ascending: false }).limit(120)
+          : { data: [] },
+      ])
+
+      if (!ativo) return
+
+      setDados({
+        obras,
+        agenda: safeArray(agendaResult),
+        tarefas: safeArray(tarefasResult),
+        ocorrencias: safeArray(ocorrenciasResult),
+        checkins: safeArray(checkinsResult),
+        obraMontadores,
+        profiles: safeArray(profilesResult),
+        checklist: safeArray(checklistResult),
+        fotos: safeArray(fotosResult),
+      })
+      setLoading(false)
+    }
+
     carregar()
-  }
 
-  const emMontagem = obras.filter(o => o.status === 'Em montagem').length
-  const ocAbertas  = ocorrencias.length
-  const tAtrasadas = tarefas.filter(t => t.prazo && new Date(t.prazo + 'T00:00:00') < new Date()).length
+    return () => { ativo = false }
+  }, [profile?.id])
 
-  // ultimo checkin
-  const emServico  = checkins.some(c => !c.saida)
-  const ultimoCI   = checkins[0]
+  const vm = useMemo(() => {
+    const hoje = new Date()
+    hoje.setHours(0, 0, 0, 0)
+    const amanha = new Date(hoje)
+    amanha.setDate(hoje.getDate() + 1)
+    const fimSemana = new Date(hoje)
+    fimSemana.setDate(hoje.getDate() + 7)
+    const seteDiasAtras = new Date(hoje)
+    seteDiasAtras.setDate(hoje.getDate() - 7)
 
-  const ABAS = [
-    { id: 'obras',       label: 'Obras',       count: obras.length       },
-    { id: 'tarefas',     label: 'Tarefas',     count: tarefas.length     },
-    { id: 'ocorrencias', label: 'Ocorrencias', count: ocAbertas          },
-  ]
+    const obraPorId = new Map(dados.obras.map(o => [o.id, o]))
+    const profilePorId = new Map(dados.profiles.map(p => [p.id, p]))
+    const montadorIds = [...new Set(dados.obraMontadores.map(m => m.montador_id).filter(Boolean))]
+
+    const tarefasAbertas = dados.tarefas.filter(t => !isConcluido(t.status))
+    const tarefasAtrasadas = tarefasAbertas.filter(t => t.prazo && new Date(`${t.prazo}T00:00:00`) < hoje)
+    const ocorrenciasAbertas = dados.ocorrencias.filter(o => !isConcluido(o.status) && norm(o.status) !== 'fechada')
+    const ocorrenciasCriticas = ocorrenciasAbertas.filter(o => ['alta', 'critica', 'crítica'].includes(norm(o.gravidade || o.prioridade)))
+    const checklistPendentes = dados.checklist.filter(i => !i.concluido)
+    const checklistConcluidos = dados.checklist.filter(i => i.concluido)
+    const fotosPendentes = dados.fotos.filter(f => f.aprovada === false || f.aprovada_gestao === false)
+    const fotosNaoConformidade = dados.fotos.filter(f => norm(f.categoria || f.etapa).includes('conformidade'))
+
+    const agendaSemana = dados.agenda.filter(item => {
+      if (!item.data) return false
+      const data = new Date(`${item.data}T00:00:00`)
+      return data >= hoje && data <= fimSemana
+    })
+
+    const agenda = agendaSemana.reduce((acc, item) => {
+      acc[agendaTipo(item)].push(item)
+      return acc
+    }, { montagens: [], vistorias: [], assistencias: [], reunioes: [] })
+
+    const checkinsHoje = dados.checkins.filter(c => {
+      const base = c.entrada || c.created_at
+      if (!base) return false
+      const data = new Date(base)
+      return data >= hoje && data < amanha
+    })
+    const entraramIds = new Set(checkinsHoje.map(c => c.user_id).filter(Boolean))
+    const emServicoIds = new Set(checkinsHoje.filter(c => !c.saida).map(c => c.user_id).filter(Boolean))
+
+    const obrasPorMontador = montadorIds.map(id => {
+      const obrasIds = dados.obraMontadores.filter(m => m.montador_id === id).map(m => m.obra_id)
+      return {
+        id,
+        nome: profilePorId.get(id)?.full_name || profilePorId.get(id)?.email || 'Montador',
+        obras: obrasIds.map(obraId => obraPorId.get(obraId)).filter(Boolean),
+        entrouHoje: entraramIds.has(id),
+        emServico: emServicoIds.has(id),
+      }
+    })
+
+    const saude = dados.obras.reduce((acc, obra) => {
+      acc[saudeObra(obra, hoje)] += 1
+      return acc
+    }, { atrasada: 0, risco: 0, prazo: 0 })
+
+    const pendenciasPorObra = new Map()
+    checklistPendentes.forEach(item => {
+      pendenciasPorObra.set(item.obra_id, (pendenciasPorObra.get(item.obra_id) || 0) + 1)
+    })
+    const obrasComMaisChecklist = [...pendenciasPorObra.entries()]
+      .map(([obraId, total]) => ({ obra: obraPorId.get(obraId), total }))
+      .filter(item => item.obra)
+      .sort((a, b) => b.total - a.total)
+
+    const fotosPorObra = new Map()
+    dados.fotos.forEach(foto => {
+      if (!foto.obra_id) return
+      const atual = fotosPorObra.get(foto.obra_id)
+      const data = new Date(foto.created_at || 0)
+      if (!atual || data > atual) fotosPorObra.set(foto.obra_id, data)
+    })
+
+    const acoes = []
+    ocorrenciasCriticas.slice(0, 4).forEach(oc => acoes.push({
+      tipo: 'Ocorrencia critica',
+      titulo: oc.titulo || oc.descricao || 'Ocorrencia sem titulo',
+      detalhe: obraPorId.get(oc.obra_id)?.nome || 'Obra',
+      obraId: oc.obra_id,
+      cor: THEME.danger,
+    }))
+    tarefasAtrasadas.slice(0, 4).forEach(t => acoes.push({
+      tipo: 'Tarefa atrasada',
+      titulo: t.titulo || t.descricao || 'Tarefa sem titulo',
+      detalhe: `${obraPorId.get(t.obra_id)?.nome || 'Obra'} - ${dataBR(t.prazo)}`,
+      obraId: t.obra_id,
+      cor: THEME.danger,
+    }))
+    obrasComMaisChecklist.slice(0, 4).forEach(item => acoes.push({
+      tipo: 'Checklist pendente',
+      titulo: item.obra.nome || 'Obra',
+      detalhe: `${item.total} item${item.total === 1 ? '' : 's'} pendente${item.total === 1 ? '' : 's'}`,
+      obraId: item.obra.id,
+      cor: THEME.warn,
+    }))
+    dados.obras.forEach(obra => {
+      const ultima = fotosPorObra.get(obra.id)
+      if (!isConcluido(obra.status) && (!ultima || ultima < seteDiasAtras)) {
+        acoes.push({
+          tipo: 'Sem foto recente',
+          titulo: obra.nome || 'Obra',
+          detalhe: ultima ? `Ultima foto em ${ultima.toLocaleDateString('pt-BR')}` : 'Nenhuma foto registrada',
+          obraId: obra.id,
+          cor: THEME.blue,
+        })
+      }
+    })
+
+    const obrasDetalhadas = dados.obras.map(obra => {
+      const atrasada = saudeObra(obra, hoje) === 'atrasada'
+      const temOcorrencia = ocorrenciasAbertas.some(o => o.obra_id === obra.id)
+      const temChecklist = checklistPendentes.some(i => i.obra_id === obra.id)
+      const ultimaFoto = fotosPorObra.get(obra.id)
+      const semFotoRecente = !isConcluido(obra.status) && (!ultimaFoto || ultimaFoto < seteDiasAtras)
+      const alertas = [
+        atrasada && 'Atrasada',
+        temOcorrencia && 'Ocorrencia',
+        temChecklist && 'Checklist',
+        semFotoRecente && 'Sem foto recente',
+      ].filter(Boolean)
+      return { ...obra, alertas }
+    })
+
+    return {
+      kpis: {
+        minhasObras: dados.obras.length,
+        emMontagem: dados.obras.filter(o => norm(o.status).includes('montagem')).length,
+        atrasadas: saude.atrasada,
+        pendencias: tarefasAbertas.length + ocorrenciasAbertas.length + checklistPendentes.length,
+        fotosPendentes: fotosPendentes.length,
+        checkinsHoje: checkinsHoje.length,
+      },
+      saude,
+      agenda,
+      checkins: {
+        entraram: entraramIds.size,
+        emServico: emServicoIds.size,
+        aindaNaoEntraram: Math.max(montadorIds.length - entraramIds.size, 0),
+      },
+      checklist: {
+        pendentes: checklistPendentes.length,
+        concluidos: checklistConcluidos.length,
+        obras: obrasComMaisChecklist,
+      },
+      equipe: {
+        montadores: obrasPorMontador,
+        total: montadorIds.length,
+      },
+      fotos: {
+        total: dados.fotos.length,
+        pendentes: fotosPendentes.length,
+        naoConformidades: fotosNaoConformidade.length,
+      },
+      ocorrencias: {
+        abertas: ocorrenciasAbertas.length,
+        andamento: ocorrenciasAbertas.filter(o => norm(o.status).includes('andamento')).length,
+        criticas: ocorrenciasCriticas.length,
+      },
+      obras: obrasDetalhadas,
+      acoes: acoes.slice(0, 10),
+      obraPorId,
+    }
+  }, [dados])
 
   const kpis = [
-    { label: 'Minhas obras',    value: obras.length, sub: 'sob responsabilidade', cor: '#C8A86A' },
-    { label: 'Em montagem',     value: emMontagem,   sub: 'operacao ativa',       cor: '#3a5580' },
-    { label: 'Tarefas abertas', value: tarefas.length, sub: tAtrasadas > 0 ? tAtrasadas + ' atrasadas' : 'em andamento', cor: tAtrasadas > 0 ? '#B84040' : '#C8A86A' },
-    { label: 'Ocorrencias',     value: ocAbertas,    sub: 'abertas',              cor: ocAbertas > 0 ? '#B84040' : '#2D7A4A' },
+    { label: 'Minhas obras', value: vm.kpis.minhasObras, sub: 'sob responsabilidade', tone: THEME.gold },
+    { label: 'Em montagem', value: vm.kpis.emMontagem, sub: 'operacao ativa', tone: THEME.blue },
+    { label: 'Atrasadas', value: vm.kpis.atrasadas, sub: 'exigem plano', tone: vm.kpis.atrasadas ? THEME.danger : THEME.success },
+    { label: 'Pendencias', value: vm.kpis.pendencias, sub: 'tarefas, ocorrencias e checklist', tone: vm.kpis.pendencias ? THEME.warn : THEME.success },
+    { label: 'Fotos pendentes', value: vm.kpis.fotosPendentes, sub: 'aguardando validacao', tone: vm.kpis.fotosPendentes ? THEME.warn : THEME.success },
+    { label: 'Check-ins hoje', value: vm.kpis.checkinsHoje, sub: 'movimentacoes de equipe', tone: THEME.gold },
   ]
 
   return (
-    <div style={s.page}>
+    <div className="ds-page">
+      <style>{css}</style>
 
-      {/* ── HEADER ──────────────────────────────────────────────────────────── */}
-      <div style={s.header}>
+      <header className="ds-header">
         <div>
-          <div style={s.breadcrumb}>Supervisor</div>
-          <h1 style={s.title}>
-            Ola, {profile?.full_name?.split(' ')[0] || 'Supervisor'}
-          </h1>
-          <p style={s.sub}>
-            {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
-          </p>
+          <div className="ds-eyebrow">Supervisor Ornare</div>
+          <h1>Central do Supervisor</h1>
+          <p>Obras sob sua responsabilidade, equipe em campo e pendencias da semana</p>
         </div>
-
-        {/* status check-in */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-          <div style={{ ...s.checkinChip, background: emServico ? '#edf7f0' : '#f5f5f5', color: emServico ? '#2D7A4A' : '#aaa', border: '1px solid ' + (emServico ? '#5aab6e44' : '#ddd') }}>
-            <div style={{ width: 7, height: 7, borderRadius: '50%', background: emServico ? '#2D7A4A' : '#ccc' }} />
-            {emServico ? 'Em servico' : 'Fora de servico'}
-            {ultimoCI && (
-              <span style={{ fontSize: 10, color: '#aaa' }}>
-                · {new Date(ultimoCI.entrada || ultimoCI.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            )}
-          </div>
-          <button style={s.btnNew} onClick={() => navigate('/obras/nova')}>
-            + Nova Obra
-          </button>
+        <div className="ds-actions">
+          <button onClick={() => navigate('/obras')}>Minhas obras</button>
+          <button onClick={() => navigate('/agenda')}>Agenda</button>
+          <button className="primary" onClick={() => navigate('/ocorrencias')}>Registrar ocorrencia</button>
         </div>
-      </div>
+      </header>
 
-      {/* ── KPIs ────────────────────────────────────────────────────────────── */}
-      <div style={s.kpiGrid}>
-        {kpis.map(k => (
-          <div key={k.label} style={{ ...s.kpiCard, borderTop: '3px solid ' + k.cor }}>
-            <div style={{ fontSize: 9, letterSpacing: 2, color: k.cor, textTransform: 'uppercase', marginBottom: 8, fontWeight: 600 }}>{k.label}</div>
-            <div style={{ fontSize: 38, fontWeight: 700, color: 'var(--color-ink)', lineHeight: 1, marginBottom: 4 }}>
-              {loading ? '—' : k.value}
-            </div>
-            <div style={{ fontSize: 11, color: k.cor === '#B84040' && k.value > 0 ? '#B84040' : '#aaa' }}>{k.sub}</div>
+      <section className="ds-kpis" aria-label="Indicadores do supervisor">
+        {kpis.map(kpi => <Kpi key={kpi.label} {...kpi} loading={loading} />)}
+      </section>
+
+      <section className="ds-grid-3">
+        <Card title="Saude das minhas obras">
+          <div className="ds-health">
+            <Health label="Atrasadas" value={vm.saude.atrasada} color={THEME.danger} loading={loading} />
+            <Health label="Em risco" value={vm.saude.risco} color={THEME.warn} loading={loading} />
+            <Health label="No prazo" value={vm.saude.prazo} color={THEME.success} loading={loading} />
           </div>
-        ))}
-      </div>
+        </Card>
 
-      {/* ── ABAS ────────────────────────────────────────────────────────────── */}
-      <div style={s.tabs}>
-        {ABAS.map(a => (
-          <button key={a.id} onClick={() => setAbaAtiva(a.id)} style={{
-            ...s.tab,
-            color:        abaAtiva === a.id ? 'var(--color-gold)' : 'var(--color-ink-muted)',
-            borderBottom: abaAtiva === a.id ? '2px solid var(--color-gold)' : '2px solid transparent',
-            fontWeight:   abaAtiva === a.id ? 600 : 400,
-          }}>
-            {a.label}
-            {a.count > 0 && (
-              <span style={{ marginLeft: 6, background: abaAtiva === a.id ? 'var(--color-gold)' : '#e8e4de', color: abaAtiva === a.id ? '#fff' : '#888', borderRadius: 20, fontSize: 10, fontWeight: 700, padding: '1px 7px' }}>
-                {a.count}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
+        <Card title="Agenda da semana" action="Abrir agenda" onAction={() => navigate('/agenda')}>
+          <MiniAgenda label="Montagens" items={vm.agenda.montagens} loading={loading} />
+          <MiniAgenda label="Vistorias" items={vm.agenda.vistorias} loading={loading} />
+          <MiniAgenda label="Assistencias tecnicas" items={vm.agenda.assistencias} loading={loading} />
+          <MiniAgenda label="Reunioes" items={vm.agenda.reunioes} loading={loading} />
+        </Card>
 
-      {loading ? (
-        <div style={s.empty}>Carregando...</div>
-      ) : (
-        <div>
+        <Card title="Check-ins de hoje">
+          <div className="ds-health">
+            <Health label="Entraram" value={vm.checkins.entraram} color={THEME.gold} loading={loading} />
+            <Health label="Ainda nao" value={vm.checkins.aindaNaoEntraram} color={THEME.warn} loading={loading} />
+            <Health label="Em servico" value={vm.checkins.emServico} color={THEME.success} loading={loading} />
+          </div>
+        </Card>
+      </section>
 
-          {/* ── ABA OBRAS ───────────────────────────────────────────────────── */}
-          {abaAtiva === 'obras' && (
-            <div style={s.list}>
-              {obras.length === 0 ? (
-                <div style={s.emptyBox}>
-                  <div style={s.emptyIcon}>🏗️</div>
-                  <div style={s.emptyTitle}>Nenhuma obra atribuida</div>
-                  <div style={s.emptySub}>Obras onde voce e supervisor aparecerao aqui</div>
-                </div>
-              ) : obras.map(obra => {
-                const st  = getStObra(obra.status)
-                const sd  = saude(obra)
-                return (
-                  <div key={obra.id} onClick={() => navigate('/obras/' + obra.id)} style={s.obraCard}>
-                    {/* semaforo */}
-                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: sd.cor, flexShrink: 0, boxShadow: '0 0 0 3px ' + sd.cor + '28' }} title={sd.label} />
-                    <div style={s.obraInfo}>
-                      <div style={s.obraName}>{obra.nome}</div>
-                      <div style={s.obraMeta}>
-                        {obra.cliente_nome}
-                        {obra.cidade         ? ' · ' + obra.cidade : ''}
-                        {obra.data_previsao  ? ' · Prev: ' + new Date(obra.data_previsao + 'T00:00:00').toLocaleDateString('pt-BR') : ''}
-                      </div>
-                      {obra.progresso > 0 && (
-                        <div style={s.progressWrap}>
-                          <div style={{ ...s.progressFill, width: obra.progresso + '%', background: sd.cor }} />
+      <section className="ds-main">
+        <div className="ds-stack">
+          <Card title="Minhas obras" action="Ver obras" onAction={() => navigate('/obras')}>
+            {loading ? <Empty text="Carregando obras..." /> : vm.obras.length === 0 ? <Empty text="Nenhuma obra atribuida." /> : (
+              <div className="ds-work-list">
+                {vm.obras.slice(0, 10).map(obra => {
+                  const st = obraStatus(obra.status)
+                  const previsao = obra.data_previsao || obra.data_previsao_entrega
+                  return (
+                    <button className="ds-work-row" key={obra.id} onClick={() => navigate(`/obras/${obra.id}`)}>
+                      <div className="ds-work-main">
+                        <strong>{obra.nome || 'Obra sem nome'}</strong>
+                        <span>{[obra.cliente_nome, obra.cidade].filter(Boolean).join(' - ') || 'Cliente nao informado'}</span>
+                        <div className="ds-tags">
+                          {obra.alertas.length ? obra.alertas.slice(0, 3).map(a => <em key={a}>{a}</em>) : <em className="ok">Sem alerta</em>}
                         </div>
-                      )}
-                    </div>
-                    <div style={s.obraRight}>
-                      <span style={{ ...s.badge, background: st.bg, color: st.color }}>{obra.status}</span>
-                      <div style={{ fontSize: 11, color: '#aaa' }}>{obra.progresso || 0}%</div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
-          {/* ── ABA TAREFAS ─────────────────────────────────────────────────── */}
-          {abaAtiva === 'tarefas' && (
-            <div style={s.list}>
-              {tarefas.length === 0 ? (
-                <div style={s.emptyBox}>
-                  <div style={s.emptyIcon}>✅</div>
-                  <div style={s.emptyTitle}>Nenhuma tarefa pendente</div>
-                  <div style={s.emptySub}>Todas as tarefas estao concluidas</div>
-                </div>
-              ) : tarefas.map(t => {
-                const st      = ST_TAREFA[t.status] || ST_TAREFA.pendente
-                const atrasada = t.prazo && new Date(t.prazo + 'T00:00:00') < new Date()
-                return (
-                  <div key={t.id} style={{ ...s.tarefaCard, borderLeftColor: atrasada ? '#B84040' : st.color }}>
-                    <div style={s.tarefaInfo}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={s.tarefaTitulo}>{t.titulo}</div>
-                        {atrasada && (
-                          <span style={{ fontSize: 10, background: '#fdecea', color: '#B84040', borderRadius: 20, padding: '2px 8px', fontWeight: 600 }}>Atrasada</span>
-                        )}
                       </div>
-                      <div style={s.tarefaMeta}>
-                        {t.obras?.nome               && <span>📍 {t.obras.nome}</span>}
-                        {t.responsavel?.full_name     && <span>👤 {t.responsavel.full_name}</span>}
-                        {t.prazo                     && <span>📅 {new Date(t.prazo + 'T00:00:00').toLocaleDateString('pt-BR')}</span>}
-                      </div>
-                    </div>
-                    <select
-                      value={t.status}
-                      onChange={e => { e.stopPropagation(); mudarStatusTarefa(t.id, e.target.value) }}
-                      style={{ ...s.statusSelect, color: st.color }}>
-                      {Object.entries(ST_TAREFA).map(([v, { label }]) => (
-                        <option key={v} value={v}>{label}</option>
-                      ))}
-                    </select>
-                  </div>
-                )
-              })}
-            </div>
-          )}
+                      <div className="ds-progress"><i style={{ width: `${obra.progresso || 0}%`, background: obra.alertas.length ? THEME.warn : THEME.gold }} /></div>
+                      <small>{previsao ? dataBR(previsao) : 'Sem previsao'}</small>
+                      <span className="ds-badge" style={{ background: st.bg, color: st.color }}>{st.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </Card>
 
-          {/* ── ABA OCORRENCIAS ─────────────────────────────────────────────── */}
-          {abaAtiva === 'ocorrencias' && (
-            <div style={s.list}>
-              {ocorrencias.length === 0 ? (
-                <div style={s.emptyBox}>
-                  <div style={s.emptyIcon}>✅</div>
-                  <div style={s.emptyTitle}>Nenhuma ocorrencia aberta</div>
-                  <div style={s.emptySub}>Todas as ocorrencias foram resolvidas</div>
-                </div>
-              ) : ocorrencias.map(oc => {
-                const corGrav = oc.gravidade === 'alta' ? '#B84040' : oc.gravidade === 'media' ? '#C8A86A' : '#2D7A4A'
-                return (
-                  <div key={oc.id} style={{ ...s.ocCard, borderLeftColor: corGrav }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                      <div style={s.ocTitulo}>{oc.titulo}</div>
-                      <span style={{ fontSize: 10, background: corGrav + '18', color: corGrav, borderRadius: 20, padding: '2px 8px', fontWeight: 600 }}>
-                        {oc.gravidade}
-                      </span>
-                    </div>
-                    <div style={s.ocMeta}>
-                      {oc.tipo        && <span>{oc.tipo}</span>}
-                      {oc.obras?.nome && <span>📍 {oc.obras.nome}</span>}
-                      {oc.prazo       && <span>📅 {new Date(oc.prazo + 'T00:00:00').toLocaleDateString('pt-BR')}</span>}
-                    </div>
-                  </div>
-                )
-              })}
+          <Card title="Checklist">
+            <div className="ds-split">
+              <Metric label="Pendentes" value={vm.checklist.pendentes} color={THEME.warn} loading={loading} />
+              <Metric label="Concluidos" value={vm.checklist.concluidos} color={THEME.success} loading={loading} />
             </div>
-          )}
-
+            <div className="ds-mini-list spaced">
+              {loading ? <Empty text="Carregando checklist..." /> : vm.checklist.obras.length === 0 ? <Empty text="Nenhuma pendencia de checklist." /> : vm.checklist.obras.slice(0, 5).map(item => (
+                <Line key={item.obra.id} label={item.obra.nome || 'Obra'} value={`${item.total} pendente${item.total === 1 ? '' : 's'}`} onClick={() => navigate(`/obras/${item.obra.id}`)} />
+              ))}
+            </div>
+          </Card>
         </div>
-      )}
+
+        <div className="ds-stack">
+          <Card title="Proximas acoes">
+            {loading ? <Empty text="Carregando acoes..." /> : vm.acoes.length === 0 ? <Empty text="Operacao sem acoes urgentes." /> : vm.acoes.map((acao, i) => (
+              <button className="ds-action-row" key={`${acao.tipo}-${i}`} onClick={() => acao.obraId && navigate(`/obras/${acao.obraId}`)}>
+                <span style={{ background: acao.cor }} />
+                <div>
+                  <strong>{acao.titulo}</strong>
+                  <small>{acao.tipo} - {acao.detalhe}</small>
+                </div>
+              </button>
+            ))}
+          </Card>
+
+          <Card title="Equipe">
+            <MetricLine label="Montadores alocados" value={vm.equipe.total} color={THEME.gold} loading={loading} />
+            <div className="ds-mini-list spaced">
+              {loading ? <Empty text="Carregando equipe..." /> : vm.equipe.montadores.length === 0 ? <Empty text="Nenhum montador alocado." /> : vm.equipe.montadores.slice(0, 6).map(m => (
+                <Line
+                  key={m.id}
+                  label={m.nome}
+                  value={`${m.obras.length} obra${m.obras.length === 1 ? '' : 's'}${m.emServico ? ' - em servico' : ''}`}
+                />
+              ))}
+            </div>
+          </Card>
+
+          <Card title="Fotos">
+            <MetricLine label="Fotos enviadas" value={vm.fotos.total} color={THEME.gold} loading={loading} />
+            <MetricLine label="Aguardando aprovacao" value={vm.fotos.pendentes} color={THEME.warn} loading={loading} />
+            <MetricLine label="Nao conformidades" value={vm.fotos.naoConformidades} color={THEME.danger} loading={loading} />
+          </Card>
+
+          <Card title="Ocorrencias">
+            <MetricLine label="Abertas" value={vm.ocorrencias.abertas} color={THEME.warn} loading={loading} />
+            <MetricLine label="Em andamento" value={vm.ocorrencias.andamento} color={THEME.blue} loading={loading} />
+            <MetricLine label="Criticas" value={vm.ocorrencias.criticas} color={THEME.danger} loading={loading} />
+          </Card>
+        </div>
+      </section>
     </div>
   )
 }
 
-// ─── ESTILOS ──────────────────────────────────────────────────────────────────
-const s = {
-  page:         { padding: '32px 40px', maxWidth: 1000, margin: '0 auto' },
-  header:       { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 },
-  breadcrumb:   { fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6 },
-  title:        { fontFamily: 'var(--font-serif)', fontSize: 36, fontWeight: 500, color: 'var(--color-ink)', margin: 0 },
-  sub:          { fontSize: 13, color: 'var(--color-ink-muted)', marginTop: 4 },
-  btnNew:       { background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
-  checkinChip:  { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 500, borderRadius: 20, padding: '5px 12px' },
-  kpiGrid:      { display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 24 },
-  kpiCard:      { background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '18px 20px' },
-  tabs:         { display: 'flex', borderBottom: '1px solid var(--color-border)', marginBottom: 20 },
-  tab:          { background: 'none', border: 'none', cursor: 'pointer', padding: '12px 20px', fontSize: 13, whiteSpace: 'nowrap', marginBottom: -1, fontFamily: 'inherit', display: 'flex', alignItems: 'center' },
-  list:         { display: 'flex', flexDirection: 'column', gap: 10 },
-  obraCard:     { background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', transition: 'border-color .15s' },
-  obraInfo:     { flex: 1, minWidth: 0 },
-  obraName:     { fontSize: 14, fontWeight: 600, color: 'var(--color-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  obraMeta:     { fontSize: 11, color: '#aaa', marginTop: 2 },
-  progressWrap: { height: 3, background: 'var(--color-border)', borderRadius: 2, marginTop: 6, overflow: 'hidden' },
-  progressFill: { height: 3, borderRadius: 2, transition: 'width .3s' },
-  obraRight:    { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 },
-  badge:        { fontSize: 10, padding: '2px 8px', borderRadius: 20, fontWeight: 500, whiteSpace: 'nowrap' },
-  tarefaCard:   { background: '#fff', border: '1px solid var(--color-border)', borderLeft: '4px solid', borderRadius: 10, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12 },
-  tarefaInfo:   { flex: 1, minWidth: 0 },
-  tarefaTitulo: { fontSize: 14, fontWeight: 600, color: 'var(--color-ink)', marginBottom: 4 },
-  tarefaMeta:   { display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 11, color: '#aaa' },
-  statusSelect: { fontSize: 12, padding: '5px 10px', borderRadius: 20, border: '1px solid var(--color-border)', background: '#fafaf8', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
-  ocCard:       { background: '#fff', border: '1px solid var(--color-border)', borderLeft: '4px solid', borderRadius: 10, padding: '14px 18px' },
-  ocTitulo:     { fontSize: 14, fontWeight: 600, color: 'var(--color-ink)' },
-  ocMeta:       { display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 11, color: '#aaa' },
-  empty:        { textAlign: 'center', padding: '40px 0', color: '#bbb' },
-  emptyBox:     { textAlign: 'center', padding: '60px 20px', background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12 },
-  emptyIcon:    { fontSize: 40, marginBottom: 12 },
-  emptyTitle:   { fontSize: 16, fontWeight: 600, color: 'var(--color-ink)', marginBottom: 6 },
-  emptySub:     { fontSize: 13, color: '#aaa' },
+function Kpi({ label, value, sub, tone, loading }) {
+  return (
+    <div className="ds-kpi" style={{ borderTopColor: tone }}>
+      <span style={{ color: tone }}>{label}</span>
+      <strong>{loading ? '-' : value}</strong>
+      <small>{sub}</small>
+    </div>
+  )
 }
+
+function Card({ title, action, onAction, children }) {
+  return (
+    <section className="ds-card">
+      <div className="ds-card-head">
+        <h2>{title}</h2>
+        {action && <button onClick={onAction}>{action}</button>}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function Health({ label, value, color, loading }) {
+  return (
+    <div className="ds-health-item">
+      <strong style={{ color }}>{loading ? '-' : value}</strong>
+      <span>{label}</span>
+    </div>
+  )
+}
+
+function MiniAgenda({ label, items, loading }) {
+  const primeiro = items[0]
+  return (
+    <div className="ds-agenda-block">
+      <div>
+        <strong>{loading ? '-' : items.length}</strong>
+        <span>{label}</span>
+      </div>
+      {primeiro && <small>{dataBR(primeiro.data)} - {primeiro.titulo || primeiro.tipo || 'Agenda'}</small>}
+    </div>
+  )
+}
+
+function Metric({ label, value, color, loading }) {
+  return (
+    <div className="ds-metric">
+      <strong style={{ color }}>{loading ? '-' : value}</strong>
+      <span>{label}</span>
+    </div>
+  )
+}
+
+function MetricLine({ label, value, color, loading }) {
+  return (
+    <div className="ds-metric-line">
+      <span>{label}</span>
+      <strong style={{ color }}>{loading ? '-' : value}</strong>
+    </div>
+  )
+}
+
+function Line({ label, value, onClick }) {
+  const Tag = onClick ? 'button' : 'div'
+  return (
+    <Tag className="ds-line" onClick={onClick}>
+      <span>{label}</span>
+      <small>{value}</small>
+    </Tag>
+  )
+}
+
+function Empty({ text }) {
+  return <div className="ds-empty">{text}</div>
+}
+
+const css = `
+.ds-page{min-height:100vh;background:${THEME.bg};padding:30px 34px 52px;color:${THEME.ink};font-family:var(--font-sans);box-sizing:border-box}
+.ds-header{max-width:1380px;margin:0 auto 22px;display:flex;justify-content:space-between;gap:18px;align-items:flex-start}
+.ds-eyebrow{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:${THEME.gold};font-weight:800;margin-bottom:7px}
+.ds-header h1{font-family:var(--font-serif);font-size:38px;line-height:1.05;font-weight:500;margin:0;color:${THEME.ink}}
+.ds-header p{margin:6px 0 0;font-size:13px;color:${THEME.muted}}
+.ds-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.ds-actions button{border:1px solid ${THEME.border};background:#fff;color:${THEME.ink};border-radius:10px;padding:10px 14px;font-size:13px;font-weight:800;cursor:pointer}
+.ds-actions .primary{background:${THEME.gold};border-color:${THEME.gold};color:#fff}
+.ds-kpis{max-width:1380px;margin:0 auto 18px;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+.ds-kpi{background:#fff;border:1px solid ${THEME.border};border-top:3px solid ${THEME.gold};border-radius:14px;padding:15px 16px;min-width:0}
+.ds-kpi span{display:block;font-size:10px;letter-spacing:1.8px;text-transform:uppercase;font-weight:800;margin-bottom:9px;white-space:nowrap}
+.ds-kpi strong{display:block;font-size:34px;line-height:1;color:${THEME.ink}}
+.ds-kpi small{display:block;font-size:12px;color:${THEME.muted};margin-top:7px}
+.ds-grid-3,.ds-main{max-width:1380px;margin:0 auto 16px;display:grid;gap:16px}
+.ds-grid-3{grid-template-columns:1fr 1.15fr 1fr}
+.ds-main{grid-template-columns:minmax(0,1.45fr) minmax(340px,.75fr)}
+.ds-stack{display:flex;flex-direction:column;gap:16px}
+.ds-card{background:#fff;border:1px solid ${THEME.border};border-radius:16px;padding:18px 20px;box-shadow:0 14px 34px rgba(29,28,25,.045);min-width:0}
+.ds-card-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:14px}
+.ds-card-head h2{font-size:14px;font-weight:800;margin:0;color:${THEME.ink}}
+.ds-card-head button{border:0;background:transparent;color:${THEME.gold};font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap}
+.ds-health,.ds-split{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.ds-split{grid-template-columns:1fr 1fr;margin-bottom:4px}
+.ds-health-item,.ds-metric{border:1px solid ${THEME.border};border-radius:12px;padding:12px;background:#FFFEFC}
+.ds-health-item strong,.ds-metric strong{display:block;font-size:26px;line-height:1}
+.ds-health-item span,.ds-metric span{display:block;font-size:12px;color:${THEME.muted};margin-top:6px}
+.ds-agenda-block{border-top:1px solid ${THEME.border};padding:10px 0}
+.ds-agenda-block:first-of-type{border-top:0;padding-top:0}
+.ds-agenda-block>div:first-child{display:flex;align-items:baseline;gap:8px;margin-bottom:5px}
+.ds-agenda-block strong{font-size:22px;color:${THEME.gold}}
+.ds-agenda-block span{font-size:12px;color:${THEME.muted};font-weight:800}
+.ds-agenda-block small{display:block;font-size:11px;color:${THEME.muted};overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ds-work-list{display:flex;flex-direction:column}
+.ds-work-row{width:100%;border:0;background:transparent;border-bottom:1px solid ${THEME.border};padding:12px 0;display:grid;grid-template-columns:minmax(0,1fr) 86px auto auto;gap:12px;align-items:center;text-align:left;cursor:pointer;font-family:inherit}
+.ds-work-row:last-child{border-bottom:0}
+.ds-work-main{min-width:0}
+.ds-work-main strong{display:block;font-size:13.5px;color:${THEME.ink};margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ds-work-main span{display:block;font-size:12px;color:${THEME.muted};overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ds-progress{width:86px;height:5px;background:${THEME.border};border-radius:999px;overflow:hidden}
+.ds-progress i{display:block;height:100%;border-radius:999px}
+.ds-work-row>small{font-size:11px;color:${THEME.muted};white-space:nowrap}
+.ds-badge{font-size:10px;font-weight:800;border-radius:999px;padding:5px 8px;white-space:nowrap}
+.ds-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.ds-tags em{font-style:normal;background:#F7EFE4;color:${THEME.warn};border-radius:999px;padding:4px 8px;font-size:10px;font-weight:800}
+.ds-tags em.ok{background:#EAF5EE;color:${THEME.success}}
+.ds-action-row{width:100%;border:0;background:transparent;border-bottom:1px solid ${THEME.border};padding:11px 0;display:flex;gap:10px;align-items:flex-start;text-align:left;cursor:pointer;font-family:inherit}
+.ds-action-row>span{width:8px;height:8px;border-radius:99px;margin-top:5px;flex-shrink:0}
+.ds-action-row strong{display:block;font-size:13px;color:${THEME.ink};font-weight:800}
+.ds-action-row small{display:block;font-size:11.5px;color:${THEME.muted};margin-top:2px}
+.ds-metric-line,.ds-line{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid ${THEME.border};align-items:center}
+.ds-line{width:100%;border-left:0;border-right:0;border-top:0;background:transparent;text-align:left;font-family:inherit}
+.ds-metric-line span,.ds-line span{font-size:12.5px;color:${THEME.ink};font-weight:800;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ds-metric-line strong{font-size:18px}
+.ds-line small{font-size:11px;color:${THEME.muted};white-space:nowrap}
+.ds-mini-list.spaced{margin-top:12px}
+.ds-empty{padding:24px 0;text-align:center;color:#A79F93;font-size:13px}
+@media (max-width:1100px){.ds-grid-3,.ds-main{grid-template-columns:1fr}.ds-work-row{grid-template-columns:minmax(0,1fr) 86px auto auto}}
+@media (max-width:760px){.ds-page{padding:18px 14px 34px}.ds-header{display:block}.ds-header h1{font-size:31px}.ds-actions{justify-content:flex-start;margin-top:14px}.ds-actions button{flex:1;min-width:132px}.ds-kpis{display:flex;overflow-x:auto;padding-bottom:6px;scroll-snap-type:x mandatory}.ds-kpi{min-width:165px;scroll-snap-align:start}.ds-grid-3,.ds-main{gap:12px}.ds-card{padding:16px 14px;border-radius:14px}.ds-health{grid-template-columns:1fr 1fr 1fr}.ds-work-row{display:flex;align-items:flex-start;flex-direction:column}.ds-progress{width:100%}.ds-work-row>small{white-space:normal}.ds-badge{align-self:flex-start}.ds-action-row{padding:12px 0}.ds-split{grid-template-columns:1fr 1fr}}
+`
