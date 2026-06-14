@@ -1,10 +1,41 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useStore } from '../../store/useStore'
 
-const PR_COR   = { baixa: '#aaa', media: '#b09a7a', alta: '#d94a4a' }
-const PR_LABEL = { baixa: 'Baixa', media: 'Media', alta: 'Alta' }
-const FOTO_CATEGORIAS = ['Antes da montagem', 'Durante a montagem', 'Finalizado', 'Não conformidade', 'Técnica', 'Entrega', 'Cliente', 'Geral']
+const THEME = {
+  bg: '#F6F3EE',
+  card: '#FFFFFF',
+  border: '#E7E0D5',
+  ink: '#1D1C19',
+  muted: '#6D675E',
+  gold: '#B8965E',
+  success: '#2D7A4A',
+  danger: '#B84040',
+  warn: '#9A6A22',
+}
+
+const FOTO_CATEGORIAS = [
+  'Antes da montagem',
+  'Durante a montagem',
+  'Finalizado',
+  'Não conformidade',
+  'Técnica',
+  'Entrega',
+  'Cliente',
+  'Geral',
+]
+
+const PRIORIDADE = {
+  baixa: { label: 'Baixa', color: '#8A8175' },
+  media: { label: 'Média', color: THEME.warn },
+  alta: { label: 'Alta', color: THEME.danger },
+}
+
+const safeArray = result => result?.data || []
+const norm = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+const isConcluido = status => ['concluida', 'concluido', 'finalizada', 'finalizado'].includes(norm(status))
+const isAberta = status => !isConcluido(status) && !['fechada', 'resolvida', 'cancelada'].includes(norm(status))
 
 function fotoUrl(foto) {
   if (foto.url) return foto.url
@@ -12,142 +43,236 @@ function fotoUrl(foto) {
   return supabase.storage.from('fotos-obras').getPublicUrl(foto.storage_path).data.publicUrl
 }
 
-export default function MontadorDashboard() {
-  const { user, profile } = useStore()
+function dataBR(value) {
+  return value ? new Date(`${value}T00:00:00`).toLocaleDateString('pt-BR') : '-'
+}
 
-  // dados principais
-  const [obras,     setObras]     = useState([])   // obras onde esta alocado
-  const [obraAtiva, setObraAtiva] = useState(null) // obra selecionada
-  const [tarefas,   setTarefas]   = useState([])
-  const [checkins,  setCheckins]  = useState([])
+function horaBR(value) {
+  return value ? new Date(value).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '-'
+}
+
+function enderecoObra(obra) {
+  if (!obra) return ''
+  const rua = [obra.rua, obra.numero, obra.complemento].filter(Boolean).join(', ')
+  const cidade = [obra.bairro, obra.cidade, obra.uf].filter(Boolean).join(' - ')
+  return [rua || obra.endereco, cidade].filter(Boolean).join(' · ')
+}
+
+function tipoAgenda(item) {
+  const tipo = norm(item.tipo || item.titulo || item.descricao)
+  if (tipo.includes('vistoria')) return 'Vistoria'
+  if (tipo.includes('assist')) return 'Assistência técnica'
+  if (tipo.includes('reuniao') || tipo.includes('reuni')) return 'Reunião'
+  return 'Montagem'
+}
+
+export default function MontadorDashboard() {
+  const navigate = useNavigate()
+  const { user, profile, setUser, setProfile } = useStore()
+
+  const [obras, setObras] = useState([])
+  const [obraAtiva, setObraAtiva] = useState(null)
+  const [tarefas, setTarefas] = useState([])
+  const [checkins, setCheckins] = useState([])
   const [checklist, setChecklist] = useState([])
   const [ambientes, setAmbientes] = useState([])
-  const [fotos,     setFotos]     = useState([])
+  const [fotos, setFotos] = useState([])
+  const [ocorrencias, setOcorrencias] = useState([])
+  const [agenda, setAgenda] = useState([])
 
-  // ui states
-  const [loading,          setLoading]          = useState(true)
-  const [checkando,        setCheckando]        = useState(false)
-  const [uploading,        setUploading]        = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [loadingObra, setLoadingObra] = useState(false)
+  const [checkando, setCheckando] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [salvandoProblema, setSalvandoProblema] = useState(false)
-  const [modalProblema,    setModalProblema]    = useState(null)
-  const [problema,         setProblema]         = useState('')
-  const [sucesso,          setSucesso]          = useState('')
-  const [abaAtiva,         setAbaAtiva]         = useState('tarefas') // tarefas | checklist | fotos
-  const [preview,          setPreview]          = useState(null)
-  const [formFoto,         setFormFoto]         = useState({ categoria: '', ambiente_id: '', observacao: '' })
+  const [modalProblema, setModalProblema] = useState(null)
+  const [problema, setProblema] = useState('')
+  const [sucesso, setSucesso] = useState('')
+  const [preview, setPreview] = useState(null)
+  const [formFoto, setFormFoto] = useState({ categoria: '', ambiente_id: '', observacao: '' })
 
-  useEffect(() => { if (user) carregarObras() }, [user])
-  useEffect(() => { if (obraAtiva) carregarDadosObra() }, [obraAtiva])
+  const tarefasRef = useRef(null)
+  const checklistRef = useRef(null)
+  const fotosRef = useRef(null)
+  const ocorrenciasRef = useRef(null)
 
-  // ─── CARREGAR OBRAS ALOCADAS ───────────────────────────────────────────────
-  async function carregarObras() {
-    const { data } = await supabase
-      .from('obra_montadores')
-      .select('obra_id, obras(id, nome, status, endereco, rua, numero, complemento, bairro, cidade, uf, data_inicio, data_previsao, progresso)')
-      .eq('montador_id', user.id)
-
-    const lista = (data || []).map(d => d.obras).filter(Boolean)
-    setObras(lista)
-
-    // seleciona automaticamente a primeira obra ativa
-    const ativa = lista.find(o => ['Em montagem', 'Em andamento', 'Montagem agendada'].includes(o.status)) || lista[0]
-    setObraAtiva(ativa || null)
-    setLoading(false)
+  function mostrarSucesso(msg) {
+    setSucesso(msg)
+    window.setTimeout(() => setSucesso(''), 3200)
   }
 
-  // ─── CARREGAR DADOS DA OBRA ATIVA ─────────────────────────────────────────
-  async function carregarDadosObra() {
-    if (!obraAtiva) return
+  async function carregarDadosObra(obra = obraAtiva) {
+    if (!obra?.id || !user?.id) return
+
     const [
-      { data: t },
-      { data: c },
-      { data: cl },
-      { data: amb },
-      { data: f },
+      tarefasResult,
+      checkinsResult,
+      checklistResult,
+      ambientesResult,
+      fotosResult,
+      ocorrenciasResult,
+      agendaResult,
     ] = await Promise.all([
-      supabase.from('tarefas')
-        .select('*')
-        .eq('obra_id', obraAtiva.id)
-        .eq('responsavel_id', user.id)
-        .neq('status', 'concluida')
-        .order('prazo'),
-      supabase.from('checkins')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('obra_id', obraAtiva.id)
-        .order('created_at', { ascending: false })
-        .limit(10),
-      supabase.from('checklist_items')
-        .select('id, obra_id, ambiente_id, descricao, concluido, concluido_por, concluido_em')
-        .eq('obra_id', obraAtiva.id)
-        .order('descricao'),
-      supabase.from('obra_ambientes')
-        .select('id, nome, status')
-        .eq('obra_id', obraAtiva.id),
-      supabase.from('fotos')
-        .select('*')
-        .eq('obra_id', obraAtiva.id)
-        .order('created_at', { ascending: false })
-        .limit(20),
+      supabase.from('tarefas').select('*').eq('obra_id', obra.id).eq('responsavel_id', user.id).order('prazo'),
+      supabase.from('checkins').select('*').eq('user_id', user.id).eq('obra_id', obra.id).order('created_at', { ascending: false }).limit(20),
+      supabase.from('checklist_items').select('id, obra_id, ambiente_id, descricao, concluido, concluido_por, concluido_em').eq('obra_id', obra.id).order('descricao'),
+      supabase.from('obra_ambientes').select('id, nome, status').eq('obra_id', obra.id).order('nome'),
+      supabase.from('fotos').select('*').eq('obra_id', obra.id).order('created_at', { ascending: false }).limit(60),
+      supabase.from('ocorrencias').select('*').eq('obra_id', obra.id).order('created_at', { ascending: false }).limit(40),
+      supabase.from('agenda').select('*').eq('obra_id', obra.id).order('data').order('hora_inicio'),
     ])
-    setTarefas(t   || [])
-    setCheckins(c  || [])
-    setChecklist(cl || [])
-    setAmbientes(amb || [])
-    setFotos((f || []).map(foto => ({ ...foto, categoria: foto.categoria || 'Geral', publicUrl: fotoUrl(foto) })))
+
+    setTarefas(safeArray(tarefasResult))
+    setCheckins(safeArray(checkinsResult))
+    setChecklist(safeArray(checklistResult))
+    setAmbientes(safeArray(ambientesResult))
+    setFotos(safeArray(fotosResult).map(foto => ({ ...foto, categoria: foto.categoria || 'Geral', publicUrl: fotoUrl(foto) })))
+    setOcorrencias(safeArray(ocorrenciasResult))
+    setAgenda(safeArray(agendaResult))
+    setLoadingObra(false)
   }
 
-  // ─── CHECK-IN COM GEO ─────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!user?.id) return
+    let ativo = true
+
+    async function carregar() {
+      setLoading(true)
+      const vinculosResult = await supabase
+        .from('obra_montadores')
+        .select('obra_id')
+        .eq('montador_id', user.id)
+
+      if (!ativo) return
+
+      const obraIds = [...new Set(safeArray(vinculosResult).map(v => v.obra_id).filter(Boolean))]
+      if (!obraIds.length) {
+        setObras([])
+        setObraAtiva(null)
+        setLoading(false)
+        return
+      }
+
+      const obrasResult = await supabase
+        .from('obras')
+        .select('*')
+        .in('id', obraIds)
+        .order('created_at', { ascending: false })
+
+      if (!ativo) return
+
+      const lista = safeArray(obrasResult)
+      setObras(lista)
+      setObraAtiva(atual => {
+        const anterior = lista.find(o => o.id === atual?.id)
+        return anterior || lista.find(o => ['em montagem', 'em andamento', 'montagem agendada'].includes(norm(o.status))) || lista[0] || null
+      })
+      setLoading(false)
+    }
+
+    carregar()
+
+    return () => { ativo = false }
+  }, [user?.id])
+
+  useEffect(() => {
+    if (!obraAtiva?.id || !user?.id) return
+    let ativo = true
+
+    async function carregar() {
+      setLoadingObra(true)
+      const [
+        tarefasResult,
+        checkinsResult,
+        checklistResult,
+        ambientesResult,
+        fotosResult,
+        ocorrenciasResult,
+        agendaResult,
+      ] = await Promise.all([
+        supabase.from('tarefas').select('*').eq('obra_id', obraAtiva.id).eq('responsavel_id', user.id).order('prazo'),
+        supabase.from('checkins').select('*').eq('user_id', user.id).eq('obra_id', obraAtiva.id).order('created_at', { ascending: false }).limit(20),
+        supabase.from('checklist_items').select('id, obra_id, ambiente_id, descricao, concluido, concluido_por, concluido_em').eq('obra_id', obraAtiva.id).order('descricao'),
+        supabase.from('obra_ambientes').select('id, nome, status').eq('obra_id', obraAtiva.id).order('nome'),
+        supabase.from('fotos').select('*').eq('obra_id', obraAtiva.id).order('created_at', { ascending: false }).limit(60),
+        supabase.from('ocorrencias').select('*').eq('obra_id', obraAtiva.id).order('created_at', { ascending: false }).limit(40),
+        supabase.from('agenda').select('*').eq('obra_id', obraAtiva.id).order('data').order('hora_inicio'),
+      ])
+
+      if (!ativo) return
+
+      setTarefas(safeArray(tarefasResult))
+      setCheckins(safeArray(checkinsResult))
+      setChecklist(safeArray(checklistResult))
+      setAmbientes(safeArray(ambientesResult))
+      setFotos(safeArray(fotosResult).map(foto => ({ ...foto, categoria: foto.categoria || 'Geral', publicUrl: fotoUrl(foto) })))
+      setOcorrencias(safeArray(ocorrenciasResult))
+      setAgenda(safeArray(agendaResult))
+      setLoadingObra(false)
+    }
+
+    carregar()
+
+    return () => { ativo = false }
+  }, [obraAtiva?.id, user?.id])
+
+  async function logout() {
+    await supabase.auth.signOut()
+    setUser(null)
+    setProfile(null)
+    setObras([])
+    setObraAtiva(null)
+    navigate('/login', { replace: true })
+  }
+
   async function fazerCheckin() {
-    if (!obraAtiva) return
+    if (!obraAtiva || !user) return
     setCheckando(true)
 
     let lat = null
     let lng = null
 
     try {
-      const pos = await new Promise((res, rej) =>
-        navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000 })
+      const pos = await new Promise((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 8000 })
       )
       lat = pos.coords.latitude
       lng = pos.coords.longitude
     } catch {
-      // geolocalizacao negada ou indisponivel — registra sem coordenadas
+      // O check-in continua mesmo se a localização não estiver disponível.
     }
 
     await supabase.from('checkins').insert([{
-      user_id:  user.id,
-      obra_id:  obraAtiva.id,
-      entrada:  new Date().toISOString(),
-      latitude:  lat,
+      user_id: user.id,
+      obra_id: obraAtiva.id,
+      entrada: new Date().toISOString(),
+      latitude: lat,
       longitude: lng,
     }])
 
-    mostrarSucesso(lat ? 'Check-in registrado com localizacao!' : 'Check-in registrado!')
+    mostrarSucesso(lat ? 'Check-in registrado com localização.' : 'Check-in registrado.')
     await carregarDadosObra()
     setCheckando(false)
   }
 
-  // ─── CHECK-OUT ────────────────────────────────────────────────────────────
   async function fazerCheckout() {
     setCheckando(true)
     const ultimo = checkins.find(c => !c.saida)
     if (ultimo) {
       await supabase.from('checkins').update({ saida: new Date().toISOString() }).eq('id', ultimo.id)
     }
-    mostrarSucesso('Check-out registrado!')
+    mostrarSucesso('Check-out registrado.')
     await carregarDadosObra()
     setCheckando(false)
   }
 
-  // ─── STATUS TAREFA ────────────────────────────────────────────────────────
   async function mudarStatus(id, status) {
     await supabase.from('tarefas').update({ status }).eq('id', id)
     await carregarDadosObra()
   }
 
-  // ─── TOGGLE CHECKLIST ─────────────────────────────────────────────────────
   async function toggleChecklist(item) {
+    if (!user) return
     const concluindo = !item.concluido
     await supabase.from('checklist_items').update({
       concluido: concluindo,
@@ -157,137 +282,199 @@ export default function MontadorDashboard() {
     await carregarDadosObra()
   }
 
-  // ─── UPLOAD FOTO ──────────────────────────────────────────────────────────
   async function handleUpload(e) {
-    const file = e.target.files[0]
-    if (!file || !obraAtiva) return
+    const file = e.target.files?.[0]
+    if (!file || !obraAtiva || !user) return
     if (!formFoto.categoria) {
-      mostrarSucesso('Selecione uma categoria antes de enviar.')
+      mostrarSucesso('Escolha uma categoria antes de enviar.')
       e.target.value = ''
       return
     }
+
     setUploading(true)
+    const ext = file.name.split('.').pop() || 'jpg'
+    const path = `${obraAtiva.id}/${Date.now()}.${ext}`
 
-    const ext  = file.name.split('.').pop()
-    const path = obraAtiva.id + '/' + Date.now() + '.' + ext
+    try {
+      const { error: uploadError } = await supabase.storage.from('fotos-obras').upload(path, file)
+      if (uploadError) throw uploadError
 
-    const { error: upErr } = await supabase.storage.from('fotos-obras').upload(path, file)
-    if (!upErr) {
-      await supabase.from('fotos').insert([{
-        obra_id:      obraAtiva.id,
-        enviada_por:  user.id,
-        categoria:    formFoto.categoria,
-        ambiente_id:  formFoto.ambiente_id || null,
-        aprovada:     false,
+      const { error: insertError } = await supabase.from('fotos').insert([{
+        obra_id: obraAtiva.id,
+        enviada_por: user.id,
+        categoria: formFoto.categoria,
+        ambiente_id: formFoto.ambiente_id || null,
+        aprovada: false,
         aprovada_gestao: false,
         visivel_cliente: false,
         visibilidade: 'interna',
-        observacao:   formFoto.observacao || file.name,
+        observacao: formFoto.observacao || file.name,
         storage_path: path,
       }])
-      setFormFoto({ categoria: '', ambiente_id: '', observacao: '' })
-      mostrarSucesso('Foto enviada!')
-      await carregarDadosObra()
-    } else {
-      mostrarSucesso('Erro ao enviar foto.')
-    }
+      if (insertError) throw insertError
 
-    setUploading(false)
-    e.target.value = ''
+      setFormFoto({ categoria: '', ambiente_id: '', observacao: '' })
+      mostrarSucesso('Foto enviada.')
+      await carregarDadosObra()
+    } catch {
+      mostrarSucesso('Não foi possível enviar a foto.')
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+    }
   }
 
-  // ─── REGISTRAR PROBLEMA ───────────────────────────────────────────────────
   async function salvarProblema() {
-    if (!problema.trim() || !obraAtiva) return
+    if (!problema.trim() || !obraAtiva || !user) return
     setSalvandoProblema(true)
+
     await supabase.from('ocorrencias').insert([{
-      obra_id:    obraAtiva.id,
+      obra_id: obraAtiva.id,
       criado_por: user.id,
-      tipo:       'Problema tecnico',
-      titulo:     modalProblema?.titulo || 'Problema reportado pelo montador',
-      descricao:  problema,
-      gravidade:  'media',
-      status:     'Aberta',
+      tipo: 'Problema técnico',
+      titulo: modalProblema?.titulo || 'Problema reportado pelo montador',
+      descricao: problema.trim(),
+      gravidade: 'media',
+      status: 'Aberta',
     }])
+
     setModalProblema(null)
     setProblema('')
     setSalvandoProblema(false)
-    mostrarSucesso('Problema registrado!')
+    mostrarSucesso('Problema registrado.')
+    await carregarDadosObra()
   }
 
-  function mostrarSucesso(msg) {
-    setSucesso(msg)
-    setTimeout(() => setSucesso(''), 3000)
+  function scrollTo(ref) {
+    ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
-  const emServico   = checkins.some(c => !c.saida)
-  const ultimoCI    = checkins[0]
-  const clConcluidos = checklist.filter(i => i.concluido).length
-  const clPct       = checklist.length > 0 ? Math.round(clConcluidos / checklist.length * 100) : 0
-  const checklistGrupos = [
-    ...ambientes.map(a => ({
-      id: a.id,
-      nome: a.nome || 'Ambiente',
-      itens: checklist.filter(i => i.ambiente_id === a.id),
-    })),
-    { id: 'geral', nome: 'Geral', itens: checklist.filter(i => !i.ambiente_id) },
-  ].filter(g => g.id !== 'geral' || g.itens.length > 0 || ambientes.length === 0)
-  const fotosGrupos = FOTO_CATEGORIAS.map(categoria => ({
-    categoria,
-    fotos: fotos.filter(f => (f.categoria || 'Geral') === categoria),
-  })).filter(g => g.fotos.length > 0)
+  const vm = useMemo(() => {
+    const hoje = new Date()
+    hoje.setHours(0, 0, 0, 0)
+    const amanha = new Date(hoje)
+    amanha.setDate(hoje.getDate() + 1)
+
+    const tarefasAbertas = tarefas.filter(t => !isConcluido(t.status))
+    const checklistPendentes = checklist.filter(i => !i.concluido)
+    const checklistConcluidos = checklist.filter(i => i.concluido)
+    const ocorrenciasAbertas = ocorrencias.filter(o => isAberta(o.status))
+    const fotosHoje = fotos.filter(f => {
+      if (!f.created_at) return false
+      const data = new Date(f.created_at)
+      return data >= hoje && data < amanha
+    })
+    const agendaFutura = agenda
+      .filter(item => item.data && new Date(`${item.data}T00:00:00`) >= hoje)
+      .sort((a, b) => `${a.data || ''}${a.hora_inicio || ''}`.localeCompare(`${b.data || ''}${b.hora_inicio || ''}`))
+    const proximaAgenda = agendaFutura[0] || null
+
+    const emServico = checkins.some(c => !c.saida)
+    const ultimoCheckin = checkins[0] || null
+    const pctChecklist = checklist.length ? Math.round((checklistConcluidos.length / checklist.length) * 100) : 0
+
+    const checklistGrupos = [
+      ...ambientes.map(ambiente => ({
+        id: ambiente.id,
+        nome: ambiente.nome || 'Ambiente',
+        itens: checklist.filter(item => item.ambiente_id === ambiente.id),
+      })),
+      { id: 'geral', nome: 'Geral', itens: checklist.filter(item => !item.ambiente_id) },
+    ].filter(grupo => grupo.id !== 'geral' || grupo.itens.length > 0 || ambientes.length === 0)
+
+    const fotosGrupos = FOTO_CATEGORIAS.map(categoria => ({
+      categoria,
+      fotos: fotos.filter(foto => (foto.categoria || 'Geral') === categoria),
+    })).filter(grupo => grupo.fotos.length > 0)
+
+    const historico = [
+      ...checkins.slice(0, 4).map(c => ({
+        id: `checkin-${c.id}`,
+        tipo: c.saida ? 'Check-out' : 'Check-in',
+        detalhe: horaBR(c.entrada || c.created_at),
+        data: c.created_at || c.entrada,
+      })),
+      ...fotos.slice(0, 4).map(f => ({
+        id: `foto-${f.id}`,
+        tipo: 'Foto enviada',
+        detalhe: f.categoria || 'Geral',
+        data: f.created_at,
+      })),
+      ...checklistConcluidos.slice(0, 4).map(i => ({
+        id: `checklist-${i.id}`,
+        tipo: 'Checklist concluído',
+        detalhe: i.descricao,
+        data: i.concluido_em,
+      })),
+    ].filter(item => item.data).sort((a, b) => new Date(b.data) - new Date(a.data)).slice(0, 8)
+
+    return {
+      tarefasAbertas,
+      checklistPendentes,
+      checklistConcluidos,
+      ocorrenciasAbertas,
+      fotosHoje,
+      proximaAgenda,
+      emServico,
+      ultimoCheckin,
+      pctChecklist,
+      checklistGrupos,
+      fotosGrupos,
+      historico,
+    }
+  }, [agenda, ambientes, checkins, checklist, fotos, ocorrencias, tarefas])
+
   const ambienteNome = ambienteId => ambientes.find(a => a.id === ambienteId)?.nome || 'Sem ambiente'
 
-  // ── helpers de endereco
-  function enderecoObra(o) {
-    if (!o) return ''
-    const partes = [o.rua, o.numero, o.complemento].filter(Boolean).join(', ')
-    const cidade  = [o.bairro, o.cidade, o.uf].filter(Boolean).join(' - ')
-    return [partes || o.endereco, cidade].filter(Boolean).join(' · ')
+  if (loading) {
+    return (
+      <div className="md-page">
+        <style>{css}</style>
+        <div className="md-loading">Carregando sua operação...</div>
+      </div>
+    )
   }
 
-  // ─── LOADING ──────────────────────────────────────────────────────────────
-  if (loading) return <div style={s.loading}>Carregando...</div>
-
-  // ─── SEM OBRA ALOCADA ─────────────────────────────────────────────────────
-  if (!obraAtiva) return (
-    <div style={s.root}>
-      <div style={s.header}>
-        <div>
-          <div style={s.breadcrumb}>Ornare Works</div>
-          <h1 style={s.title}>Ola, {profile?.full_name?.split(' ')[0] || 'Montador'}</h1>
-        </div>
-        <div style={s.avatar}>{(profile?.full_name || user?.email || '?')[0].toUpperCase()}</div>
+  if (!obraAtiva) {
+    return (
+      <div className="md-page">
+        <style>{css}</style>
+        <header className="md-top">
+          <div>
+            <span>Ornare Works</span>
+            <h1>Olá, {profile?.full_name?.split(' ')[0] || 'Montador'}</h1>
+          </div>
+          <button className="md-logout" onClick={logout}>Sair</button>
+        </header>
+        <section className="md-empty-card">
+          <strong>Nenhuma obra alocada</strong>
+          <p>Aguarde seu supervisor vincular você a uma obra.</p>
+        </section>
       </div>
-      <div style={s.emptyBox}>
-        <div style={s.emptyIcon}>🔧</div>
-        <div style={s.emptyText}>Nenhuma obra alocada</div>
-        <div style={s.emptySub}>Aguarde seu supervisor alocar voce em uma obra.</div>
-      </div>
-    </div>
-  )
+    )
+  }
 
-  // ─── RENDER PRINCIPAL ─────────────────────────────────────────────────────
+  const previsao = obraAtiva.data_previsao || obraAtiva.data_previsao_entrega
+
   return (
-    <div style={s.root}>
+    <div className="md-page">
+      <style>{css}</style>
 
-      {/* Modal preview foto */}
       {preview && (
-        <div onClick={() => setPreview(null)} style={s.previewBg}>
-          <img src={preview} alt="preview" style={s.previewImg} />
+        <div className="md-preview" onClick={() => setPreview(null)}>
+          <img src={preview} alt="Foto da obra" />
         </div>
       )}
 
-      {/* Modal problema */}
       {modalProblema && (
-        <div style={s.modalBg} onClick={e => e.target === e.currentTarget && setModalProblema(null)}>
-          <div style={s.modal}>
-            <div style={s.modalTitle}>Registrar Problema</div>
-            <div style={s.modalSub}>{typeof modalProblema === 'string' ? modalProblema : modalProblema.titulo || 'Ocorrencia geral'}</div>
-            <textarea style={s.textarea} value={problema} onChange={e => setProblema(e.target.value)} placeholder="Descreva o problema..." rows={4} />
-            <div style={s.modalBtns}>
-              <button style={s.btnCancel} onClick={() => { setModalProblema(null); setProblema('') }}>Cancelar</button>
-              <button style={s.btnDanger} onClick={salvarProblema} disabled={salvandoProblema}>
+        <div className="md-modal-bg" onClick={e => e.target === e.currentTarget && setModalProblema(null)}>
+          <div className="md-modal">
+            <h2>Relatar problema</h2>
+            <p>{typeof modalProblema === 'string' ? modalProblema : modalProblema.titulo || 'Ocorrência da obra'}</p>
+            <textarea value={problema} onChange={e => setProblema(e.target.value)} placeholder="Descreva o que aconteceu..." rows={4} />
+            <div className="md-modal-actions">
+              <button onClick={() => { setModalProblema(null); setProblema('') }}>Cancelar</button>
+              <button className="danger" onClick={salvarProblema} disabled={salvandoProblema}>
                 {salvandoProblema ? 'Salvando...' : 'Registrar'}
               </button>
             </div>
@@ -295,372 +482,333 @@ export default function MontadorDashboard() {
         </div>
       )}
 
-      {/* Toast */}
-      {sucesso && <div style={s.toast}>{sucesso}</div>}
+      {sucesso && <div className="md-toast">{sucesso}</div>}
 
-      {/* ── HEADER ─────────────────────────────────────────────────────────── */}
-      <div style={s.header}>
+      <header className="md-top">
         <div>
-          <div style={s.breadcrumb}>Ornare Works</div>
-          <h1 style={s.title}>Ola, {profile?.full_name?.split(' ')[0] || 'Montador'}</h1>
-          <div style={s.date}>
-            {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
+          <span>Ornare Works</span>
+          <h1>Olá, {profile?.full_name?.split(' ')[0] || 'Montador'}</h1>
+          <small>{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</small>
+        </div>
+        <div className="md-top-actions">
+          <div className={vm.emServico ? 'md-avatar active' : 'md-avatar'}>
+            {(profile?.full_name || user?.email || '?')[0].toUpperCase()}
           </div>
+          <button className="md-logout" onClick={logout}>Sair</button>
         </div>
-        <div style={s.avatar}>{(profile?.full_name || user?.email || '?')[0].toUpperCase()}</div>
-      </div>
+      </header>
 
-      {/* ── SELETOR DE OBRA (se alocado em mais de uma) ─────────────────────── */}
       {obras.length > 1 && (
-        <div style={{ marginBottom: 16 }}>
-          <div style={s.sectionLabel}>Obra ativa</div>
-          <select
-            value={obraAtiva?.id || ''}
-            onChange={e => {
-              const ob = obras.find(o => o.id === e.target.value)
-              setObraAtiva(ob)
-            }}
-            style={s.obraSelect}>
-            {obras.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
+        <section className="md-field">
+          <label>Obra ativa</label>
+          <select value={obraAtiva.id} onChange={e => setObraAtiva(obras.find(o => o.id === e.target.value) || null)}>
+            {obras.map(obra => <option key={obra.id} value={obra.id}>{obra.nome}</option>)}
           </select>
-        </div>
+        </section>
       )}
 
-      {/* ── CARD DA OBRA ───────────────────────────────────────────────────── */}
-      <div style={s.obraCard}>
-        <div style={s.obraCardTop}>
-          <div style={{ flex: 1 }}>
-            <div style={s.obraNome}>{obraAtiva.nome}</div>
-            <div style={s.obraEndereco}>{enderecoObra(obraAtiva)}</div>
+      <section className="md-obra-card">
+        <div className="md-obra-head">
+          <div>
+            <span>{obraAtiva.status || 'Status não informado'}</span>
+            <h2>{obraAtiva.nome || 'Obra sem nome'}</h2>
           </div>
-          {obraAtiva.progresso > 0 && (
-            <div style={s.obraProgresso}>
-              <div style={s.obraProgressoNum}>{obraAtiva.progresso}%</div>
-              <div style={s.obraProgressoLabel}>progresso</div>
-            </div>
-          )}
+          <strong>{obraAtiva.progresso || 0}%</strong>
         </div>
-        {obraAtiva.data_previsao && (
-          <div style={s.obraPrevisao}>
-            Previsao de termino: {new Date(obraAtiva.data_previsao + 'T00:00:00').toLocaleDateString('pt-BR')}
-          </div>
+        <p>{[obraAtiva.cliente_nome, enderecoObra(obraAtiva)].filter(Boolean).join(' · ') || 'Endereço não informado'}</p>
+        <div className="md-progress"><i style={{ width: `${obraAtiva.progresso || 0}%` }} /></div>
+        <small>Previsão: {previsao ? dataBR(previsao) : 'não informada'}</small>
+      </section>
+
+      <section className={vm.emServico ? 'md-check-card active' : 'md-check-card'}>
+        <div>
+          <span>{vm.emServico ? 'Em serviço' : 'Fora de serviço'}</span>
+          <p>
+            {vm.ultimoCheckin ? `${vm.emServico ? 'Entrada' : 'Último registro'} às ${horaBR(vm.ultimoCheckin.entrada || vm.ultimoCheckin.created_at)}` : 'Nenhum registro hoje'}
+            {vm.ultimoCheckin?.latitude ? ' · localização registrada' : ''}
+          </p>
+        </div>
+        {vm.emServico ? (
+          <button className="checkout" onClick={fazerCheckout} disabled={checkando}>{checkando ? '...' : 'Check-out'}</button>
+        ) : (
+          <button onClick={fazerCheckin} disabled={checkando}>{checkando ? '...' : 'Check-in'}</button>
         )}
-      </div>
+      </section>
 
-      {/* ── CHECK-IN ───────────────────────────────────────────────────────── */}
-      <div style={{ ...s.checkinCard, background: emServico ? '#edf7f0' : '#fff', borderColor: emServico ? '#5aab6e44' : 'var(--color-border)' }}>
-        <div>
-          <div style={{ ...s.checkinStatus, color: emServico ? '#3a7d4f' : '#aaa' }}>
-            {emServico ? 'Em servico' : 'Fora de servico'}
+      <section className="md-card">
+        <div className="md-card-head">
+          <h2>Próxima agenda</h2>
+        </div>
+        {vm.proximaAgenda ? (
+          <div className="md-next">
+            <strong>{tipoAgenda(vm.proximaAgenda)}</strong>
+            <span>{vm.proximaAgenda.titulo || vm.proximaAgenda.descricao || 'Compromisso da obra'}</span>
+            <small>{dataBR(vm.proximaAgenda.data)}{vm.proximaAgenda.hora_inicio ? ` · ${vm.proximaAgenda.hora_inicio}` : ''}</small>
           </div>
-          {ultimoCI && (
-            <div style={s.checkinHora}>
-              {emServico ? 'Entrada' : 'Ultimo'}: {new Date(ultimoCI.entrada || ultimoCI.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-              {ultimoCI.latitude && <span style={{ marginLeft: 6, color: '#5aab6e' }}>📍</span>}
-            </div>
-          )}
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {emServico ? (
-            <button style={s.btnCheckout} onClick={fazerCheckout} disabled={checkando}>
-              {checkando ? '...' : 'Check-out'}
-            </button>
-          ) : (
-            <button style={s.btnCheckin} onClick={fazerCheckin} disabled={checkando}>
-              {checkando ? '...' : 'Check-in'}
-            </button>
-          )}
-          <button style={s.btnProblemaFloat} onClick={() => setModalProblema('Ocorrencia geral')}>
-            !
-          </button>
-        </div>
-      </div>
+        ) : (
+          <Empty text="Nenhum compromisso futuro para esta obra." />
+        )}
+      </section>
 
-      {/* ── ABAS ────────────────────────────────────────────────────────────── */}
-      <div style={s.abas}>
-        {[
-          { id: 'tarefas',   label: 'Tarefas',   badge: tarefas.length   },
-          { id: 'checklist', label: 'Checklist', badge: clPct + '%'      },
-          { id: 'fotos',     label: 'Fotos',     badge: fotos.length     },
-        ].map(a => (
-          <button key={a.id} onClick={() => setAbaAtiva(a.id)} style={{
-            ...s.abaBtn,
-            borderBottom: abaAtiva === a.id ? '2px solid var(--color-gold)' : '2px solid transparent',
-            color: abaAtiva === a.id ? 'var(--color-gold)' : 'var(--color-ink-muted)',
-            fontWeight: abaAtiva === a.id ? 600 : 400,
-          }}>
-            {a.label}
-            {a.badge !== undefined && a.badge !== 0 && (
-              <span style={s.abaBadge}>{a.badge}</span>
-            )}
-          </button>
-        ))}
-      </div>
+      <section className="md-quick">
+        <button onClick={() => scrollTo(fotosRef)}>Enviar foto</button>
+        <button onClick={() => setModalProblema('Ocorrência geral')}>Relatar problema</button>
+        <button onClick={() => scrollTo(checklistRef)}>Abrir checklist</button>
+        <button onClick={() => scrollTo(tarefasRef)}>Ver tarefas</button>
+      </section>
 
-      {/* ── ABA TAREFAS ─────────────────────────────────────────────────────── */}
-      {abaAtiva === 'tarefas' && (
-        <div>
-          {tarefas.length === 0 ? (
-            <div style={s.emptyBox}>
-              <div style={s.emptyIcon}>✓</div>
-              <div style={s.emptyText}>Nenhuma tarefa pendente</div>
-              <div style={s.emptySub}>Bom trabalho!</div>
-            </div>
-          ) : tarefas.map(t => (
-            <div key={t.id} style={{ ...s.tarefaCard, borderLeftColor: PR_COR[t.prioridade] || '#ccc' }}>
-              <div style={s.tarefaHeader}>
-                <div style={s.tarefaTitulo}>{t.titulo}</div>
-                <span style={{ ...s.prioridade, color: PR_COR[t.prioridade] || '#aaa' }}>
-                  {PR_LABEL[t.prioridade] || ''}
-                </span>
+      <section className="md-summary">
+        <Metric label="Tarefas" value={vm.tarefasAbertas.length} />
+        <Metric label="Checklist" value={vm.checklistPendentes.length} />
+        <Metric label="Fotos hoje" value={vm.fotosHoje.length} />
+        <Metric label="Ocorrências" value={vm.ocorrenciasAbertas.length} danger={vm.ocorrenciasAbertas.length > 0} />
+      </section>
+
+      {loadingObra && <div className="md-loading-inline">Atualizando dados da obra...</div>}
+
+      <section className="md-card" ref={tarefasRef}>
+        <div className="md-card-head">
+          <h2>Tarefas</h2>
+          <span>{vm.tarefasAbertas.length}</span>
+        </div>
+        {vm.tarefasAbertas.length === 0 ? <Empty text="Nenhuma tarefa pendente." /> : vm.tarefasAbertas.map(tarefa => {
+          const pr = PRIORIDADE[norm(tarefa.prioridade)] || { label: tarefa.prioridade || '', color: '#A79F93' }
+          return (
+            <article className="md-task" key={tarefa.id} style={{ borderLeftColor: pr.color }}>
+              <div className="md-task-head">
+                <strong>{tarefa.titulo || 'Tarefa sem título'}</strong>
+                {pr.label && <span style={{ color: pr.color }}>{pr.label}</span>}
               </div>
-              {t.descricao && <div style={s.tarefaDesc}>{t.descricao}</div>}
-              {t.prazo && (
-                <div style={s.tarefaMeta}>
-                  <span>Prazo: {new Date(t.prazo + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
-                </div>
-              )}
-              <div style={s.statusRow}>
-                {['pendente', 'em_andamento', 'concluida'].map(st => (
-                  <button key={st} onClick={() => mudarStatus(t.id, st)} style={{
-                    ...s.statusBtn,
-                    background: t.status === st ? 'var(--color-ink)' : '#f5f5f5',
-                    color:      t.status === st ? '#fff' : '#888',
-                  }}>
-                    {st === 'pendente' ? 'Pendente' : st === 'em_andamento' ? 'Em andamento' : 'Concluida'}
+              {tarefa.descricao && <p>{tarefa.descricao}</p>}
+              {tarefa.prazo && <small>Prazo: {dataBR(tarefa.prazo)}</small>}
+              <div className="md-status-row">
+                {['pendente', 'em_andamento', 'concluida'].map(status => (
+                  <button key={status} className={tarefa.status === status ? 'active' : ''} onClick={() => mudarStatus(tarefa.id, status)}>
+                    {status === 'pendente' ? 'Pendente' : status === 'em_andamento' ? 'Em andamento' : 'Concluir'}
                   </button>
                 ))}
               </div>
-              <div style={s.acoesRow}>
-                <button style={s.btnProblema} onClick={() => setModalProblema(t)}>
-                  Relatar problema
-                </button>
-                <button style={s.btnConcluir} onClick={() => mudarStatus(t.id, 'concluida')}>
-                  Concluir
-                </button>
+              <div className="md-two-actions">
+                <button onClick={() => setModalProblema(tarefa)}>Relatar problema</button>
+                <button className="ok" onClick={() => mudarStatus(tarefa.id, 'concluida')}>Concluir</button>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            </article>
+          )
+        })}
+      </section>
 
-      {/* ── ABA CHECKLIST ───────────────────────────────────────────────────── */}
-      {abaAtiva === 'checklist' && (
-        <div>
-          {checklist.length > 0 && (
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--color-ink-muted)', marginBottom: 6 }}>
-                <span>{clConcluidos} de {checklist.length} itens concluidos</span>
-                <span style={{ color: 'var(--color-gold)', fontWeight: 600 }}>{clPct}%</span>
-              </div>
-              <div style={s.progressBg}>
-                <div style={{ ...s.progressBar, width: clPct + '%' }} />
-              </div>
-            </div>
-          )}
-          {checklist.length === 0 ? (
-            <div style={s.emptyBox}>
-              <div style={s.emptyIcon}>📋</div>
-              <div style={s.emptyText}>Checklist vazio</div>
-              <div style={s.emptySub}>Nenhum item nesta obra ainda.</div>
-            </div>
-          ) : checklistGrupos.map(grupo => {
-            const feitos = grupo.itens.filter(i => i.concluido).length
-            const pct = grupo.itens.length ? Math.round(feitos / grupo.itens.length * 100) : 0
-            return (
-              <div key={grupo.id} style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 14, padding: 14, marginBottom: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginBottom: 8, alignItems: 'center' }}>
-                  <div>
-                    <div style={{ fontSize: 14, color: 'var(--color-ink)', fontWeight: 700 }}>{grupo.nome}</div>
-                    <div style={{ fontSize: 11, color: 'var(--color-ink-muted)', marginTop: 2 }}>{feitos} de {grupo.itens.length} itens</div>
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--color-gold)', fontWeight: 700 }}>{pct}%</div>
-                </div>
-                <div style={{ ...s.progressBg, marginBottom: 10 }}>
-                  <div style={{ ...s.progressBar, width: pct + '%' }} />
-                </div>
-                {grupo.itens.length === 0 ? (
-                  <div style={{ color: '#bbb', fontSize: 12, padding: '8px 0' }}>Nenhum item neste ambiente.</div>
-                ) : grupo.itens.map(item => (
-                  <div key={item.id} onClick={() => toggleChecklist(item)} style={{ ...s.checkItem, borderColor: item.concluido ? '#5aab6e44' : 'var(--color-border)', background: item.concluido ? '#f6fcf8' : '#fff', marginBottom: 8 }}>
-                    <div style={{ ...s.checkBox, borderColor: item.concluido ? '#5aab6e' : '#ddd', background: item.concluido ? '#5aab6e' : 'transparent' }}>
-                      {item.concluido && <span style={{ color: '#fff', fontSize: 12, fontWeight: 700, lineHeight: 1 }}>v</span>}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, color: item.concluido ? '#aaa' : 'var(--color-ink)', textDecoration: item.concluido ? 'line-through' : 'none' }}>{item.descricao}</div>
-                      {item.concluido_em && <div style={{ fontSize: 10.5, color: '#aaa', marginTop: 3 }}>{new Date(item.concluido_em).toLocaleString('pt-BR')}</div>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )
-          })}
+      <section className="md-card" ref={checklistRef}>
+        <div className="md-card-head">
+          <h2>Checklist por ambiente</h2>
+          <span>{vm.pctChecklist}%</span>
         </div>
-      )}
-
-      {/* ABA FOTOS */}
-      {abaAtiva === 'fotos' && (
-        <div>
-          <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 14, padding: 14, marginBottom: 16 }}>
-            <div style={s.sectionLabel}>Nova foto</div>
-            <select value={formFoto.categoria} onChange={e => setFormFoto(p => ({ ...p, categoria: e.target.value }))} style={{ ...s.obraSelect, marginBottom: 8 }}>
-              <option value="">Categoria obrigatoria</option>
-              {FOTO_CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <select value={formFoto.ambiente_id} onChange={e => setFormFoto(p => ({ ...p, ambiente_id: e.target.value }))} style={{ ...s.obraSelect, marginBottom: 8 }}>
-              <option value="">Sem ambiente</option>
-              {ambientes.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
-            </select>
-            <input value={formFoto.observacao} onChange={e => setFormFoto(p => ({ ...p, observacao: e.target.value }))} placeholder="Observacao opcional" style={{ ...s.obraSelect, marginBottom: 10 }} />
-            <label style={{ ...s.btnUpload, display: 'block', textAlign: 'center', opacity: formFoto.categoria ? 1 : 0.55 }}>
-              {uploading ? 'Enviando...' : 'Enviar foto'}
-              <input type="file" accept="image/*" capture="environment" onChange={handleUpload} style={{ display: 'none' }} disabled={uploading || !formFoto.categoria} />
-            </label>
-          </div>
-          {fotos.length === 0 ? (
-            <div style={s.emptyBox}>
-              <div style={s.emptyIcon}>Foto</div>
-              <div style={s.emptyText}>Nenhuma foto enviada</div>
-              <div style={s.emptySub}>Registre o andamento da obra com fotos.</div>
-            </div>
-          ) : (
-            <div>
-              {fotosGrupos.map(grupo => (
-                <div key={grupo.categoria} style={{ marginBottom: 18 }}>
-                  <div style={s.sectionLabel}>{grupo.categoria}</div>
-                  <div style={s.fotoGrid}>
-                    {grupo.fotos.map(f => (
-                      <div key={f.id} style={s.fotoItem} onClick={() => f.publicUrl && setPreview(f.publicUrl)}>
-                        {f.publicUrl && <img src={f.publicUrl} alt={f.observacao || f.categoria} style={s.fotoThumb} />}
-                        <div style={{ position: 'absolute', left: 4, bottom: 4, right: 4, background: 'rgba(0,0,0,.58)', color: '#fff', borderRadius: 7, padding: '4px 6px', fontSize: 9, lineHeight: 1.2 }}>
-                          {ambienteNome(f.ambiente_id)}
-                        </div>
-                        {f.aprovada && (
-                          <div style={s.fotoAprovada}>v</div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+        <div className="md-progress soft"><i style={{ width: `${vm.pctChecklist}%` }} /></div>
+        {checklist.length === 0 ? <Empty text="Nenhum item de checklist nesta obra." /> : vm.checklistGrupos.map(grupo => {
+          const feitos = grupo.itens.filter(i => i.concluido).length
+          const pct = grupo.itens.length ? Math.round((feitos / grupo.itens.length) * 100) : 0
+          return (
+            <article className="md-env" key={grupo.id}>
+              <div className="md-env-head">
+                <div>
+                  <strong>{grupo.nome}</strong>
+                  <small>{feitos} de {grupo.itens.length} itens</small>
                 </div>
+                <span>{pct}%</span>
+              </div>
+              <div className="md-progress soft"><i style={{ width: `${pct}%` }} /></div>
+              {grupo.itens.length === 0 ? <Empty text="Nenhum item neste ambiente." /> : grupo.itens.map(item => (
+                <button className={item.concluido ? 'md-check-item done' : 'md-check-item'} key={item.id} onClick={() => toggleChecklist(item)}>
+                  <i>{item.concluido ? '✓' : ''}</i>
+                  <span>{item.descricao}</span>
+                </button>
+              ))}
+            </article>
+          )
+        })}
+      </section>
+
+      <section className="md-card" ref={fotosRef}>
+        <div className="md-card-head">
+          <h2>Fotos da obra</h2>
+          <span>{fotos.length}</span>
+        </div>
+        <div className="md-upload">
+          <select value={formFoto.categoria} onChange={e => setFormFoto(p => ({ ...p, categoria: e.target.value }))}>
+            <option value="">Categoria obrigatória</option>
+            {FOTO_CATEGORIAS.map(categoria => <option key={categoria} value={categoria}>{categoria}</option>)}
+          </select>
+          <select value={formFoto.ambiente_id} onChange={e => setFormFoto(p => ({ ...p, ambiente_id: e.target.value }))}>
+            <option value="">Sem ambiente</option>
+            {ambientes.map(ambiente => <option key={ambiente.id} value={ambiente.id}>{ambiente.nome}</option>)}
+          </select>
+          <input value={formFoto.observacao} onChange={e => setFormFoto(p => ({ ...p, observacao: e.target.value }))} placeholder="Observação opcional" />
+          <label className={formFoto.categoria ? 'md-file' : 'md-file disabled'}>
+            {uploading ? 'Enviando...' : 'Selecionar e enviar foto'}
+            <input type="file" accept="image/*" capture="environment" onChange={handleUpload} disabled={uploading || !formFoto.categoria} />
+          </label>
+        </div>
+        {fotos.length === 0 ? <Empty text="Nenhuma foto enviada ainda." /> : vm.fotosGrupos.map(grupo => (
+          <div className="md-photo-group" key={grupo.categoria}>
+            <h3>{grupo.categoria}</h3>
+            <div className="md-photo-grid">
+              {grupo.fotos.map(foto => (
+                <button key={foto.id} className="md-photo" onClick={() => foto.publicUrl && setPreview(foto.publicUrl)}>
+                  {foto.publicUrl && <img src={foto.publicUrl} alt={foto.observacao || foto.categoria} />}
+                  <span>{ambienteNome(foto.ambiente_id)}</span>
+                </button>
               ))}
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        ))}
+      </section>
 
-      {/* ── HISTORICO DE CHECKINS ───────────────────────────────────────────── */}
-      {checkins.length > 0 && (
-        <div style={{ marginTop: 28, marginBottom: 40 }}>
-          <div style={s.sectionLabel}>Historico de hoje</div>
-          {checkins.slice(0, 5).map(c => (
-            <div key={c.id} style={s.historicoItem}>
-              <div style={{ ...s.historicoDot, background: c.saida ? '#d94a4a' : '#5aab6e' }} />
-              <div style={s.historicoTexto}>{c.saida ? 'Check-out' : 'Check-in'}</div>
-              <div style={s.historicoHora}>
-                {new Date(c.entrada || c.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                {c.latitude && <span style={{ marginLeft: 4, color: '#5aab6e', fontSize: 10 }}>📍</span>}
-              </div>
+      <section className="md-card" ref={ocorrenciasRef}>
+        <div className="md-card-head">
+          <h2>Ocorrências</h2>
+          <button onClick={() => setModalProblema('Ocorrência geral')}>Relatar</button>
+        </div>
+        {vm.ocorrenciasAbertas.length === 0 ? <Empty text="Nenhuma ocorrência aberta." /> : vm.ocorrenciasAbertas.map(oc => (
+          <article className="md-occ" key={oc.id}>
+            <strong>{oc.titulo || 'Ocorrência'}</strong>
+            {oc.descricao && <p>{oc.descricao}</p>}
+            <small>{oc.gravidade || 'sem gravidade'} · {oc.status || 'Aberta'}</small>
+          </article>
+        ))}
+      </section>
+
+      <section className="md-card">
+        <div className="md-card-head">
+          <h2>Histórico simples</h2>
+        </div>
+        {vm.historico.length === 0 ? <Empty text="Nenhuma movimentação recente." /> : vm.historico.map(item => (
+          <div className="md-history" key={item.id}>
+            <i />
+            <div>
+              <strong>{item.tipo}</strong>
+              <span>{item.detalhe}</span>
             </div>
-          ))}
-        </div>
-      )}
-
+          </div>
+        ))}
+      </section>
     </div>
   )
 }
 
-// ─── ESTILOS ──────────────────────────────────────────────────────────────────
-const s = {
-  root:    { maxWidth: 480, margin: '0 auto', padding: '24px 16px', fontFamily: 'var(--font-sans)', background: 'var(--sand, #f9f7f4)', minHeight: '100vh' },
-  loading: { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#bbb' },
-
-  // header
-  header:    { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 },
-  breadcrumb:{ fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 4 },
-  title:     { fontFamily: 'var(--font-serif)', fontSize: 26, fontWeight: 500, color: 'var(--color-ink)', margin: '0 0 2px' },
-  date:      { fontSize: 12, color: 'var(--color-ink-muted)' },
-  avatar:    { width: 42, height: 42, borderRadius: '50%', background: '#b09a7a22', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700, color: '#b09a7a', flexShrink: 0 },
-
-  // seletor de obra
-  obraSelect: { width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--color-border)', fontSize: 13, fontFamily: 'inherit', background: '#fff', color: 'var(--color-ink)' },
-
-  // card obra
-  obraCard:        { background: 'var(--color-ink)', borderRadius: 14, padding: '18px 20px', marginBottom: 16 },
-  obraCardTop:     { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
-  obraNome:        { fontSize: 17, fontWeight: 600, color: '#f9f7f4', marginBottom: 4, fontFamily: 'var(--font-serif)' },
-  obraEndereco:    { fontSize: 12, color: '#b09a7a', lineHeight: 1.5 },
-  obraProgresso:   { textAlign: 'right', flexShrink: 0 },
-  obraProgressoNum:{ fontSize: 22, fontWeight: 700, color: 'var(--color-gold)' },
-  obraProgressoLabel: { fontSize: 9, color: '#b09a7a', textTransform: 'uppercase', letterSpacing: 1 },
-  obraPrevisao:    { fontSize: 11, color: '#888', borderTop: '1px solid #ffffff18', paddingTop: 8, marginTop: 4 },
-
-  // checkin
-  checkinCard:   { border: '1px solid', borderRadius: 14, padding: '16px 18px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
-  checkinStatus: { fontSize: 13, fontWeight: 600, marginBottom: 4 },
-  checkinHora:   { fontSize: 11, color: '#aaa' },
-  btnCheckin:    { background: 'var(--color-ink)', color: '#fff', border: 'none', borderRadius: 10, padding: '13px 24px', fontSize: 14, fontWeight: 700, cursor: 'pointer' },
-  btnCheckout:   { background: '#d94a4a', color: '#fff', border: 'none', borderRadius: 10, padding: '13px 24px', fontSize: 14, fontWeight: 700, cursor: 'pointer' },
-  btnProblemaFloat: { background: '#fff3e0', color: '#e65100', border: 'none', borderRadius: 10, padding: '13px 16px', fontSize: 16, fontWeight: 700, cursor: 'pointer' },
-
-  // abas
-  abas:    { display: 'flex', borderBottom: '1px solid var(--color-border)', marginBottom: 20 },
-  abaBtn:  { flex: 1, background: 'none', border: 'none', padding: '10px 4px', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: -1 },
-  abaBadge:{ background: 'var(--color-gold)', color: '#fff', borderRadius: 20, fontSize: 10, fontWeight: 700, padding: '1px 7px', minWidth: 18, textAlign: 'center' },
-
-  sectionLabel: { fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 12 },
-
-  // tarefas
-  tarefaCard:   { background: '#fff', border: '1px solid var(--color-border)', borderLeft: '4px solid', borderRadius: 12, padding: '16px 18px', marginBottom: 12 },
-  tarefaHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 },
-  tarefaTitulo: { fontSize: 15, fontWeight: 600, color: 'var(--color-ink)', flex: 1, marginRight: 8 },
-  prioridade:   { fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 },
-  tarefaDesc:   { fontSize: 13, color: 'var(--color-ink-muted)', marginBottom: 8, lineHeight: 1.5 },
-  tarefaMeta:   { display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 11, color: '#aaa', marginBottom: 12 },
-  statusRow:    { display: 'flex', gap: 6, marginBottom: 12 },
-  statusBtn:    { flex: 1, border: 'none', borderRadius: 6, padding: '7px 4px', fontSize: 11, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
-  acoesRow:     { display: 'flex', gap: 8 },
-  btnProblema:  { flex: 1, background: '#fff3e0', color: '#e65100', border: 'none', borderRadius: 8, padding: '11px 0', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
-  btnConcluir:  { flex: 1, background: '#edf7f0', color: '#3a7d4f', border: 'none', borderRadius: 8, padding: '11px 0', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
-
-  // checklist
-  progressBg:  { height: 6, background: 'var(--color-border, #e8e4de)', borderRadius: 3 },
-  progressBar: { height: 6, background: 'var(--color-gold)', borderRadius: 3, transition: 'width .3s' },
-  checkItem:   { display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', border: '1px solid', borderRadius: 12, marginBottom: 8, cursor: 'pointer', transition: 'background .15s' },
-  checkBox:    { width: 22, height: 22, borderRadius: 6, border: '2px solid', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-
-  // fotos
-  btnUpload: { background: 'var(--color-ink)', color: '#f9f7f4', border: 'none', borderRadius: 8, padding: '9px 16px', fontSize: 13, fontWeight: 500, cursor: 'pointer' },
-  fotoGrid:  { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 },
-  fotoItem:  { position: 'relative', borderRadius: 10, overflow: 'hidden', aspectRatio: '1', cursor: 'zoom-in', background: '#f0ece6' },
-  fotoThumb: { width: '100%', height: '100%', objectFit: 'cover' },
-  fotoAprovada: { position: 'absolute', bottom: 4, right: 4, background: '#5aab6e', color: '#fff', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 },
-
-  // historico
-  historicoItem:  { display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--color-border)' },
-  historicoDot:   { width: 8, height: 8, borderRadius: '50%', flexShrink: 0 },
-  historicoTexto: { flex: 1, fontSize: 13, color: 'var(--color-ink)' },
-  historicoHora:  { fontSize: 11, color: '#aaa' },
-
-  // empty
-  emptyBox:  { textAlign: 'center', padding: '50px 20px', background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12 },
-  emptyIcon: { fontSize: 36, marginBottom: 10 },
-  emptyText: { fontSize: 15, fontWeight: 600, color: 'var(--color-ink)', marginBottom: 4 },
-  emptySub:  { fontSize: 13, color: '#aaa' },
-
-  // toast
-  toast: { position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: 'var(--color-ink)', color: '#fff', padding: '12px 24px', borderRadius: 10, fontSize: 13, fontWeight: 600, zIndex: 1000, borderLeft: '3px solid var(--color-gold)', whiteSpace: 'nowrap' },
-
-  // modal
-  modalBg:    { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 500, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: 16 },
-  modal:      { background: '#fff', borderRadius: 14, padding: '24px 20px', width: '100%', maxWidth: 480 },
-  modalTitle: { fontFamily: 'var(--font-serif)', fontSize: 20, fontWeight: 500, marginBottom: 4 },
-  modalSub:   { fontSize: 13, color: '#888', marginBottom: 16 },
-  textarea:   { width: '100%', border: '1px solid var(--color-border)', borderRadius: 8, padding: '10px 12px', fontSize: 14, fontFamily: 'inherit', resize: 'none', boxSizing: 'border-box', outline: 'none' },
-  modalBtns:  { display: 'flex', gap: 10, marginTop: 16, justifyContent: 'flex-end' },
-  btnCancel:  { background: 'none', border: '1px solid var(--color-border)', borderRadius: 8, padding: '9px 18px', fontSize: 13, cursor: 'pointer', color: '#888' },
-  btnDanger:  { background: '#d94a4a', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
-
-  // preview foto
-  previewBg:  { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out' },
-  previewImg: { maxWidth: '95vw', maxHeight: '90vh', borderRadius: 8, objectFit: 'contain' },
+function Metric({ label, value, danger }) {
+  return (
+    <div className={danger ? 'md-metric danger' : 'md-metric'}>
+      <strong>{value}</strong>
+      <span>{label}</span>
+    </div>
+  )
 }
+
+function Empty({ text }) {
+  return <div className="md-empty">{text}</div>
+}
+
+const css = `
+.md-page{min-height:100vh;background:${THEME.bg};color:${THEME.ink};font-family:var(--font-sans);box-sizing:border-box;padding:18px 14px 36px;max-width:520px;margin:0 auto}
+.md-loading{min-height:70vh;display:flex;align-items:center;justify-content:center;color:${THEME.muted};font-size:14px}
+.md-loading-inline{font-size:12px;color:${THEME.muted};text-align:center;margin:10px 0 14px}
+.md-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px}
+.md-top span{display:block;font-size:10px;letter-spacing:2.4px;text-transform:uppercase;color:${THEME.gold};font-weight:800;margin-bottom:5px}
+.md-top h1{font-family:var(--font-serif);font-size:27px;line-height:1.05;font-weight:500;margin:0;color:${THEME.ink}}
+.md-top small{display:block;margin-top:5px;font-size:12px;color:${THEME.muted}}
+.md-top-actions{display:flex;align-items:center;gap:8px}
+.md-avatar{width:42px;height:42px;border-radius:999px;background:#fff;border:1px solid ${THEME.border};display:flex;align-items:center;justify-content:center;color:${THEME.gold};font-weight:800;flex-shrink:0}
+.md-avatar.active{background:#EAF5EE;border-color:#C8E1D0;color:${THEME.success};box-shadow:0 0 0 4px rgba(45,122,74,.08)}
+.md-logout{border:1px solid ${THEME.border};background:#fff;color:${THEME.muted};border-radius:10px;padding:10px 12px;font-size:12px;font-weight:800;cursor:pointer}
+.md-field{margin-bottom:12px}
+.md-field label{display:block;font-size:10px;letter-spacing:1.8px;text-transform:uppercase;color:${THEME.gold};font-weight:800;margin-bottom:8px}
+.md-field select,.md-upload select,.md-upload input{width:100%;box-sizing:border-box;border:1px solid ${THEME.border};background:#fff;border-radius:12px;padding:12px 13px;font-family:inherit;font-size:14px;color:${THEME.ink}}
+.md-obra-card{background:${THEME.ink};color:#fff;border-radius:18px;padding:18px;margin-bottom:12px;box-shadow:0 16px 34px rgba(29,28,25,.12)}
+.md-obra-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}
+.md-obra-head span{display:inline-block;font-size:10px;letter-spacing:1.4px;text-transform:uppercase;color:${THEME.gold};font-weight:800;margin-bottom:7px}
+.md-obra-head h2{font-family:var(--font-serif);font-size:22px;line-height:1.12;margin:0;font-weight:500}
+.md-obra-head strong{font-size:26px;color:${THEME.gold};line-height:1}
+.md-obra-card p{font-size:12px;line-height:1.45;color:#D7CABA;margin:10px 0 12px}
+.md-obra-card small{display:block;font-size:11px;color:#BDB0A0;margin-top:10px}
+.md-progress{height:7px;background:rgba(255,255,255,.16);border-radius:999px;overflow:hidden}
+.md-progress i{display:block;height:100%;background:${THEME.gold};border-radius:999px}
+.md-progress.soft{background:${THEME.border};margin:10px 0 14px}
+.md-check-card{background:#fff;border:1px solid ${THEME.border};border-radius:18px;padding:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.md-check-card.active{background:#F1FAF4;border-color:#C8E1D0}
+.md-check-card span{display:block;font-size:15px;font-weight:800;color:${THEME.ink};margin-bottom:3px}
+.md-check-card p{margin:0;font-size:11.5px;color:${THEME.muted};line-height:1.4}
+.md-check-card button{border:0;background:${THEME.ink};color:#fff;border-radius:14px;padding:15px 18px;min-width:118px;font-size:15px;font-weight:900;cursor:pointer}
+.md-check-card button.checkout{background:${THEME.danger}}
+.md-card{background:#fff;border:1px solid ${THEME.border};border-radius:18px;padding:16px 15px;margin-bottom:12px;box-shadow:0 10px 26px rgba(29,28,25,.04);scroll-margin-top:14px}
+.md-card-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px}
+.md-card-head h2{font-size:15px;margin:0;font-weight:900;color:${THEME.ink}}
+.md-card-head span{font-size:12px;color:${THEME.gold};font-weight:900}
+.md-card-head button{border:0;background:transparent;color:${THEME.gold};font-size:12px;font-weight:900;cursor:pointer}
+.md-next strong{display:block;font-size:16px;color:${THEME.ink};margin-bottom:5px}
+.md-next span{display:block;font-size:13px;color:${THEME.muted};line-height:1.4}
+.md-next small{display:block;font-size:12px;color:${THEME.gold};font-weight:800;margin-top:8px}
+.md-quick{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px}
+.md-quick button{border:1px solid ${THEME.border};background:#fff;color:${THEME.ink};border-radius:14px;padding:14px 10px;font-size:13px;font-weight:900;cursor:pointer}
+.md-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.md-metric{background:#fff;border:1px solid ${THEME.border};border-radius:14px;padding:12px 8px;text-align:center}
+.md-metric.danger{border-color:#F0C8C8;background:#FFF8F8}
+.md-metric strong{display:block;font-size:22px;line-height:1;color:${THEME.ink}}
+.md-metric.danger strong{color:${THEME.danger}}
+.md-metric span{display:block;font-size:10.5px;color:${THEME.muted};margin-top:5px}
+.md-task{border:1px solid ${THEME.border};border-left:4px solid ${THEME.gold};border-radius:15px;padding:14px;margin-bottom:10px;background:#FFFEFC}
+.md-task-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.md-task-head strong{font-size:14px;color:${THEME.ink}}
+.md-task-head span{font-size:10px;letter-spacing:.8px;text-transform:uppercase;font-weight:900}
+.md-task p{font-size:12.5px;line-height:1.45;color:${THEME.muted};margin:8px 0}
+.md-task small{display:block;font-size:11px;color:${THEME.muted};margin-top:7px}
+.md-status-row,.md-two-actions{display:flex;gap:7px;margin-top:12px}
+.md-status-row button,.md-two-actions button{flex:1;border:0;border-radius:10px;padding:11px 6px;font-family:inherit;font-size:11.5px;font-weight:800;cursor:pointer;background:#F5F1EA;color:${THEME.muted}}
+.md-status-row button.active{background:${THEME.ink};color:#fff}
+.md-two-actions button{background:#FFF4E5;color:${THEME.warn}}
+.md-two-actions button.ok{background:#EAF5EE;color:${THEME.success}}
+.md-env{border:1px solid ${THEME.border};border-radius:15px;padding:13px;margin-top:12px;background:#FFFEFC}
+.md-env-head{display:flex;justify-content:space-between;gap:10px}
+.md-env-head strong{font-size:14px;color:${THEME.ink}}
+.md-env-head small{display:block;font-size:11px;color:${THEME.muted};margin-top:3px}
+.md-env-head span{font-size:12px;color:${THEME.gold};font-weight:900}
+.md-check-item{width:100%;border:1px solid ${THEME.border};background:#fff;border-radius:13px;padding:13px;display:flex;align-items:center;gap:11px;text-align:left;margin-top:8px;font-family:inherit;cursor:pointer}
+.md-check-item.done{background:#F4FBF6;border-color:#C8E1D0}
+.md-check-item i{width:23px;height:23px;border-radius:7px;border:2px solid ${THEME.border};display:flex;align-items:center;justify-content:center;font-style:normal;font-size:13px;font-weight:900;flex-shrink:0}
+.md-check-item.done i{background:${THEME.success};border-color:${THEME.success};color:#fff}
+.md-check-item span{font-size:14px;color:${THEME.ink};line-height:1.35}
+.md-check-item.done span{color:#9A938A;text-decoration:line-through}
+.md-upload{display:flex;flex-direction:column;gap:9px;margin-bottom:14px}
+.md-file{display:block;background:${THEME.ink};color:#fff;border-radius:14px;padding:15px;text-align:center;font-size:14px;font-weight:900;cursor:pointer}
+.md-file.disabled{opacity:.52}
+.md-file input{display:none}
+.md-photo-group{margin-top:16px}
+.md-photo-group h3{font-size:10px;letter-spacing:1.8px;text-transform:uppercase;color:${THEME.gold};font-weight:900;margin:0 0 9px}
+.md-photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.md-photo{position:relative;aspect-ratio:1;border:0;border-radius:13px;overflow:hidden;background:#F0ECE6;padding:0;cursor:pointer}
+.md-photo img{width:100%;height:100%;object-fit:cover;display:block}
+.md-photo span{position:absolute;left:5px;right:5px;bottom:5px;background:rgba(29,28,25,.72);color:#fff;border-radius:8px;padding:4px 5px;font-size:9px;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.md-occ{border:1px solid ${THEME.border};border-radius:14px;padding:12px;margin-bottom:9px;background:#FFFEFC}
+.md-occ strong{font-size:13.5px;color:${THEME.ink}}
+.md-occ p{font-size:12px;color:${THEME.muted};line-height:1.4;margin:6px 0}
+.md-occ small{font-size:11px;color:${THEME.gold};font-weight:800}
+.md-history{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid ${THEME.border}}
+.md-history:last-child{border-bottom:0}
+.md-history i{width:8px;height:8px;border-radius:999px;background:${THEME.gold};margin-top:5px;flex-shrink:0}
+.md-history strong{display:block;font-size:13px;color:${THEME.ink}}
+.md-history span{display:block;font-size:11.5px;color:${THEME.muted};margin-top:2px;line-height:1.3}
+.md-empty{padding:20px 0;text-align:center;color:#A79F93;font-size:13px}
+.md-empty-card{background:#fff;border:1px solid ${THEME.border};border-radius:18px;padding:28px 18px;text-align:center;margin-top:28px}
+.md-empty-card strong{display:block;font-size:18px;color:${THEME.ink};margin-bottom:8px}
+.md-empty-card p{margin:0;color:${THEME.muted};font-size:13px;line-height:1.45}
+.md-toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:${THEME.ink};color:#fff;border-left:3px solid ${THEME.gold};border-radius:13px;padding:12px 18px;font-size:13px;font-weight:800;z-index:1000;white-space:nowrap;max-width:calc(100vw - 28px);box-sizing:border-box}
+.md-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:800;display:flex;align-items:flex-end;justify-content:center;padding:14px}
+.md-modal{width:100%;max-width:500px;background:#fff;border-radius:18px;padding:20px;box-sizing:border-box}
+.md-modal h2{font-family:var(--font-serif);font-size:22px;font-weight:500;margin:0 0 5px;color:${THEME.ink}}
+.md-modal p{font-size:13px;color:${THEME.muted};margin:0 0 14px}
+.md-modal textarea{width:100%;box-sizing:border-box;border:1px solid ${THEME.border};border-radius:13px;padding:12px;font-family:inherit;font-size:14px;resize:none;color:${THEME.ink}}
+.md-modal-actions{display:flex;gap:9px;justify-content:flex-end;margin-top:12px}
+.md-modal-actions button{border:1px solid ${THEME.border};background:#fff;border-radius:12px;padding:11px 14px;font-weight:800;color:${THEME.muted};cursor:pointer}
+.md-modal-actions button.danger{border-color:${THEME.danger};background:${THEME.danger};color:#fff}
+.md-preview{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:900;display:flex;align-items:center;justify-content:center;padding:12px;cursor:pointer}
+.md-preview img{max-width:100%;max-height:92vh;border-radius:12px;object-fit:contain}
+@media (min-width:720px){.md-page{max-width:680px;padding:26px 20px 46px}.md-summary{grid-template-columns:repeat(4,1fr)}.md-quick{grid-template-columns:repeat(4,1fr)}}
+`
