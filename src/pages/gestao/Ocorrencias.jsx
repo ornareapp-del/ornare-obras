@@ -11,6 +11,7 @@ const GRAVIDADES = [
 const TIPOS = ['Material faltante','Retrabalho','Problema técnico','Acesso bloqueado','Atraso','Outro']
 const STATUS_OC = ['Aberta','Em andamento','Resolvida']
 const GRAV = Object.fromEntries(GRAVIDADES.map(g => [g.value, g]))
+const norm = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 
 function Modal({ obras, profiles, onClose, onSaved }) {
   const { profile } = useStore()
@@ -154,6 +155,12 @@ export default function Ocorrencias() {
   const lista = ocorrencias
     .filter(o => !filtroGrav || o.gravidade === filtroGrav)
     .filter(o => !filtroStatus || o.status === filtroStatus)
+  const kpis = [
+    { label: 'Críticas', value: ocorrencias.filter(o => ['alta', 'critica'].includes(norm(o.gravidade))).length, color: '#B84040' },
+    { label: 'Em andamento', value: ocorrencias.filter(o => norm(o.status).includes('andamento')).length, color: '#365C7D' },
+    { label: 'Resolvidas', value: ocorrencias.filter(o => norm(o.status).includes('resolvida')).length, color: '#2D7A4A' },
+    { label: 'Não conformidades', value: ocorrencias.filter(o => norm(o.tipo).includes('conformidade') || norm(o.titulo).includes('conformidade')).length, color: '#9A6A22' },
+  ]
 
   return (
     <div className="ow-page" style={s.page}>
@@ -166,8 +173,8 @@ export default function Ocorrencias() {
       <div style={s.header}>
         <div>
           <div style={s.breadcrumb}>Gestão</div>
-          <h1 style={s.title}>Ocorrências</h1>
-          <p style={s.sub}>{ocorrencias.length} ocorrência{ocorrencias.length !== 1 ? 's' : ''} registrada{ocorrencias.length !== 1 ? 's' : ''}</p>
+          <h1 style={s.title}>Central de Ocorrências</h1>
+          <p style={s.sub}>Pendências, problemas de obra e não conformidades operacionais</p>
         </div>
         <button style={s.btnNew} onClick={() => setModal(true)}>
           + Nova Ocorrência
@@ -175,15 +182,10 @@ export default function Ocorrencias() {
       </div>
 
       <div style={s.statsGrid}>
-        {GRAVIDADES.map(g => (
-          <div key={g.value} style={{ ...s.stat, background: g.bg, borderColor: g.cor + '33' }}>
-            <div style={{ ...s.statLabel, color: g.cor }}>Gravidade {g.label}</div>
-            <div style={{ ...s.statValue, color: g.cor }}>
-              {ocorrencias.filter(o => o.gravidade === g.value).length}
-            </div>
-            <div style={{ fontSize: 11, color: g.cor, opacity: 0.7, marginTop: 2 }}>
-              {ocorrencias.filter(o => o.gravidade === g.value && o.status === 'Aberta').length} abertas
-            </div>
+        {kpis.map(k => (
+          <div key={k.label} style={{ ...s.stat, borderTop: '3px solid ' + k.color }}>
+            <div style={{ ...s.statLabel, color: k.color }}>{k.label}</div>
+            <div style={{ ...s.statValue, color: k.color }}>{loading ? '-' : k.value}</div>
           </div>
         ))}
       </div>
@@ -263,7 +265,7 @@ const s = {
   title: { fontFamily: 'var(--font-serif)', fontSize: 36, fontWeight: 500, color: 'var(--color-ink)', margin: 0 },
   sub: { fontSize: 13, color: 'var(--color-ink-muted)', marginTop: 4 },
   btnNew: { background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' },
-  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 24 },
+  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 14, marginBottom: 24 },
   stat: { border: '1px solid', borderRadius: 14, padding: '16px 20px', boxShadow: 'var(--shadow)' },
   statLabel: { fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6 },
   statValue: { fontSize: 28, fontWeight: 700 },

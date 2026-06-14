@@ -10,6 +10,10 @@ const TIPO_COR = {
   'Apresentacao': '#4a90d9', 'Compromisso': '#888', 'Tarefa': '#b09a7a',
 }
 
+function norm(value) {
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+}
+
 export default function Agenda() {
   const [eventos, setEventos] = useState([])
   const [obras, setObras] = useState([])
@@ -75,6 +79,12 @@ export default function Agenda() {
   const proximos = eventos.filter(e => (e.data_fim || e.data) >= hoje_str)
   const passados = eventos.filter(e => (e.data_fim || e.data) < hoje_str)
   const lista = filtro === 'proximos' ? proximos : passados
+  const kpis = [
+    { label: 'Montagens', value: eventos.filter(e => norm(e.tipo || e.titulo).includes('montagem')).length },
+    { label: 'Assistências', value: eventos.filter(e => norm(e.tipo || e.titulo).includes('assist')).length },
+    { label: 'Entregas', value: eventos.filter(e => norm(e.tipo || e.titulo).includes('entrega')).length },
+    { label: 'Vistorias', value: eventos.filter(e => norm(e.tipo || e.titulo).includes('vistoria') || norm(e.tipo || e.titulo).includes('medicao')).length },
+  ]
 
   return (
     <div className="ow-page" style={s.page}>
@@ -151,10 +161,19 @@ export default function Agenda() {
       <div style={s.header}>
         <div>
           <div style={s.breadcrumb}>Gestão</div>
-          <h1 style={s.title}>Agenda</h1>
-          <p style={s.sub}>{MESES[hoje.getMonth()]} {hoje.getFullYear()}</p>
+          <h1 style={s.title}>Central de Agenda</h1>
+          <p style={s.sub}>Montagens, entregas, assistências e compromissos operacionais</p>
         </div>
         <button style={s.btnNew} onClick={() => setModal(true)}>+ Novo Evento</button>
+      </div>
+
+      <div style={s.kpiGrid}>
+        {kpis.map(k => (
+          <div key={k.label} style={s.kpi}>
+            <span style={s.kpiLabel}>{k.label}</span>
+            <strong style={s.kpiValue}>{loading ? '-' : k.value}</strong>
+          </div>
+        ))}
       </div>
 
       <div style={s.filtros}>
@@ -237,6 +256,10 @@ const s = {
   title: { fontFamily: 'var(--font-serif)', fontSize: 36, fontWeight: 500, color: 'var(--color-ink)', margin: 0 },
   sub: { fontSize: 13, color: 'var(--color-ink-muted)', marginTop: 4 },
   btnNew: { background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer' },
+  kpiGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 20 },
+  kpi: { background: '#fff', border: '1px solid var(--color-border)', borderTop: '3px solid var(--color-gold)', borderRadius: 14, padding: '15px 16px', boxShadow: 'var(--shadow)' },
+  kpiLabel: { display: 'block', fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: 'var(--color-gold)', fontWeight: 800, marginBottom: 8 },
+  kpiValue: { display: 'block', fontSize: 30, lineHeight: 1, color: 'var(--color-ink)' },
   filtros: { display: 'flex', gap: 8, marginBottom: 20 },
   filtroBtn: { padding: '7px 16px', borderRadius: 20, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' },
   card: { display: 'flex', gap: 16, background: '#fff', border: '1px solid var(--color-border)', borderRadius: 14, padding: '14px 18px', marginBottom: 10, alignItems: 'flex-start', boxShadow: 'var(--shadow)' },

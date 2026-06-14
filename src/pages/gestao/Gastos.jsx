@@ -335,6 +335,11 @@ export default function Gastos() {
     .filter(g => !filtroStatus    || g.status    === filtroStatus)
 
   const total = lista.reduce((s, g) => s + (parseFloat(g.valor) || 0), 0)
+  const mesAtual = new Date().toISOString().slice(0, 7)
+  const gastosMes = gastos.filter(g => String(g.data || g.created_at || '').slice(0, 7) === mesAtual)
+  const totalMes = gastosMes.reduce((s, g) => s + (parseFloat(g.valor) || 0), 0)
+  const aprovados = gastos.filter(g => (g.status || 'aprovado') === 'aprovado')
+  const recusados = gastos.filter(g => g.status === 'recusado')
 
   const porCategoria = Object.entries(
     lista.reduce((acc, g) => {
@@ -383,8 +388,8 @@ export default function Gastos() {
       <div style={s.header}>
         <div>
           <div style={s.breadcrumb}>Gestão</div>
-          <h1 style={s.title}>Gastos</h1>
-          <p style={s.sub}>Controle financeiro de todas as obras</p>
+          <h1 style={s.title}>Central Financeira Operacional</h1>
+          <p style={s.sub}>Gastos de obra, aprovações e leitura operacional de custos</p>
         </div>
         <button style={s.btnNew} onClick={() => setModal(true)}>+ Lançar Gasto</button>
       </div>
@@ -415,20 +420,20 @@ export default function Gastos() {
       {/* ── KPIs ─────────────────────────────────────────────────────────────── */}
       <div style={s.statsGrid}>
         <div style={s.stat}>
-          <div style={s.statLabel}>Total Geral</div>
-          <div style={s.statValue}>R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+          <div style={s.statLabel}>Gastos mês</div>
+          <div style={s.statValue}>R$ {totalMes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
         </div>
         <div style={s.stat}>
-          <div style={s.statLabel}>Lancamentos</div>
-          <div style={s.statValue}>{lista.length}</div>
+          <div style={s.statLabel}>Aprovados</div>
+          <div style={{ ...s.statValue, color: 'var(--color-success)' }}>{aprovados.length}</div>
         </div>
         <div style={s.stat}>
-          <div style={s.statLabel}>Obras com gastos</div>
-          <div style={s.statValue}>{new Set(lista.map(g => g.obra_id).filter(Boolean)).size}</div>
+          <div style={s.statLabel}>Pendentes</div>
+          <div style={{ ...s.statValue, color: pendentes.length ? 'var(--color-gold)' : 'var(--color-ink)' }}>{pendentes.length}</div>
         </div>
-        <div style={{ ...s.stat, borderLeft: pendentes.length > 0 ? '3px solid #C8A86A' : '1px solid var(--color-border)' }}>
-          <div style={s.statLabel}>Pendentes aprovação</div>
-          <div style={{ ...s.statValue, color: pendentes.length > 0 ? '#C8A86A' : 'var(--color-ink)' }}>{pendentes.length}</div>
+        <div style={s.stat}>
+          <div style={s.statLabel}>Reprovados</div>
+          <div style={{ ...s.statValue, color: recusados.length ? 'var(--color-danger)' : 'var(--color-ink)' }}>{recusados.length}</div>
         </div>
       </div>
 

@@ -157,7 +157,8 @@ a {
   .ow-page [style*="grid-template-columns: 1fr 1fr"],
   .ow-page [style*="grid-template-columns: repeat(2"],
   .ow-page [style*="grid-template-columns: repeat(3"],
-  .ow-page [style*="grid-template-columns: repeat(4"] {
+  .ow-page [style*="grid-template-columns: repeat(4"],
+  .ow-page [style*="grid-template-columns: repeat(5"] {
     grid-template-columns: 1fr !important;
   }
 

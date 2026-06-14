@@ -21,6 +21,7 @@ function getStatus(s) {
 export default function Obras() {
   const navigate = useNavigate()
   const [obras, setObras] = useState([])
+  const [profiles, setProfiles] = useState([])
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState('Todas')
   const [editModal, setEditModal] = useState(null)
@@ -29,8 +30,12 @@ export default function Obras() {
   useEffect(() => { carregar() }, [])
 
   async function carregar() {
-    const { data } = await supabase.from('obras').select('*').order('created_at', { ascending: false })
+    const [{ data }, { data: pr }] = await Promise.all([
+      supabase.from('obras').select('*').order('created_at', { ascending: false }),
+      supabase.from('profiles').select('id, full_name, role'),
+    ])
     setObras(data || [])
+    setProfiles(pr || [])
     setLoading(false)
   }
 
@@ -57,6 +62,15 @@ export default function Obras() {
   }
 
   const obrasFiltradas = filtro === 'Todas' ? obras : obras.filter(o => o.status === filtro)
+  const profilePorId = new Map(profiles.map(p => [p.id, p]))
+  const isStatus = (obra, termos) => termos.some(t => String(obra.status || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(t))
+  const kpis = [
+    { label: 'Obras Ativas', value: obras.filter(o => !isStatus(o, ['concluida', 'cancelada'])).length },
+    { label: 'Em Produção', value: obras.filter(o => isStatus(o, ['producao'])).length },
+    { label: 'Em Montagem', value: obras.filter(o => isStatus(o, ['montagem'])).length },
+    { label: 'Travadas', value: obras.filter(o => isStatus(o, ['pausada', 'cancelada'])).length },
+    { label: 'Concluídas', value: obras.filter(o => isStatus(o, ['concluida'])).length },
+  ]
 
   return (
     <div className="ow-page" style={s.page}>
@@ -111,10 +125,19 @@ export default function Obras() {
       <div style={s.header}>
         <div>
           <div style={s.breadcrumb}>Gestão</div>
-          <h1 style={s.title}>Obras</h1>
-          <p style={s.sub}>{obras.length} obra{obras.length !== 1 ? 's' : ''} cadastrada{obras.length !== 1 ? 's' : ''}</p>
+          <h1 style={s.title}>Central de Obras</h1>
+          <p style={s.sub}>Operação, status e andamento das obras Ornare</p>
         </div>
         <button style={s.btnNew} onClick={() => navigate('/obras/nova')}>+ Nova Obra</button>
+      </div>
+
+      <div style={s.kpiGrid}>
+        {kpis.map(k => (
+          <div key={k.label} style={s.kpi}>
+            <span style={s.kpiLabel}>{k.label}</span>
+            <strong style={s.kpiValue}>{loading ? '-' : k.value}</strong>
+          </div>
+        ))}
       </div>
 
       <div style={s.filtros}>
@@ -154,10 +177,13 @@ export default function Obras() {
                       <span style={{ ...s.badge, background: st.bg, color: st.color }}>{st.label}</span>
                     </div>
                     <div style={s.cardMeta}>
-                      {obra.cliente_nome}
-                      {obra.cidade ? ' · ' + obra.cidade : ''}
-                      {obra.data_previsao ? ' · Prev: ' + new Date(obra.data_previsao + 'T00:00:00').toLocaleDateString('pt-BR') : ''}
-                      {obra.numero_contrato ? ' · Contrato ' + obra.numero_contrato : ''}
+                      {[obra.cliente_nome, obra.cidade, obra.uf].filter(Boolean).join(' · ') || 'Cliente não informado'}
+                    </div>
+                    <div style={s.cardDetails}>
+                      <span>Supervisor: {profilePorId.get(obra.supervisor_id)?.full_name || 'Não definido'}</span>
+                      <span>Fase: {obra.fase || obra.etapa || obra.status || '-'}</span>
+                      <span>{obra.data_previsao ? 'Previsão: ' + new Date(obra.data_previsao + 'T00:00:00').toLocaleDateString('pt-BR') : 'Sem previsão'}</span>
+                      {obra.numero_contrato && <span>Contrato {obra.numero_contrato}</span>}
                     </div>
                   </div>
                   {obra.progresso > 0 && (
@@ -198,6 +224,10 @@ const s = {
   title: { fontFamily: 'var(--font-serif)', fontSize: 36, fontWeight: 500, color: 'var(--color-ink)', margin: 0 },
   sub: { fontSize: 13, color: 'var(--color-ink-muted)', marginTop: 4 },
   btnNew: { background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' },
+  kpiGrid: { display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 12, marginBottom: 20 },
+  kpi: { background: '#fff', border: '1px solid var(--color-border)', borderTop: '3px solid var(--color-gold)', borderRadius: 14, padding: '15px 16px', boxShadow: 'var(--shadow)' },
+  kpiLabel: { display: 'block', fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: 'var(--color-gold)', fontWeight: 800, marginBottom: 8 },
+  kpiValue: { display: 'block', fontSize: 30, lineHeight: 1, color: 'var(--color-ink)' },
   filtros: { display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' },
   filtroBtn: { padding: '6px 16px', borderRadius: 20, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' },
   list: { display: 'flex', flexDirection: 'column', gap: 10 },
@@ -209,6 +239,7 @@ const s = {
   cardNome: { fontSize: 15, fontWeight: 600, color: 'var(--color-ink)' },
   badge: { fontSize: 10, padding: '2px 10px', borderRadius: 20, fontWeight: 500 },
   cardMeta: { fontSize: 12, color: 'var(--color-ink-muted)' },
+  cardDetails: { display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8, fontSize: 11, color: 'var(--color-ink-muted)' },
   progressWrap: { minWidth: 100, textAlign: 'right', flexShrink: 0 },
   progressPct: { fontSize: 11, color: 'var(--color-gold)', marginBottom: 4 },
   progressBar: { height: 4, background: 'var(--color-border)', borderRadius: 2, width: 100 },
