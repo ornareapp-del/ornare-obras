@@ -1,397 +1,518 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { useStore } from '../../store/useStore'
 
-// ─── STATUS MAP ───────────────────────────────────────────────────────────────
-const ST = {
-  'Em montagem':         { label: 'Em montagem',    bg: '#EFF4FA', color: '#1E3A5F', dot: '#2563EB' },
-  'Aguardando montagem': { label: 'Ag. montagem',   bg: '#FFF3E0', color: '#E65100', dot: '#F57C00' },
-  'Montagem agendada':   { label: 'Mont. agendada', bg: '#E3F2FD', color: '#1565C0', dot: '#1565C0' },
-  'Vistoria final':      { label: 'Vistoria final', bg: '#F3E5F5', color: '#6A1B9A', dot: '#9C27B0' },
-  'Concluida':           { label: 'Concluida',      bg: '#E8F5E9', color: '#2E7D32', dot: '#2E7D32' },
-  'Pausada':             { label: 'Pausada',         bg: '#FFF3E0', color: '#E65100', dot: '#F57C00' },
-  'Cancelada':           { label: 'Cancelada',       bg: '#FFEBEE', color: '#C62828', dot: '#C62828' },
-  'Aguardando inicio':   { label: 'Ag. inicio',      bg: '#F5F5F5', color: '#616161', dot: '#9E9E9E' },
-  'Em producao':         { label: 'Em producao',     bg: '#EFF4FA', color: '#1E3A5F', dot: '#1E3A5F' },
-  'Em medicao':          { label: 'Em medicao',      bg: '#F3E5F5', color: '#6A1B9A', dot: '#9C27B0' },
-}
-function getStatus(s) {
-  return ST[s] || { label: s || '—', bg: '#F5F5F5', color: '#666', dot: '#ccc' }
+const THEME = {
+  bg: '#F6F3EE',
+  card: '#FFFFFF',
+  border: '#E7E0D5',
+  ink: '#1D1C19',
+  muted: '#6D675E',
+  gold: '#B8965E',
+  danger: '#B94A48',
+  success: '#2F7D55',
+  warn: '#B8872E',
 }
 
-// ─── SEMAFORO DE SAUDE ────────────────────────────────────────────────────────
-// verde = no prazo, amarelo = risco (previsao nos proximos 7 dias), vermelho = atrasada ou com ocorrencia critica
-function saudeObra(obra, ocorrenciasIds) {
-  const hoje = new Date()
-  const previsao = obra.data_previsao ? new Date(obra.data_previsao + 'T00:00:00') : null
-  const temOcorrenciaCritica = ocorrenciasIds.includes(obra.id)
-  if (temOcorrenciaCritica) return { cor: '#B84040', label: 'Critica' }
-  if (previsao && previsao < hoje) return { cor: '#B84040', label: 'Atrasada' }
-  if (previsao) {
-    const diff = (previsao - hoje) / (1000 * 60 * 60 * 24)
-    if (diff <= 7) return { cor: '#C8A86A', label: 'Atencao' }
-  }
-  return { cor: '#2D7A4A', label: 'No prazo' }
+const STATUS = {
+  producao: ['Em producao', 'Em produção'],
+  montagem: ['Em montagem', 'Montagem agendada'],
+  aguardandoCliente: ['Aguardando cliente'],
+  aguardandoProducao: ['Aguardando inicio', 'Em medicao', 'Em medição', 'Medicao agendada', 'Medição agendada', 'Projeto em conferencia', 'Projeto em conferência'],
+  concluidas: ['Concluida', 'Concluída'],
+  travadas: ['Pausada', 'Cancelada'],
+  producaoFinalizada: ['Pronta para entrega'],
+  aguardandoAgendamento: ['Aguardando montagem'],
 }
 
-// ─── COMPONENTE FEED ITEM ─────────────────────────────────────────────────────
-function FeedItem({ icon, texto, sub, tempo }) {
-  return (
-    <div style={{ display: 'flex', gap: 10, padding: '9px 0', borderBottom: '1px solid var(--color-border)', alignItems: 'flex-start' }}>
-      <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#f5f2ee', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0 }}>
-        {icon}
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12.5, color: 'var(--color-ink)', lineHeight: 1.4 }}>{texto}</div>
-        {sub && <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>{sub}</div>}
-      </div>
-      <div style={{ fontSize: 10, color: '#bbb', flexShrink: 0, paddingTop: 2 }}>{tempo}</div>
-    </div>
-  )
+function normalizar(v) {
+  return (v || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+}
+
+function inStatus(obra, lista) {
+  const atual = normalizar(obra.status)
+  return lista.some(s => normalizar(s) === atual)
+}
+
+function dataBR(data) {
+  if (!data) return '-'
+  return new Date(data + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+}
+
+function moeda(valor) {
+  return 'R$ ' + Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
 }
 
 function tempoRelativo(iso) {
   if (!iso) return ''
   const diff = (Date.now() - new Date(iso)) / 1000
-  if (diff < 60)   return 'agora'
+  if (diff < 60) return 'agora'
   if (diff < 3600) return Math.floor(diff / 60) + 'min'
   if (diff < 86400) return Math.floor(diff / 3600) + 'h'
   return Math.floor(diff / 86400) + 'd'
 }
 
-// ─── DASHBOARD GESTAO ─────────────────────────────────────────────────────────
+function statusBadge(status) {
+  if (inStatus({ status }, STATUS.montagem)) return { bg: '#EFF4FA', color: '#1E3A5F', label: status || '-' }
+  if (inStatus({ status }, STATUS.producao)) return { bg: '#F0F3EA', color: '#415B34', label: status || '-' }
+  if (inStatus({ status }, STATUS.travadas)) return { bg: '#FDECEA', color: '#9E2F2F', label: status || '-' }
+  if (inStatus({ status }, STATUS.concluidas)) return { bg: '#E8F5E9', color: '#2E7D32', label: status || '-' }
+  return { bg: '#F5F1EA', color: THEME.muted, label: status || '-' }
+}
+
 export default function DashboardGestao() {
   const navigate = useNavigate()
-  const { profile } = useStore()
-  const [obras,       setObras]       = useState([])
-  const [agenda,      setAgenda]      = useState([])
-  const [ocorrencias, setOcorrencias] = useState([])
-  const [checkins,    setCheckins]    = useState([])
-  const [fotos,       setFotos]       = useState([])
-  const [gastos,      setGastos]      = useState([])
-  const [loading,     setLoading]     = useState(true)
-
-  useEffect(() => { carregar() }, [])
+  const [dados, setDados] = useState({
+    obras: [],
+    agenda: [],
+    ocorrencias: [],
+    checkins: [],
+    fotos: [],
+    gastos: [],
+    tarefas: [],
+    profiles: [],
+    montadores: [],
+    checklist: [],
+  })
+  const [loading, setLoading] = useState(true)
 
   async function carregar() {
     const [
-      { data: o },
-      { data: a },
-      { data: oc },
-      { data: ci },
-      { data: ft },
-      { data: gs },
+      { data: obras },
+      { data: agenda },
+      { data: ocorrencias },
+      { data: checkins },
+      { data: fotos },
+      { data: gastos },
+      { data: tarefas },
+      { data: profiles },
+      { data: montadores },
+      { data: checklist },
     ] = await Promise.all([
       supabase.from('obras').select('*').order('created_at', { ascending: false }),
-      supabase.from('agenda').select('*, obras(nome)').order('data').order('hora_inicio').limit(8),
-      supabase.from('ocorrencias').select('*').eq('status', 'Aberta').order('created_at', { ascending: false }).limit(20),
-      supabase.from('checkins').select('*, profiles(full_name), obras(nome)').order('created_at', { ascending: false }).limit(10),
-      supabase.from('fotos').select('*, obras(nome)').order('created_at', { ascending: false }).limit(10),
-      supabase.from('gastos').select('*, obras(nome)').order('created_at', { ascending: false }).limit(10),
+      supabase.from('agenda').select('*, obras(nome)').order('data').order('hora_inicio').limit(80),
+      supabase.from('ocorrencias').select('*').order('created_at', { ascending: false }).limit(120),
+      supabase.from('checkins').select('*, profiles(full_name), obras(nome)').order('created_at', { ascending: false }).limit(20),
+      supabase.from('fotos').select('*, obras(nome)').order('created_at', { ascending: false }).limit(80),
+      supabase.from('gastos').select('*, obras(nome)').order('created_at', { ascending: false }).limit(200),
+      supabase.from('tarefas').select('*').order('prazo', { ascending: true }).limit(200),
+      supabase.from('profiles').select('id, full_name, email, role'),
+      supabase.from('obra_montadores').select('obra_id, montador_id, montador:profiles!obra_montadores_montador_id_fkey(full_name)'),
+      supabase.from('checklist_items').select('id, obra_id, descricao, concluido, concluido_em').limit(300),
     ])
-    setObras(o    || [])
-    setAgenda(a   || [])
-    setOcorrencias(oc || [])
-    setCheckins(ci  || [])
-    setFotos(ft     || [])
-    setGastos(gs    || [])
+
+    setDados({
+      obras: obras || [],
+      agenda: agenda || [],
+      ocorrencias: ocorrencias || [],
+      checkins: checkins || [],
+      fotos: fotos || [],
+      gastos: gastos || [],
+      tarefas: tarefas || [],
+      profiles: profiles || [],
+      montadores: montadores || [],
+      checklist: checklist || [],
+    })
     setLoading(false)
   }
 
-  // ── KPIs
-  const ativas     = obras.filter(o => ['Em montagem', 'Em producao', 'Montagem agendada', 'Em medicao'].includes(o.status)).length
-  const montagem   = obras.filter(o => o.status === 'Em montagem').length
-  const pendentes  = obras.filter(o => ['Pausada', 'Aguardando inicio', 'Aguardando montagem'].includes(o.status)).length
-  const concluidas = obras.filter(o => o.status === 'Concluida').length
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { carregar() }, [])
 
-  // ── Semaforo
-  const obrasComOcCritica = [...new Set(ocorrencias.filter(oc => oc.gravidade === 'alta').map(oc => oc.obra_id))]
+  const vm = useMemo(() => {
+    const hoje = new Date()
+    hoje.setHours(0, 0, 0, 0)
+    const agoraMs = hoje.getTime()
+    const hojeStr = hoje.toISOString().split('T')[0]
+    const em7 = new Date(hoje)
+    em7.setDate(em7.getDate() + 7)
+    const em7Str = em7.toISOString().split('T')[0]
+    const mesAtual = hoje.toISOString().slice(0, 7)
+    const ativos = dados.obras.filter(o => !inStatus(o, STATUS.concluidas) && !inStatus(o, STATUS.travadas))
 
-  // ── Agenda
-  const hoje        = new Date().toISOString().split('T')[0]
-  const agendaHoje  = agenda.filter(a => a.data === hoje)
-  const agendaProx  = agenda.filter(a => a.data > hoje).slice(0, 3)
+    const ocorrenciasAbertas = dados.ocorrencias.filter(o => ['Aberta', 'aberta', 'Pendente', 'pendente'].includes(o.status || 'Aberta'))
+    const ocorrPorObra = new Map()
+    ocorrenciasAbertas.forEach(o => {
+      if (!o.obra_id) return
+      ocorrPorObra.set(o.obra_id, [...(ocorrPorObra.get(o.obra_id) || []), o])
+    })
 
-  // ── Ocorrencias criticas (max 5 para o painel)
-  const ocCriticas = ocorrencias.filter(oc => oc.gravidade === 'alta').slice(0, 5)
-  const ocOutras   = ocorrencias.filter(oc => oc.gravidade !== 'alta').slice(0, 3)
+    const checklistPorObra = new Map()
+    dados.checklist.forEach(i => {
+      if (!i.obra_id) return
+      checklistPorObra.set(i.obra_id, [...(checklistPorObra.get(i.obra_id) || []), i])
+    })
 
-  // ── Feed de atividade — mescla checkins + fotos + gastos ordenados por data
-  const feed = [
-    ...checkins.map(c => ({
-      tipo: 'checkin', icon: c.saida ? '🔴' : '🟢',
-      texto: `${c.profiles?.full_name || 'Alguem'} fez ${c.saida ? 'check-out' : 'check-in'}`,
-      sub: c.obras?.nome || '',
-      ts: c.created_at,
-    })),
-    ...fotos.map(f => ({
-      tipo: 'foto', icon: '📷',
-      texto: `Nova foto enviada`,
-      sub: f.obras?.nome || '',
-      ts: f.created_at,
-    })),
-    ...gastos.map(g => ({
-      tipo: 'gasto', icon: '💰',
-      texto: `Gasto lancado: ${g.descricao}`,
-      sub: g.obras?.nome || '',
-      ts: g.created_at,
-    })),
-  ].sort((a, b) => new Date(b.ts) - new Date(a.ts)).slice(0, 8)
+    const fotosPorObra = new Map()
+    dados.fotos.forEach(f => {
+      if (!f.obra_id) return
+      fotosPorObra.set(f.obra_id, [...(fotosPorObra.get(f.obra_id) || []), f])
+    })
 
-  // ── Gastos do mes
-  const mesAtual = new Date().toISOString().slice(0, 7)
-  const gastosMes = gastos.filter(g => g.created_at?.slice(0, 7) === mesAtual)
-  const totalMes  = gastosMes.reduce((s, g) => s + (parseFloat(g.valor) || 0), 0)
+    const gastosPorObra = new Map()
+    dados.gastos.forEach(g => {
+      if (!g.obra_id) return
+      gastosPorObra.set(g.obra_id, (gastosPorObra.get(g.obra_id) || 0) + (parseFloat(g.valor) || 0))
+    })
 
-  // ── Obras com gasto acima de 80% do orcamento
-  const obrasAlerta = obras.filter(o => {
-    if (!o.gasto_meta || o.gasto_meta <= 0) return false
-    const gasto = gastos.filter(g => g.obra_id === o.id).reduce((s, g) => s + (parseFloat(g.valor) || 0), 0)
-    return gasto / o.gasto_meta >= 0.8
-  })
+    const tarefasAtrasadas = dados.tarefas.filter(t => t.prazo && t.prazo < hojeStr && t.status !== 'concluida')
+    const agenda7 = dados.agenda.filter(a => a.data >= hojeStr && a.data <= em7Str)
+    const tipoAgenda = termo => agenda7.filter(a => normalizar(a.tipo || a.titulo).includes(termo))
+    const gastosMes = dados.gastos.filter(g => (g.data || g.created_at || '').slice(0, 7) === mesAtual)
+
+    const saude = ativos.map(obra => {
+      const previsao = obra.data_previsao ? new Date(obra.data_previsao + 'T00:00:00') : null
+      const temOcAlta = (ocorrPorObra.get(obra.id) || []).some(o => ['alta', 'critica', 'crítica'].includes(normalizar(o.gravidade)))
+      const atrasada = previsao && previsao < hoje
+      const risco = temOcAlta || (previsao && (previsao - hoje) / 86400000 <= 7)
+      return { obra, atrasada, risco }
+    })
+
+    const atencao = ativos.map(obra => {
+      const motivos = []
+      const itens = checklistPorObra.get(obra.id) || []
+      const fotos = fotosPorObra.get(obra.id) || []
+      const ultimaFoto = fotos[0]?.created_at ? new Date(fotos[0].created_at) : null
+      const semFotoRecente = !ultimaFoto || (agoraMs - ultimaFoto.getTime()) / 86400000 > 7
+      const previsao = obra.data_previsao ? new Date(obra.data_previsao + 'T00:00:00') : null
+      if ((ocorrPorObra.get(obra.id) || []).length > 0) motivos.push('ocorrencia aberta')
+      if (itens.some(i => !i.concluido)) motivos.push('checklist pendente')
+      if (semFotoRecente) motivos.push('sem fotos recentes')
+      if (previsao && previsao < hoje) motivos.push('atrasada')
+      return { obra, motivos }
+    }).filter(item => item.motivos.length > 0).slice(0, 7)
+
+    const fluxo = [
+      { label: 'Aguardando Producao', value: dados.obras.filter(o => inStatus(o, STATUS.aguardandoProducao)).length },
+      { label: 'Em Producao', value: dados.obras.filter(o => inStatus(o, STATUS.producao)).length },
+      { label: 'Producao Finalizada', value: dados.obras.filter(o => inStatus(o, STATUS.producaoFinalizada)).length },
+      { label: 'Aguardando Agendamento', value: dados.obras.filter(o => inStatus(o, STATUS.aguardandoAgendamento)).length },
+      { label: 'Em Montagem', value: dados.obras.filter(o => inStatus(o, STATUS.montagem)).length },
+      { label: 'Concluida', value: dados.obras.filter(o => inStatus(o, STATUS.concluidas)).length },
+    ]
+
+    const obrasPorSupervisor = dados.profiles
+      .filter(p => ['gestao', 'supervisor'].includes(p.role))
+      .map(p => ({ nome: p.full_name || p.email || 'Supervisor', total: dados.obras.filter(o => o.supervisor_id === p.id).length }))
+      .filter(p => p.total > 0)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5)
+
+    const atividade = [
+      ...dados.fotos.slice(0, 8).map(f => ({ tipo: 'Foto', texto: f.categoria || 'Nova foto enviada', sub: f.obras?.nome || obraNome(dados.obras, f.obra_id), ts: f.created_at })),
+      ...dados.checklist.filter(i => i.concluido && i.concluido_em).slice(0, 8).map(i => ({ tipo: 'Checklist', texto: i.descricao || 'Item concluido', sub: obraNome(dados.obras, i.obra_id), ts: i.concluido_em })),
+      ...dados.checkins.slice(0, 8).map(c => ({ tipo: 'Equipe', texto: `${c.profiles?.full_name || 'Equipe'} fez ${c.saida ? 'check-out' : 'check-in'}`, sub: c.obras?.nome || '', ts: c.created_at })),
+      ...dados.gastos.slice(0, 8).map(g => ({ tipo: 'Gasto', texto: g.descricao || 'Gasto lancado', sub: `${g.obras?.nome || obraNome(dados.obras, g.obra_id)} - ${moeda(g.valor)}`, ts: g.created_at })),
+    ].sort((a, b) => new Date(b.ts) - new Date(a.ts)).slice(0, 10)
+
+    return {
+      hojeStr,
+      operacao: {
+        producao: dados.obras.filter(o => inStatus(o, STATUS.producao)).length,
+        montagem: dados.obras.filter(o => inStatus(o, STATUS.montagem)).length,
+        aguardandoCliente: dados.obras.filter(o => inStatus(o, STATUS.aguardandoCliente)).length,
+        aguardandoProducao: dados.obras.filter(o => inStatus(o, STATUS.aguardandoProducao)).length,
+        concluidas: dados.obras.filter(o => inStatus(o, STATUS.concluidas)).length,
+        travadas: dados.obras.filter(o => inStatus(o, STATUS.travadas) || (ocorrPorObra.get(o.id) || []).some(oc => normalizar(oc.gravidade) === 'alta')).length,
+      },
+      saude: {
+        atrasadas: saude.filter(s => s.atrasada).length,
+        risco: saude.filter(s => !s.atrasada && s.risco).length,
+        prazo: saude.filter(s => !s.atrasada && !s.risco).length,
+      },
+      equipe: {
+        supervisores: dados.profiles.filter(p => ['gestao', 'supervisor'].includes(p.role)).length,
+        montadores: new Set(dados.montadores.map(m => m.montador_id)).size,
+        obrasPorSupervisor,
+      },
+      agenda7: {
+        montagens: tipoAgenda('montagem'),
+        vistorias: tipoAgenda('vistoria'),
+        assistencias: agenda7.filter(a => normalizar(a.tipo || a.titulo).includes('assistencia') || normalizar(a.tipo || a.titulo).includes('tecnica')),
+      },
+      pendencias: {
+        ocorrenciasAbertas,
+        naoConformidades: dados.fotos.filter(f => normalizar(f.categoria) === 'nao conformidade'),
+        tarefasAtrasadas,
+      },
+      financeiro: {
+        totalMes: gastosMes.reduce((s, g) => s + (parseFloat(g.valor) || 0), 0),
+        gastosMes,
+        topObras: [...gastosPorObra.entries()].map(([obraId, total]) => ({ obraId, nome: obraNome(dados.obras, obraId), total })).sort((a, b) => b.total - a.total).slice(0, 5),
+        acimaMeta: dados.obras.filter(o => o.gasto_meta && (gastosPorObra.get(o.id) || 0) > Number(o.gasto_meta)),
+      },
+      fluxo,
+      atencao,
+      atividade,
+      obrasOperacionais: ativos.slice(0, 8),
+      ocorrPorObra,
+    }
+  }, [dados])
 
   const kpis = [
-    { label: 'Obras Ativas',  value: ativas,    sub: 'Em acompanhamento', cor: '#C8A86A' },
-    { label: 'Em Montagem',   value: montagem,  sub: 'Operacao ativa',    cor: '#3a5580' },
-    { label: 'Pendencias',    value: pendentes, sub: 'Aguardando acao',   cor: '#B84040' },
-    { label: 'Concluidas',    value: concluidas,sub: 'Entregues',         cor: '#2D7A4A' },
+    { label: 'Em Producao', value: vm.operacao.producao, sub: 'fabrica e preparacao', tone: THEME.gold },
+    { label: 'Em Montagem', value: vm.operacao.montagem, sub: 'campo ativo', tone: '#1E3A5F' },
+    { label: 'Aguard. Cliente', value: vm.operacao.aguardandoCliente, sub: 'dependencia externa', tone: THEME.warn },
+    { label: 'Aguard. Producao', value: vm.operacao.aguardandoProducao, sub: 'pre-operacao', tone: '#6B5B43' },
+    { label: 'Concluidas', value: vm.operacao.concluidas, sub: 'entregues', tone: THEME.success },
+    { label: 'Travadas', value: vm.operacao.travadas, sub: 'acao imediata', tone: THEME.danger },
   ]
 
   return (
-    <div style={s.page}>
+    <div className="dg-page">
+      <style>{css}</style>
 
-      {/* ── HEADER ──────────────────────────────────────────────────────────── */}
-      <div style={s.header}>
+      <header className="dg-header">
         <div>
-          <div style={s.breadcrumb}>Gestao</div>
-          <h1 style={s.title}>Dashboard</h1>
-          <p style={s.date}>
-            {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
-          </p>
+          <div className="dg-eyebrow">Gestao Ornare</div>
+          <h1>Central de Gestao</h1>
+          <p>{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
         </div>
-        <button onClick={() => navigate('/obras/nova')} style={s.btnNew}>
-          + Nova Obra
-        </button>
-      </div>
+        <div className="dg-actions">
+          <button onClick={() => navigate('/obras')}>Obras</button>
+          <button onClick={() => navigate('/agenda')}>Agenda</button>
+          <button onClick={() => navigate('/equipe')}>Equipe</button>
+          <button className="primary" onClick={() => navigate('/obras/nova')}>Nova Obra</button>
+        </div>
+      </header>
 
-      {/* ── KPIs ────────────────────────────────────────────────────────────── */}
-      <div style={s.kpiGrid}>
-        {kpis.map(k => (
-          <div key={k.label} style={{ ...s.kpiCard, borderTop: '3px solid ' + k.cor }}>
-            <div style={{ fontSize: 9, letterSpacing: 2, color: k.cor, textTransform: 'uppercase', marginBottom: 8, fontWeight: 600 }}>{k.label}</div>
-            <div style={{ fontSize: 40, fontWeight: 700, color: 'var(--color-ink)', lineHeight: 1, marginBottom: 4 }}>
-              {loading ? '—' : k.value}
-            </div>
-            <div style={{ fontSize: 11, color: '#aaa' }}>{k.sub}</div>
+      <section className="dg-kpis" aria-label="Indicadores operacionais">
+        {kpis.map(k => <Kpi key={k.label} {...k} loading={loading} />)}
+      </section>
+
+      <section className="dg-grid-3">
+        <Card title="Saude operacional" action="Ver obras" onAction={() => navigate('/obras')}>
+          <div className="dg-health">
+            <Health label="Atrasadas" value={vm.saude.atrasadas} color={THEME.danger} />
+            <Health label="Em risco" value={vm.saude.risco} color={THEME.warn} />
+            <Health label="No prazo" value={vm.saude.prazo} color={THEME.success} />
           </div>
-        ))}
-      </div>
+        </Card>
 
-      {/* ── ALERTA ORCAMENTO ────────────────────────────────────────────────── */}
-      {obrasAlerta.length > 0 && (
-        <div style={s.alertaBanner}>
-          <span style={{ fontSize: 14 }}>⚠️</span>
-          <span style={{ flex: 1, fontSize: 13 }}>
-            <strong>{obrasAlerta.length} obra{obrasAlerta.length > 1 ? 's' : ''}</strong> com gasto acima de 80% do orcamento:
-            {' '}{obrasAlerta.map(o => o.nome).join(', ')}
-          </span>
-          <button onClick={() => navigate('/gastos')} style={s.alertaLink}>Ver gastos</button>
-        </div>
-      )}
+        <Card title="Proximos 7 dias" action="Agenda" onAction={() => navigate('/agenda')}>
+          <MiniAgenda label="Montagens" itens={vm.agenda7.montagens} />
+          <MiniAgenda label="Vistorias" itens={vm.agenda7.vistorias} />
+          <MiniAgenda label="Assist. tecnicas" itens={vm.agenda7.assistencias} />
+        </Card>
 
-      {/* ── GRID PRINCIPAL ──────────────────────────────────────────────────── */}
-      <div style={s.grid}>
+        <Card title="Equipe">
+          <div className="dg-team-kpis">
+            <Health label="Supervisores" value={vm.equipe.supervisores} color={THEME.gold} />
+            <Health label="Montadores" value={vm.equipe.montadores} color="#1E3A5F" />
+          </div>
+          <div className="dg-mini-list">
+            {vm.equipe.obrasPorSupervisor.length === 0 ? <Empty text="Sem obras por supervisor." /> : vm.equipe.obrasPorSupervisor.map(s => (
+              <Line key={s.nome} title={s.nome} meta={`${s.total} obra${s.total === 1 ? '' : 's'}`} />
+            ))}
+          </div>
+        </Card>
+      </section>
 
-        {/* ── COLUNA ESQUERDA ── obras com semaforo */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-          <div style={s.card}>
-            <div style={s.cardHeader}>
-              <div style={s.cardTitle}>Obras — saude atual</div>
-              <button onClick={() => navigate('/obras')} style={s.btnLink}>Ver todas →</button>
-            </div>
-            {loading ? (
-              <div style={s.empty}>Carregando...</div>
-            ) : obras.length === 0 ? (
-              <div style={s.emptyBox}>
-                <div style={{ fontSize: 28, marginBottom: 8 }}>🏗️</div>
-                <div style={{ fontSize: 13, color: '#aaa', marginBottom: 12 }}>Nenhuma obra cadastrada</div>
-                <button onClick={() => navigate('/obras/nova')} style={s.btnNew}>Criar primeira obra</button>
-              </div>
-            ) : obras.filter(o => o.status !== 'Concluida' && o.status !== 'Cancelada').slice(0, 8).map(obra => {
-              const st    = getStatus(obra.status)
-              const saude = saudeObra(obra, obrasComOcCritica)
-              return (
-                <div key={obra.id} onClick={() => navigate(`/obras/${obra.id}`)} style={s.obraRow}>
-                  {/* semaforo */}
-                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: saude.cor, flexShrink: 0, boxShadow: '0 0 0 3px ' + saude.cor + '28' }} title={saude.label} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={s.obraName}>{obra.nome}</div>
-                    <div style={s.obraMeta}>
-                      {obra.cliente_nome}
-                      {obra.cidade ? ' · ' + obra.cidade : ''}
-                      {obra.data_previsao ? ' · Prev: ' + new Date(obra.data_previsao + 'T00:00:00').toLocaleDateString('pt-BR') : ''}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                    {obra.progresso > 0 && (
-                      <div style={{ width: 52, height: 4, background: 'var(--color-border)', borderRadius: 2 }}>
-                        <div style={{ height: 4, background: saude.cor, borderRadius: 2, width: obra.progresso + '%' }} />
-                      </div>
-                    )}
-                    <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, background: st.bg, color: st.color, fontWeight: 500, whiteSpace: 'nowrap' }}>
-                      {st.label}
-                    </span>
-                  </div>
+      <section className="dg-main">
+        <div className="dg-stack">
+          <Card title="Fluxo Ornare" action="Obras" onAction={() => navigate('/obras')}>
+            <div className="dg-flow">
+              {vm.fluxo.map((f, i) => (
+                <div className="dg-flow-step" key={f.label}>
+                  <div className="dg-flow-num">{loading ? '-' : f.value}</div>
+                  <div className="dg-flow-label">{f.label}</div>
+                  {i < vm.fluxo.length - 1 && <div className="dg-flow-line" />}
                 </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card title="Obras que precisam atencao" action="Abrir obras" onAction={() => navigate('/obras')}>
+            {vm.atencao.length === 0 ? <Empty text="Nenhuma obra critica neste momento." /> : vm.atencao.map(item => (
+              <button className="dg-attention" key={item.obra.id} onClick={() => navigate(`/obras/${item.obra.id}`)}>
+                <div>
+                  <strong>{item.obra.nome}</strong>
+                  <span>{item.obra.cliente_nome || item.obra.cidade || 'Sem cliente informado'}</span>
+                </div>
+                <div className="dg-tags">{item.motivos.slice(0, 3).map(m => <span key={m}>{m}</span>)}</div>
+              </button>
+            ))}
+          </Card>
+
+          <Card title="Operacao em andamento" action="Ver todas" onAction={() => navigate('/obras')}>
+            {vm.obrasOperacionais.length === 0 ? <Empty text="Sem obras operacionais." /> : vm.obrasOperacionais.map(obra => {
+              const st = statusBadge(obra.status)
+              const temOc = (vm.ocorrPorObra.get(obra.id) || []).length > 0
+              return (
+                <button className="dg-work-row" key={obra.id} onClick={() => navigate(`/obras/${obra.id}`)}>
+                  <div className="dg-work-main">
+                    <strong>{obra.nome}</strong>
+                    <span>{[obra.cliente_nome, obra.cidade, obra.data_previsao ? `Prev. ${dataBR(obra.data_previsao)}` : null].filter(Boolean).join(' · ')}</span>
+                  </div>
+                  <div className="dg-progress"><i style={{ width: `${obra.progresso || 0}%`, background: temOc ? THEME.danger : THEME.gold }} /></div>
+                  <span className="dg-badge" style={{ background: st.bg, color: st.color }}>{st.label}</span>
+                </button>
               )
             })}
-          </div>
-
-          {/* ── GASTOS DO MES ── */}
-          <div style={s.card}>
-            <div style={s.cardHeader}>
-              <div style={s.cardTitle}>Gastos do mes</div>
-              <button onClick={() => navigate('/gastos')} style={s.btnLink}>Ver todos →</button>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 16 }}>
-              <span style={{ fontFamily: 'var(--font-serif)', fontSize: 32, fontWeight: 500, color: 'var(--color-ink)' }}>
-                R$ {totalMes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-              </span>
-              <span style={{ fontSize: 11, color: '#aaa' }}>{gastosMes.length} lancamento{gastosMes.length !== 1 ? 's' : ''}</span>
-            </div>
-            {gastos.slice(0, 4).map(g => (
-              <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--color-border)' }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--color-ink)' }}>{g.descricao}</div>
-                  <div style={{ fontSize: 11, color: '#aaa' }}>{g.obras?.nome || 'Sem obra'}</div>
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-ink)' }}>
-                  R$ {parseFloat(g.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                </div>
-              </div>
-            ))}
-            {gastos.length === 0 && <div style={s.empty}>Nenhum gasto registrado.</div>}
-          </div>
-
+          </Card>
         </div>
 
-        {/* ── COLUNA DIREITA ── agenda + ocorrencias + feed */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-          {/* Agenda */}
-          <div style={s.card}>
-            <div style={s.cardHeader}>
-              <div style={s.cardTitle}>Agenda de hoje</div>
-              <button onClick={() => navigate('/agenda')} style={s.btnLink}>Ver agenda →</button>
+        <div className="dg-stack">
+          <Card title="Pendencias" action="Ocorrencias" onAction={() => navigate('/ocorrencias')}>
+            <MetricLine label="Ocorrencias abertas" value={vm.pendencias.ocorrenciasAbertas.length} color={THEME.danger} />
+            <MetricLine label="Nao conformidades" value={vm.pendencias.naoConformidades.length} color={THEME.warn} />
+            <MetricLine label="Tarefas atrasadas" value={vm.pendencias.tarefasAtrasadas.length} color="#1E3A5F" />
+            <div className="dg-mini-list">
+              {vm.pendencias.tarefasAtrasadas.slice(0, 4).map(t => <Line key={t.id} title={t.titulo || 'Tarefa atrasada'} meta={obraNome(dados.obras, t.obra_id)} />)}
             </div>
-            {loading ? (
-              <div style={s.empty}>Carregando...</div>
-            ) : agendaHoje.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '16px 0' }}>
-                <div style={{ fontSize: 11, color: '#bbb', marginBottom: 10 }}>Nenhum compromisso hoje</div>
-                <button onClick={() => navigate('/agenda')} style={{ ...s.btnNew, fontSize: 12, padding: '7px 14px' }}>+ Novo evento</button>
-              </div>
-            ) : agendaHoje.map((item, i) => (
-              <div key={i} style={{ display: 'flex', gap: 12, padding: '9px 0', borderBottom: i < agendaHoje.length - 1 ? '1px solid var(--color-border)' : 'none', alignItems: 'flex-start' }}>
-                <div style={{ fontSize: 12, color: 'var(--color-gold)', fontWeight: 700, minWidth: 38, paddingTop: 1 }}>
-                  {item.hora_inicio ? String(item.hora_inicio).slice(0, 5) : '—'}
-                </div>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-ink)' }}>{item.titulo}</div>
-                  {item.obras?.nome && <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>📍 {item.obras.nome}</div>}
-                </div>
+          </Card>
+
+          <Card title="Financeiro operacional" action="Gastos" onAction={() => navigate('/gastos')}>
+            <div className="dg-money">{moeda(vm.financeiro.totalMes)}</div>
+            <div className="dg-muted">{vm.financeiro.gastosMes.length} lancamentos no mes</div>
+            <div className="dg-mini-list spaced">
+              {vm.financeiro.topObras.map(o => <Line key={o.obraId} title={o.nome} meta={moeda(o.total)} />)}
+            </div>
+            {vm.financeiro.acimaMeta.length > 0 && (
+              <div className="dg-alert">{vm.financeiro.acimaMeta.length} obra{vm.financeiro.acimaMeta.length === 1 ? '' : 's'} acima da meta</div>
+            )}
+          </Card>
+
+          <Card title="Atividade recente">
+            {vm.atividade.length === 0 ? <Empty text="Nenhuma atividade recente." /> : vm.atividade.map((a, i) => (
+              <div className="dg-activity" key={`${a.tipo}-${i}`}>
+                <span>{a.tipo}</span>
+                <div><strong>{a.texto}</strong><small>{a.sub}</small></div>
+                <em>{tempoRelativo(a.ts)}</em>
               </div>
             ))}
-            {agendaProx.length > 0 && (
-              <>
-                <div style={{ fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: '#bbb', margin: '12px 0 8px' }}>Proximos</div>
-                {agendaProx.map((item, i) => (
-                  <div key={i} style={{ display: 'flex', gap: 12, padding: '7px 0', opacity: 0.6, alignItems: 'center' }}>
-                    <div style={{ fontSize: 11, color: 'var(--color-gold)', fontWeight: 600, minWidth: 38 }}>
-                      {new Date(item.data + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--color-ink)' }}>{item.titulo}</div>
-                  </div>
-                ))}
-              </>
-            )}
-          </div>
-
-          {/* Ocorrencias */}
-          <div style={s.card}>
-            <div style={s.cardHeader}>
-              <div style={s.cardTitle}>Ocorrencias abertas</div>
-              <button onClick={() => navigate('/ocorrencias')} style={s.btnLink}>Ver todas →</button>
-            </div>
-            {loading ? (
-              <div style={s.empty}>Carregando...</div>
-            ) : ocorrencias.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '16px 0', fontSize: 12, color: '#bbb' }}>Nenhuma ocorrencia aberta</div>
-            ) : (
-              <>
-                {ocCriticas.map(oc => (
-                  <div key={oc.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--color-border)' }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#B84040', flexShrink: 0 }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--color-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{oc.titulo}</div>
-                      <div style={{ fontSize: 11, color: '#aaa' }}>{oc.tipo} · Alta gravidade</div>
-                    </div>
-                  </div>
-                ))}
-                {ocOutras.map(oc => (
-                  <div key={oc.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--color-border)', opacity: 0.7 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: oc.gravidade === 'media' ? '#C8A86A' : '#aaa', flexShrink: 0 }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, color: 'var(--color-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{oc.titulo}</div>
-                    </div>
-                  </div>
-                ))}
-              </>
-            )}
-          </div>
-
-          {/* Feed de atividade */}
-          <div style={s.card}>
-            <div style={s.cardHeader}>
-              <div style={s.cardTitle}>Atividade recente</div>
-            </div>
-            {loading ? (
-              <div style={s.empty}>Carregando...</div>
-            ) : feed.length === 0 ? (
-              <div style={{ fontSize: 12, color: '#bbb', padding: '12px 0', textAlign: 'center' }}>Nenhuma atividade registrada.</div>
-            ) : feed.map((item, i) => (
-              <FeedItem key={i} icon={item.icon} texto={item.texto} sub={item.sub} tempo={tempoRelativo(item.ts)} />
-            ))}
-          </div>
-
+          </Card>
         </div>
-      </div>
+      </section>
     </div>
   )
 }
 
-// ─── ESTILOS ──────────────────────────────────────────────────────────────────
-const s = {
-  page:         { padding: '28px 36px', maxWidth: 1320, margin: '0 auto' },
-  header:       { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 },
-  breadcrumb:   { fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6 },
-  title:        { fontFamily: 'var(--font-serif)', fontSize: 36, fontWeight: 500, color: 'var(--color-ink)', margin: 0 },
-  date:         { fontSize: 13, color: 'var(--color-ink-muted)', marginTop: 4 },
-  btnNew:       { background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' },
-  kpiGrid:      { display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 20 },
-  kpiCard:      { background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '18px 20px' },
-  alertaBanner: { display: 'flex', alignItems: 'center', gap: 12, background: '#fdf8f0', border: '1px solid #e8d9b8', borderLeft: '3px solid #C8A86A', borderRadius: 10, padding: '12px 16px', marginBottom: 20, flexWrap: 'wrap' },
-  alertaLink:   { background: 'none', border: 'none', color: 'var(--color-gold)', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' },
-  grid:         { display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 16 },
-  card:         { background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, padding: '20px 22px' },
-  cardHeader:   { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  cardTitle:    { fontSize: 13, fontWeight: 600, color: 'var(--color-ink)' },
-  btnLink:      { background: 'none', border: 'none', fontSize: 12, color: 'var(--color-gold)', cursor: 'pointer', fontWeight: 500 },
-  obraRow:      { display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--color-border)', cursor: 'pointer' },
-  obraName:     { fontSize: 13, fontWeight: 500, color: 'var(--color-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  obraMeta:     { fontSize: 11, color: '#aaa', marginTop: 1 },
-  empty:        { color: '#bbb', fontSize: 13, padding: '20px 0', textAlign: 'center' },
-  emptyBox:     { textAlign: 'center', padding: '24px 0' },
+function obraNome(obras, id) {
+  return obras.find(o => o.id === id)?.nome || 'Sem obra'
 }
+
+function Kpi({ label, value, sub, tone, loading }) {
+  return (
+    <div className="dg-kpi" style={{ borderTopColor: tone }}>
+      <span style={{ color: tone }}>{label}</span>
+      <strong>{loading ? '-' : value}</strong>
+      <small>{sub}</small>
+    </div>
+  )
+}
+
+function Card({ title, action, onAction, children }) {
+  return (
+    <section className="dg-card">
+      <div className="dg-card-head">
+        <h2>{title}</h2>
+        {action && <button onClick={onAction}>{action}</button>}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function Health({ label, value, color }) {
+  return (
+    <div className="dg-health-item">
+      <strong style={{ color }}>{value}</strong>
+      <span>{label}</span>
+    </div>
+  )
+}
+
+function MiniAgenda({ label, itens }) {
+  return (
+    <div className="dg-agenda-block">
+      <div><strong>{itens.length}</strong><span>{label}</span></div>
+      {itens.slice(0, 2).map(i => <Line key={i.id} title={i.titulo || i.tipo || label} meta={`${dataBR(i.data)} ${i.hora_inicio ? String(i.hora_inicio).slice(0, 5) : ''}`} />)}
+    </div>
+  )
+}
+
+function MetricLine({ label, value, color }) {
+  return (
+    <div className="dg-metric-line">
+      <span>{label}</span>
+      <strong style={{ color }}>{value}</strong>
+    </div>
+  )
+}
+
+function Line({ title, meta }) {
+  return (
+    <div className="dg-line">
+      <span>{title}</span>
+      <small>{meta}</small>
+    </div>
+  )
+}
+
+function Empty({ text }) {
+  return <div className="dg-empty">{text}</div>
+}
+
+const css = `
+.dg-page{min-height:100vh;background:${THEME.bg};padding:30px 34px 52px;color:${THEME.ink};font-family:var(--font-sans);box-sizing:border-box}
+.dg-header{max-width:1380px;margin:0 auto 22px;display:flex;justify-content:space-between;gap:18px;align-items:flex-start}
+.dg-eyebrow{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:${THEME.gold};font-weight:800;margin-bottom:7px}
+.dg-header h1{font-family:var(--font-serif);font-size:38px;line-height:1.05;font-weight:500;margin:0;color:${THEME.ink}}
+.dg-header p{margin:6px 0 0;font-size:13px;color:${THEME.muted}}
+.dg-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.dg-actions button{border:1px solid ${THEME.border};background:#fff;color:${THEME.ink};border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;cursor:pointer}
+.dg-actions .primary{background:${THEME.gold};border-color:${THEME.gold};color:#fff}
+.dg-kpis{max-width:1380px;margin:0 auto 18px;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+.dg-kpi{background:#fff;border:1px solid ${THEME.border};border-top:3px solid ${THEME.gold};border-radius:14px;padding:15px 16px;min-width:0}
+.dg-kpi span{display:block;font-size:10px;letter-spacing:1.8px;text-transform:uppercase;font-weight:800;margin-bottom:9px;white-space:nowrap}
+.dg-kpi strong{display:block;font-size:34px;line-height:1;color:${THEME.ink}}
+.dg-kpi small{display:block;font-size:12px;color:${THEME.muted};margin-top:7px}
+.dg-grid-3,.dg-main{max-width:1380px;margin:0 auto 16px;display:grid;gap:16px}
+.dg-grid-3{grid-template-columns:1fr 1.15fr 1fr}
+.dg-main{grid-template-columns:minmax(0,1.45fr) minmax(340px,.75fr)}
+.dg-stack{display:flex;flex-direction:column;gap:16px}
+.dg-card{background:#fff;border:1px solid ${THEME.border};border-radius:16px;padding:18px 20px;box-shadow:0 14px 34px rgba(29,28,25,.045);min-width:0}
+.dg-card-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:14px}
+.dg-card-head h2{font-size:14px;font-weight:800;margin:0;color:${THEME.ink}}
+.dg-card-head button{border:0;background:transparent;color:${THEME.gold};font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap}
+.dg-health,.dg-team-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.dg-team-kpis{grid-template-columns:1fr 1fr;margin-bottom:12px}
+.dg-health-item{border:1px solid ${THEME.border};border-radius:12px;padding:12px;background:#FFFEFC}
+.dg-health-item strong{display:block;font-size:26px;line-height:1}
+.dg-health-item span{display:block;font-size:12px;color:${THEME.muted};margin-top:6px}
+.dg-agenda-block{border-top:1px solid ${THEME.border};padding:11px 0}
+.dg-agenda-block:first-of-type{border-top:0;padding-top:0}
+.dg-agenda-block>div:first-child{display:flex;align-items:baseline;gap:8px;margin-bottom:7px}
+.dg-agenda-block strong{font-size:22px;color:${THEME.gold}}
+.dg-agenda-block span{font-size:12px;color:${THEME.muted};font-weight:700}
+.dg-flow{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+.dg-flow-step{position:relative;border:1px solid ${THEME.border};background:#FFFEFC;border-radius:13px;padding:13px;min-height:82px}
+.dg-flow-num{font-size:28px;font-weight:800;color:${THEME.ink};line-height:1}
+.dg-flow-label{font-size:11px;color:${THEME.muted};margin-top:8px;font-weight:700}
+.dg-flow-line{position:absolute;right:-10px;top:50%;width:10px;height:1px;background:${THEME.border}}
+.dg-attention,.dg-work-row{width:100%;border:0;background:transparent;border-bottom:1px solid ${THEME.border};padding:12px 0;display:flex;gap:12px;align-items:center;text-align:left;cursor:pointer;font-family:inherit}
+.dg-attention strong,.dg-work-row strong{display:block;font-size:13.5px;color:${THEME.ink};margin-bottom:3px}
+.dg-attention span,.dg-work-row span,.dg-muted{font-size:12px;color:${THEME.muted}}
+.dg-tags{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.dg-tags span{background:#F7EFE4;color:${THEME.warn};border-radius:999px;padding:4px 8px;font-size:10px;font-weight:800}
+.dg-work-main{flex:1;min-width:0}
+.dg-progress{width:72px;height:5px;background:${THEME.border};border-radius:999px;overflow:hidden;flex-shrink:0}
+.dg-progress i{display:block;height:100%;border-radius:999px}
+.dg-badge{font-size:10px;font-weight:800;border-radius:999px;padding:5px 8px;white-space:nowrap}
+.dg-metric-line,.dg-line{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid ${THEME.border};align-items:center}
+.dg-metric-line span,.dg-line span{font-size:12.5px;color:${THEME.ink};font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dg-metric-line strong{font-size:18px}
+.dg-line small{font-size:11px;color:${THEME.muted};white-space:nowrap}
+.dg-mini-list.spaced{margin-top:12px}
+.dg-money{font-family:var(--font-serif);font-size:32px;line-height:1.05;color:${THEME.ink};margin-bottom:4px}
+.dg-alert{margin-top:12px;border:1px solid #ECD7B5;background:#FFF8EC;color:${THEME.warn};border-radius:11px;padding:10px 12px;font-size:12px;font-weight:800}
+.dg-activity{display:grid;grid-template-columns:72px 1fr auto;gap:10px;align-items:start;padding:9px 0;border-bottom:1px solid ${THEME.border}}
+.dg-activity>span{font-size:10px;text-transform:uppercase;letter-spacing:1.2px;color:${THEME.gold};font-weight:800}
+.dg-activity strong{display:block;font-size:12.5px;color:${THEME.ink};font-weight:700}
+.dg-activity small{display:block;font-size:11px;color:${THEME.muted};margin-top:2px}
+.dg-activity em{font-style:normal;font-size:10px;color:#aaa}
+.dg-empty{padding:24px 0;text-align:center;color:#aaa;font-size:13px}
+@media (max-width:1100px){.dg-grid-3,.dg-main{grid-template-columns:1fr}.dg-flow{grid-template-columns:repeat(3,1fr)}.dg-flow-line{display:none}}
+@media (max-width:760px){.dg-page{padding:18px 14px 34px}.dg-header{display:block}.dg-header h1{font-size:31px}.dg-actions{justify-content:flex-start;margin-top:14px}.dg-kpis{display:flex;overflow-x:auto;padding-bottom:6px;scroll-snap-type:x mandatory}.dg-kpi{min-width:165px;scroll-snap-align:start}.dg-grid-3,.dg-main{gap:12px}.dg-card{padding:16px 14px;border-radius:14px}.dg-health{grid-template-columns:1fr 1fr 1fr}.dg-flow{display:flex;overflow-x:auto;padding-bottom:4px}.dg-flow-step{min-width:140px}.dg-attention,.dg-work-row{align-items:flex-start;flex-direction:column}.dg-tags{margin-left:0;justify-content:flex-start}.dg-progress{width:100%}.dg-activity{grid-template-columns:62px 1fr}.dg-activity em{display:none}}
+`

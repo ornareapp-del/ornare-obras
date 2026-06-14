@@ -1,81 +1,150 @@
-import { useEffect, useState } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { useCallback, useEffect, useState } from 'react'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { supabase } from './lib/supabase'
 import { useStore } from './store/useStore'
 
-// pages publicas
-import Login        from './pages/Login'
+// paginas publicas
+import Login from './pages/Login'
 import PortalCliente from './pages/cliente/PortalCliente'
-import Splash       from './pages/Splash'
+import Splash from './pages/Splash'
 
 // layout com sidebar
 import Layout from './components/Layout'
 
-// pages gestao
-import DashboardGestao  from './pages/gestao/DashboardGestao'
-import Obras            from './pages/gestao/Obras'
-import ObraDetalhe      from './pages/gestao/ObraDetalhe'
-import NovaObra         from './pages/gestao/NovaObra'
-import Agenda           from './pages/gestao/Agenda'
-import Equipe           from './pages/gestao/Equipe'
-import Ocorrencias      from './pages/gestao/Ocorrencias'
-import Gastos           from './pages/gestao/Gastos'
-import Tarefas          from './pages/gestao/Tarefas'
+// paginas gestao
+import DashboardGestao from './pages/gestao/DashboardGestao'
+import Obras from './pages/gestao/Obras'
+import ObraDetalhe from './pages/gestao/ObraDetalhe'
+import NovaObra from './pages/gestao/NovaObra'
+import Agenda from './pages/gestao/Agenda'
+import Equipe from './pages/gestao/Equipe'
+import Ocorrencias from './pages/gestao/Ocorrencias'
+import Gastos from './pages/gestao/Gastos'
+import Tarefas from './pages/gestao/Tarefas'
 
-// pages por perfil
+// paginas por perfil
 import DashboardSupervisor from './pages/supervisor/DashboardSupervisor'
-import MontadorDashboard   from './pages/montador/MontadorDashboard'
+import MontadorDashboard from './pages/montador/MontadorDashboard'
 
-// ─── REDIRECT INICIAL POR ROLE ────────────────────────────────────────────────
-function RedirectByRole({ user, profile }) {
-  if (!user)    return <Navigate to="/login"   replace />
-  if (!profile) return <Navigate to="/dashboard" replace />  // aguarda hydrate
+const ROLE_ALIASES = {
+  vendedor: 'pos_venda',
+}
 
-  switch (profile.role) {
-    case 'montador':    return <Navigate to="/montador"   replace />
-    case 'supervisor':  return <Navigate to="/supervisor" replace />
-    case 'vendedor':    return <Navigate to="/obras"      replace />  // vendedor vai direto para obras
-    case 'cliente':     return <Navigate to={'/cliente/' + (profile.obra_id || '')} replace />
-    default:            return <Navigate to="/dashboard"  replace />  // gestao
+function normalizeRole(role) {
+  return ROLE_ALIASES[role] || role
+}
+
+function homeForProfile(profile) {
+  const role = normalizeRole(profile?.role)
+
+  switch (role) {
+    case 'gestao':
+      return '/dashboard'
+    case 'supervisor':
+      return '/supervisor'
+    case 'pos_venda':
+      return '/obras'
+    case 'montador':
+      return '/montador'
+    case 'cliente':
+      return '/cliente/' + (profile?.obra_id || 'acesso-pendente')
+    default:
+      return '/login'
   }
 }
 
-// ─── GUARDS ───────────────────────────────────────────────────────────────────
-function PrivateLayout() {
-  const { user } = useStore()
+function LoadingAuth() {
+  return (
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: 'var(--color-bg, #F5F2EE)',
+      color: 'var(--color-ink-muted, #5C5A54)',
+      fontFamily: 'var(--font-sans, sans-serif)',
+      fontSize: 13,
+    }}>
+      Carregando acesso...
+    </div>
+  )
+}
+
+function RedirectByRole({ user, profile }) {
   if (!user) return <Navigate to="/login" replace />
+  if (!profile) return <LoadingAuth />
+  return <Navigate to={homeForProfile(profile)} replace />
+}
+
+function PrivateLayout() {
+  const { user, profile } = useStore()
+
+  if (!user) return <Navigate to="/login" replace />
+  if (!profile) return <LoadingAuth />
+
+  const role = normalizeRole(profile.role)
+  if (role === 'montador' || role === 'cliente') {
+    return <Navigate to={homeForProfile(profile)} replace />
+  }
+
   return <Layout />
 }
 
-function PrivateRoute({ children }) {
-  const { user } = useStore()
+function PrivateRoute({ children, allowedRoles }) {
+  const { user, profile } = useStore()
+
   if (!user) return <Navigate to="/login" replace />
+  if (!profile) return <LoadingAuth />
+
+  if (allowedRoles) {
+    const role = normalizeRole(profile.role)
+    const allowed = allowedRoles.map(normalizeRole)
+    if (!allowed.includes(role)) {
+      return <Navigate to={homeForProfile(profile)} replace />
+    }
+  }
+
   return children
 }
 
-// Bloqueia acesso a rotas por role.
-// allowedRoles: se o role do usuario NAO esta na lista, redireciona.
-function RoleGuard({ allowedRoles, children, fallback = '/dashboard' }) {
+function RoleGuard({ allowedRoles, children }) {
   const { profile } = useStore()
-  if (!profile) return null
-  if (!allowedRoles.includes(profile.role)) return <Navigate to={fallback} replace />
+
+  if (!profile) return <LoadingAuth />
+
+  const role = normalizeRole(profile.role)
+  const allowed = allowedRoles.map(normalizeRole)
+
+  if (!allowed.includes(role)) {
+    return <Navigate to={homeForProfile(profile)} replace />
+  }
+
   return children
 }
 
-// ─── APP ──────────────────────────────────────────────────────────────────────
 export default function App() {
   const { user, profile, setUser, setProfile } = useStore()
   const [showSplash, setShowSplash] = useState(true)
+  const [authLoading, setAuthLoading] = useState(true)
+
+  const fetchProfile = useCallback(async (userId) => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single()
+
+    setProfile(data || null)
+  }, [setProfile])
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user) {
-        setUser(session.user)
-        await fetchProfile(session.user.id)
-      }
-    })
+    let mounted = true
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_e, session) => {
+    async function hydrateSession() {
+      const { data: { session } } = await supabase.auth.getSession()
+
+      if (!mounted) return
+
       if (session?.user) {
         setUser(session.user)
         await fetchProfile(session.user.id)
@@ -83,119 +152,145 @@ export default function App() {
         setUser(null)
         setProfile(null)
       }
+
+      if (mounted) setAuthLoading(false)
+    }
+
+    hydrateSession()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      setAuthLoading(true)
+
+      if (session?.user) {
+        setUser(session.user)
+        await fetchProfile(session.user.id)
+      } else {
+        setUser(null)
+        setProfile(null)
+      }
+
+      setAuthLoading(false)
     })
 
-    return () => subscription.unsubscribe()
-  }, [])
-
-  async function fetchProfile(userId) {
-    const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
-    if (data) setProfile(data)
-  }
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
+  }, [fetchProfile, setProfile, setUser])
 
   if (showSplash) return <Splash onDone={() => setShowSplash(false)} />
+  if (authLoading) return <LoadingAuth />
 
   return (
     <BrowserRouter>
       <Routes>
-
-        {/* ── PUBLICAS ──────────────────────────────────────────────────── */}
-        <Route path="/login"       element={!user ? <Login /> : <Navigate to="/" replace />} />
+        <Route path="/login" element={!user ? <Login /> : <Navigate to="/" replace />} />
         <Route path="/cliente/:id" element={<PortalCliente />} />
 
-        {/* ── RAIZ — redireciona por role ───────────────────────────────── */}
         <Route path="/" element={<RedirectByRole user={user} profile={profile} />} />
 
-        {/* ── MONTADOR — layout proprio mobile ──────────────────────────── */}
         <Route
           path="/montador"
           element={
-            <PrivateRoute>
+            <PrivateRoute allowedRoles={['montador']}>
               <MontadorDashboard />
             </PrivateRoute>
           }
         />
 
-        {/* ── SIDEBAR LAYOUT — gestao, supervisor, vendedor ─────────────── */}
         <Route element={<PrivateLayout />}>
-
-          {/* Dashboard gestao — apenas gestao */}
           <Route
             path="/dashboard"
             element={
-              <RoleGuard allowedRoles={['gestao']} fallback="/supervisor">
+              <RoleGuard allowedRoles={['gestao']}>
                 <DashboardGestao />
               </RoleGuard>
             }
           />
 
-          {/* Dashboard supervisor */}
           <Route
             path="/supervisor"
             element={
-              <RoleGuard allowedRoles={['supervisor', 'gestao']} fallback="/dashboard">
+              <RoleGuard allowedRoles={['supervisor', 'gestao']}>
                 <DashboardSupervisor />
               </RoleGuard>
             }
           />
 
-          {/* Obras — gestao, supervisor, vendedor (vendedor ve somente leitura no componente) */}
-          <Route path="/obras"       element={<Obras />} />
-          <Route path="/obras/nova"  element={
-            <RoleGuard allowedRoles={['gestao']} fallback="/obras">
-              <NovaObra />
-            </RoleGuard>
-          } />
-          <Route path="/obras/:id"   element={<ObraDetalhe />} />
+          <Route
+            path="/obras"
+            element={
+              <RoleGuard allowedRoles={['gestao', 'supervisor', 'pos_venda', 'vendedor']}>
+                <Obras />
+              </RoleGuard>
+            }
+          />
 
-          {/* Tarefas — gestao, supervisor */}
+          <Route
+            path="/obras/nova"
+            element={
+              <RoleGuard allowedRoles={['gestao']}>
+                <NovaObra />
+              </RoleGuard>
+            }
+          />
+
+          <Route
+            path="/obras/:id"
+            element={
+              <RoleGuard allowedRoles={['gestao', 'supervisor', 'pos_venda', 'vendedor']}>
+                <ObraDetalhe />
+              </RoleGuard>
+            }
+          />
+
           <Route
             path="/tarefas"
             element={
-              <RoleGuard allowedRoles={['gestao', 'supervisor']} fallback="/obras">
+              <RoleGuard allowedRoles={['gestao', 'supervisor']}>
                 <Tarefas />
               </RoleGuard>
             }
           />
 
-          {/* Agenda — todos com sidebar */}
-          <Route path="/agenda" element={<Agenda />} />
+          <Route
+            path="/agenda"
+            element={
+              <RoleGuard allowedRoles={['gestao', 'supervisor', 'pos_venda', 'vendedor']}>
+                <Agenda />
+              </RoleGuard>
+            }
+          />
 
-          {/* Equipe — gestao e supervisor */}
           <Route
             path="/equipe"
             element={
-              <RoleGuard allowedRoles={['gestao', 'supervisor']} fallback="/obras">
+              <RoleGuard allowedRoles={['gestao', 'supervisor']}>
                 <Equipe />
               </RoleGuard>
             }
           />
 
-          {/* Ocorrencias — gestao e supervisor */}
           <Route
             path="/ocorrencias"
             element={
-              <RoleGuard allowedRoles={['gestao', 'supervisor']} fallback="/obras">
+              <RoleGuard allowedRoles={['gestao', 'supervisor']}>
                 <Ocorrencias />
               </RoleGuard>
             }
           />
 
-          {/* Gastos — gestao e supervisor */}
           <Route
             path="/gastos"
             element={
-              <RoleGuard allowedRoles={['gestao', 'supervisor']} fallback="/obras">
+              <RoleGuard allowedRoles={['gestao', 'supervisor']}>
                 <Gastos />
               </RoleGuard>
             }
           />
 
-          {/* Fallback dentro do layout */}
           <Route path="*" element={<Navigate to="/" replace />} />
-
         </Route>
-
       </Routes>
     </BrowserRouter>
   )

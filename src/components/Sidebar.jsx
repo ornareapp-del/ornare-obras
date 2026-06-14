@@ -13,14 +13,14 @@ const NAV_ITEMS = [
     label: 'Dashboard',
     icon: IconGrid,
     end: true,
-    roles: ['gestao', 'supervisor', 'vendedor'],
+    roles: ['gestao'],
   },
   {
     to: '/obras',
     label: 'Obras',
     icon: IconBuilding,
-    roles: ['gestao', 'supervisor', 'vendedor'],
-    readOnly: ['vendedor'],          // vendedor ve, nao edita
+    roles: ['gestao', 'supervisor', 'pos_venda'],
+    readOnly: ['pos_venda'],
   },
   {
     to: '/tarefas',
@@ -32,7 +32,7 @@ const NAV_ITEMS = [
     to: '/agenda',
     label: 'Agenda',
     icon: IconCalendar,
-    roles: ['gestao', 'supervisor', 'vendedor'],
+    roles: ['gestao', 'supervisor', 'pos_venda'],
   },
   {
     to: '/equipe',
@@ -59,14 +59,19 @@ const ROLE_LABEL = {
   gestao:     'Gestao',
   supervisor: 'Supervisor',
   montador:   'Montador',
-  vendedor:   'Vendedor',
+  pos_venda:  'Pos-venda',
+  vendedor:   'Pos-venda',
   cliente:    'Cliente',
+}
+
+function normalizeRole(role) {
+  return role === 'vendedor' ? 'pos_venda' : role
 }
 
 export default function Sidebar({ collapsed, setCollapsed, isMobile }) {
   const navigate = useNavigate()
   const { profile } = useStore()
-  const role = profile?.role || 'gestao'
+  const role = normalizeRole(profile?.role || 'gestao')
 
   const width = isMobile ? (collapsed ? 0 : 260) : (collapsed ? 56 : 224)
 

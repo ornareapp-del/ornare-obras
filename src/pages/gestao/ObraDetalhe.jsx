@@ -37,18 +37,87 @@ const STATUS_LIST = [
   'Em producao','Pronta para entrega','Aguardando montagem','Montagem agendada',
   'Em montagem','Pausada','Vistoria final','Concluida','Cancelada',
 ]
-const ABAS = ['Visao Geral','Tarefas','Checklist','Fotos','Ocorrencias','Gastos','Chat','Cliente','Historico']
+const SECOES = [
+  { id: 'Resumo', label: 'Resumo' },
+  { id: 'Cliente', label: 'Cliente' },
+  { id: 'Endereco', label: 'Endereco' },
+  { id: 'Contrato', label: 'Contrato' },
+  { id: 'Equipe', label: 'Equipe' },
+  { id: 'Agenda', label: 'Agenda' },
+  { id: 'Fotos', label: 'Fotos' },
+  { id: 'Checklist', label: 'Checklist' },
+  { id: 'Gastos', label: 'Gastos' },
+  { id: 'Ocorrencias', label: 'Ocorrencias' },
+  { id: 'Historico', label: 'Historico' },
+]
+
+const THEME = {
+  bg: '#F6F3EE',
+  card: '#FFFFFF',
+  border: '#E7E0D5',
+  ink: '#1D1C19',
+  muted: '#6D675E',
+  gold: '#B8965E',
+  softGold: '#F2E8D7',
+  danger: '#B94A48',
+}
+
+const FOTO_CATEGORIAS = [
+  'Antes da montagem',
+  'Durante a montagem',
+  'Finalizado',
+  'Não conformidade',
+  'Técnica',
+  'Entrega',
+  'Cliente',
+  'Geral',
+]
+
+function fotoUrl(foto) {
+  if (foto.url) return foto.url
+  if (!foto.storage_path) return ''
+  return supabase.storage.from('fotos-obras').getPublicUrl(foto.storage_path).data.publicUrl
+}
+
+const textareaStyle = {
+  width: '100%',
+  padding: '11px 13px',
+  borderRadius: 9,
+  border: `1px solid ${THEME.border}`,
+  fontSize: 13,
+  fontFamily: 'inherit',
+  resize: 'vertical',
+  boxSizing: 'border-box',
+  outline: 'none',
+  background: '#FFFEFC',
+  color: THEME.ink,
+}
+
+function acaoBtn(primary, active = false) {
+  return {
+    background: primary ? (active ? '#fdecea' : THEME.ink) : '#FFFEFC',
+    color: primary ? (active ? THEME.danger : '#fff') : THEME.ink,
+    border: primary ? 'none' : `1px solid ${THEME.border}`,
+    borderRadius: 10,
+    padding: '9px 14px',
+    fontSize: 12.5,
+    fontWeight: 700,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    whiteSpace: 'nowrap',
+  }
+}
 
 export default function ObraDetalhe() {
   const { id }      = useParams()
   const navigate    = useNavigate()
-  const { profile } = useStore()
 
   const [obra,      setObra]      = useState(null)
-  const [aba,       setAba]       = useState('Visao Geral')
+  const [aba,       setAba]       = useState('Resumo')
   const [loading,   setLoading]   = useState(true)
   const [tarefas,   setTarefas]   = useState([])
   const [profiles,  setProfiles]  = useState([])
+  const [resumo,    setResumo]    = useState({ gastos: 0, tarefasAbertas: 0, agenda: 0 })
   const [progresso, setProgresso] = useState(0)
   const [showForm,  setShowForm]  = useState(false)
   const [salvando,  setSalvando]  = useState(false)
@@ -57,8 +126,16 @@ export default function ObraDetalhe() {
   const [toast,     setToast]     = useState({ msg: '', tipo: 'ok' })
   const [nova, setNova] = useState({ titulo: '', descricao: '', prioridade: 'media', prazo: '', responsavel_id: '', status: 'pendente' })
 
-  useEffect(() => { carregarObra(); carregarProfiles() }, [id])
+  const [compacto, setCompacto] = useState(false)
+
+  useEffect(() => { carregarObra(); carregarProfiles(); carregarResumo() }, [id])
   useEffect(() => { if (aba === 'Tarefas') carregarTarefas() }, [aba, id])
+  useEffect(() => {
+    function check() { setCompacto(window.innerWidth < 760) }
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   async function carregarObra() {
     const { data } = await supabase.from('obras').select('*').eq('id', id).single()
@@ -73,6 +150,17 @@ export default function ObraDetalhe() {
     setTarefas(data || [])
     const p = await tarefasService.calcularProgresso(id)
     setProgresso(p)
+  }
+
+  async function carregarResumo() {
+    const [{ data: gs }, { data: ts }, { data: ag }] = await Promise.all([
+      supabase.from('gastos').select('valor').eq('obra_id', id),
+      supabase.from('tarefas').select('id, status').eq('obra_id', id),
+      supabase.from('agenda').select('id').eq('obra_id', id),
+    ])
+    const totalGastos = (gs || []).reduce((s, g) => s + (parseFloat(g.valor) || 0), 0)
+    const abertas = (ts || []).filter(t => t.status !== 'concluida').length
+    setResumo({ gastos: totalGastos, tarefasAbertas: abertas, agenda: (ag || []).length })
   }
 
   function mostrarToast(msg, tipo = 'ok') {
@@ -130,35 +218,72 @@ export default function ObraDetalhe() {
       mostrarToast('Erro ao salvar: ' + error.message, 'erro')
     } else {
       await carregarObra()
+      await carregarResumo()
       setEditando(false)
       mostrarToast('Obra atualizada com sucesso.')
     }
     setSalvando(false)
   }
 
-  if (loading) return <div style={{ padding: 60, color: '#bbb', textAlign: 'center' }}>Carregando...</div>
-  if (!obra)   return <div style={{ padding: 60, color: '#bbb' }}>Obra nao encontrada.</div>
+  if (loading) return <div style={{ minHeight: '100vh', padding: 60, color: THEME.muted, textAlign: 'center', background: THEME.bg }}>Carregando...</div>
+  if (!obra)   return <div style={{ minHeight: '100vh', padding: 60, color: THEME.muted, background: THEME.bg }}>Obra nao encontrada.</div>
 
   const st = ST[obra.status] || { label: obra.status, bg: '#f0ece6', color: '#888' }
   const supervisores = profiles.filter(p => ['gestao','supervisor'].includes(p.role))
+  const progressoObra = obra.progresso || progresso || 0
+  const localizacao = [obra.cidade, obra.uf].filter(Boolean).join(' / ')
+  const contrato = obra.numero_contrato || obra.pedido_ornare || '-'
+  const previsao = obra.data_previsao ? new Date(obra.data_previsao + 'T00:00:00').toLocaleDateString('pt-BR') : '-'
+  const supervisorNome = profiles.find(p => p.id === obra.supervisor_id)?.full_name
+  const comercialNome = profiles.find(p => p.id === obra.comercial_id)?.full_name || obra.comercial_nome
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: 1100, margin: '0 auto' }}>
+    <div style={{ minHeight: '100vh', background: THEME.bg, padding: compacto ? '18px 14px 40px' : '32px 40px 56px' }}>
+      <div style={{ maxWidth: 1180, margin: '0 auto' }}>
 
       {/* Toast */}
       {toast.msg && (
-        <div style={{ position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)', background: toast.tipo === 'erro' ? '#fdecea' : '#1A1A18', color: toast.tipo === 'erro' ? '#a03030' : '#fff', padding: '12px 24px', borderRadius: 10, fontSize: 13, fontWeight: 600, borderLeft: '3px solid ' + (toast.tipo === 'erro' ? '#d94a4a' : '#C8A86A'), zIndex: 2000, whiteSpace: 'nowrap', boxShadow: '0 4px 20px rgba(0,0,0,0.18)' }}>
+        <div style={{ position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)', background: toast.tipo === 'erro' ? '#fdecea' : THEME.ink, color: toast.tipo === 'erro' ? '#a03030' : '#fff', padding: '12px 24px', borderRadius: 10, fontSize: 13, fontWeight: 600, borderLeft: '3px solid ' + (toast.tipo === 'erro' ? '#d94a4a' : THEME.gold), zIndex: 2000, whiteSpace: 'nowrap', boxShadow: '0 4px 20px rgba(0,0,0,0.18)' }}>
           {toast.msg}
         </div>
       )}
 
+      <button onClick={() => navigate('/obras')} style={{ background: 'none', border: 'none', fontSize: 13, color: THEME.muted, cursor: 'pointer', padding: 0, marginBottom: 16, fontFamily: 'inherit' }}>
+        Voltar para obras
+      </button>
+
+      <section style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: 18, padding: compacto ? 18 : 26, marginBottom: 18, boxShadow: '0 20px 45px rgba(29,28,25,0.07)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: compacto ? 'stretch' : 'flex-start', gap: 18, flexDirection: compacto ? 'column' : 'row' }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 10, letterSpacing: 3, color: THEME.gold, textTransform: 'uppercase', marginBottom: 8, fontWeight: 700 }}>Detalhe da obra</div>
+            <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: compacto ? 28 : 40, lineHeight: 1.05, fontWeight: 500, color: THEME.ink, margin: 0, wordBreak: 'break-word' }}>{obra.nome}</h1>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 12, fontSize: 13, color: THEME.muted }}>
+              <span>{obra.cliente_nome || 'Cliente nao informado'}</span>
+              {localizacao && <span>{localizacao}</span>}
+              <span>Contrato {contrato}</span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: compacto ? 'stretch' : 'flex-end', gap: 12 }}>
+            <span style={{ alignSelf: compacto ? 'flex-start' : 'flex-end', padding: '7px 14px', borderRadius: 999, background: st.bg, color: st.color, fontSize: 12, fontWeight: 700 }}>{st.label}</span>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: compacto ? 'flex-start' : 'flex-end' }}>
+              <button onClick={() => { setAba('Tarefas'); carregarTarefas() }} style={acaoBtn(false)}>Tarefas</button>
+              <button onClick={() => setAba('Fotos')} style={acaoBtn(false)}>Fotos</button>
+              <button onClick={() => setAba('Chat')} style={acaoBtn(false)}>Chat</button>
+              <button onClick={() => { setEditando(!editando); setFormObra(obra) }} style={acaoBtn(true, editando)}>
+                {editando ? 'Cancelar edicao' : 'Editar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Breadcrumb */}
-      <button onClick={() => navigate('/obras')} style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--color-ink-muted)', cursor: 'pointer', padding: 0, marginBottom: 16 }}>
+      <button onClick={() => navigate('/obras')} style={{ display: 'none', background: 'none', border: 'none', fontSize: 12, color: 'var(--color-ink-muted)', cursor: 'pointer', padding: 0, marginBottom: 16 }}>
         ← Obras
       </button>
 
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+      <div style={{ display: 'none', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
         <div>
           <div style={{ fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6 }}>Detalhe da Obra</div>
           <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: 32, fontWeight: 500, color: 'var(--color-ink)', margin: 0 }}>{obra.nome}</h1>
@@ -178,7 +303,7 @@ export default function ObraDetalhe() {
 
       {/* ── FORM EDICAO COMPLETO ── */}
       {editando && (
-        <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderLeft: '3px solid var(--color-gold)', borderRadius: 14, padding: '24px 28px', marginBottom: 24, marginTop: 16 }}>
+        <div style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderLeft: `4px solid ${THEME.gold}`, borderRadius: 16, padding: compacto ? 18 : 26, marginBottom: 24, marginTop: 16, boxShadow: '0 16px 36px rgba(29,28,25,0.05)' }}>
 
           <SecaoEdit titulo="Identificacao">
             <GridEdit>
@@ -211,13 +336,10 @@ export default function ObraDetalhe() {
               <CampoEdit label="Gasto meta (R$)">
                 <FInput type="number" value={formObra.gasto_meta || ''} onChange={v => setFormObra(p => ({ ...p, gasto_meta: v }))} placeholder="0,00" />
               </CampoEdit>
-              <CampoEdit label="Observacoes internas" full>
-                <textarea value={formObra.observacoes || ''} onChange={e => setFormObra(p => ({ ...p, observacoes: e.target.value }))} rows={3} style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1px solid #ddd', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }} />
-              </CampoEdit>
             </GridEdit>
           </SecaoEdit>
 
-          <SecaoEdit titulo="Dados do Cliente">
+          <SecaoEdit titulo="Cliente">
             <GridEdit>
               <CampoEdit label="Nome do cliente" full>
                 <FInput value={formObra.cliente_nome || ''} onChange={v => setFormObra(p => ({ ...p, cliente_nome: v }))} />
@@ -231,7 +353,7 @@ export default function ObraDetalhe() {
             </GridEdit>
           </SecaoEdit>
 
-          <SecaoEdit titulo="Endereco da Obra">
+          <SecaoEdit titulo="Endereco">
             <GridEdit>
               <CampoEdit label="CEP">
                 <FInput value={formObra.cep || ''} onChange={v => setFormObra(p => ({ ...p, cep: v }))} placeholder="00000-000" />
@@ -260,7 +382,7 @@ export default function ObraDetalhe() {
             </GridEdit>
           </SecaoEdit>
 
-          <SecaoEdit titulo="Equipe Responsavel">
+          <SecaoEdit titulo="Equipe">
             <GridEdit>
               <CampoEdit label="Supervisor">
                 <FSelect value={formObra.supervisor_id || ''} onChange={v => setFormObra(p => ({ ...p, supervisor_id: v }))}>
@@ -280,7 +402,18 @@ export default function ObraDetalhe() {
             </GridEdit>
           </SecaoEdit>
 
-          <SecaoEdit titulo="Arquiteto Responsavel" last>
+          <SecaoEdit titulo="Contrato">
+            <GridEdit>
+              <CampoEdit label="Valor do contrato (R$)">
+                <FInput type="number" value={formObra.valor_contrato || ''} onChange={v => setFormObra(p => ({ ...p, valor_contrato: v }))} placeholder="0,00" />
+              </CampoEdit>
+              <CampoEdit label="Gasto meta (R$)">
+                <FInput type="number" value={formObra.gasto_meta || ''} onChange={v => setFormObra(p => ({ ...p, gasto_meta: v }))} placeholder="0,00" />
+              </CampoEdit>
+            </GridEdit>
+          </SecaoEdit>
+
+          <SecaoEdit titulo="Arquiteto responsavel">
             <GridEdit>
               <CampoEdit label="Nome">
                 <FInput value={formObra.arquiteto_nome || ''} onChange={v => setFormObra(p => ({ ...p, arquiteto_nome: v }))} />
@@ -294,41 +427,38 @@ export default function ObraDetalhe() {
             </GridEdit>
           </SecaoEdit>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
-            <button onClick={() => setEditando(false)} style={{ background: 'none', border: '1px solid var(--color-border)', borderRadius: 8, padding: '9px 20px', fontSize: 13, cursor: 'pointer', color: '#888' }}>
+          <SecaoEdit titulo="Observacoes" last>
+            <CampoEdit label="Observacoes internas" full>
+              <textarea value={formObra.observacoes || ''} onChange={e => setFormObra(p => ({ ...p, observacoes: e.target.value }))} rows={4} style={textareaStyle} />
+            </CampoEdit>
+          </SecaoEdit>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8, flexWrap: 'wrap' }}>
+            <button onClick={() => setEditando(false)} style={{ background: 'none', border: `1px solid ${THEME.border}`, borderRadius: 8, padding: '10px 20px', fontSize: 13, cursor: 'pointer', color: THEME.muted }}>
               Cancelar
             </button>
-            <button onClick={salvarEdicaoObra} disabled={salvando} style={{ background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 24px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            <button onClick={salvarEdicaoObra} disabled={salvando} style={{ background: THEME.gold, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
               {salvando ? 'Salvando...' : 'Salvar alteracoes'}
             </button>
           </div>
         </div>
       )}
 
-      {/* KPIs */}
-      <div style={{ display: 'flex', gap: 14, margin: '24px 0 32px', flexWrap: 'wrap' }}>
-        {[
-          { label: 'Inicio',    value: obra.data_inicio   ? new Date(obra.data_inicio   + 'T00:00:00').toLocaleDateString('pt-BR') : '-' },
-          { label: 'Previsao',  value: obra.data_previsao ? new Date(obra.data_previsao + 'T00:00:00').toLocaleDateString('pt-BR') : '-' },
-          { label: 'Progresso', value: (obra.progresso || 0) + '%' },
-          { label: 'Contrato',  value: obra.valor_contrato ? 'R$ ' + Number(obra.valor_contrato).toLocaleString('pt-BR') : '-' },
-        ].map(k => (
-          <div key={k.label} style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 20px', minWidth: 120 }}>
-            <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6 }}>{k.label}</div>
-            <div style={{ fontSize: 20, fontWeight: 500, color: 'var(--color-ink)' }}>{k.value}</div>
-          </div>
-        ))}
+      <div style={{ display: 'grid', gridTemplateColumns: compacto ? '1fr 1fr' : 'repeat(4, minmax(0, 1fr))', gap: 12, margin: '18px 0 18px' }}>
+        <KpiCard label="Progresso" value={`${progressoObra}%`} helper="andamento geral" />
+        <KpiCard label="Previsao" value={previsao} helper="termino previsto" />
+        <KpiCard label="Gastos" value={`R$ ${resumo.gastos.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} helper="registrados" />
+        <KpiCard label="Pendencias" value={resumo.tarefasAbertas} helper="tarefas abertas" />
       </div>
 
-      {/* Abas */}
-      <div style={{ display: 'flex', borderBottom: '1px solid var(--color-border)', marginBottom: 28, overflowX: 'auto' }}>
-        {ABAS.map(a => (
-          <button key={a} onClick={() => setAba(a)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '10px 18px', fontSize: 12.5, whiteSpace: 'nowrap', color: aba === a ? 'var(--color-gold)' : 'var(--color-ink-muted)', fontWeight: aba === a ? 600 : 400, borderBottom: aba === a ? '2px solid var(--color-gold)' : '2px solid transparent', marginBottom: -1, fontFamily: 'inherit' }}>{a}</button>
+      <nav style={{ position: 'sticky', top: 0, zIndex: 20, display: 'flex', gap: 6, border: `1px solid ${THEME.border}`, background: 'rgba(246,243,238,0.94)', backdropFilter: 'blur(12px)', borderRadius: 14, marginBottom: 24, padding: 6, overflowX: 'auto' }}>
+        {SECOES.map(s => (
+          <button key={s.id} onClick={() => setAba(s.id)} style={{ background: aba === s.id ? THEME.ink : 'transparent', border: 'none', cursor: 'pointer', padding: '9px 14px', fontSize: 12.5, whiteSpace: 'nowrap', color: aba === s.id ? '#fff' : THEME.muted, fontWeight: aba === s.id ? 700 : 500, borderRadius: 10, fontFamily: 'inherit' }}>{s.label}</button>
         ))}
-      </div>
+      </nav>
 
-      {aba === 'Visao Geral' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      {aba === 'Resumo' && (
+        <div style={{ display: 'grid', gridTemplateColumns: compacto ? '1fr' : '1fr 1fr', gap: 16 }}>
           <Card titulo="Cliente">
             <Info label="Nome"     value={obra.cliente_nome}     />
             <Info label="E-mail"   value={obra.cliente_email}    />
@@ -340,27 +470,81 @@ export default function ObraDetalhe() {
             <Info label="CEP"            value={obra.cep} />
           </Card>
           <Card titulo="Equipe responsavel">
-            <Info label="Supervisor"   value={profiles.find(p => p.id === obra.supervisor_id)?.full_name} />
-            <Info label="Comercial"    value={profiles.find(p => p.id === obra.comercial_id)?.full_name || obra.comercial_nome} />
+            <Info label="Supervisor"   value={supervisorNome} />
+            <Info label="Comercial"    value={comercialNome} />
             <Info label="Executivista" value={obra.executivista_nome} />
           </Card>
-          <Card titulo="Arquiteto responsavel">
-            <Info label="Nome"     value={obra.arquiteto_nome}      />
-            <Info label="E-mail"   value={obra.arquiteto_email}     />
-            <Info label="Telefone" value={obra.arquiteto_telefone}  />
+          <Card titulo="Contrato">
+            <Info label="Numero" value={obra.numero_contrato} />
+            <Info label="Pedido Ornare" value={obra.pedido_ornare} />
+            <Info label="Valor" value={obra.valor_contrato ? `R$ ${Number(obra.valor_contrato).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : null} />
           </Card>
-          <div style={{ gridColumn: '1/-1' }}>
-            <AbaEquipeObra obraId={id} />
-          </div>
           {obra.observacoes && (
             <div style={{ gridColumn: '1/-1' }}>
               <Card titulo="Observacoes internas">
-                <p style={{ margin: 0, fontSize: 13, color: 'var(--color-ink-muted)', lineHeight: 1.7 }}>{obra.observacoes}</p>
+                <p style={{ margin: 0, fontSize: 13, color: THEME.muted, lineHeight: 1.7 }}>{obra.observacoes}</p>
               </Card>
             </div>
           )}
         </div>
       )}
+
+      {aba === 'Cliente' && (
+        <div style={{ display: 'grid', gridTemplateColumns: compacto ? '1fr' : 'minmax(260px, 0.8fr) minmax(0, 1.2fr)', gap: 16 }}>
+          <Card titulo="Dados do cliente">
+            <Info label="Nome" value={obra.cliente_nome} />
+            <Info label="E-mail" value={obra.cliente_email} />
+            <Info label="Telefone" value={obra.cliente_telefone} />
+          </Card>
+          <AbaCliente obraId={id} />
+        </div>
+      )}
+
+      {aba === 'Endereco' && (
+        <Card titulo="Endereco da obra">
+          <Info label="Logradouro" value={[obra.rua, obra.numero, obra.complemento].filter(Boolean).join(', ') || obra.endereco} />
+          <Info label="Bairro" value={obra.bairro} />
+          <Info label="Cidade / UF" value={[obra.cidade, obra.uf].filter(Boolean).join(' / ')} />
+          <Info label="CEP" value={obra.cep} />
+        </Card>
+      )}
+
+      {aba === 'Contrato' && (
+        <div style={{ display: 'grid', gridTemplateColumns: compacto ? '1fr' : '1fr 1fr', gap: 16 }}>
+          <Card titulo="Contrato">
+            <Info label="Numero do contrato" value={obra.numero_contrato} />
+            <Info label="Pedido Ornare" value={obra.pedido_ornare} />
+            <Info label="Valor do contrato" value={obra.valor_contrato ? `R$ ${Number(obra.valor_contrato).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : null} />
+            <Info label="Gasto meta" value={obra.gasto_meta ? `R$ ${Number(obra.gasto_meta).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : null} />
+          </Card>
+          <Card titulo="Datas">
+            <Info label="Inicio" value={obra.data_inicio ? new Date(obra.data_inicio + 'T00:00:00').toLocaleDateString('pt-BR') : null} />
+            <Info label="Previsao" value={previsao} />
+            <Info label="Status" value={obra.status} />
+            <Info label="Progresso" value={`${progressoObra}%`} />
+          </Card>
+        </div>
+      )}
+
+      {aba === 'Equipe' && (
+        <div style={{ display: 'grid', gridTemplateColumns: compacto ? '1fr' : '1fr 1fr', gap: 16 }}>
+          <Card titulo="Responsaveis">
+            <Info label="Supervisor" value={supervisorNome} />
+            <Info label="Comercial" value={comercialNome} />
+            <Info label="Executivista" value={obra.executivista_nome} />
+            <Info label="Arquiteto" value={obra.arquiteto_nome} />
+          </Card>
+          <Card titulo="Contato do arquiteto">
+            <Info label="E-mail" value={obra.arquiteto_email} />
+            <Info label="Telefone" value={obra.arquiteto_telefone} />
+          </Card>
+          <div style={{ gridColumn: '1/-1' }}>
+            <AbaEquipeObra obraId={id} />
+          </div>
+        </div>
+      )}
+
+      {aba === 'Agenda' && <AbaAgenda obraId={id} />}
 
       {aba === 'Tarefas' && (
         <div>
@@ -404,7 +588,17 @@ export default function ObraDetalhe() {
       {aba === 'Fotos'       && <AbaFotos       obraId={id} />}
       {aba === 'Historico'   && <AbaHistorico   obraId={id} />}
       {aba === 'Chat'        && <AbaChat        obraId={id} />}
-      {aba === 'Cliente'     && <AbaCliente     obraId={id} />}
+      </div>
+    </div>
+  )
+}
+
+function KpiCard({ label, value, helper }) {
+  return (
+    <div style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: 14, padding: '16px 18px', minWidth: 0 }}>
+      <div style={{ fontSize: 10, letterSpacing: 2, color: THEME.gold, textTransform: 'uppercase', marginBottom: 8, fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 22, fontWeight: 700, color: THEME.ink, lineHeight: 1.1, wordBreak: 'break-word' }}>{value}</div>
+      {helper && <div style={{ fontSize: 12, color: THEME.muted, marginTop: 6 }}>{helper}</div>}
     </div>
   )
 }
@@ -412,76 +606,161 @@ export default function ObraDetalhe() {
 function SecaoEdit({ titulo, children, last }) {
   return (
     <div style={{ marginBottom: last ? 8 : 24 }}>
-      <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', fontWeight: 600, marginBottom: 12 }}>{titulo}</div>
+      <div style={{ fontSize: 10, letterSpacing: 2, color: THEME.gold, textTransform: 'uppercase', fontWeight: 700, marginBottom: 12 }}>{titulo}</div>
       {children}
-      {!last && <div style={{ borderBottom: '1px solid var(--color-border)', marginTop: 20 }} />}
+      {!last && <div style={{ borderBottom: `1px solid ${THEME.border}`, marginTop: 20 }} />}
     </div>
   )
 }
-function GridEdit({ children }) { return <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>{children}</div> }
+function GridEdit({ children }) { return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>{children}</div> }
 function CampoEdit({ label, children, full }) {
   return (
     <div style={{ gridColumn: full ? '1/-1' : undefined }}>
-      <div style={{ fontSize: 10, color: '#888', marginBottom: 5, fontWeight: 500 }}>{label}</div>
+      <div style={{ fontSize: 11, color: THEME.muted, marginBottom: 6, fontWeight: 700 }}>{label}</div>
       {children}
+    </div>
+  )
+}
+
+function AbaAgenda({ obraId }) {
+  const [agenda, setAgenda] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  async function carregar() {
+    const { data } = await supabase.from('agenda').select('*').eq('obra_id', obraId).order('data', { ascending: true })
+    setAgenda(data || [])
+    setLoading(false)
+  }
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
+  useEffect(() => { carregar() }, [])
+
+  if (loading) return <div style={{ color: THEME.muted }}>Carregando...</div>
+  if (agenda.length === 0) return <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhum compromisso na agenda.</div>
+
+  return (
+    <div style={{ display: 'grid', gap: 10 }}>
+      {agenda.map(item => (
+        <div key={item.id} style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: 12, padding: '14px 16px', display: 'flex', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          <div style={{ minWidth: 92 }}>
+            <div style={{ fontSize: 12, color: THEME.gold, fontWeight: 800 }}>{item.data ? new Date(item.data + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}</div>
+            {item.hora_inicio && <div style={{ fontSize: 12, color: THEME.muted, marginTop: 3 }}>{item.hora_inicio}</div>}
+          </div>
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <div style={{ fontSize: 14, color: THEME.ink, fontWeight: 700 }}>{item.titulo || item.tipo || 'Compromisso'}</div>
+            {item.descricao && <div style={{ fontSize: 13, color: THEME.muted, marginTop: 4, lineHeight: 1.5 }}>{item.descricao}</div>}
+          </div>
+          {item.tipo && <span style={{ fontSize: 11, color: THEME.muted, border: `1px solid ${THEME.border}`, borderRadius: 999, padding: '5px 10px' }}>{item.tipo}</span>}
+        </div>
+      ))}
     </div>
   )
 }
 
 function AbaChecklist({ obraId }) {
+  const { user } = useStore()
   const [itens, setItens] = useState([])
+  const [ambientes, setAmbientes] = useState([])
   const [loading, setLoading] = useState(true)
   const [novoItem, setNovoItem] = useState('')
+  const [ambienteSelecionado, setAmbienteSelecionado] = useState('geral')
   const [salvando, setSalvando] = useState(false)
-  useEffect(() => { carregar() }, [])
   async function carregar() {
-    const { data } = await supabase.from('checklist_items').select('*').eq('obra_id', obraId).order('created_at')
-    setItens(data || []); setLoading(false)
+    const [{ data: amb }, { data: cl }] = await Promise.all([
+      supabase.from('obra_ambientes').select('id, nome, status').eq('obra_id', obraId),
+      supabase.from('checklist_items').select('id, obra_id, ambiente_id, descricao, concluido, concluido_por, concluido_em').eq('obra_id', obraId).order('descricao'),
+    ])
+    setAmbientes(amb || [])
+    setItens(cl || [])
+    setLoading(false)
   }
+  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
+  useEffect(() => { carregar() }, [])
+
   async function adicionar() {
     if (!novoItem.trim()) return
+    const temGrupoGeral = itens.some(i => !i.ambiente_id) || ambientes.length === 0
+    const destinoId = ambienteSelecionado === 'geral' && !temGrupoGeral ? (ambientes[0]?.id || 'geral') : ambienteSelecionado
     setSalvando(true)
-    await supabase.from('checklist_items').insert([{ obra_id: obraId, descricao: novoItem, concluido: false }])
+    await supabase.from('checklist_items').insert([{
+      obra_id: obraId,
+      ambiente_id: destinoId === 'geral' ? null : destinoId,
+      descricao: novoItem.trim(),
+      concluido: false,
+    }])
     setNovoItem(''); await carregar(); setSalvando(false)
   }
   async function toggle(item) {
-    await supabase.from('checklist_items').update({ concluido: !item.concluido }).eq('id', item.id)
+    const concluindo = !item.concluido
+    await supabase.from('checklist_items').update({
+      concluido: concluindo,
+      concluido_por: concluindo ? user?.id : null,
+      concluido_em: concluindo ? new Date().toISOString() : null,
+    }).eq('id', item.id)
     await carregar()
   }
   const concluidos = itens.filter(i => i.concluido).length
   const pct = itens.length > 0 ? Math.round(concluidos / itens.length * 100) : 0
+  const gruposAmbientes = ambientes.map(a => ({
+    id: a.id,
+    nome: a.nome || 'Ambiente',
+    itens: itens.filter(i => i.ambiente_id === a.id),
+  }))
+  const geral = { id: 'geral', nome: 'Geral', itens: itens.filter(i => !i.ambiente_id) }
+  const grupos = [...gruposAmbientes, geral].filter(g => g.id !== 'geral' || g.itens.length > 0 || ambientes.length === 0)
+  const ativo = grupos.find(g => g.id === ambienteSelecionado) || grupos[0] || geral
   return (
     <div>
-      {itens.length > 0 && (
-        <div style={{ marginBottom: 20 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--color-ink-muted)', marginBottom: 6 }}>
-            <span>{concluidos} de {itens.length} itens</span>
-            <span style={{ color: 'var(--color-gold)', fontWeight: 600 }}>{pct}%</span>
-          </div>
-          <div style={{ height: 4, background: 'var(--color-border)', borderRadius: 2 }}>
-            <div style={{ height: 4, background: 'var(--color-gold)', borderRadius: 2, width: pct + '%', transition: 'width 0.3s' }} />
-          </div>
-        </div>
-      )}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
-        <input value={novoItem} onChange={e => setNovoItem(e.target.value)} onKeyDown={e => e.key === 'Enter' && adicionar()} placeholder="Novo item do checklist..." style={{ flex: 1, padding: '9px 14px', borderRadius: 8, border: '1px solid var(--color-border)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
-        <button onClick={adicionar} disabled={salvando} style={{ background: 'var(--color-ink)', color: '#f9f7f4', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 13, cursor: 'pointer' }}>+ Adicionar</button>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 18 }}>
+        <KpiCard label="Progresso" value={`${pct}%`} helper={`${concluidos} de ${itens.length} itens`} />
+        <KpiCard label="Ambientes" value={ambientes.length || 1} helper={ambientes.length ? 'ambientes da obra' : 'grupo geral'} />
+        <KpiCard label="Pendentes" value={itens.length - concluidos} helper="itens abertos" />
       </div>
-      {loading ? <div style={{ color: '#bbb' }}>Carregando...</div>
-        : itens.length === 0 ? <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhum item no checklist.</div>
-        : itens.map(item => (
-          <div key={item.id} onClick={() => toggle(item)} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 16px', background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, marginBottom: 8, cursor: 'pointer' }}>
-            <div style={{ width: 20, height: 20, borderRadius: 5, border: '2px solid ' + (item.concluido ? '#5aab6e' : '#ddd'), background: item.concluido ? '#5aab6e' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              {item.concluido && <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>v</span>}
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 18 }}>
+        {grupos.map(grupo => {
+          const feitos = grupo.itens.filter(i => i.concluido).length
+          const gpct = grupo.itens.length ? Math.round(feitos / grupo.itens.length * 100) : 0
+          return (
+            <button key={grupo.id} onClick={() => setAmbienteSelecionado(grupo.id)} style={{ textAlign: 'left', background: ativo.id === grupo.id ? THEME.ink : THEME.card, color: ativo.id === grupo.id ? '#fff' : THEME.ink, border: `1px solid ${ativo.id === grupo.id ? THEME.ink : THEME.border}`, borderRadius: 14, padding: 14, cursor: 'pointer', fontFamily: 'inherit' }}>
+              <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 8 }}>{grupo.nome}</div>
+              <div style={{ fontSize: 12, color: ativo.id === grupo.id ? '#e8e0d5' : THEME.muted, marginBottom: 8 }}>{feitos} de {grupo.itens.length} itens</div>
+              <div style={{ height: 5, background: ativo.id === grupo.id ? 'rgba(255,255,255,.22)' : THEME.border, borderRadius: 99 }}>
+                <div style={{ height: 5, width: `${gpct}%`, background: THEME.gold, borderRadius: 99 }} />
+              </div>
+            </button>
+          )
+        })}
+      </div>
+
+      <Card titulo={`Checklist - ${ativo.nome}`}>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
+          <select value={ativo.id} onChange={e => setAmbienteSelecionado(e.target.value)} style={{ minWidth: 180, flex: '0 1 220px', padding: '10px 12px', borderRadius: 9, border: `1px solid ${THEME.border}`, fontSize: 13, fontFamily: 'inherit', background: '#FFFEFC', color: THEME.ink }}>
+            {grupos.map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
+          </select>
+          <input value={novoItem} onChange={e => setNovoItem(e.target.value)} onKeyDown={e => e.key === 'Enter' && adicionar()} placeholder="Novo item do checklist..." style={{ flex: '1 1 240px', padding: '10px 14px', borderRadius: 9, border: `1px solid ${THEME.border}`, fontSize: 13, fontFamily: 'inherit', outline: 'none', minWidth: 0 }} />
+          <button onClick={adicionar} disabled={salvando || !novoItem.trim()} style={{ background: THEME.ink, color: '#fff', border: 'none', borderRadius: 9, padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Adicionar</button>
+        </div>
+
+        {loading ? <div style={{ color: '#bbb' }}>Carregando...</div>
+          : itens.length === 0 ? <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhum item no checklist.</div>
+          : ativo.itens.length === 0 ? <div style={{ textAlign: 'center', padding: '36px 0', color: '#bbb' }}>Nenhum item neste ambiente.</div>
+          : ativo.itens.map(item => (
+            <div key={item.id} onClick={() => toggle(item)} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 0', borderBottom: `1px solid ${THEME.border}`, cursor: 'pointer' }}>
+              <div style={{ width: 22, height: 22, borderRadius: 6, border: '2px solid ' + (item.concluido ? '#5aab6e' : THEME.border), background: item.concluido ? '#5aab6e' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                {item.concluido && <span style={{ color: '#fff', fontSize: 12, fontWeight: 700 }}>v</span>}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13.5, color: item.concluido ? '#aaa' : THEME.ink, textDecoration: item.concluido ? 'line-through' : 'none', fontWeight: 600 }}>{item.descricao}</div>
+                {item.concluido_em && <div style={{ fontSize: 11, color: THEME.muted, marginTop: 3 }}>Concluido em {new Date(item.concluido_em).toLocaleString('pt-BR')}</div>}
+              </div>
             </div>
-            <span style={{ fontSize: 13.5, color: item.concluido ? '#aaa' : 'var(--color-ink)', textDecoration: item.concluido ? 'line-through' : 'none' }}>{item.descricao}</span>
-          </div>
-        ))
-      }
+          ))
+        }
+      </Card>
     </div>
   )
 }
-
 function AbaOcorrencias({ obraId }) {
   const [ocorrencias, setOcorrencias] = useState([])
   const [loading, setLoading] = useState(true)
@@ -659,56 +938,146 @@ function AbaChat({ obraId }) {
 }
 
 function AbaFotos({ obraId }) {
+  const { user } = useStore()
   const [fotos, setFotos] = useState([])
+  const [ambientes, setAmbientes] = useState([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [preview, setPreview] = useState(null)
-  useEffect(() => { carregar() }, [])
+  const [filtroCategoria, setFiltroCategoria] = useState('')
+  const [filtroAmbiente, setFiltroAmbiente] = useState('')
+  const [filtroAprovacao, setFiltroAprovacao] = useState('')
+  const [formFoto, setFormFoto] = useState({ categoria: '', ambiente_id: '', observacao: '', visivel_cliente: false })
   async function carregar() {
-    const { data } = await supabase.from('fotos').select('*').eq('obra_id', obraId).order('created_at', { ascending: false })
-    setFotos(data || []); setLoading(false)
+    const [{ data }, { data: amb }] = await Promise.all([
+      supabase.from('fotos').select('*').eq('obra_id', obraId).order('created_at', { ascending: false }),
+      supabase.from('obra_ambientes').select('id, nome').eq('obra_id', obraId),
+    ])
+    setFotos((data || []).map(f => ({ ...f, categoria: f.categoria || 'Geral', publicUrl: fotoUrl(f) })))
+    setAmbientes(amb || [])
+    setLoading(false)
   }
+  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
+  useEffect(() => { carregar() }, [])
   async function handleUpload(e) {
     const file = e.target.files[0]; if (!file) return
+    if (!formFoto.categoria) {
+      window.alert('Selecione uma categoria antes de enviar a foto.')
+      e.target.value = ''
+      return
+    }
     setUploading(true)
     const ext = file.name.split('.').pop()
     const path = obraId + '/' + Date.now() + '.' + ext
     const { error: upErr } = await supabase.storage.from('fotos-obras').upload(path, file)
     if (!upErr) {
-      const { data: urlData } = supabase.storage.from('fotos-obras').getPublicUrl(path)
-      await supabase.from('fotos').insert([{ obra_id: obraId, url: urlData.publicUrl, aprovada: false, observacao: file.name, storage_path: path }])
+      await supabase.from('fotos').insert([{
+        obra_id: obraId,
+        enviada_por: user?.id || null,
+        storage_path: path,
+        categoria: formFoto.categoria,
+        ambiente_id: formFoto.ambiente_id || null,
+        observacao: formFoto.observacao || file.name,
+        visivel_cliente: formFoto.visivel_cliente,
+        aprovada: false,
+        aprovada_gestao: false,
+        visibilidade: formFoto.visivel_cliente ? 'cliente' : 'interna',
+      }])
+      setFormFoto({ categoria: '', ambiente_id: '', observacao: '', visivel_cliente: false })
       await carregar()
     }
     setUploading(false); e.target.value = ''
   }
-  async function aprovar(foto) { await supabase.from('fotos').update({ aprovada: !foto.aprovada }).eq('id', foto.id); await carregar() }
+  async function aprovar(foto) {
+    const aprovado = !foto.aprovada
+    await supabase.from('fotos').update({
+      aprovada: aprovado,
+      aprovada_gestao: aprovado,
+      aprovada_por: aprovado ? user?.id : null,
+    }).eq('id', foto.id)
+    await carregar()
+  }
+  async function alternarCliente(foto) {
+    await supabase.from('fotos').update({
+      visivel_cliente: !foto.visivel_cliente,
+      visibilidade: !foto.visivel_cliente ? 'cliente' : 'interna',
+    }).eq('id', foto.id)
+    await carregar()
+  }
   async function deletar(foto) { await supabase.from('fotos').delete().eq('id', foto.id); await carregar() }
+  const ambienteNome = ambienteId => ambientes.find(a => a.id === ambienteId)?.nome || 'Sem ambiente'
+  const filtradas = fotos.filter(f => {
+    if (filtroCategoria && (f.categoria || 'Geral') !== filtroCategoria) return false
+    if (filtroAmbiente === 'sem' && f.ambiente_id) return false
+    if (filtroAmbiente && filtroAmbiente !== 'sem' && f.ambiente_id !== filtroAmbiente) return false
+    if (filtroAprovacao === 'aprovadas' && !f.aprovada) return false
+    if (filtroAprovacao === 'pendentes' && f.aprovada) return false
+    return true
+  })
+  const gruposFotos = FOTO_CATEGORIAS.map(categoria => ({
+    categoria,
+    fotos: filtradas.filter(f => (f.categoria || 'Geral') === categoria),
+  })).filter(g => g.fotos.length > 0)
+  const naoConformidades = fotos.filter(f => (f.categoria || 'Geral') === 'Não conformidade').length
   return (
     <div>
       {preview && <div onClick={() => setPreview(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out' }}><img src={preview} alt="preview" style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 8, objectFit: 'contain' }} /></div>}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <div style={{ fontSize: 12, color: 'var(--color-ink-muted)' }}>{fotos.length} foto{fotos.length !== 1 ? 's' : ''} · {fotos.filter(f => f.aprovada).length} aprovada{fotos.filter(f => f.aprovada).length !== 1 ? 's' : ''}</div>
-        <label style={{ background: 'var(--color-ink)', color: '#f9f7f4', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}>
-          {uploading ? 'Enviando...' : '+ Upload Foto'}
-          <input type="file" accept="image/*" onChange={handleUpload} style={{ display: 'none' }} disabled={uploading} />
-        </label>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 18 }}>
+        <KpiCard label="Total" value={fotos.length} helper="fotos da obra" />
+        <KpiCard label="Aprovadas" value={fotos.filter(f => f.aprovada).length} helper="liberadas" />
+        <KpiCard label="Cliente" value={fotos.filter(f => f.visivel_cliente).length} helper="visiveis ao cliente" />
+        <KpiCard label="Nao conform." value={naoConformidades} helper="registros criticos" />
       </div>
+
+      <Card titulo="Enviar foto">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 12 }}>
+          <div><Label>Categoria *</Label><FSelect value={formFoto.categoria} onChange={v => setFormFoto(p => ({ ...p, categoria: v }))}><option value="">Selecione</option>{FOTO_CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}</FSelect></div>
+          <div><Label>Ambiente</Label><FSelect value={formFoto.ambiente_id} onChange={v => setFormFoto(p => ({ ...p, ambiente_id: v }))}><option value="">Sem ambiente</option>{ambientes.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}</FSelect></div>
+          <div><Label>Observacao</Label><FInput value={formFoto.observacao} onChange={v => setFormFoto(p => ({ ...p, observacao: v }))} placeholder="Opcional" /></div>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: THEME.muted }}>
+            <input type="checkbox" checked={formFoto.visivel_cliente} onChange={e => setFormFoto(p => ({ ...p, visivel_cliente: e.target.checked }))} />
+            Visivel ao cliente apos aprovacao
+          </label>
+          <label style={{ background: formFoto.categoria ? THEME.ink : '#bbb', color: '#fff', borderRadius: 9, padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: formFoto.categoria ? 'pointer' : 'not-allowed' }}>
+            {uploading ? 'Enviando...' : 'Selecionar e enviar'}
+            <input type="file" accept="image/*" onChange={handleUpload} style={{ display: 'none' }} disabled={uploading || !formFoto.categoria} />
+          </label>
+        </div>
+      </Card>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, margin: '18px 0' }}>
+        <FSelect value={filtroCategoria} onChange={setFiltroCategoria}><option value="">Todas as categorias</option>{FOTO_CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}</FSelect>
+        <FSelect value={filtroAmbiente} onChange={setFiltroAmbiente}><option value="">Todos os ambientes</option><option value="sem">Sem ambiente</option>{ambientes.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}</FSelect>
+        <FSelect value={filtroAprovacao} onChange={setFiltroAprovacao}><option value="">Todas</option><option value="aprovadas">Aprovadas</option><option value="pendentes">Pendentes</option></FSelect>
+      </div>
+
       {loading ? <div style={{ color: '#bbb' }}>Carregando...</div>
         : fotos.length === 0 ? <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhuma foto enviada.</div>
-        : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 14 }}>
-            {fotos.map(foto => (
-              <div key={foto.id} style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>
-                <div onClick={() => setPreview(foto.url)} style={{ cursor: 'zoom-in', height: 150, overflow: 'hidden', background: '#f5f5f5' }}>{foto.url && <img src={foto.url} alt={foto.observacao} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}</div>
-                <div style={{ padding: '10px 12px' }}>
-                  <div style={{ fontSize: 11, color: 'var(--color-ink-muted)', marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{foto.observacao}</div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => aprovar(foto)} style={{ flex: 1, padding: '5px 0', borderRadius: 6, border: 'none', fontSize: 11, cursor: 'pointer', background: foto.aprovada ? '#edf7f0' : '#f5f5f5', color: foto.aprovada ? '#3a7d4f' : '#888', fontWeight: 500 }}>{foto.aprovada ? 'Aprovada' : 'Aprovar'}</button>
-                    <button onClick={() => deletar(foto)} style={{ padding: '5px 10px', borderRadius: 6, border: 'none', fontSize: 11, cursor: 'pointer', background: '#fdecea', color: '#a03030' }}>X</button>
+        : gruposFotos.length === 0 ? <div style={{ textAlign: 'center', padding: '40px 0', color: '#bbb' }}>Nenhuma foto encontrada com estes filtros.</div>
+        : gruposFotos.map(grupo => (
+          <div key={grupo.categoria} style={{ marginBottom: 24 }}>
+            <div style={{ fontSize: 10, letterSpacing: 2, color: THEME.gold, textTransform: 'uppercase', fontWeight: 700, marginBottom: 10 }}>{grupo.categoria}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14 }}>
+              {grupo.fotos.map(foto => (
+                <div key={foto.id} style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: 14, overflow: 'hidden' }}>
+                  <div onClick={() => foto.publicUrl && setPreview(foto.publicUrl)} style={{ cursor: 'zoom-in', height: 170, overflow: 'hidden', background: '#f5f5f5' }}>{foto.publicUrl && <img src={foto.publicUrl} alt={foto.observacao || foto.categoria} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}</div>
+                  <div style={{ padding: 12 }}>
+                    <div style={{ fontSize: 12, color: THEME.ink, fontWeight: 700, marginBottom: 4 }}>{ambienteNome(foto.ambiente_id)}</div>
+                    <div style={{ fontSize: 11, color: THEME.muted, marginBottom: 8, minHeight: 16 }}>{foto.observacao || 'Sem observacao'}</div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      <button onClick={() => aprovar(foto)} style={{ flex: '1 1 90px', padding: '7px 0', borderRadius: 7, border: 'none', fontSize: 11, cursor: 'pointer', background: foto.aprovada ? '#edf7f0' : '#f5f5f5', color: foto.aprovada ? '#3a7d4f' : '#888', fontWeight: 700 }}>{foto.aprovada ? 'Aprovada' : 'Aprovar'}</button>
+                      <button onClick={() => alternarCliente(foto)} style={{ flex: '1 1 90px', padding: '7px 0', borderRadius: 7, border: 'none', fontSize: 11, cursor: 'pointer', background: foto.visivel_cliente ? THEME.softGold : '#f5f5f5', color: foto.visivel_cliente ? THEME.gold : '#888', fontWeight: 700 }}>Cliente</button>
+                      <button onClick={() => deletar(foto)} style={{ padding: '7px 10px', borderRadius: 7, border: 'none', fontSize: 11, cursor: 'pointer', background: '#fdecea', color: '#a03030' }}>X</button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
+        ))
       }
     </div>
   )
@@ -717,11 +1086,15 @@ function AbaFotos({ obraId }) {
 function AbaHistorico({ obraId }) {
   const [historico, setHistorico] = useState([])
   const [loading, setLoading] = useState(true)
-  useEffect(() => { carregar() }, [])
+
   async function carregar() {
     const { data } = await supabase.from('historico_obra').select('*, profiles(full_name)').eq('obra_id', obraId).order('created_at', { ascending: false })
     setHistorico(data || []); setLoading(false)
   }
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
+  useEffect(() => { carregar() }, [])
+
   if (loading) return <div style={{ color: '#bbb' }}>Carregando...</div>
   if (historico.length === 0) return <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhum registro no historico.</div>
   return (
@@ -919,8 +1292,8 @@ function CardTarefa({ tarefa, onMudarStatus }) {
 
 function Card({ titulo, children }) {
   return (
-    <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, padding: '20px 24px' }}>
-      <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', fontWeight: 600, marginBottom: 14 }}>{titulo}</div>
+    <div style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: 14, padding: '20px 22px', minWidth: 0 }}>
+      <div style={{ fontSize: 10, letterSpacing: 2, color: THEME.gold, textTransform: 'uppercase', fontWeight: 700, marginBottom: 14 }}>{titulo}</div>
       {children}
     </div>
   )
@@ -928,11 +1301,11 @@ function Card({ titulo, children }) {
 function Info({ label, value }) {
   return (
     <div style={{ marginBottom: 10 }}>
-      <div style={{ fontSize: 10, color: '#aaa', marginBottom: 2 }}>{label}</div>
-      <div style={{ fontSize: 13.5, color: 'var(--color-ink)', fontWeight: 500 }}>{value || '-'}</div>
+      <div style={{ fontSize: 10, color: THEME.muted, marginBottom: 3, fontWeight: 600 }}>{label}</div>
+      <div style={{ fontSize: 13.5, color: THEME.ink, fontWeight: 600, wordBreak: 'break-word' }}>{value || '-'}</div>
     </div>
   )
 }
-function Label({ children }) { return <div style={{ fontSize: 11, color: '#888', marginBottom: 5, fontWeight: 500 }}>{children}</div> }
-function FInput({ onChange, ...props }) { return <input {...props} onChange={e => onChange(e.target.value)} style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1px solid #ddd', fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none', background: '#fafaf8' }} /> }
-function FSelect({ onChange, children, ...props }) { return <select {...props} onChange={e => onChange(e.target.value)} style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1px solid #ddd', fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit', background: '#fafaf8' }}>{children}</select> }
+function Label({ children }) { return <div style={{ fontSize: 11, color: THEME.muted, marginBottom: 6, fontWeight: 700 }}>{children}</div> }
+function FInput({ onChange, ...props }) { return <input {...props} onChange={e => onChange(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: 9, border: `1px solid ${THEME.border}`, fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none', background: '#FFFEFC', color: THEME.ink }} /> }
+function FSelect({ onChange, children, ...props }) { return <select {...props} onChange={e => onChange(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: 9, border: `1px solid ${THEME.border}`, fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit', background: '#FFFEFC', color: THEME.ink }}>{children}</select> }

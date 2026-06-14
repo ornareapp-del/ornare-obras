@@ -12,6 +12,12 @@ function limparTel(tel) {
   return r
 }
 
+function fotoUrl(foto) {
+  if (foto.url) return foto.url
+  if (!foto.storage_path) return ''
+  return supabase.storage.from('fotos-obras').getPublicUrl(foto.storage_path).data.publicUrl
+}
+
 export default function PortalCliente() {
   const { id } = useParams()
   const [obra, setObra] = useState(null)
@@ -21,19 +27,20 @@ export default function PortalCliente() {
   const [preview, setPreview] = useState(null)
   const [aba, setAba] = useState('status')
 
-  useEffect(() => { carregar() }, [id])
-
   async function carregar() {
     const [{ data: o }, { data: f }, { data: c }] = await Promise.all([
       supabase.from('obras').select('*').eq('id', id).single(),
-      supabase.from('fotos').select('*').eq('obra_id', id).eq('aprovada', true).order('created_at', { ascending: false }),
+      supabase.from('fotos').select('*').eq('obra_id', id).eq('aprovada', true).eq('visivel_cliente', true).order('created_at', { ascending: false }),
       supabase.from('comunicados_cliente').select('*').eq('obra_id', id).order('created_at', { ascending: false }),
     ])
     setObra(o)
-    setFotos(f || [])
+    setFotos((f || []).map(foto => ({ ...foto, publicUrl: fotoUrl(foto), categoria: foto.categoria || 'Geral' })))
     setComunicados(c || [])
     setLoading(false)
   }
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
+  useEffect(() => { carregar() }, [id])
 
   if (loading) return (
     <div style={s.loadingScreen}>
@@ -207,9 +214,9 @@ export default function PortalCliente() {
             ) : (
               <div style={s.fotoGrid}>
                 {fotos.map(f => (
-                  <div key={f.id} onClick={() => setPreview(f.url || f.storage_path)} style={s.fotoCard}>
-                    {f.url ? (
-                      <img src={f.url} style={s.fotoImg} alt={f.observacao || 'Foto'} />
+                  <div key={f.id} onClick={() => f.publicUrl && setPreview(f.publicUrl)} style={s.fotoCard}>
+                    {f.publicUrl ? (
+                      <img src={f.publicUrl} style={s.fotoImg} alt={f.observacao || f.categoria || 'Foto'} />
                     ) : (
                       <div style={s.fotoPlaceholder}>foto</div>
                     )}

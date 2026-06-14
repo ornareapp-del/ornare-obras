@@ -4,6 +4,13 @@ import { useStore } from '../../store/useStore'
 
 const PR_COR   = { baixa: '#aaa', media: '#b09a7a', alta: '#d94a4a' }
 const PR_LABEL = { baixa: 'Baixa', media: 'Media', alta: 'Alta' }
+const FOTO_CATEGORIAS = ['Antes da montagem', 'Durante a montagem', 'Finalizado', 'Não conformidade', 'Técnica', 'Entrega', 'Cliente', 'Geral']
+
+function fotoUrl(foto) {
+  if (foto.url) return foto.url
+  if (!foto.storage_path) return ''
+  return supabase.storage.from('fotos-obras').getPublicUrl(foto.storage_path).data.publicUrl
+}
 
 export default function MontadorDashboard() {
   const { user, profile } = useStore()
@@ -14,6 +21,7 @@ export default function MontadorDashboard() {
   const [tarefas,   setTarefas]   = useState([])
   const [checkins,  setCheckins]  = useState([])
   const [checklist, setChecklist] = useState([])
+  const [ambientes, setAmbientes] = useState([])
   const [fotos,     setFotos]     = useState([])
 
   // ui states
@@ -26,6 +34,7 @@ export default function MontadorDashboard() {
   const [sucesso,          setSucesso]          = useState('')
   const [abaAtiva,         setAbaAtiva]         = useState('tarefas') // tarefas | checklist | fotos
   const [preview,          setPreview]          = useState(null)
+  const [formFoto,         setFormFoto]         = useState({ categoria: '', ambiente_id: '', observacao: '' })
 
   useEffect(() => { if (user) carregarObras() }, [user])
   useEffect(() => { if (obraAtiva) carregarDadosObra() }, [obraAtiva])
@@ -53,6 +62,7 @@ export default function MontadorDashboard() {
       { data: t },
       { data: c },
       { data: cl },
+      { data: amb },
       { data: f },
     ] = await Promise.all([
       supabase.from('tarefas')
@@ -68,9 +78,12 @@ export default function MontadorDashboard() {
         .order('created_at', { ascending: false })
         .limit(10),
       supabase.from('checklist_items')
-        .select('*')
+        .select('id, obra_id, ambiente_id, descricao, concluido, concluido_por, concluido_em')
         .eq('obra_id', obraAtiva.id)
-        .order('created_at'),
+        .order('descricao'),
+      supabase.from('obra_ambientes')
+        .select('id, nome, status')
+        .eq('obra_id', obraAtiva.id),
       supabase.from('fotos')
         .select('*')
         .eq('obra_id', obraAtiva.id)
@@ -80,7 +93,8 @@ export default function MontadorDashboard() {
     setTarefas(t   || [])
     setCheckins(c  || [])
     setChecklist(cl || [])
-    setFotos(f     || [])
+    setAmbientes(amb || [])
+    setFotos((f || []).map(foto => ({ ...foto, categoria: foto.categoria || 'Geral', publicUrl: fotoUrl(foto) })))
   }
 
   // ─── CHECK-IN COM GEO ─────────────────────────────────────────────────────
@@ -134,7 +148,12 @@ export default function MontadorDashboard() {
 
   // ─── TOGGLE CHECKLIST ─────────────────────────────────────────────────────
   async function toggleChecklist(item) {
-    await supabase.from('checklist_items').update({ concluido: !item.concluido }).eq('id', item.id)
+    const concluindo = !item.concluido
+    await supabase.from('checklist_items').update({
+      concluido: concluindo,
+      concluido_por: concluindo ? user.id : null,
+      concluido_em: concluindo ? new Date().toISOString() : null,
+    }).eq('id', item.id)
     await carregarDadosObra()
   }
 
@@ -142,6 +161,11 @@ export default function MontadorDashboard() {
   async function handleUpload(e) {
     const file = e.target.files[0]
     if (!file || !obraAtiva) return
+    if (!formFoto.categoria) {
+      mostrarSucesso('Selecione uma categoria antes de enviar.')
+      e.target.value = ''
+      return
+    }
     setUploading(true)
 
     const ext  = file.name.split('.').pop()
@@ -149,15 +173,19 @@ export default function MontadorDashboard() {
 
     const { error: upErr } = await supabase.storage.from('fotos-obras').upload(path, file)
     if (!upErr) {
-      const { data: urlData } = supabase.storage.from('fotos-obras').getPublicUrl(path)
       await supabase.from('fotos').insert([{
         obra_id:      obraAtiva.id,
-        enviado_por:  user.id,
-        url:          urlData.publicUrl,
+        enviada_por:  user.id,
+        categoria:    formFoto.categoria,
+        ambiente_id:  formFoto.ambiente_id || null,
         aprovada:     false,
-        observacao:   file.name,
+        aprovada_gestao: false,
+        visivel_cliente: false,
+        visibilidade: 'interna',
+        observacao:   formFoto.observacao || file.name,
         storage_path: path,
       }])
+      setFormFoto({ categoria: '', ambiente_id: '', observacao: '' })
       mostrarSucesso('Foto enviada!')
       await carregarDadosObra()
     } else {
@@ -196,6 +224,19 @@ export default function MontadorDashboard() {
   const ultimoCI    = checkins[0]
   const clConcluidos = checklist.filter(i => i.concluido).length
   const clPct       = checklist.length > 0 ? Math.round(clConcluidos / checklist.length * 100) : 0
+  const checklistGrupos = [
+    ...ambientes.map(a => ({
+      id: a.id,
+      nome: a.nome || 'Ambiente',
+      itens: checklist.filter(i => i.ambiente_id === a.id),
+    })),
+    { id: 'geral', nome: 'Geral', itens: checklist.filter(i => !i.ambiente_id) },
+  ].filter(g => g.id !== 'geral' || g.itens.length > 0 || ambientes.length === 0)
+  const fotosGrupos = FOTO_CATEGORIAS.map(categoria => ({
+    categoria,
+    fotos: fotos.filter(f => (f.categoria || 'Geral') === categoria),
+  })).filter(g => g.fotos.length > 0)
+  const ambienteNome = ambienteId => ambientes.find(a => a.id === ambienteId)?.nome || 'Sem ambiente'
 
   // ── helpers de endereco
   function enderecoObra(o) {
@@ -423,45 +464,83 @@ export default function MontadorDashboard() {
               <div style={s.emptyText}>Checklist vazio</div>
               <div style={s.emptySub}>Nenhum item nesta obra ainda.</div>
             </div>
-          ) : checklist.map(item => (
-            <div key={item.id} onClick={() => toggleChecklist(item)} style={{ ...s.checkItem, borderColor: item.concluido ? '#5aab6e44' : 'var(--color-border)', background: item.concluido ? '#f6fcf8' : '#fff' }}>
-              <div style={{ ...s.checkBox, borderColor: item.concluido ? '#5aab6e' : '#ddd', background: item.concluido ? '#5aab6e' : 'transparent' }}>
-                {item.concluido && <span style={{ color: '#fff', fontSize: 12, fontWeight: 700, lineHeight: 1 }}>v</span>}
+          ) : checklistGrupos.map(grupo => {
+            const feitos = grupo.itens.filter(i => i.concluido).length
+            const pct = grupo.itens.length ? Math.round(feitos / grupo.itens.length * 100) : 0
+            return (
+              <div key={grupo.id} style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 14, padding: 14, marginBottom: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginBottom: 8, alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontSize: 14, color: 'var(--color-ink)', fontWeight: 700 }}>{grupo.nome}</div>
+                    <div style={{ fontSize: 11, color: 'var(--color-ink-muted)', marginTop: 2 }}>{feitos} de {grupo.itens.length} itens</div>
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--color-gold)', fontWeight: 700 }}>{pct}%</div>
+                </div>
+                <div style={{ ...s.progressBg, marginBottom: 10 }}>
+                  <div style={{ ...s.progressBar, width: pct + '%' }} />
+                </div>
+                {grupo.itens.length === 0 ? (
+                  <div style={{ color: '#bbb', fontSize: 12, padding: '8px 0' }}>Nenhum item neste ambiente.</div>
+                ) : grupo.itens.map(item => (
+                  <div key={item.id} onClick={() => toggleChecklist(item)} style={{ ...s.checkItem, borderColor: item.concluido ? '#5aab6e44' : 'var(--color-border)', background: item.concluido ? '#f6fcf8' : '#fff', marginBottom: 8 }}>
+                    <div style={{ ...s.checkBox, borderColor: item.concluido ? '#5aab6e' : '#ddd', background: item.concluido ? '#5aab6e' : 'transparent' }}>
+                      {item.concluido && <span style={{ color: '#fff', fontSize: 12, fontWeight: 700, lineHeight: 1 }}>v</span>}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, color: item.concluido ? '#aaa' : 'var(--color-ink)', textDecoration: item.concluido ? 'line-through' : 'none' }}>{item.descricao}</div>
+                      {item.concluido_em && <div style={{ fontSize: 10.5, color: '#aaa', marginTop: 3 }}>{new Date(item.concluido_em).toLocaleString('pt-BR')}</div>}
+                    </div>
+                  </div>
+                ))}
               </div>
-              <span style={{ fontSize: 14, color: item.concluido ? '#aaa' : 'var(--color-ink)', textDecoration: item.concluido ? 'line-through' : 'none', flex: 1 }}>
-                {item.descricao}
-              </span>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
-      {/* ── ABA FOTOS ───────────────────────────────────────────────────────── */}
+      {/* ABA FOTOS */}
       {abaAtiva === 'fotos' && (
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div style={{ fontSize: 12, color: 'var(--color-ink-muted)' }}>
-              {fotos.length} foto{fotos.length !== 1 ? 's' : ''} enviada{fotos.length !== 1 ? 's' : ''}
-            </div>
-            <label style={s.btnUpload}>
-              {uploading ? 'Enviando...' : '📷 Enviar foto'}
-              <input type="file" accept="image/*" capture="environment" onChange={handleUpload} style={{ display: 'none' }} disabled={uploading} />
+          <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 14, padding: 14, marginBottom: 16 }}>
+            <div style={s.sectionLabel}>Nova foto</div>
+            <select value={formFoto.categoria} onChange={e => setFormFoto(p => ({ ...p, categoria: e.target.value }))} style={{ ...s.obraSelect, marginBottom: 8 }}>
+              <option value="">Categoria obrigatoria</option>
+              {FOTO_CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <select value={formFoto.ambiente_id} onChange={e => setFormFoto(p => ({ ...p, ambiente_id: e.target.value }))} style={{ ...s.obraSelect, marginBottom: 8 }}>
+              <option value="">Sem ambiente</option>
+              {ambientes.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
+            </select>
+            <input value={formFoto.observacao} onChange={e => setFormFoto(p => ({ ...p, observacao: e.target.value }))} placeholder="Observacao opcional" style={{ ...s.obraSelect, marginBottom: 10 }} />
+            <label style={{ ...s.btnUpload, display: 'block', textAlign: 'center', opacity: formFoto.categoria ? 1 : 0.55 }}>
+              {uploading ? 'Enviando...' : 'Enviar foto'}
+              <input type="file" accept="image/*" capture="environment" onChange={handleUpload} style={{ display: 'none' }} disabled={uploading || !formFoto.categoria} />
             </label>
           </div>
           {fotos.length === 0 ? (
             <div style={s.emptyBox}>
-              <div style={s.emptyIcon}>📷</div>
+              <div style={s.emptyIcon}>Foto</div>
               <div style={s.emptyText}>Nenhuma foto enviada</div>
               <div style={s.emptySub}>Registre o andamento da obra com fotos.</div>
             </div>
           ) : (
-            <div style={s.fotoGrid}>
-              {fotos.map(f => (
-                <div key={f.id} style={s.fotoItem} onClick={() => setPreview(f.url)}>
-                  <img src={f.url} alt={f.observacao} style={s.fotoThumb} />
-                  {f.aprovada && (
-                    <div style={s.fotoAprovada}>✓</div>
-                  )}
+            <div>
+              {fotosGrupos.map(grupo => (
+                <div key={grupo.categoria} style={{ marginBottom: 18 }}>
+                  <div style={s.sectionLabel}>{grupo.categoria}</div>
+                  <div style={s.fotoGrid}>
+                    {grupo.fotos.map(f => (
+                      <div key={f.id} style={s.fotoItem} onClick={() => f.publicUrl && setPreview(f.publicUrl)}>
+                        {f.publicUrl && <img src={f.publicUrl} alt={f.observacao || f.categoria} style={s.fotoThumb} />}
+                        <div style={{ position: 'absolute', left: 4, bottom: 4, right: 4, background: 'rgba(0,0,0,.58)', color: '#fff', borderRadius: 7, padding: '4px 6px', fontSize: 9, lineHeight: 1.2 }}>
+                          {ambienteNome(f.ambiente_id)}
+                        </div>
+                        {f.aprovada && (
+                          <div style={s.fotoAprovada}>v</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>

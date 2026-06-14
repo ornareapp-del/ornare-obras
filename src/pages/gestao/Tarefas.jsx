@@ -11,13 +11,14 @@ export default function Tarefas() {
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState('todas')
 
-  useEffect(() => { carregar() }, [])
-
   async function carregar() {
     const { data } = await supabase.from('tarefas').select('*, obras(nome), responsavel:profiles(full_name)').order('created_at', { ascending: false })
     setTarefas(data || [])
     setLoading(false)
   }
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { carregar() }, [])
 
   async function mudarStatus(id, status) {
     await supabase.from('tarefas').update({ status }).eq('id', id)

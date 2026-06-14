@@ -1,14 +1,14 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 
-const ROLES = ['gestao', 'supervisor', 'montador', 'vendedor', 'cliente']
-const ROLE_LABEL = { gestao: 'Gestao', supervisor: 'Supervisor', montador: 'Montador', vendedor: 'Vendedor', cliente: 'Cliente' }
-const ROLE_COLOR = { gestao: '#3a5580', supervisor: '#3a7d4f', montador: '#b09a7a', vendedor: '#9070c0', cliente: '#888' }
+const ROLES = ['gestao', 'pos_venda', 'supervisor', 'montador', 'cliente']
+const ROLE_LABEL = { gestao: 'Gestao', pos_venda: 'Pos-venda', supervisor: 'Supervisor', montador: 'Montador', vendedor: 'Pos-venda', cliente: 'Cliente' }
+const ROLE_COLOR = { gestao: '#3a5580', pos_venda: '#9070c0', supervisor: '#3a7d4f', montador: '#b09a7a', vendedor: '#9070c0', cliente: '#888' }
 const ROLE_DESC  = {
   gestao:     'Obras, agenda, equipe e relatorios',
+  pos_venda:  'Acompanhamento comercial das obras',
   supervisor: 'Obras sob sua responsabilidade',
   montador:   'Tarefas e check-in/check-out',
-  vendedor:   'Acompanhamento comercial das obras',
   cliente:    'Portal do cliente (acesso externo)',
 }
 
@@ -180,11 +180,11 @@ function DialogDescarte({ onDescartar, onContinuar }) {
 
 // ─── LINHA DE EDICAO INLINE ───────────────────────────────────────────────────
 function ItemEditando({ editando, setEditando, supervisores, onSalvar, onCancelar, salvando }) {
-  const original = useRef(editando)
+  const [original] = useState(() => JSON.stringify(editando))
   const [showDialog, setShowDialog] = useState(false)
 
   // dirty state: verifica se ha mudancas em relacao ao original
-  const isDirty = JSON.stringify(editando) !== JSON.stringify(original.current)
+  const isDirty = JSON.stringify(editando) !== original
 
   function tentarCancelar() {
     if (isDirty) { setShowDialog(true) } else { onCancelar() }
