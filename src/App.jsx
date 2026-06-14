@@ -21,6 +21,7 @@ import Equipe from './pages/gestao/Equipe'
 import Ocorrencias from './pages/gestao/Ocorrencias'
 import Gastos from './pages/gestao/Gastos'
 import Tarefas from './pages/gestao/Tarefas'
+import Planejamento from './pages/gestao/Planejamento'
 
 // paginas por perfil
 import DashboardSupervisor from './pages/supervisor/DashboardSupervisor'
@@ -258,6 +259,15 @@ export default function App() {
             element={
               <RoleGuard allowedRoles={['gestao', 'supervisor', 'pos_venda', 'vendedor']}>
                 <Agenda />
+              </RoleGuard>
+            }
+          />
+
+          <Route
+            path="/planejamento"
+            element={
+              <RoleGuard allowedRoles={['gestao', 'supervisor', 'pos_venda', 'vendedor']}>
+                <Planejamento />
               </RoleGuard>
             }
           />
