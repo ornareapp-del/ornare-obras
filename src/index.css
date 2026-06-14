@@ -3,37 +3,50 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --gold:            #C8A86A;
-  --gold-light:      #DFC48A;
-  --gold-pale:       #F5EDD8;
-  --gold-muted:      rgba(200,168,106,0.15);
+  --gold:            #B8965E;
+  --gold-strong:     #9F7B45;
+  --gold-light:      #D4B87B;
+  --gold-pale:       #F4E9D4;
+  --gold-muted:      rgba(184,150,94,0.15);
 
-  --sand:            #F5F2EE;
-  --fendi:           #EDE9E3;
+  --sand:            #F6F3EE;
+  --fendi:           #E7E0D5;
   --off-white:       #FDFCFA;
   --white:           #FFFFFF;
 
-  --sidebar-bg:      #1A1A18;
-  --sidebar-active:  rgba(200,168,106,0.14);
-  --sidebar-border:  rgba(200,168,106,0.10);
+  --sidebar-bg:      #1D1C19;
+  --sidebar-active:  rgba(184,150,94,0.14);
+  --sidebar-border:  rgba(184,150,94,0.10);
 
-  --graphite:        #1A1A18;
-  --graphite-mid:    #5C5A54;
-  --graphite-light:  #9C9A94;
+  --graphite:        #1D1C19;
+  --graphite-mid:    #6D675E;
+  --graphite-light:  #A79F93;
 
-  --border:          #E4DED5;
-  --border-light:    #EDE9E3;
+  --border:          #E7E0D5;
+  --border-light:    #F0EAE1;
 
   --red:             #B84040;
   --green:           #2D7A4A;
-  --blue:            #3B6FD4;
+  --blue:            #365C7D;
+  --warn:            #9A6A22;
 
-  --shadow:          0 2px 16px rgba(26,24,20,0.08);
-  --shadow-md:       0 4px 24px rgba(26,24,20,0.12);
+  --shadow-xs:       0 1px 2px rgba(29,28,25,0.04);
+  --shadow:          0 10px 26px rgba(29,28,25,0.05);
+  --shadow-md:       0 16px 38px rgba(29,28,25,0.08);
+  --shadow-lg:       0 24px 70px rgba(29,28,25,0.12);
 
   --radius:          10px;
-  --radius-sm:       6px;
+  --radius-sm:       8px;
   --radius-lg:       14px;
+  --radius-xl:       18px;
+
+  --space-1:         4px;
+  --space-2:         8px;
+  --space-3:         12px;
+  --space-4:         16px;
+  --space-5:         20px;
+  --space-6:         24px;
+  --space-8:         32px;
 
   --color-bg:        var(--sand);
   --color-ink:       var(--graphite);
@@ -41,6 +54,10 @@
   --color-gold:      var(--gold);
   --color-border:    var(--border);
   --color-blue:      var(--blue);
+  --color-card:      var(--white);
+  --color-danger:    var(--red);
+  --color-success:   var(--green);
+  --color-warning:   var(--warn);
 
   --font-serif:      'Cormorant Garamond', Georgia, serif;
   --font-sans:       'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -64,6 +81,36 @@ input, select, textarea, button {
   font-family: inherit;
 }
 
+button, input, select, textarea {
+  max-width: 100%;
+}
+
+button {
+  touch-action: manipulation;
+}
+
+.ow-page {
+  background: var(--color-bg);
+  color: var(--color-ink);
+}
+
+.ow-page button,
+.ow-page input,
+.ow-page select,
+.ow-page textarea {
+  font-family: var(--font-sans);
+}
+
+.ow-page input,
+.ow-page select,
+.ow-page textarea {
+  min-height: 38px;
+}
+
+.ow-page button {
+  min-height: 34px;
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -82,4 +129,66 @@ a {
 ::selection {
   background: var(--gold-pale);
   color: var(--graphite);
+}
+
+@media (max-width: 760px) {
+  .ow-page {
+    width: 100% !important;
+    max-width: none !important;
+    padding: 72px 14px 34px !important;
+    overflow-x: hidden !important;
+  }
+
+  .ow-page h1 {
+    font-size: 31px !important;
+    line-height: 1.05 !important;
+  }
+
+  .ow-page [style*="justify-content: space-between"] {
+    max-width: 100%;
+  }
+
+  .ow-page > [style*="justify-content: space-between"] {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 14px !important;
+  }
+
+  .ow-page [style*="grid-template-columns: 1fr 1fr"],
+  .ow-page [style*="grid-template-columns: repeat(2"],
+  .ow-page [style*="grid-template-columns: repeat(3"],
+  .ow-page [style*="grid-template-columns: repeat(4"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  .ow-page [style*="display: flex"][style*="align-items: center"] {
+    min-width: 0;
+  }
+
+  .ow-page [style*="padding: 60px 20px"] {
+    padding: 34px 16px !important;
+  }
+
+  .ow-page [style*="padding: 18px 20px"],
+  .ow-page [style*="padding: 18px 22px"],
+  .ow-page [style*="padding: 16px 20px"] {
+    padding: 15px 14px !important;
+  }
+
+  .ow-page [style*="min-width: 100px"] {
+    min-width: 0 !important;
+  }
+
+  .ow-page [style*="width: 100px"] {
+    width: 100% !important;
+  }
+
+  .ow-page [style*="white-space: nowrap"] {
+    white-space: normal !important;
+  }
+
+  .ow-page [style*="max-width: 560px"],
+  .ow-page [style*="max-width: 580px"] {
+    max-width: calc(100vw - 24px) !important;
+  }
 }

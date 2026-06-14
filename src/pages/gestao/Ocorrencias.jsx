@@ -156,7 +156,7 @@ export default function Ocorrencias() {
     .filter(o => !filtroStatus || o.status === filtroStatus)
 
   return (
-    <div style={s.page}>
+    <div className="ow-page" style={s.page}>
       {modal && (
         <Modal obras={obras} profiles={profiles}
           onClose={() => setModal(false)}
@@ -262,15 +262,15 @@ const s = {
   breadcrumb: { fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6 },
   title: { fontFamily: 'var(--font-serif)', fontSize: 36, fontWeight: 500, color: 'var(--color-ink)', margin: 0 },
   sub: { fontSize: 13, color: 'var(--color-ink-muted)', marginTop: 4 },
-  btnNew: { background: 'var(--color-blue)', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' },
+  btnNew: { background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' },
   statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 24 },
-  stat: { border: '1px solid', borderRadius: 10, padding: '16px 20px' },
+  stat: { border: '1px solid', borderRadius: 14, padding: '16px 20px', boxShadow: 'var(--shadow)' },
   statLabel: { fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6 },
   statValue: { fontSize: 28, fontWeight: 700 },
   filters: { display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' },
   select: { padding: '8px 12px', borderRadius: 8, border: '1px solid var(--color-border)', fontSize: 13, fontFamily: 'inherit', background: '#fff' },
   list: { display: 'flex', flexDirection: 'column', gap: 10 },
-  item: { background: '#fff', border: '1px solid var(--color-border)', borderLeft: '4px solid', borderRadius: 10, padding: '16px 18px' },
+  item: { background: '#fff', border: '1px solid var(--color-border)', borderLeft: '4px solid', borderRadius: 14, padding: '16px 18px', boxShadow: 'var(--shadow)' },
   itemTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 6 },
   itemTitle: { fontSize: 14, fontWeight: 600, color: 'var(--color-ink)', flex: 1 },
   itemBadges: { display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 },
@@ -300,5 +300,5 @@ const ms = {
   erro: { background: '#fceee9', borderLeft: '3px solid #c4421e', color: '#5c2010', padding: '10px 14px', borderRadius: 6, fontSize: 12, marginBottom: 16 },
   footer: { display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '16px 28px', borderTop: '1px solid #f0ece6', flexShrink: 0 },
   btnCancel: { background: 'none', border: '1px solid #e0dbd4', borderRadius: 8, padding: '9px 18px', fontSize: 13, cursor: 'pointer', color: '#888' },
-  btnSave: { background: 'var(--color-blue)', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
+  btnSave: { background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer' },
 }

@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 
 const ROLES = ['gestao', 'pos_venda', 'supervisor', 'montador', 'cliente']
-const ROLE_LABEL = { gestao: 'Gestao', pos_venda: 'Pos-venda', supervisor: 'Supervisor', montador: 'Montador', vendedor: 'Pos-venda', cliente: 'Cliente' }
+const ROLE_LABEL = { gestao: 'Gestão', pos_venda: 'Pós-venda', supervisor: 'Supervisor', montador: 'Montador', vendedor: 'Pós-venda', cliente: 'Cliente' }
 const ROLE_COLOR = { gestao: '#3a5580', pos_venda: '#9070c0', supervisor: '#3a7d4f', montador: '#b09a7a', vendedor: '#9070c0', cliente: '#888' }
 const ROLE_DESC  = {
-  gestao:     'Obras, agenda, equipe e relatorios',
+  gestao:     'Obras, agenda, equipe e relatórios',
   pos_venda:  'Acompanhamento comercial das obras',
   supervisor: 'Obras sob sua responsabilidade',
   montador:   'Tarefas e check-in/check-out',
@@ -54,7 +54,7 @@ function ModalNovoUsuario({ onClose, onSaved }) {
 
   async function salvar() {
     if (!form.full_name || !form.email || !form.senha) { setErro('Preencha nome, e-mail e senha.'); return }
-    if (form.senha.length < 6) { setErro('Senha minima de 6 caracteres.'); return }
+    if (form.senha.length < 6) { setErro('Senha mínima de 6 caracteres.'); return }
     setSaving(true); setErro('')
 
     const { data, error } = await supabase.auth.signUp({
@@ -82,7 +82,7 @@ function ModalNovoUsuario({ onClose, onSaved }) {
     <div style={ms.bg}>
       <div style={{ ...ms.box, textAlign: 'center', padding: '48px 32px' }}>
         <div style={{ fontSize: 44, color: '#C8A86A', marginBottom: 12 }}>✓</div>
-        <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: 24, marginBottom: 8, color: 'var(--color-ink)' }}>Usuario criado!</h2>
+        <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: 24, marginBottom: 8, color: 'var(--color-ink)' }}>Usuário criado!</h2>
         <div style={{ background: '#f9f7f4', border: '1px solid var(--color-border)', borderRadius: 8, padding: '12px 16px', fontSize: 13, marginBottom: 24, textAlign: 'left' }}>
           <div style={{ marginBottom: 4 }}><strong>E-mail:</strong> {form.email}</div>
           <div style={{ marginBottom: 4 }}><strong>Senha:</strong> {form.senha}</div>
@@ -97,7 +97,7 @@ function ModalNovoUsuario({ onClose, onSaved }) {
     <div style={ms.bg} onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={ms.box}>
         <div style={ms.header}>
-          <h2 style={ms.title}>Novo Usuario</h2>
+          <h2 style={ms.title}>Novo Usuário</h2>
           <button style={ms.close} onClick={onClose}>✕</button>
         </div>
         <div style={ms.body}>
@@ -113,7 +113,7 @@ function ModalNovoUsuario({ onClose, onSaved }) {
             </div>
             <div>
               <label style={ms.label}>Senha inicial *</label>
-              <input style={ms.input} type="text" value={form.senha} onChange={e => set('senha', e.target.value)} placeholder="Minimo 6 caracteres" />
+              <input style={ms.input} type="text" value={form.senha} onChange={e => set('senha', e.target.value)} placeholder="Mínimo 6 caracteres" />
             </div>
             <div>
               <label style={ms.label}>Cargo</label>
@@ -140,7 +140,7 @@ function ModalNovoUsuario({ onClose, onSaved }) {
             </div>
             {form.role === 'montador' && supervisores.length > 0 && (
               <div style={ms.full}>
-                <label style={ms.label}>Supervisor responsavel</label>
+                <label style={ms.label}>Supervisor responsável</label>
                 <select style={ms.input} value={form.supervisor_id} onChange={e => set('supervisor_id', e.target.value)}>
                   <option value="">-- Selecione --</option>
                   {supervisores.map(sv => <option key={sv.id} value={sv.id}>{sv.full_name}</option>)}
@@ -152,7 +152,7 @@ function ModalNovoUsuario({ onClose, onSaved }) {
         <div style={ms.footer}>
           <button style={ms.btnCancel} onClick={onClose}>Cancelar</button>
           <button style={ms.btnSave} onClick={salvar} disabled={saving}>
-            {saving ? 'Criando...' : 'Criar Usuario'}
+            {saving ? 'Criando...' : 'Criar Usuário'}
           </button>
         </div>
       </div>
@@ -165,9 +165,9 @@ function DialogDescarte({ onDescartar, onContinuar }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 1500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div style={{ background: '#fff', borderRadius: 14, padding: '28px 28px 22px', maxWidth: 360, width: '100%', boxShadow: '0 8px 40px rgba(0,0,0,0.18)' }}>
-        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-ink)', marginBottom: 8 }}>Descartar alteracoes?</div>
+        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-ink)', marginBottom: 8 }}>Descartar alterações?</div>
         <div style={{ fontSize: 13, color: 'var(--color-ink-muted)', marginBottom: 24, lineHeight: 1.6 }}>
-          Voce fez alteracoes que ainda nao foram salvas. Deseja descartar e fechar?
+          Você fez alterações que ainda não foram salvas. Deseja descartar e fechar?
         </div>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
           <button style={s.btnCancel} onClick={onContinuar}>Continuar editando</button>
@@ -203,7 +203,7 @@ function ItemEditando({ editando, setEditando, supervisores, onSalvar, onCancela
         {isDirty && (
           <div style={s.dirtyBanner}>
             <span style={s.dirtyDot} />
-            Alteracoes nao salvas
+            Alterações não salvas
           </div>
         )}
         <div style={s.editGrid}>
@@ -243,7 +243,7 @@ function ItemEditando({ editando, setEditando, supervisores, onSalvar, onCancela
               style={{ accentColor: 'var(--color-gold)', width: 15, height: 15 }}
             />
             <label htmlFor={'ativo-' + editando.id} style={{ fontSize: 13, color: '#666', cursor: 'pointer' }}>
-              Usuario ativo
+              Usuário ativo
             </label>
           </div>
         </div>
@@ -254,7 +254,7 @@ function ItemEditando({ editando, setEditando, supervisores, onSalvar, onCancela
             onClick={onSalvar}
             disabled={salvando || !isDirty}
           >
-            {salvando ? 'Salvando...' : 'Salvar alteracoes'}
+            {salvando ? 'Salvando...' : 'Salvar alterações'}
           </button>
         </div>
       </div>
@@ -324,7 +324,7 @@ export default function Equipe() {
   const lista = filtro === 'todos' ? profiles : profiles.filter(p => p.role === filtro)
 
   return (
-    <div style={s.page}>
+    <div className="ow-page" style={s.page}>
       <Toast msg={toast.msg} tipo={toast.tipo} />
 
       {modal && (
@@ -337,13 +337,13 @@ export default function Equipe() {
       {/* ── HEADER ──────────────────────────────────────────────────────────── */}
       <div style={s.header}>
         <div>
-          <div style={s.breadcrumb}>Gestao</div>
+          <div style={s.breadcrumb}>Gestão</div>
           <h1 style={s.title}>Equipe</h1>
           <p style={s.sub}>
             {profiles.length} membro{profiles.length !== 1 ? 's' : ''} · {profiles.filter(p => p.ativo !== false).length} ativos
           </p>
         </div>
-        <button style={s.btnNew} onClick={() => setModal(true)}>+ Novo Usuario</button>
+        <button style={s.btnNew} onClick={() => setModal(true)}>+ Novo Usuário</button>
       </div>
 
       {/* ── FILTROS ─────────────────────────────────────────────────────────── */}
@@ -367,7 +367,7 @@ export default function Equipe() {
         <div style={s.emptyBox}>
           <div style={s.emptyIcon}>👥</div>
           <div style={s.emptyTitle}>Nenhum membro encontrado</div>
-          <button style={s.btnNew} onClick={() => setModal(true)}>+ Criar Primeiro Usuario</button>
+          <button style={s.btnNew} onClick={() => setModal(true)}>+ Criar Primeiro Usuário</button>
         </div>
       ) : (
         <div style={s.list}>
@@ -437,12 +437,12 @@ const s = {
   breadcrumb: { fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6 },
   title:      { fontFamily: 'var(--font-serif)', fontSize: 36, fontWeight: 500, color: 'var(--color-ink)', margin: 0 },
   sub:        { fontSize: 13, color: 'var(--color-ink-muted)', marginTop: 4 },
-  btnNew:     { background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' },
+  btnNew:     { background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' },
   filters:    { display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' },
   filterBtn:  { padding: '6px 16px', borderRadius: 20, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' },
   list:       { display: 'flex', flexDirection: 'column', gap: 10 },
 
-  item:       { background: '#fff', borderRadius: 12, padding: '18px 22px', transition: 'border-color 0.2s' },
+  item:       { background: '#fff', borderRadius: 14, padding: '18px 22px', transition: 'border-color 0.2s', boxShadow: 'var(--shadow)', border: '1px solid var(--color-border)' },
   itemRow:    { display: 'flex', alignItems: 'center', gap: 14 },
   avatar:     { width: 44, height: 44, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, flexShrink: 0 },
   itemInfo:   { flex: 1, minWidth: 0 },

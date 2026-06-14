@@ -30,60 +30,61 @@ export default function Login() {
   }
 
   return (
-    <div style={{
-      minHeight: '100vh', background: '#1a1814',
+    <div className="ow-login" style={{
+      minHeight: '100vh', background: '#1D1C19',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontFamily: 'var(--font-sans)', padding: 20,
     }}>
       <div style={{
-        background: '#f5f2ee', borderRadius: 20,
+        background: 'var(--color-bg)', borderRadius: 20,
         padding: '48px 44px', width: '100%', maxWidth: 420,
-        boxShadow: '0 32px 80px rgba(0,0,0,0.4)',
+        boxShadow: 'var(--shadow-lg)',
+        border: '1px solid rgba(184,150,94,0.14)',
       }}>
         <div style={{ textAlign: 'center', marginBottom: 40 }}>
-          <div style={{ fontFamily: 'var(--font-serif)', fontSize: 28, fontWeight: 600, letterSpacing: 6, color: '#1a1814' }}>
+          <div style={{ fontFamily: 'var(--font-serif)', fontSize: 28, fontWeight: 600, letterSpacing: 6, color: 'var(--color-ink)' }}>
             ORNARE
           </div>
-          <div style={{ fontSize: 9, letterSpacing: 4, color: '#b09a7a', marginTop: 4 }}>
+          <div style={{ fontSize: 9, letterSpacing: 4, color: 'var(--color-gold)', marginTop: 4 }}>
             {modo === 'login' ? 'GESTÃO DE OBRAS' : 'RECUPERAÇÃO DE ACESSO'}
           </div>
         </div>
 
         {modo === 'confirmado' ? (
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 32, marginBottom: 16 }}>✉️</div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: '#1a1814', marginBottom: 8 }}>E-mail enviado</div>
-            <div style={{ fontSize: 13, color: '#888', lineHeight: 1.6, marginBottom: 24 }}>
+            <div style={{ fontSize: 32, marginBottom: 16, color: 'var(--color-gold)' }}>✉</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-ink)', marginBottom: 8 }}>E-mail enviado</div>
+            <div style={{ fontSize: 13, color: 'var(--color-ink-muted)', lineHeight: 1.6, marginBottom: 24 }}>
               Verifique sua caixa de entrada e siga as instruções para redefinir sua senha.
             </div>
-            <button onClick={() => setModo('login')} style={{ background: 'none', border: 'none', fontSize: 13, color: '#b09a7a', cursor: 'pointer', textDecoration: 'underline' }}>
+            <button onClick={() => setModo('login')} style={{ background: 'none', border: 'none', fontSize: 13, color: 'var(--color-gold)', cursor: 'pointer', textDecoration: 'underline' }}>
               Voltar ao login
             </button>
           </div>
         ) : (
           <form onSubmit={modo === 'login' ? handleLogin : handleRecuperar}>
             <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 10, letterSpacing: 2, color: '#888', marginBottom: 6, textTransform: 'uppercase' }}>E-mail</div>
+              <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--color-ink-muted)', marginBottom: 6, textTransform: 'uppercase' }}>E-mail</div>
               <input
                 type="email" value={email} onChange={e => setEmail(e.target.value)}
                 required autoComplete="email"
-                style={{ width: '100%', padding: '12px 16px', borderRadius: 10, border: '1.5px solid #e0dbd3', fontSize: 14, fontFamily: 'inherit', background: '#fff', boxSizing: 'border-box', outline: 'none' }}
+                style={{ width: '100%', padding: '12px 16px', borderRadius: 10, border: '1.5px solid var(--color-border)', fontSize: 14, fontFamily: 'inherit', background: '#fff', boxSizing: 'border-box', outline: 'none' }}
               />
             </div>
 
             {modo === 'login' && (
               <div style={{ marginBottom: 8 }}>
-                <div style={{ fontSize: 10, letterSpacing: 2, color: '#888', marginBottom: 6, textTransform: 'uppercase' }}>Senha</div>
+                <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--color-ink-muted)', marginBottom: 6, textTransform: 'uppercase' }}>Senha</div>
                 <input
                   type="password" value={senha} onChange={e => setSenha(e.target.value)}
                   required autoComplete="current-password"
-                  style={{ width: '100%', padding: '12px 16px', borderRadius: 10, border: '1.5px solid #e0dbd3', fontSize: 14, fontFamily: 'inherit', background: '#fff', boxSizing: 'border-box', outline: 'none' }}
+                  style={{ width: '100%', padding: '12px 16px', borderRadius: 10, border: '1.5px solid var(--color-border)', fontSize: 14, fontFamily: 'inherit', background: '#fff', boxSizing: 'border-box', outline: 'none' }}
                 />
               </div>
             )}
 
             {erro && (
-              <div style={{ fontSize: 12, color: '#d94a4a', marginBottom: 12, padding: '8px 12px', background: '#fdecea', borderRadius: 8 }}>
+              <div style={{ fontSize: 12, color: 'var(--color-danger)', marginBottom: 12, padding: '8px 12px', background: '#fdecea', borderRadius: 8 }}>
                 {erro}
               </div>
             )}
@@ -92,9 +93,9 @@ export default function Login() {
               type="submit" disabled={loading}
               style={{
                 width: '100%', padding: '14px', borderRadius: 10,
-                background: loading ? '#888' : '#1a1814',
+                background: loading ? '#888' : 'var(--color-ink)',
                 color: '#f5f2ee', border: 'none', fontSize: 12,
-                fontWeight: 600, letterSpacing: 2, cursor: loading ? 'not-allowed' : 'pointer',
+                fontWeight: 700, letterSpacing: 2, cursor: loading ? 'not-allowed' : 'pointer',
                 marginTop: 8, textTransform: 'uppercase',
               }}
             >
@@ -103,11 +104,11 @@ export default function Login() {
 
             <div style={{ textAlign: 'center', marginTop: 20 }}>
               {modo === 'login' ? (
-                <button type="button" onClick={() => { setModo('recuperar'); setErro('') }} style={{ background: 'none', border: 'none', fontSize: 12, color: '#b09a7a', cursor: 'pointer' }}>
+                <button type="button" onClick={() => { setModo('recuperar'); setErro('') }} style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--color-gold)', cursor: 'pointer' }}>
                   Esqueci minha senha
                 </button>
               ) : (
-                <button type="button" onClick={() => { setModo('login'); setErro('') }} style={{ background: 'none', border: 'none', fontSize: 12, color: '#888', cursor: 'pointer' }}>
+                <button type="button" onClick={() => { setModo('login'); setErro('') }} style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--color-ink-muted)', cursor: 'pointer' }}>
                   ← Voltar ao login
                 </button>
               )}
@@ -116,9 +117,18 @@ export default function Login() {
         )}
       </div>
 
-      <div style={{ position: 'fixed', bottom: 20, fontSize: 10, color: '#555', letterSpacing: 2 }}>
+      <div style={{ position: 'fixed', bottom: 20, fontSize: 10, color: 'rgba(246,243,238,0.42)', letterSpacing: 2 }}>
         ORNARE WORKS · GESTÃO PREMIUM DE OBRAS
       </div>
+
+      <style>{`
+        @media (max-width: 420px) {
+          .ow-login { padding: 14px !important; align-items: stretch !important; }
+          .ow-login > div:first-of-type { padding: 34px 22px !important; border-radius: 16px !important; }
+          .ow-login input, .ow-login button { min-height: 44px; }
+          .ow-login > div:last-of-type { position: static !important; margin-top: 18px; text-align: center; }
+        }
+      `}</style>
     </div>
   )
 }

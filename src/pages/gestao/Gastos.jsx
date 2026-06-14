@@ -16,7 +16,7 @@ const CATEGORIAS = [
 ]
 const CAT = Object.fromEntries(CATEGORIAS.map(c => [c.value, c]))
 
-// Categorias que exigem aprovacao acima de R$ 500
+// Categorias que exigem aprovação acima de R$ 500
 const CATS_APROVACAO = ['terceiros', 'hospedagem', 'frete']
 const LIMITE_APROVACAO = 500
 
@@ -42,19 +42,19 @@ function PainelOrcamento({ obra, gastosObra }) {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
         <div>
-          <div style={{ fontSize: 10, color: '#aaa', marginBottom: 3 }}>Orcamento</div>
+          <div style={{ fontSize: 10, color: '#aaa', marginBottom: 3 }}>Orçamento</div>
           <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-ink)' }}>
             {meta > 0 ? 'R$ ' + meta.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—'}
           </div>
         </div>
         <div>
-          <div style={{ fontSize: 10, color: '#aaa', marginBottom: 3 }}>Ja gasto</div>
+          <div style={{ fontSize: 10, color: '#aaa', marginBottom: 3 }}>Já gasto</div>
           <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-ink)' }}>
             R$ {gasto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </div>
         </div>
         <div>
-          <div style={{ fontSize: 10, color: '#aaa', marginBottom: 3 }}>{saldo < 0 ? 'Excedido' : 'Disponivel'}</div>
+          <div style={{ fontSize: 10, color: '#aaa', marginBottom: 3 }}>{saldo < 0 ? 'Excedido' : 'Disponível'}</div>
           <div style={{ fontSize: 18, fontWeight: 700, color: corSaldo }}>
             {meta > 0 ? 'R$ ' + Math.abs(saldo).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—'}
           </div>
@@ -68,7 +68,7 @@ function PainelOrcamento({ obra, gastosObra }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#aaa' }}>
             <span>{pct}% utilizado</span>
             {pct >= 90 && <span style={{ color: '#B84040', fontWeight: 600 }}>Limite critico atingido</span>}
-            {pct >= 70 && pct < 90 && <span style={{ color: '#C8A86A', fontWeight: 600 }}>Atencao ao orcamento</span>}
+            {pct >= 70 && pct < 90 && <span style={{ color: 'var(--color-gold)', fontWeight: 600 }}>Atenção ao orçamento</span>}
           </div>
         </>
       )}
@@ -145,7 +145,7 @@ function Modal({ obras, profiles, todosGastos, onClose, onSaved }) {
             </select>
           </div>
 
-          {/* painel de contexto de orcamento */}
+          {/* painel de contexto de orçamento */}
           {form.obra_id && (
             <PainelOrcamento obra={obraSelecionada} gastosObra={gastosObraSel} />
           )}
@@ -153,23 +153,23 @@ function Modal({ obras, profiles, todosGastos, onClose, onSaved }) {
           {/* alerta de excedente */}
           {excedeMeta && valorNum > 0 && (
             <div style={ms.alertaExcede}>
-              ⚠️ Este lancamento excederia o orcamento em{' '}
+              ⚠️ Este lançamento excederia o orçamento em{' '}
               <strong>R$ {(gastoPosLanc - metaObra).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>.
               O gasto sera salvo mas ficara marcado para revisao.
             </div>
           )}
 
-          {/* alerta de aprovacao */}
+          {/* alerta de aprovação */}
           {precisaAprovacao && (
             <div style={ms.alertaAprovacao}>
-              🔒 Gastos de <strong>{CAT[form.categoria]?.label}</strong> acima de R$ {LIMITE_APROVACAO.toLocaleString('pt-BR')} requerem aprovacao da gestao.
-              Este lancamento ficara como <strong>pendente</strong> ate ser aprovado.
+              🔒 Gastos de <strong>{CAT[form.categoria]?.label}</strong> acima de R$ {LIMITE_APROVACAO.toLocaleString('pt-BR')} requerem aprovação da gestão.
+              Este lançamento ficará como <strong>pendente</strong> até ser aprovado.
             </div>
           )}
 
           <div style={ms.grid}>
             <div style={ms.full}>
-              <label style={ms.label}>Descricao *</label>
+              <label style={ms.label}>Descrição *</label>
               <input style={ms.input} value={form.descricao}
                 onChange={e => set('descricao', e.target.value)}
                 placeholder="Ex: Combustivel ida a obra..." />
@@ -198,7 +198,7 @@ function Modal({ obras, profiles, todosGastos, onClose, onSaved }) {
             </div>
 
             <div>
-              <label style={ms.label}>Responsavel</label>
+              <label style={ms.label}>Responsável</label>
               <select style={ms.input} value={form.responsavel_id} onChange={e => set('responsavel_id', e.target.value)}>
                 <option value="">— Selecione —</option>
                 {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
@@ -219,11 +219,11 @@ function Modal({ obras, profiles, todosGastos, onClose, onSaved }) {
             </div>
 
             <div style={ms.full}>
-              <label style={ms.label}>Observacao</label>
+              <label style={ms.label}>Observação</label>
               <textarea style={{ ...ms.input, height: 64, resize: 'vertical' }}
                 value={form.observacao}
                 onChange={e => set('observacao', e.target.value)}
-                placeholder="Informacoes adicionais..." />
+                placeholder="Informações adicionais..." />
             </div>
           </div>
         </div>
@@ -232,7 +232,7 @@ function Modal({ obras, profiles, todosGastos, onClose, onSaved }) {
           <button style={ms.btnCancel} onClick={onClose}>Cancelar</button>
           <button style={{ ...ms.btnSave, background: precisaAprovacao ? '#C8A86A' : 'var(--color-gold)' }}
             onClick={salvar} disabled={saving}>
-            {saving ? 'Salvando...' : precisaAprovacao ? 'Enviar para aprovacao' : 'Salvar Gasto'}
+            {saving ? 'Salvando...' : precisaAprovacao ? 'Enviar para aprovação' : 'Salvar Gasto'}
           </button>
         </div>
       </div>
@@ -272,12 +272,12 @@ function ModalAprovacao({ gasto, onClose, onAprovado }) {
               R$ {parseFloat(gasto.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </div>
           </div>
-          <label style={ms.label}>Justificativa (obrigatoria para recusar)</label>
+          <label style={ms.label}>Justificativa (obrigatória para recusar)</label>
           <textarea
             style={{ ...ms.input, height: 72, resize: 'vertical', marginBottom: 16 }}
             value={justificativa}
             onChange={e => setJustificativa(e.target.value)}
-            placeholder="Comentario opcional para aprovacao, obrigatorio para recusa..." />
+            placeholder="Comentário opcional para aprovação, obrigatório para recusa..." />
           <div style={{ display: 'flex', gap: 10 }}>
             <button onClick={recusar} disabled={salvando || !justificativa.trim()} style={{ flex: 1, background: '#fdecea', color: '#B84040', border: 'none', borderRadius: 8, padding: '10px 0', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
               Recusar
@@ -303,7 +303,7 @@ export default function Gastos() {
   const [filtroCategoria, setFiltroCategoria] = useState('')
   const [filtroStatus,    setFiltroStatus]    = useState('')
   const [modal,           setModal]           = useState(false)
-  const [gastoPendente,   setGastoPendente]   = useState(null) // para modal de aprovacao
+  const [gastoPendente,   setGastoPendente]   = useState(null) // para modal de aprovação
   const [toast,           setToast]           = useState('')
 
   useEffect(() => { carregar() }, [])
@@ -350,7 +350,7 @@ export default function Gastos() {
   }
 
   return (
-    <div style={s.page}>
+    <div className="ow-page" style={s.page}>
 
       {/* Toast */}
       {toast && (
@@ -366,7 +366,7 @@ export default function Gastos() {
           onSaved={(precisouAprovacao) => {
             setModal(false)
             carregar()
-            mostrarToast(precisouAprovacao ? 'Gasto enviado para aprovacao da gestao.' : 'Gasto registrado com sucesso.')
+            mostrarToast(precisouAprovacao ? 'Gasto enviado para aprovação da gestão.' : 'Gasto registrado com sucesso.')
           }}
         />
       )}
@@ -382,18 +382,18 @@ export default function Gastos() {
       {/* ── HEADER ──────────────────────────────────────────────────────────── */}
       <div style={s.header}>
         <div>
-          <div style={s.breadcrumb}>Gestao</div>
+          <div style={s.breadcrumb}>Gestão</div>
           <h1 style={s.title}>Gastos</h1>
           <p style={s.sub}>Controle financeiro de todas as obras</p>
         </div>
-        <button style={s.btnNew} onClick={() => setModal(true)}>+ Lancar Gasto</button>
+        <button style={s.btnNew} onClick={() => setModal(true)}>+ Lançar Gasto</button>
       </div>
 
       {/* ── APROVACOES PENDENTES ─────────────────────────────────────────────── */}
       {pendentes.length > 0 && (
         <div style={s.pendentesBox}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#C8A86A' }}>🔒 Aprovacoes pendentes ({pendentes.length})</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-gold)' }}>🔒 Aprovações pendentes ({pendentes.length})</span>
           </div>
           {pendentes.map(g => (
             <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 0', borderBottom: '1px solid #e8d9b8' }}>
@@ -427,7 +427,7 @@ export default function Gastos() {
           <div style={s.statValue}>{new Set(lista.map(g => g.obra_id).filter(Boolean)).size}</div>
         </div>
         <div style={{ ...s.stat, borderLeft: pendentes.length > 0 ? '3px solid #C8A86A' : '1px solid var(--color-border)' }}>
-          <div style={s.statLabel}>Pendentes aprovacao</div>
+          <div style={s.statLabel}>Pendentes aprovação</div>
           <div style={{ ...s.statValue, color: pendentes.length > 0 ? '#C8A86A' : 'var(--color-ink)' }}>{pendentes.length}</div>
         </div>
       </div>
@@ -474,9 +474,9 @@ export default function Gastos() {
       ) : lista.length === 0 ? (
         <div style={s.emptyBox}>
           <div style={s.emptyIcon}>💰</div>
-          <div style={s.emptyTitle}>Nenhum gasto lancado</div>
+          <div style={s.emptyTitle}>Nenhum gasto lançado</div>
           <div style={s.emptySub}>Registre os gastos operacionais das obras</div>
-          <button style={s.btnNew} onClick={() => setModal(true)}>+ Lancar Primeiro Gasto</button>
+          <button style={s.btnNew} onClick={() => setModal(true)}>+ Lançar Primeiro Gasto</button>
         </div>
       ) : (
         <div style={s.list}>
@@ -530,13 +530,13 @@ const s = {
   breadcrumb:   { fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6 },
   title:        { fontFamily: 'var(--font-serif)', fontSize: 36, fontWeight: 500, color: 'var(--color-ink)', margin: 0 },
   sub:          { fontSize: 13, color: 'var(--color-ink-muted)', marginTop: 4 },
-  btnNew:       { background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' },
+  btnNew:       { background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' },
   pendentesBox: { background: '#fdf8f0', border: '1px solid #e8d9b8', borderLeft: '3px solid #C8A86A', borderRadius: 12, padding: '16px 20px', marginBottom: 24 },
   statsGrid:    { display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 24 },
-  stat:         { background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '18px 22px' },
+  stat:         { background: '#fff', border: '1px solid var(--color-border)', borderRadius: 14, padding: '18px 22px', boxShadow: 'var(--shadow)' },
   statLabel:    { fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 8 },
   statValue:    { fontSize: 26, fontWeight: 700, color: 'var(--color-ink)' },
-  card:         { background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, padding: '18px 22px', marginBottom: 20 },
+  card:         { background: '#fff', border: '1px solid var(--color-border)', borderRadius: 14, padding: '18px 22px', marginBottom: 20, boxShadow: 'var(--shadow)' },
   cardLabel:    { fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 14 },
   catRow:       { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 },
   catDot:       { width: 8, height: 8, borderRadius: '50%', flexShrink: 0 },
@@ -548,7 +548,7 @@ const s = {
   filters:      { display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' },
   select:       { padding: '8px 12px', borderRadius: 8, border: '1px solid var(--color-border)', fontSize: 13, fontFamily: 'inherit', background: '#fff', color: 'var(--color-ink)' },
   list:         { display: 'flex', flexDirection: 'column', gap: 8 },
-  item:         { background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', transition: 'border-color .15s' },
+  item:         { background: '#fff', border: '1px solid var(--color-border)', borderRadius: 14, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', transition: 'border-color .15s', boxShadow: 'var(--shadow)' },
   itemDot:      { width: 10, height: 10, borderRadius: '50%', flexShrink: 0 },
   itemBody:     { flex: 1, minWidth: 0 },
   itemTitle:    { fontSize: 14, fontWeight: 600, color: 'var(--color-ink)' },

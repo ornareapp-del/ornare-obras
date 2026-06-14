@@ -5,10 +5,10 @@ import { supabase } from '../../lib/supabase'
 const ST = {
   'Em montagem':       { label: 'Em montagem',       bg: '#edf7f0', color: '#3a7d4f', dot: '#5aab6e' },
   'Em andamento':      { label: 'Em andamento',      bg: '#edf7f0', color: '#3a7d4f', dot: '#5aab6e' },
-  'Concluida':         { label: 'Concluida',         bg: '#eef2f8', color: '#3a5580', dot: '#7090c0' },
+  'Concluida':         { label: 'Concluída',         bg: '#eef2f8', color: '#3a5580', dot: '#7090c0' },
   'Pausada':           { label: 'Pausada',           bg: '#fdf3e3', color: '#a0692a', dot: '#d4a055' },
   'Cancelada':         { label: 'Cancelada',         bg: '#fdecea', color: '#a03030', dot: '#d45555' },
-  'Aguardando inicio': { label: 'Ag. inicio',        bg: '#f5f5f5', color: '#616161', dot: '#9E9E9E' },
+  'Aguardando inicio': { label: 'Ag. início',        bg: '#f5f5f5', color: '#616161', dot: '#9E9E9E' },
   'Montagem agendada': { label: 'Mont. agendada',    bg: '#E3F2FD', color: '#1565C0', dot: '#1565C0' },
   'Planejamento':      { label: 'Planejamento',      bg: '#f5f0ff', color: '#6040a0', dot: '#9070c0' },
 }
@@ -36,7 +36,7 @@ export default function Obras() {
 
   async function excluir(obra, e) {
     e.stopPropagation()
-    if (!window.confirm('Excluir a obra "' + obra.nome + '"? Esta acao nao pode ser desfeita.')) return
+    if (!window.confirm('Excluir a obra "' + obra.nome + '"? Esta ação não pode ser desfeita.')) return
     await supabase.from('obras').delete().eq('id', obra.id)
     await carregar()
   }
@@ -59,7 +59,7 @@ export default function Obras() {
   const obrasFiltradas = filtro === 'Todas' ? obras : obras.filter(o => o.status === filtro)
 
   return (
-    <div style={s.page}>
+    <div className="ow-page" style={s.page}>
 
       {editModal && (
         <div style={s.modalBg} onClick={e => e.target === e.currentTarget && setEditModal(null)}>
@@ -89,11 +89,11 @@ export default function Obras() {
                   <I type="number" min="0" max="100" value={editModal.progresso || 0} onChange={v => setEditModal(p => ({ ...p, progresso: v }))} />
                 </div>
                 <div>
-                  <L>Previsao de termino</L>
+                  <L>Previsão de término</L>
                   <I type="date" value={editModal.data_previsao || ''} onChange={v => setEditModal(p => ({ ...p, data_previsao: v }))} />
                 </div>
                 <div style={s.full}>
-                  <L>Observacoes</L>
+                  <L>Observações</L>
                   <textarea value={editModal.observacoes || ''} onChange={e => setEditModal(p => ({ ...p, observacoes: e.target.value }))} rows={3} style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1px solid #ddd', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box', outline: 'none' }} />
                 </div>
               </div>
@@ -110,7 +110,7 @@ export default function Obras() {
 
       <div style={s.header}>
         <div>
-          <div style={s.breadcrumb}>Gestao</div>
+          <div style={s.breadcrumb}>Gestão</div>
           <h1 style={s.title}>Obras</h1>
           <p style={s.sub}>{obras.length} obra{obras.length !== 1 ? 's' : ''} cadastrada{obras.length !== 1 ? 's' : ''}</p>
         </div>
@@ -197,11 +197,11 @@ const s = {
   breadcrumb: { fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6 },
   title: { fontFamily: 'var(--font-serif)', fontSize: 36, fontWeight: 500, color: 'var(--color-ink)', margin: 0 },
   sub: { fontSize: 13, color: 'var(--color-ink-muted)', marginTop: 4 },
-  btnNew: { background: 'var(--color-blue)', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' },
+  btnNew: { background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' },
   filtros: { display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' },
   filtroBtn: { padding: '6px 16px', borderRadius: 20, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' },
   list: { display: 'flex', flexDirection: 'column', gap: 10 },
-  card: { background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, overflow: 'hidden' },
+  card: { background: '#fff', border: '1px solid var(--color-border)', borderRadius: 14, overflow: 'hidden', boxShadow: 'var(--shadow)' },
   cardMain: { display: 'flex', alignItems: 'center', gap: 16, padding: '18px 20px', cursor: 'pointer' },
   dot: { width: 10, height: 10, borderRadius: '50%', flexShrink: 0 },
   cardInfo: { flex: 1, minWidth: 0 },
@@ -228,7 +228,7 @@ const s = {
   modalBody: { overflowY: 'auto', padding: '20px 28px', flex: 1 },
   modalFooter: { display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '16px 28px', borderTop: '1px solid #f0ece6', flexShrink: 0 },
   btnCancel: { background: 'none', border: '1px solid var(--color-border)', borderRadius: 8, padding: '9px 18px', fontSize: 13, cursor: 'pointer', color: '#888', fontFamily: 'inherit' },
-  btnSave: { background: 'var(--color-blue)', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
+  btnSave: { background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer' },
   grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 },
   full: { gridColumn: '1/-1' },
 }

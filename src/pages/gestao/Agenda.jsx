@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 
-const TIPOS = ['Apresentacao','Assistencia Tecnica','Compromisso','Entrega','Medicao','Montagem','Tarefa','Reuniao Interna']
+const TIPOS = ['Apresentação','Assistência Técnica','Compromisso','Entrega','Medição','Montagem','Tarefa','Reunião Interna']
 const MESES = ['Janeiro','Fevereiro','Marco','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 const DIAS = ['Dom','Seg','Ter','Qua','Qui','Sex','Sab']
 const TIPO_COR = {
   'Montagem': '#3a7d4f', 'Entrega': '#3a5580', 'Medicao': '#9070c0',
-  'Assistencia Tecnica': '#d94a4a', 'Reuniao Interna': '#b09a7a',
+  'Assistência Técnica': '#d94a4a', 'Reunião Interna': '#b09a7a',
   'Apresentacao': '#4a90d9', 'Compromisso': '#888', 'Tarefa': '#b09a7a',
 }
 
@@ -77,7 +77,7 @@ export default function Agenda() {
   const lista = filtro === 'proximos' ? proximos : passados
 
   return (
-    <div style={s.page}>
+    <div className="ow-page" style={s.page}>
 
       {modal && (
         <div style={s.modalBg} onClick={e => e.target === e.currentTarget && setModal(false)}>
@@ -99,7 +99,7 @@ export default function Agenda() {
                   </Sel>
                 </div>
                 <div>
-                  <L>Responsavel</L>
+                  <L>Responsável</L>
                   <Sel value={form.responsavel_id} onChange={v => setForm(p => ({ ...p, responsavel_id: v }))}>
                     <option value="">Sem responsavel</option>
                     {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
@@ -129,12 +129,12 @@ export default function Agenda() {
                   </Sel>
                 </div>
                 <div style={s.full}>
-                  <L>Descricao</L>
+                  <L>Descrição</L>
                   <textarea value={form.descricao} onChange={e => setForm(p => ({ ...p, descricao: e.target.value }))} rows={2} placeholder="Detalhes do evento..." style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1px solid #ddd', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box', outline: 'none' }} />
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <input type="checkbox" id="ri" checked={form.reuniao_interna} onChange={e => setForm(p => ({ ...p, reuniao_interna: e.target.checked, obra_id: '' }))} />
-                  <label htmlFor="ri" style={{ fontSize: 13, color: 'var(--color-ink-muted)', cursor: 'pointer' }}>Reuniao Interna</label>
+                  <label htmlFor="ri" style={{ fontSize: 13, color: 'var(--color-ink-muted)', cursor: 'pointer' }}>Reunião Interna</label>
                 </div>
               </div>
             </div>
@@ -150,7 +150,7 @@ export default function Agenda() {
 
       <div style={s.header}>
         <div>
-          <div style={s.breadcrumb}>Gestao</div>
+          <div style={s.breadcrumb}>Gestão</div>
           <h1 style={s.title}>Agenda</h1>
           <p style={s.sub}>{MESES[hoje.getMonth()]} {hoje.getFullYear()}</p>
         </div>
@@ -159,7 +159,7 @@ export default function Agenda() {
 
       <div style={s.filtros}>
         {[
-          { id: 'proximos', label: 'Proximos (' + proximos.length + ')' },
+          { id: 'proximos', label: 'Próximos (' + proximos.length + ')' },
           { id: 'passados', label: 'Anteriores (' + passados.length + ')' },
         ].map(f => (
           <button key={f.id} onClick={() => setFiltro(f.id)} style={{
@@ -205,7 +205,7 @@ export default function Agenda() {
                   <div style={s.cardTop}>
                     <span style={s.cardTitulo}>{ev.titulo}</span>
                     <span style={{ ...s.tipoBadge, background: cor + '18', color: cor }}>{ev.tipo}</span>
-                    {ev.reuniao_interna && <span style={{ ...s.tipoBadge, background: '#eef2f8', color: '#3a5580' }}>Reuniao Interna</span>}
+                    {ev.reuniao_interna && <span style={{ ...s.tipoBadge, background: '#eef2f8', color: '#3a5580' }}>Reunião Interna</span>}
                     {isHoje && <span style={{ ...s.tipoBadge, background: '#edf7f0', color: '#3a7d4f' }}>Hoje</span>}
                   </div>
                   {ev.descricao && <div style={s.cardDesc}>{ev.descricao}</div>}
@@ -213,7 +213,7 @@ export default function Agenda() {
                     {ev.hora_inicio && <span>{ev.hora_inicio.slice(0, 5)}{ev.hora_fim ? ' - ' + ev.hora_fim.slice(0, 5) : ''}</span>}
                     {ev.obras?.nome && <span>Obra: {ev.obras.nome}</span>}
                     {ev.responsavel?.full_name && <span>{ev.responsavel.full_name}</span>}
-                    {ev.data_fim && ev.data_fim !== ev.data && <span>Ate {new Date(ev.data_fim + 'T00:00:00').toLocaleDateString('pt-BR')}</span>}
+                    {ev.data_fim && ev.data_fim !== ev.data && <span>Até {new Date(ev.data_fim + 'T00:00:00').toLocaleDateString('pt-BR')}</span>}
                   </div>
                 </div>
                 <button onClick={() => excluir(ev.id)} style={s.btnExcluir}>X</button>
@@ -236,10 +236,10 @@ const s = {
   breadcrumb: { fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6 },
   title: { fontFamily: 'var(--font-serif)', fontSize: 36, fontWeight: 500, color: 'var(--color-ink)', margin: 0 },
   sub: { fontSize: 13, color: 'var(--color-ink-muted)', marginTop: 4 },
-  btnNew: { background: 'var(--color-blue)', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
+  btnNew: { background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer' },
   filtros: { display: 'flex', gap: 8, marginBottom: 20 },
   filtroBtn: { padding: '7px 16px', borderRadius: 20, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' },
-  card: { display: 'flex', gap: 16, background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 18px', marginBottom: 10, alignItems: 'flex-start' },
+  card: { display: 'flex', gap: 16, background: '#fff', border: '1px solid var(--color-border)', borderRadius: 14, padding: '14px 18px', marginBottom: 10, alignItems: 'flex-start', boxShadow: 'var(--shadow)' },
   datebox: { minWidth: 52, textAlign: 'center', border: '1px solid', borderRadius: 8, padding: '8px 0', flexShrink: 0 },
   cardBody: { flex: 1, minWidth: 0 },
   cardTop: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 },
@@ -261,7 +261,7 @@ const s = {
   modalBody: { overflowY: 'auto', padding: '20px 28px', flex: 1 },
   modalFooter: { display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '16px 28px', borderTop: '1px solid #f0ece6', flexShrink: 0 },
   btnCancel: { background: 'none', border: '1px solid var(--color-border)', borderRadius: 8, padding: '9px 18px', fontSize: 13, cursor: 'pointer', color: '#888' },
-  btnSave: { background: 'var(--color-blue)', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
+  btnSave: { background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer' },
   grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 },
   full: { gridColumn: '1/-1' },
 }
