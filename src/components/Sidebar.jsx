@@ -2,7 +2,7 @@
 import { supabase } from '../lib/supabase'
 import { useStore } from '../store/useStore'
 
-// ─── DEFINICAO DO MENU POR ROLE ───────────────────────────────────────────────
+// Definicao do menu por role.
 //
 // readOnly: true  → chip "somente leitura" exibido ao lado do label
 // roles: []       → quais roles enxergam este item
@@ -12,6 +12,8 @@ const NAV_ITEMS = [
     to: '/dashboard',
     label: 'Dashboard',
     icon: IconGrid,
+    group: 'Operação',
+    color: '#B8965E',
     end: true,
     roles: ['gestao'],
   },
@@ -19,61 +21,79 @@ const NAV_ITEMS = [
     to: '/obras',
     label: 'Obras',
     icon: IconBuilding,
+    group: 'Operação',
+    color: '#365C7D',
     roles: ['gestao', 'supervisor', 'pos_venda'],
     readOnly: ['pos_venda'],
-  },
-  {
-    to: '/tarefas',
-    label: 'Tarefas',
-    icon: IconCheck,
-    roles: ['gestao', 'supervisor'],
-  },
-  {
-    to: '/agenda',
-    label: 'Agenda',
-    icon: IconCalendar,
-    roles: ['gestao', 'supervisor', 'pos_venda'],
   },
   {
     to: '/planejamento',
     label: 'Planejamento',
     icon: IconTimeline,
+    group: 'Operação',
+    color: '#7A5AA6',
     roles: ['gestao', 'supervisor', 'pos_venda'],
     readOnly: ['pos_venda'],
   },
   {
-    to: '/biblioteca-mestre',
-    label: 'Biblioteca Mestre',
+    to: '/agenda',
+    label: 'Agenda',
+    icon: IconCalendar,
+    group: 'Operação',
+    color: '#2D7A4A',
+    roles: ['gestao', 'supervisor', 'pos_venda'],
+  },
+  {
+    to: '/tarefas',
+    label: 'Tarefas',
     icon: IconCheck,
+    group: 'Controle',
+    color: '#2D7A4A',
+    roles: ['gestao', 'supervisor'],
+  },
+  {
+    to: '/ocorrencias',
+    label: 'Ocorrências',
+    icon: IconAlert,
+    group: 'Controle',
+    color: '#B84040',
     roles: ['gestao', 'supervisor'],
   },
   {
     to: '/equipe',
     label: 'Equipe',
     icon: IconUsers,
+    group: 'Equipe',
+    color: '#365C7D',
     roles: ['gestao', 'supervisor'],  // supervisor gerencia montadores
-  },
-  {
-    to: '/ocorrencias',
-    label: 'Ocorrencias',
-    icon: IconAlert,
-    roles: ['gestao', 'supervisor'],
   },
   {
     to: '/gastos',
     label: 'Gastos',
     icon: IconReceipt,
+    group: 'Financeiro',
+    color: '#A36F22',
+    roles: ['gestao', 'supervisor'],
+  },
+  {
+    to: '/biblioteca-mestre',
+    label: 'Biblioteca Mestre',
+    icon: IconCheck,
+    group: 'Administração',
+    color: '#B8965E',
     roles: ['gestao', 'supervisor'],
   },
 ]
 
-// Label amigavel por role (exibido embaixo do nome do usuario)
+const GROUP_ORDER = ['Operação', 'Controle', 'Equipe', 'Financeiro', 'Administração']
+
+// Label amigavel por role.
 const ROLE_LABEL = {
-  gestao:     'Gestao',
+  gestao:     'Gestão',
   supervisor: 'Supervisor',
   montador:   'Montador',
-  pos_venda:  'Pos-venda',
-  vendedor:   'Pos-venda',
+  pos_venda:  'Pós-venda',
+  vendedor:   'Pós-venda',
   cliente:    'Cliente',
 }
 
@@ -90,6 +110,9 @@ export default function Sidebar({ collapsed, setCollapsed, isMobile }) {
 
   // filtra itens visiveis para o role atual
   const navVisivel = NAV_ITEMS.filter(item => item.roles.includes(role))
+  const grupos = GROUP_ORDER
+    .map(nome => ({ nome, itens: navVisivel.filter(item => item.group === nome) }))
+    .filter(grupo => grupo.itens.length > 0)
 
   async function logout() {
     await supabase.auth.signOut()
@@ -113,7 +136,7 @@ export default function Sidebar({ collapsed, setCollapsed, isMobile }) {
       borderRight: '1px solid rgba(200,168,106,0.10)',
     }}>
 
-      {/* ── LOGO ──────────────────────────────────────────────────────────── */}
+      {/* Logo */}
       <div style={{
         padding: collapsed && !isMobile ? '18px 0' : '18px 16px 16px',
         borderBottom: '1px solid rgba(255,255,255,0.06)',
@@ -154,83 +177,86 @@ export default function Sidebar({ collapsed, setCollapsed, isMobile }) {
         )}
       </div>
 
-      {/* ── NAV ───────────────────────────────────────────────────────────── */}
+      {/* Navegacao */}
       <nav style={{ flex: 1, padding: '10px 0', overflowY: 'auto', overflowX: 'hidden' }}>
-        {!collapsed && (
-          <div style={{ fontSize: 8, letterSpacing: 2.5, color: 'rgba(200,168,106,0.45)', textTransform: 'uppercase', padding: '10px 16px 8px', fontWeight: 600 }}>
-            Menu
-          </div>
-        )}
+        {grupos.map(grupo => (
+          <div key={grupo.nome} style={{ paddingTop: collapsed && !isMobile ? 4 : 8 }}>
+            {(!collapsed || isMobile) && (
+              <div style={{ fontSize: 8, letterSpacing: 2.2, color: 'rgba(200,168,106,0.48)', textTransform: 'uppercase', padding: '8px 16px 6px', fontWeight: 800 }}>
+                {grupo.nome}
+              </div>
+            )}
 
-        {navVisivel.map(({ to, label, icon: Icon, end, readOnly: roItem }) => {
-          const somenteLeitura = isReadOnly({ readOnly: roItem })
-          return (
-            <NavLink
-              key={to}
-              to={to}
-              end={end}
-              onClick={() => isMobile && setCollapsed(true)}
-              style={({ isActive }) => ({
-                display: 'flex', alignItems: 'center',
-                gap: 10,
-                padding: collapsed && !isMobile ? '11px 0' : '9px 12px',
-                margin: collapsed && !isMobile ? '2px 0' : '2px 8px',
-                justifyContent: collapsed && !isMobile ? 'center' : 'flex-start',
-                fontSize: 13,
-                fontWeight: isActive ? 600 : 400,
-                color: isActive ? '#fff' : C.navMuted,
-                borderRadius: collapsed && !isMobile ? 0 : 8,
-                background: isActive ? 'rgba(200,168,106,0.14)' : 'transparent',
-                transition: 'all 0.15s',
-                whiteSpace: 'nowrap',
-                position: 'relative',
-                textDecoration: 'none',
-                fontFamily: 'inherit',
-              })}
-              title={collapsed && !isMobile ? label : ''}
-            >
-              {({ isActive }) => (
-                <>
-                  {/* indicador lateral dourado no item ativo */}
-                  {!collapsed && !isMobile && isActive && (
-                    <div style={{
-                      position: 'absolute', left: 0, top: '18%', bottom: '18%',
-                      width: 3, background: C.gold, borderRadius: '0 2px 2px 0',
-                    }} />
-                  )}
+            {grupo.itens.map(({ to, label, icon: Icon, end, readOnly: roItem, color }) => {
+              const somenteLeitura = isReadOnly({ readOnly: roItem })
+              return (
+                <NavLink
+                  key={to}
+                  to={to}
+                  end={end}
+                  onClick={() => isMobile && setCollapsed(true)}
+                  style={({ isActive }) => ({
+                    display: 'flex', alignItems: 'center',
+                    gap: 10,
+                    padding: collapsed && !isMobile ? '11px 0' : '9px 12px',
+                    margin: collapsed && !isMobile ? '2px 0' : '2px 8px',
+                    justifyContent: collapsed && !isMobile ? 'center' : 'flex-start',
+                    fontSize: 13,
+                    fontWeight: isActive ? 700 : 500,
+                    color: isActive ? '#fff' : C.navMuted,
+                    borderRadius: collapsed && !isMobile ? 0 : 9,
+                    background: isActive ? 'rgba(200,168,106,0.16)' : 'transparent',
+                    transition: 'all 0.15s',
+                    whiteSpace: 'nowrap',
+                    position: 'relative',
+                    textDecoration: 'none',
+                    fontFamily: 'inherit',
+                  })}
+                  title={collapsed && !isMobile ? label : ''}
+                >
+                  {({ isActive }) => (
+                    <>
+                      {!collapsed && !isMobile && isActive && (
+                        <div style={{
+                          position: 'absolute', left: 0, top: '18%', bottom: '18%',
+                          width: 3, background: color || C.gold, borderRadius: '0 2px 2px 0',
+                        }} />
+                      )}
 
-                  {/* icone */}
-                  <span style={{
-                    display: 'flex', alignItems: 'center', flexShrink: 0,
-                    color: isActive ? C.gold : C.navMuted,
-                    transition: 'color 0.15s',
-                  }}>
-                    <Icon />
-                  </span>
+                      <span style={{
+                        width: 25, height: 25, borderRadius: 8,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                        color: isActive ? '#fff' : color,
+                        background: isActive ? color : `${color}22`,
+                        transition: 'all 0.15s',
+                      }}>
+                        <Icon />
+                      </span>
 
-                  {/* label + chip readonly */}
-                  {(!collapsed || isMobile) && (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
-                      <span style={{ flex: 1 }}>{label}</span>
-                      {somenteLeitura && (
-                        <span style={{
-                          fontSize: 8, letterSpacing: 0.5, color: 'rgba(200,168,106,0.5)',
-                          background: 'rgba(200,168,106,0.08)', borderRadius: 4,
-                          padding: '2px 5px', fontWeight: 500, whiteSpace: 'nowrap',
-                        }}>
-                          leitura
+                      {(!collapsed || isMobile) && (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                          <span style={{ flex: 1 }}>{label}</span>
+                          {somenteLeitura && (
+                            <span style={{
+                              fontSize: 8, letterSpacing: 0.5, color: 'rgba(200,168,106,0.62)',
+                              background: 'rgba(200,168,106,0.08)', borderRadius: 4,
+                              padding: '2px 5px', fontWeight: 700, whiteSpace: 'nowrap',
+                            }}>
+                              leitura
+                            </span>
+                          )}
                         </span>
                       )}
-                    </span>
+                    </>
                   )}
-                </>
-              )}
-            </NavLink>
-          )
-        })}
+                </NavLink>
+              )
+            })}
+          </div>
+        ))}
       </nav>
 
-      {/* ── USUARIO + LOGOUT ──────────────────────────────────────────────── */}
+      {/* Usuario + logout */}
       <div style={{
         padding: collapsed && !isMobile ? '12px 0' : '12px 10px',
         borderTop: '1px solid rgba(255,255,255,0.06)',
@@ -253,7 +279,7 @@ export default function Sidebar({ collapsed, setCollapsed, isMobile }) {
             {/* nome e role */}
             <div style={{ overflow: 'hidden' }}>
               <div style={{ fontSize: 12, fontWeight: 500, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {profile?.full_name?.split(' ')[0] || 'Usuario'}
+                {profile?.full_name?.split(' ')[0] || 'Usuário'}
                 {profile?.full_name?.split(' ')[1] ? ' ' + profile.full_name.split(' ')[1][0] + '.' : ''}
               </div>
               <div style={{ fontSize: 9, color: C.gold, textTransform: 'uppercase', letterSpacing: 1, marginTop: 1 }}>

@@ -9,7 +9,7 @@ import { exportarRelatorioObra } from '../../services/pdfService'
 const ST = {
   'Em montagem':         { label: 'Em montagem',        bg: '#edf7f0', color: '#3a7d4f' },
   'Em andamento':        { label: 'Em andamento',        bg: '#edf7f0', color: '#3a7d4f' },
-  'Concluida':           { label: 'Concluida',           bg: '#eef2f8', color: '#3a5580' },
+  'Concluida':           { label: 'Concluída',           bg: '#eef2f8', color: '#3a5580' },
   'Pausada':             { label: 'Pausada',             bg: '#fdf3e3', color: '#a0692a' },
   'Cancelada':           { label: 'Cancelada',           bg: '#fdecea', color: '#a03030' },
   'Planejamento':        { label: 'Planejamento',        bg: '#f5f0ff', color: '#6040a0' },
@@ -24,7 +24,7 @@ const ST = {
 const STATUS_TAREFA = {
   pendente:     { label: 'Pendente',     color: '#b09a7a' },
   em_andamento: { label: 'Em andamento', color: '#4a90d9' },
-  concluida:    { label: 'Concluida',    color: '#5aab6e' },
+  concluida:    { label: 'Concluída',    color: '#5aab6e' },
   bloqueada:    { label: 'Bloqueada',    color: '#d94a4a' },
 }
 const PRIORIDADE = {
@@ -47,7 +47,7 @@ const RISCOS_CRONOGRAMA = ['baixo', 'medio', 'alto']
 const SECOES = [
   { id: 'Resumo', label: 'Resumo' },
   { id: 'Cliente', label: 'Cliente' },
-  { id: 'Endereco', label: 'Endereco' },
+  { id: 'Endereco', label: 'Endereço' },
   { id: 'Contrato', label: 'Contrato' },
   { id: 'Cronograma', label: 'Cronograma' },
   { id: 'Equipe', label: 'Equipe' },
@@ -55,8 +55,8 @@ const SECOES = [
   { id: 'Fotos', label: 'Fotos' },
   { id: 'Checklist', label: 'Checklist' },
   { id: 'Gastos', label: 'Gastos' },
-  { id: 'Ocorrencias', label: 'Ocorrencias' },
-  { id: 'Historico', label: 'Historico' },
+  { id: 'Ocorrencias', label: 'Ocorrências' },
+  { id: 'Historico', label: 'Histórico' },
 ]
 
 const THEME = {
@@ -358,7 +358,7 @@ export default function ObraDetalhe() {
               <CampoEdit label="Data de inicio">
                 <FInput type="date" value={formObra.data_inicio || ''} onChange={v => setFormObra(p => ({ ...p, data_inicio: v }))} />
               </CampoEdit>
-              <CampoEdit label="Previsao de termino">
+              <CampoEdit label="Previsão de término">
                 <FInput type="date" value={formObra.data_previsao || ''} onChange={v => setFormObra(p => ({ ...p, data_previsao: v }))} />
               </CampoEdit>
               <CampoEdit label="Valor do contrato (R$)">
@@ -384,7 +384,7 @@ export default function ObraDetalhe() {
             </GridEdit>
           </SecaoEdit>
 
-          <SecaoEdit titulo="Endereco">
+          <SecaoEdit titulo="Endereço">
             <GridEdit>
               <CampoEdit label="CEP">
                 <FInput value={formObra.cep || ''} onChange={v => setFormObra(p => ({ ...p, cep: v }))} placeholder="00000-000" />
@@ -477,7 +477,7 @@ export default function ObraDetalhe() {
 
       <div style={{ display: 'grid', gridTemplateColumns: compacto ? '1fr 1fr' : 'repeat(4, minmax(0, 1fr))', gap: 12, margin: '18px 0 18px' }}>
         <KpiCard label="Progresso" value={`${progressoObra}%`} helper="andamento geral" />
-        <KpiCard label="Previsao" value={previsao} helper="termino previsto" />
+        <KpiCard label="Previsão" value={previsao} helper="término previsto" />
         <KpiCard label="Gastos" value={`R$ ${resumo.gastos.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} helper="registrados" />
         <KpiCard label="Pendencias" value={resumo.tarefasAbertas} helper="tarefas abertas" />
       </div>
@@ -496,7 +496,7 @@ export default function ObraDetalhe() {
             <Info label="Telefone" value={obra.cliente_telefone} />
           </Card>
           <Card titulo="Obra">
-            <Info label="Endereco"       value={[obra.rua, obra.numero, obra.complemento].filter(Boolean).join(', ') || obra.endereco} />
+            <Info label="Endereço"       value={[obra.rua, obra.numero, obra.complemento].filter(Boolean).join(', ') || obra.endereco} />
             <Info label="Bairro / Cidade" value={[obra.bairro, obra.cidade, obra.uf].filter(Boolean).join(', ')} />
             <Info label="CEP"            value={obra.cep} />
           </Card>
@@ -532,7 +532,7 @@ export default function ObraDetalhe() {
       )}
 
       {aba === 'Endereco' && (
-        <Card titulo="Endereco da obra">
+        <Card titulo="Endereço da obra">
           <Info label="Logradouro" value={[obra.rua, obra.numero, obra.complemento].filter(Boolean).join(', ') || obra.endereco} />
           <Info label="Bairro" value={obra.bairro} />
           <Info label="Cidade / UF" value={[obra.cidade, obra.uf].filter(Boolean).join(' / ')} />
@@ -550,7 +550,7 @@ export default function ObraDetalhe() {
           </Card>
           <Card titulo="Datas">
             <Info label="Inicio" value={obra.data_inicio ? new Date(obra.data_inicio + 'T00:00:00').toLocaleDateString('pt-BR') : null} />
-            <Info label="Previsao" value={previsao} />
+            <Info label="Previsão" value={previsao} />
             <Info label="Status" value={obra.status} />
             <Info label="Progresso" value={`${progressoObra}%`} />
           </Card>
@@ -601,10 +601,10 @@ export default function ObraDetalhe() {
             <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, padding: 22, marginBottom: 20 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div style={{ gridColumn: '1/-1' }}><Label>Titulo *</Label><FInput value={nova.titulo} onChange={v => setNova(p => ({ ...p, titulo: v }))} placeholder="Titulo da tarefa" /></div>
-                <div style={{ gridColumn: '1/-1' }}><Label>Descricao</Label><textarea value={nova.descricao} onChange={e => setNova(p => ({ ...p, descricao: e.target.value }))} rows={2} style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1px solid #ddd', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }} /></div>
+                <div style={{ gridColumn: '1/-1' }}><Label>Descrição</Label><textarea value={nova.descricao} onChange={e => setNova(p => ({ ...p, descricao: e.target.value }))} rows={2} style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1px solid #ddd', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }} /></div>
                 <div><Label>Prioridade</Label><FSelect value={nova.prioridade} onChange={v => setNova(p => ({ ...p, prioridade: v }))}><option value="baixa">Baixa</option><option value="media">Media</option><option value="alta">Alta</option></FSelect></div>
                 <div><Label>Prazo</Label><FInput type="date" value={nova.prazo} onChange={v => setNova(p => ({ ...p, prazo: v }))} /></div>
-                <div style={{ gridColumn: '1/-1' }}><Label>Responsavel</Label><FSelect value={nova.responsavel_id} onChange={v => setNova(p => ({ ...p, responsavel_id: v }))}><option value="">Sem responsavel</option>{profiles.map(p => <option key={p.id} value={p.id}>{p.full_name || p.email}</option>)}</FSelect></div>
+                <div style={{ gridColumn: '1/-1' }}><Label>Responsável</Label><FSelect value={nova.responsavel_id} onChange={v => setNova(p => ({ ...p, responsavel_id: v }))}><option value="">Sem responsável</option>{profiles.map(p => <option key={p.id} value={p.id}>{p.full_name || p.email}</option>)}</FSelect></div>
               </div>
               <div style={{ marginTop: 14, display: 'flex', justifyContent: 'flex-end' }}>
                 <button onClick={salvarTarefa} disabled={salvando || !nova.titulo.trim()} style={{ background: salvando ? '#ccc' : 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{salvando ? 'Salvando...' : 'Criar Tarefa'}</button>
@@ -652,7 +652,7 @@ function AbaCronograma({ obraId, profiles, compacto }) {
       pendente: 'Pendente',
       aprovado: 'Aprovado',
       reprovado: 'Reprovado',
-      nao_se_aplica: 'Nao se aplica',
+      nao_se_aplica: 'Não se aplica',
     }
     return mapa[valor] || valor || 'Pendente'
   }
@@ -667,7 +667,7 @@ function AbaCronograma({ obraId, profiles, compacto }) {
       .maybeSingle()
 
     if (error) {
-      setMensagem({ tipo: 'erro', texto: 'Nao foi possivel carregar o cronograma: ' + error.message })
+      setMensagem({ tipo: 'erro', texto: 'Não foi possível carregar o cronograma: ' + error.message })
       setLoading(false)
       return
     }
@@ -824,9 +824,9 @@ function AbaCronograma({ obraId, profiles, compacto }) {
           <div><Label>Data fim prevista</Label><FInput type="date" value={form.data_fim_prevista || ''} onChange={v => setCampo('data_fim_prevista', v)} /></div>
           <div><Label>Data inicio real</Label><FInput type="date" value={form.data_inicio_real || ''} onChange={v => setCampo('data_inicio_real', v)} /></div>
           <div><Label>Data fim real</Label><FInput type="date" value={form.data_fim_real || ''} onChange={v => setCampo('data_fim_real', v)} /></div>
-          <div><Label>Responsavel</Label><FSelect value={form.responsavel_id || ''} onChange={v => setCampo('responsavel_id', v)}><option value="">Sem responsavel</option>{responsaveis.map(p => <option key={p.id} value={p.id}>{p.full_name || p.email}</option>)}</FSelect></div>
+          <div><Label>Responsável</Label><FSelect value={form.responsavel_id || ''} onChange={v => setCampo('responsavel_id', v)}><option value="">Sem responsável</option>{responsaveis.map(p => <option key={p.id} value={p.id}>{p.full_name || p.email}</option>)}</FSelect></div>
           <div><Label>Supervisor</Label><FSelect value={form.supervisor_id || ''} onChange={v => setCampo('supervisor_id', v)}><option value="">Sem supervisor</option>{supervisores.map(p => <option key={p.id} value={p.id}>{p.full_name || p.email}</option>)}</FSelect></div>
-          <div><Label>Pos-venda</Label><FSelect value={form.pos_venda_id || ''} onChange={v => setCampo('pos_venda_id', v)}><option value="">Sem pos-venda</option>{posVenda.map(p => <option key={p.id} value={p.id}>{p.full_name || p.email}</option>)}</FSelect></div>
+          <div><Label>Pós-venda</Label><FSelect value={form.pos_venda_id || ''} onChange={v => setCampo('pos_venda_id', v)}><option value="">Sem pós-venda</option>{posVenda.map(p => <option key={p.id} value={p.id}>{p.full_name || p.email}</option>)}</FSelect></div>
         </div>
       </Card>
 
@@ -1096,7 +1096,7 @@ function AbaOcorrencias({ obraId }) {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-        <button onClick={() => setShowForm(!showForm)} style={{ background: 'var(--color-ink)', color: '#f9f7f4', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}>{showForm ? 'Cancelar' : '+ Nova Ocorrencia'}</button>
+        <button onClick={() => setShowForm(!showForm)} style={{ background: 'var(--color-ink)', color: '#f9f7f4', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}>{showForm ? 'Cancelar' : '+ Nova Ocorrência'}</button>
       </div>
       {showForm && (
         <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, padding: 22, marginBottom: 20 }}>
@@ -1177,7 +1177,7 @@ function AbaGastos({ obraId, obraInfo }) {
       {showForm && (
         <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, padding: 22, marginBottom: 20 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div style={{ gridColumn: '1/-1' }}><Label>Descricao *</Label><FInput value={novo.descricao} onChange={v => setNovo(p => ({ ...p, descricao: v }))} placeholder="Ex: Material de protecao" /></div>
+            <div style={{ gridColumn: '1/-1' }}><Label>Descrição *</Label><FInput value={novo.descricao} onChange={v => setNovo(p => ({ ...p, descricao: v }))} placeholder="Ex: Material de proteção" /></div>
             <div><Label>Valor (R$) *</Label><FInput type="number" value={novo.valor} onChange={v => setNovo(p => ({ ...p, valor: v }))} placeholder="0,00" /></div>
             <div><Label>Data</Label><FInput type="date" value={novo.data} onChange={v => setNovo(p => ({ ...p, data: v }))} /></div>
             <div style={{ gridColumn: '1/-1' }}><Label>Categoria</Label><FSelect value={novo.categoria} onChange={v => setNovo(p => ({ ...p, categoria: v }))}><option value="combustivel">Combustivel</option><option value="pedagio">Pedagio</option><option value="hospedagem">Hospedagem</option><option value="alimentacao">Alimentacao</option><option value="frete">Frete</option><option value="terceiros">Terceiros</option><option value="ferragens">Ferragens</option><option value="material">Material</option><option value="outro">Outro</option></FSelect></div>
@@ -1340,7 +1340,7 @@ function AbaFotos({ obraId }) {
         <KpiCard label="Total" value={fotos.length} helper="fotos da obra" />
         <KpiCard label="Aprovadas" value={fotos.filter(f => f.aprovada).length} helper="liberadas" />
         <KpiCard label="Cliente" value={fotos.filter(f => f.visivel_cliente).length} helper="visiveis ao cliente" />
-        <KpiCard label="Nao conform." value={naoConformidades} helper="registros criticos" />
+        <KpiCard label="Não conform." value={naoConformidades} helper="registros críticos" />
       </div>
 
       <Card titulo="Enviar foto">

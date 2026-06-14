@@ -5,7 +5,7 @@ const TIPOS = ['Apresentação','Assistência Técnica','Compromisso','Entrega',
 const MESES = ['Janeiro','Fevereiro','Marco','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 const DIAS = ['Dom','Seg','Ter','Qua','Qui','Sex','Sab']
 const TIPO_COR = {
-  'Montagem': '#3a7d4f', 'Entrega': '#3a5580', 'Medicao': '#9070c0',
+  'Montagem': '#3a7d4f', 'Entrega': '#3a5580', 'Medicao': '#9070c0', 'Medição': '#9070c0',
   'Assistência Técnica': '#d94a4a', 'Reunião Interna': '#b09a7a',
   'Apresentacao': '#4a90d9', 'Compromisso': '#888', 'Tarefa': '#b09a7a',
 }

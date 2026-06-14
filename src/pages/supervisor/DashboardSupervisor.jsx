@@ -19,8 +19,8 @@ const THEME = {
 const STATUS_OBRA = {
   'Em montagem': { bg: '#EDF2F7', color: '#2B4C70', label: 'Em montagem' },
   'Montagem agendada': { bg: '#EAF3FB', color: '#1E5A8A', label: 'Montagem agendada' },
-  'Concluida': { bg: '#EAF5EE', color: '#2D7A4A', label: 'Concluida' },
-  'Concluída': { bg: '#EAF5EE', color: '#2D7A4A', label: 'Concluida' },
+  'Concluida': { bg: '#EAF5EE', color: '#2D7A4A', label: 'Concluída' },
+  'Concluída': { bg: '#EAF5EE', color: '#2D7A4A', label: 'Concluída' },
   'Pausada': { bg: '#FFF3E0', color: '#9A5B13', label: 'Pausada' },
   'Em producao': { bg: '#F4EFE6', color: '#8A6A38', label: 'Em producao' },
   'Em produção': { bg: '#F4EFE6', color: '#8A6A38', label: 'Em producao' },
@@ -227,8 +227,8 @@ export default function DashboardSupervisor() {
 
     const acoes = []
     ocorrenciasCriticas.slice(0, 4).forEach(oc => acoes.push({
-      tipo: 'Ocorrencia critica',
-      titulo: oc.titulo || oc.descricao || 'Ocorrencia sem titulo',
+      tipo: 'Ocorrência crítica',
+      titulo: oc.titulo || oc.descricao || 'Ocorrência sem título',
       detalhe: obraPorId.get(oc.obra_id)?.nome || 'Obra',
       obraId: oc.obra_id,
       cor: THEME.danger,
@@ -268,7 +268,7 @@ export default function DashboardSupervisor() {
       const semFotoRecente = !isConcluido(obra.status) && (!ultimaFoto || ultimaFoto < seteDiasAtras)
       const alertas = [
         atrasada && 'Atrasada',
-        temOcorrencia && 'Ocorrencia',
+        temOcorrencia && 'Ocorrência',
         temChecklist && 'Checklist',
         semFotoRecente && 'Sem foto recente',
       ].filter(Boolean)
@@ -358,14 +358,14 @@ export default function DashboardSupervisor() {
         <Card title="Agenda da semana" action="Abrir agenda" onAction={() => navigate('/agenda')}>
           <MiniAgenda label="Montagens" items={vm.agenda.montagens} loading={loading} />
           <MiniAgenda label="Vistorias" items={vm.agenda.vistorias} loading={loading} />
-          <MiniAgenda label="Assistencias tecnicas" items={vm.agenda.assistencias} loading={loading} />
+          <MiniAgenda label="Assistências técnicas" items={vm.agenda.assistencias} loading={loading} />
           <MiniAgenda label="Reunioes" items={vm.agenda.reunioes} loading={loading} />
         </Card>
 
         <Card title="Check-ins de hoje">
           <div className="ds-health">
             <Health label="Entraram" value={vm.checkins.entraram} color={THEME.gold} loading={loading} />
-            <Health label="Ainda nao" value={vm.checkins.aindaNaoEntraram} color={THEME.warn} loading={loading} />
+            <Health label="Ainda não" value={vm.checkins.aindaNaoEntraram} color={THEME.warn} loading={loading} />
             <Health label="Em servico" value={vm.checkins.emServico} color={THEME.success} loading={loading} />
           </div>
         </Card>
@@ -440,10 +440,10 @@ export default function DashboardSupervisor() {
           <Card title="Fotos">
             <MetricLine label="Fotos enviadas" value={vm.fotos.total} color={THEME.gold} loading={loading} />
             <MetricLine label="Aguardando aprovacao" value={vm.fotos.pendentes} color={THEME.warn} loading={loading} />
-            <MetricLine label="Nao conformidades" value={vm.fotos.naoConformidades} color={THEME.danger} loading={loading} />
+            <MetricLine label="Não conformidades" value={vm.fotos.naoConformidades} color={THEME.danger} loading={loading} />
           </Card>
 
-          <Card title="Ocorrencias">
+          <Card title="Ocorrências">
             <MetricLine label="Abertas" value={vm.ocorrencias.abertas} color={THEME.warn} loading={loading} />
             <MetricLine label="Em andamento" value={vm.ocorrencias.andamento} color={THEME.blue} loading={loading} />
             <MetricLine label="Criticas" value={vm.ocorrencias.criticas} color={THEME.danger} loading={loading} />

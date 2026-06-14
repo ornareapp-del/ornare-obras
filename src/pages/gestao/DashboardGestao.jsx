@@ -183,12 +183,12 @@ export default function DashboardGestao() {
     }).filter(item => item.motivos.length > 0).slice(0, 7)
 
     const fluxo = [
-      { label: 'Aguardando Producao', value: dados.obras.filter(o => inStatus(o, STATUS.aguardandoProducao)).length },
-      { label: 'Em Producao', value: dados.obras.filter(o => inStatus(o, STATUS.producao)).length },
-      { label: 'Producao Finalizada', value: dados.obras.filter(o => inStatus(o, STATUS.producaoFinalizada)).length },
+      { label: 'Aguardando Produção', value: dados.obras.filter(o => inStatus(o, STATUS.aguardandoProducao)).length },
+      { label: 'Em Produção', value: dados.obras.filter(o => inStatus(o, STATUS.producao)).length },
+      { label: 'Produção Finalizada', value: dados.obras.filter(o => inStatus(o, STATUS.producaoFinalizada)).length },
       { label: 'Aguardando Agendamento', value: dados.obras.filter(o => inStatus(o, STATUS.aguardandoAgendamento)).length },
       { label: 'Em Montagem', value: dados.obras.filter(o => inStatus(o, STATUS.montagem)).length },
-      { label: 'Concluida', value: dados.obras.filter(o => inStatus(o, STATUS.concluidas)).length },
+      { label: 'Concluída', value: dados.obras.filter(o => inStatus(o, STATUS.concluidas)).length },
     ]
 
     const obrasPorSupervisor = dados.profiles
@@ -250,11 +250,11 @@ export default function DashboardGestao() {
   }, [dados])
 
   const kpis = [
-    { label: 'Em Producao', value: vm.operacao.producao, sub: 'fabrica e preparacao', tone: THEME.gold },
+    { label: 'Em Produção', value: vm.operacao.producao, sub: 'fábrica e preparação', tone: THEME.gold },
     { label: 'Em Montagem', value: vm.operacao.montagem, sub: 'campo ativo', tone: '#1E3A5F' },
     { label: 'Aguard. Cliente', value: vm.operacao.aguardandoCliente, sub: 'dependencia externa', tone: THEME.warn },
-    { label: 'Aguard. Producao', value: vm.operacao.aguardandoProducao, sub: 'pre-operacao', tone: '#6B5B43' },
-    { label: 'Concluidas', value: vm.operacao.concluidas, sub: 'entregues', tone: THEME.success },
+    { label: 'Aguard. Produção', value: vm.operacao.aguardandoProducao, sub: 'pré-operação', tone: '#6B5B43' },
+    { label: 'Concluídas', value: vm.operacao.concluidas, sub: 'entregues', tone: THEME.success },
     { label: 'Travadas', value: vm.operacao.travadas, sub: 'acao imediata', tone: THEME.danger },
   ]
 
@@ -264,8 +264,8 @@ export default function DashboardGestao() {
 
       <header className="dg-header">
         <div>
-          <div className="dg-eyebrow">Gestao Ornare</div>
-          <h1>Central de Gestao</h1>
+          <div className="dg-eyebrow">Gestão Ornare</div>
+          <h1>Central de Gestão</h1>
           <p>{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
         </div>
         <div className="dg-actions">
@@ -353,9 +353,9 @@ export default function DashboardGestao() {
         </div>
 
         <div className="dg-stack">
-          <Card title="Pendencias" action="Ocorrencias" onAction={() => navigate('/ocorrencias')}>
-            <MetricLine label="Ocorrencias abertas" value={vm.pendencias.ocorrenciasAbertas.length} color={THEME.danger} />
-            <MetricLine label="Nao conformidades" value={vm.pendencias.naoConformidades.length} color={THEME.warn} />
+          <Card title="Pendências" action="Ocorrências" onAction={() => navigate('/ocorrencias')}>
+            <MetricLine label="Ocorrências abertas" value={vm.pendencias.ocorrenciasAbertas.length} color={THEME.danger} />
+            <MetricLine label="Não conformidades" value={vm.pendencias.naoConformidades.length} color={THEME.warn} />
             <MetricLine label="Tarefas atrasadas" value={vm.pendencias.tarefasAtrasadas.length} color="#1E3A5F" />
             <div className="dg-mini-list">
               {vm.pendencias.tarefasAtrasadas.slice(0, 4).map(t => <Line key={t.id} title={t.titulo || 'Tarefa atrasada'} meta={obraNome(dados.obras, t.obra_id)} />)}
