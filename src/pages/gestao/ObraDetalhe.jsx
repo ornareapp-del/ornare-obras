@@ -37,11 +37,17 @@ const STATUS_LIST = [
   'Em producao','Pronta para entrega','Aguardando montagem','Montagem agendada',
   'Em montagem','Pausada','Vistoria final','Concluida','Cancelada',
 ]
+const FASES_CRONOGRAMA = ['Pré-Obra', 'Produção', 'Pré-Montagem', 'Montagem', 'Entrega', 'Pós-Venda']
+const FASES_CRONOGRAMA_FORM = [...FASES_CRONOGRAMA, 'Assistência Técnica', 'Garantia']
+const APROVACOES_CRONOGRAMA = ['pendente', 'aprovado', 'reprovado', 'nao_se_aplica']
+const PRIORIDADES_CRONOGRAMA = ['baixa', 'media', 'alta']
+const RISCOS_CRONOGRAMA = ['baixo', 'medio', 'alto']
 const SECOES = [
   { id: 'Resumo', label: 'Resumo' },
   { id: 'Cliente', label: 'Cliente' },
   { id: 'Endereco', label: 'Endereco' },
   { id: 'Contrato', label: 'Contrato' },
+  { id: 'Cronograma', label: 'Cronograma' },
   { id: 'Equipe', label: 'Equipe' },
   { id: 'Agenda', label: 'Agenda' },
   { id: 'Fotos', label: 'Fotos' },
@@ -526,6 +532,8 @@ export default function ObraDetalhe() {
         </div>
       )}
 
+      {aba === 'Cronograma' && <AbaCronograma obraId={id} profiles={profiles} compacto={compacto} />}
+
       {aba === 'Equipe' && (
         <div style={{ display: 'grid', gridTemplateColumns: compacto ? '1fr' : '1fr 1fr', gap: 16 }}>
           <Card titulo="Responsaveis">
@@ -599,6 +607,240 @@ function KpiCard({ label, value, helper }) {
       <div style={{ fontSize: 10, letterSpacing: 2, color: THEME.gold, textTransform: 'uppercase', marginBottom: 8, fontWeight: 700 }}>{label}</div>
       <div style={{ fontSize: 22, fontWeight: 700, color: THEME.ink, lineHeight: 1.1, wordBreak: 'break-word' }}>{value}</div>
       {helper && <div style={{ fontSize: 12, color: THEME.muted, marginTop: 6 }}>{helper}</div>}
+    </div>
+  )
+}
+
+function AbaCronograma({ obraId, profiles, compacto }) {
+  const [cronograma, setCronograma] = useState(null)
+  const [form, setForm] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [salvando, setSalvando] = useState(false)
+  const [mensagem, setMensagem] = useState(null)
+
+  function setCampo(campo, valor) {
+    setForm(p => ({ ...p, [campo]: valor }))
+  }
+
+  function textoAprovacao(valor) {
+    const mapa = {
+      pendente: 'Pendente',
+      aprovado: 'Aprovado',
+      reprovado: 'Reprovado',
+      nao_se_aplica: 'Nao se aplica',
+    }
+    return mapa[valor] || valor || 'Pendente'
+  }
+
+  async function carregar() {
+    setLoading(true)
+    setMensagem(null)
+    const { data, error } = await supabase
+      .from('obra_cronograma')
+      .select('*')
+      .eq('obra_id', obraId)
+      .maybeSingle()
+
+    if (error) {
+      setMensagem({ tipo: 'erro', texto: 'Nao foi possivel carregar o cronograma: ' + error.message })
+      setLoading(false)
+      return
+    }
+
+    if (data) {
+      setCronograma(data)
+      setForm(data)
+      setLoading(false)
+      return
+    }
+
+    const inicial = {
+      obra_id: obraId,
+      fase: 'Pré-Montagem',
+      etapa_atual: 'Aguardando planejamento',
+      status_operacional: 'Aguardando planejamento',
+      percentual_concluido: 0,
+      prioridade: 'media',
+      risco: 'medio',
+      aprovacao_tecnica_status: 'pendente',
+      aprovacao_comercial_status: 'pendente',
+      aprovacao_financeira_status: 'pendente',
+      travado: false,
+      visivel_cliente: false,
+      acao_recomendada: 'Atualizar cronograma operacional da obra.',
+    }
+
+    const { data: criado, error: criarError } = await supabase
+      .from('obra_cronograma')
+      .insert([inicial])
+      .select()
+      .single()
+
+    if (criarError) {
+      setMensagem({ tipo: 'erro', texto: 'Cronograma ainda nao foi criado para esta obra.' })
+      setCronograma(inicial)
+      setForm(inicial)
+    } else {
+      setCronograma(criado)
+      setForm(criado)
+    }
+    setLoading(false)
+  }
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
+  useEffect(() => { carregar() }, [])
+
+  async function salvar() {
+    if (!form) return
+    setSalvando(true)
+    setMensagem(null)
+
+    const payload = {
+      fase: form.fase || null,
+      etapa_atual: form.etapa_atual || null,
+      status_operacional: form.status_operacional || null,
+      tipo_montagem: form.tipo_montagem || null,
+      data_inicio_prevista: form.data_inicio_prevista || null,
+      data_fim_prevista: form.data_fim_prevista || null,
+      data_inicio_real: form.data_inicio_real || null,
+      data_fim_real: form.data_fim_real || null,
+      dias_previstos: form.dias_previstos ? parseInt(form.dias_previstos, 10) : null,
+      percentual_concluido: form.percentual_concluido === '' || form.percentual_concluido === null ? 0 : Number(form.percentual_concluido),
+      prioridade: form.prioridade || 'media',
+      risco: form.risco || 'medio',
+      alertas_observacoes: form.alertas_observacoes || null,
+      responsavel_id: form.responsavel_id || null,
+      supervisor_id: form.supervisor_id || null,
+      pos_venda_id: form.pos_venda_id || null,
+      aprovacao_tecnica_status: form.aprovacao_tecnica_status || 'pendente',
+      aprovacao_comercial_status: form.aprovacao_comercial_status || 'pendente',
+      aprovacao_financeira_status: form.aprovacao_financeira_status || 'pendente',
+      travado: Boolean(form.travado),
+      motivo_trava: form.motivo_trava || null,
+      acao_recomendada: form.acao_recomendada || null,
+      visivel_cliente: Boolean(form.visivel_cliente),
+    }
+
+    const query = cronograma?.id
+      ? supabase.from('obra_cronograma').update(payload).eq('id', cronograma.id).select().single()
+      : supabase.from('obra_cronograma').insert([{ ...payload, obra_id: obraId }]).select().single()
+
+    const { data, error } = await query
+    if (error) {
+      setMensagem({ tipo: 'erro', texto: 'Erro ao salvar cronograma: ' + error.message })
+    } else {
+      setCronograma(data)
+      setForm(data)
+      setMensagem({ tipo: 'sucesso', texto: 'Cronograma atualizado com sucesso.' })
+    }
+    setSalvando(false)
+  }
+
+  if (loading) return <div style={{ color: THEME.muted }}>Carregando cronograma...</div>
+  if (!form) return <div style={{ color: THEME.danger }}>Cronograma indisponivel.</div>
+
+  const responsaveis = profiles || []
+  const supervisores = responsaveis.filter(p => ['gestao', 'supervisor'].includes(p.role))
+  const posVenda = responsaveis.filter(p => ['gestao', 'pos_venda', 'vendedor'].includes(p.role))
+  const faseAtual = form.fase || 'Pré-Montagem'
+  const porcentagem = Math.max(0, Math.min(100, Number(form.percentual_concluido) || 0))
+
+  return (
+    <div style={{ display: 'grid', gap: 16 }}>
+      {mensagem && (
+        <div style={{
+          border: '1px solid ' + (mensagem.tipo === 'erro' ? '#f1c6c6' : '#c8e1d0'),
+          background: mensagem.tipo === 'erro' ? '#fff6f6' : '#f4fbf6',
+          color: mensagem.tipo === 'erro' ? THEME.danger : '#2D7A4A',
+          borderRadius: 10,
+          padding: '10px 12px',
+          fontSize: 13,
+          fontWeight: 700,
+        }}>
+          {mensagem.texto}
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: compacto ? '1fr 1fr' : 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
+        <KpiCard label="Fase" value={faseAtual} helper="etapa operacional" />
+        <KpiCard label="Status" value={form.status_operacional || '-'} helper="situacao atual" />
+        <KpiCard label="Prioridade" value={form.prioridade || '-'} helper={`risco ${form.risco || '-'}`} />
+        <KpiCard label="Percentual" value={`${porcentagem}%`} helper="concluido" />
+      </div>
+
+      <Card titulo="Linha do tempo operacional">
+        <div style={{ display: 'grid', gridTemplateColumns: compacto ? '1fr' : `repeat(${FASES_CRONOGRAMA.length}, minmax(0, 1fr))`, gap: 10 }}>
+          {FASES_CRONOGRAMA.map((fase, index) => {
+            const ativa = fase === faseAtual
+            const concluida = FASES_CRONOGRAMA.indexOf(faseAtual) > index
+            return (
+              <div key={fase} style={{ border: `1px solid ${ativa ? THEME.gold : THEME.border}`, background: ativa ? THEME.softGold : concluida ? '#F4FBF6' : '#FFFEFC', borderRadius: 12, padding: '12px 10px', minHeight: 74 }}>
+                <div style={{ width: 22, height: 22, borderRadius: 999, background: ativa ? THEME.gold : concluida ? '#2D7A4A' : THEME.border, color: ativa || concluida ? '#fff' : THEME.muted, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, marginBottom: 9 }}>
+                  {concluida ? 'v' : index + 1}
+                </div>
+                <div style={{ fontSize: 12, color: ativa ? THEME.ink : THEME.muted, fontWeight: ativa ? 800 : 700 }}>{fase}</div>
+              </div>
+            )
+          })}
+        </div>
+      </Card>
+
+      <Card titulo="Dados do cronograma">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12 }}>
+          <div><Label>Fase</Label><FSelect value={form.fase || ''} onChange={v => setCampo('fase', v)}>{FASES_CRONOGRAMA_FORM.map(f => <option key={f} value={f}>{f}</option>)}</FSelect></div>
+          <div><Label>Status operacional</Label><FInput value={form.status_operacional || ''} onChange={v => setCampo('status_operacional', v)} /></div>
+          <div><Label>Etapa atual</Label><FInput value={form.etapa_atual || ''} onChange={v => setCampo('etapa_atual', v)} /></div>
+          <div><Label>Tipo de montagem</Label><FInput value={form.tipo_montagem || ''} onChange={v => setCampo('tipo_montagem', v)} /></div>
+          <div><Label>Prioridade</Label><FSelect value={form.prioridade || 'media'} onChange={v => setCampo('prioridade', v)}>{PRIORIDADES_CRONOGRAMA.map(p => <option key={p} value={p}>{p}</option>)}</FSelect></div>
+          <div><Label>Risco</Label><FSelect value={form.risco || 'medio'} onChange={v => setCampo('risco', v)}>{RISCOS_CRONOGRAMA.map(r => <option key={r} value={r}>{r}</option>)}</FSelect></div>
+          <div><Label>Percentual concluido</Label><FInput type="number" min="0" max="100" value={form.percentual_concluido ?? 0} onChange={v => setCampo('percentual_concluido', v)} /></div>
+          <div><Label>Dias previstos</Label><FInput type="number" min="0" value={form.dias_previstos || ''} onChange={v => setCampo('dias_previstos', v)} /></div>
+          <div><Label>Data inicio prevista</Label><FInput type="date" value={form.data_inicio_prevista || ''} onChange={v => setCampo('data_inicio_prevista', v)} /></div>
+          <div><Label>Data fim prevista</Label><FInput type="date" value={form.data_fim_prevista || ''} onChange={v => setCampo('data_fim_prevista', v)} /></div>
+          <div><Label>Data inicio real</Label><FInput type="date" value={form.data_inicio_real || ''} onChange={v => setCampo('data_inicio_real', v)} /></div>
+          <div><Label>Data fim real</Label><FInput type="date" value={form.data_fim_real || ''} onChange={v => setCampo('data_fim_real', v)} /></div>
+          <div><Label>Responsavel</Label><FSelect value={form.responsavel_id || ''} onChange={v => setCampo('responsavel_id', v)}><option value="">Sem responsavel</option>{responsaveis.map(p => <option key={p.id} value={p.id}>{p.full_name || p.email}</option>)}</FSelect></div>
+          <div><Label>Supervisor</Label><FSelect value={form.supervisor_id || ''} onChange={v => setCampo('supervisor_id', v)}><option value="">Sem supervisor</option>{supervisores.map(p => <option key={p.id} value={p.id}>{p.full_name || p.email}</option>)}</FSelect></div>
+          <div><Label>Pos-venda</Label><FSelect value={form.pos_venda_id || ''} onChange={v => setCampo('pos_venda_id', v)}><option value="">Sem pos-venda</option>{posVenda.map(p => <option key={p.id} value={p.id}>{p.full_name || p.email}</option>)}</FSelect></div>
+        </div>
+      </Card>
+
+      <div style={{ display: 'grid', gridTemplateColumns: compacto ? '1fr' : '1fr 1fr', gap: 16 }}>
+        <Card titulo="Aprovacoes">
+          <div style={{ display: 'grid', gap: 12 }}>
+            <div><Label>Aprovacao tecnica</Label><FSelect value={form.aprovacao_tecnica_status || 'pendente'} onChange={v => setCampo('aprovacao_tecnica_status', v)}>{APROVACOES_CRONOGRAMA.map(a => <option key={a} value={a}>{textoAprovacao(a)}</option>)}</FSelect></div>
+            <div><Label>Aprovacao comercial</Label><FSelect value={form.aprovacao_comercial_status || 'pendente'} onChange={v => setCampo('aprovacao_comercial_status', v)}>{APROVACOES_CRONOGRAMA.map(a => <option key={a} value={a}>{textoAprovacao(a)}</option>)}</FSelect></div>
+            <div><Label>Aprovacao financeira</Label><FSelect value={form.aprovacao_financeira_status || 'pendente'} onChange={v => setCampo('aprovacao_financeira_status', v)}>{APROVACOES_CRONOGRAMA.map(a => <option key={a} value={a}>{textoAprovacao(a)}</option>)}</FSelect></div>
+          </div>
+        </Card>
+
+        <Card titulo="Risco e visibilidade">
+          <div style={{ display: 'grid', gap: 12 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: THEME.ink, fontWeight: 700 }}>
+              <input type="checkbox" checked={Boolean(form.travado)} onChange={e => setCampo('travado', e.target.checked)} />
+              Travado
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: THEME.ink, fontWeight: 700 }}>
+              <input type="checkbox" checked={Boolean(form.visivel_cliente)} onChange={e => setCampo('visivel_cliente', e.target.checked)} />
+              Visivel ao cliente
+            </label>
+            <div><Label>Motivo da trava</Label><textarea value={form.motivo_trava || ''} onChange={e => setCampo('motivo_trava', e.target.value)} rows={3} style={textareaStyle} /></div>
+          </div>
+        </Card>
+      </div>
+
+      <Card titulo="Alertas e acao recomendada">
+        <div style={{ display: 'grid', gap: 12 }}>
+          <div><Label>Alertas / observacoes</Label><textarea value={form.alertas_observacoes || ''} onChange={e => setCampo('alertas_observacoes', e.target.value)} rows={3} style={textareaStyle} /></div>
+          <div><Label>Acao recomendada</Label><textarea value={form.acao_recomendada || ''} onChange={e => setCampo('acao_recomendada', e.target.value)} rows={3} style={textareaStyle} /></div>
+        </div>
+      </Card>
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <button onClick={salvar} disabled={salvando} style={{ background: salvando ? '#ccc' : THEME.gold, color: '#fff', border: 'none', borderRadius: 10, padding: '11px 24px', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>
+          {salvando ? 'Salvando...' : 'Salvar cronograma'}
+        </button>
+      </div>
     </div>
   )
 }
