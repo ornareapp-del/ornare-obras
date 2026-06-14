@@ -42,6 +42,12 @@ const NAV_ITEMS = [
     readOnly: ['pos_venda'],
   },
   {
+    to: '/biblioteca-mestre',
+    label: 'Biblioteca Mestre',
+    icon: IconCheck,
+    roles: ['gestao', 'supervisor'],
+  },
+  {
     to: '/equipe',
     label: 'Equipe',
     icon: IconUsers,

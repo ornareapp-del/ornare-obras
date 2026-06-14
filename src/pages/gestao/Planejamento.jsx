@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { exportarPlanejamentoPdf } from '../../services/pdfService'
 
 const THEME = {
   bg: '#F6F3EE',
@@ -96,6 +97,7 @@ export default function Planejamento() {
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState('')
   const [salvando, setSalvando] = useState(false)
+  const [exportandoPdf, setExportandoPdf] = useState(false)
   const [toast, setToast] = useState('')
   const [modalCompromisso, setModalCompromisso] = useState(null)
   const [mesAtual, setMesAtual] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1))
@@ -327,6 +329,18 @@ export default function Planejamento() {
     setSalvando(false)
   }
 
+  async function gerarPdfPlanejamento() {
+    setExportandoPdf(true)
+    try {
+      await exportarPlanejamentoPdf({ registros: vm.filtrados, agenda: vm.agendaMes, mesAtual })
+      setToast('PDF de planejamento gerado.')
+      setTimeout(() => setToast(''), 3200)
+    } catch (error) {
+      setErro(error.message || 'Erro ao gerar PDF de planejamento.')
+    }
+    setExportandoPdf(false)
+  }
+
   return (
     <div className="pl-page">
       <style>{css}</style>
@@ -352,6 +366,7 @@ export default function Planejamento() {
           <p>Central de Planejamento Operacional da Ornare</p>
         </div>
         <div className="pl-month-nav">
+          <button onClick={gerarPdfPlanejamento} disabled={exportandoPdf}>{exportandoPdf ? 'Gerando...' : 'Exportar PDF'}</button>
           <button onClick={() => setMesAtual(m => addMonths(m, -1))}>Anterior</button>
           <strong>{MESES[mesAtual.getMonth()]} {mesAtual.getFullYear()}</strong>
           <button onClick={() => setMesAtual(m => addMonths(m, 1))}>Próximo</button>

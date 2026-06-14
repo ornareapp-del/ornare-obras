@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useStore } from '../../store/useStore'
 import { tarefasService } from '../../services/tarefasService'
+import { aplicarBibliotecaChecklist } from '../../services/checklistService'
+import { exportarRelatorioObra } from '../../services/pdfService'
 
 const ST = {
   'Em montagem':         { label: 'Em montagem',        bg: '#edf7f0', color: '#3a7d4f' },
@@ -79,6 +81,8 @@ const FOTO_CATEGORIAS = [
   'Geral',
 ]
 
+const FASES_BIBLIOTECA = ['Pré-Montagem', 'Montagem', 'Pós-Montagem', 'Assistência Técnica', 'Garantia']
+
 function fotoUrl(foto) {
   if (foto.url) return foto.url
   if (!foto.storage_path) return ''
@@ -128,6 +132,8 @@ export default function ObraDetalhe() {
   const [showForm,  setShowForm]  = useState(false)
   const [salvando,  setSalvando]  = useState(false)
   const [editando,  setEditando]  = useState(false)
+  const [tipoPdf,   setTipoPdf]   = useState('executivo')
+  const [exportandoPdf, setExportandoPdf] = useState(false)
   const [formObra,  setFormObra]  = useState({})
   const [toast,     setToast]     = useState({ msg: '', tipo: 'ok' })
   const [nova, setNova] = useState({ titulo: '', descricao: '', prioridade: 'media', prazo: '', responsavel_id: '', status: 'pendente' })
@@ -231,6 +237,17 @@ export default function ObraDetalhe() {
     setSalvando(false)
   }
 
+  async function gerarPdf() {
+    setExportandoPdf(true)
+    try {
+      await exportarRelatorioObra(id, tipoPdf)
+      mostrarToast('PDF gerado com sucesso.')
+    } catch (error) {
+      mostrarToast('Erro ao gerar PDF: ' + (error.message || 'falha inesperada'), 'erro')
+    }
+    setExportandoPdf(false)
+  }
+
   if (loading) return <div style={{ minHeight: '100vh', padding: 60, color: THEME.muted, textAlign: 'center', background: THEME.bg }}>Carregando...</div>
   if (!obra)   return <div style={{ minHeight: '100vh', padding: 60, color: THEME.muted, background: THEME.bg }}>Obra nao encontrada.</div>
 
@@ -275,6 +292,14 @@ export default function ObraDetalhe() {
               <button onClick={() => { setAba('Tarefas'); carregarTarefas() }} style={acaoBtn(false)}>Tarefas</button>
               <button onClick={() => setAba('Fotos')} style={acaoBtn(false)}>Fotos</button>
               <button onClick={() => setAba('Chat')} style={acaoBtn(false)}>Chat</button>
+              <select value={tipoPdf} onChange={e => setTipoPdf(e.target.value)} style={{ border: `1px solid ${THEME.border}`, borderRadius: 10, padding: '9px 10px', fontSize: 12.5, fontWeight: 700, color: THEME.ink, background: '#FFFEFC', fontFamily: 'inherit' }}>
+                <option value="executivo">Executivo</option>
+                <option value="operacional">Operacional</option>
+                <option value="cliente">Cliente</option>
+              </select>
+              <button onClick={gerarPdf} disabled={exportandoPdf} style={acaoBtn(false)}>
+                {exportandoPdf ? 'Gerando...' : 'Exportar PDF'}
+              </button>
               <button onClick={() => { setEditando(!editando); setFormObra(obra) }} style={acaoBtn(true, editando)}>
                 {editando ? 'Cancelar edicao' : 'Editar'}
               </button>
@@ -907,6 +932,9 @@ function AbaChecklist({ obraId }) {
   const [novoItem, setNovoItem] = useState('')
   const [ambienteSelecionado, setAmbienteSelecionado] = useState('geral')
   const [salvando, setSalvando] = useState(false)
+  const [aplicando, setAplicando] = useState(false)
+  const [filtroBiblioteca, setFiltroBiblioteca] = useState({ fase: '', ambiente: '' })
+  const [mensagemBiblioteca, setMensagemBiblioteca] = useState('')
   async function carregar() {
     const [{ data: amb }, { data: cl }] = await Promise.all([
       supabase.from('obra_ambientes').select('id, nome, status').eq('obra_id', obraId),
@@ -941,6 +969,21 @@ function AbaChecklist({ obraId }) {
     }).eq('id', item.id)
     await carregar()
   }
+  async function aplicarBiblioteca() {
+    setAplicando(true)
+    setMensagemBiblioteca('')
+    const { count, skipped, error } = await aplicarBibliotecaChecklist(obraId, {
+      fase: filtroBiblioteca.fase || undefined,
+      ambiente: filtroBiblioteca.ambiente || undefined,
+    })
+    if (error) {
+      setMensagemBiblioteca('Erro ao aplicar biblioteca: ' + error.message)
+    } else {
+      setMensagemBiblioteca(`${count} itens aplicados. ${skipped} itens já existiam e foram ignorados.`)
+      await carregar()
+    }
+    setAplicando(false)
+  }
   const concluidos = itens.filter(i => i.concluido).length
   const pct = itens.length > 0 ? Math.round(concluidos / itens.length * 100) : 0
   const gruposAmbientes = ambientes.map(a => ({
@@ -953,6 +996,34 @@ function AbaChecklist({ obraId }) {
   const ativo = grupos.find(g => g.id === ambienteSelecionado) || grupos[0] || geral
   return (
     <div>
+      <Card titulo="Biblioteca Mestre">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, alignItems: 'end' }}>
+          <div>
+            <Label>Aplicar por fase</Label>
+            <FSelect value={filtroBiblioteca.fase} onChange={v => setFiltroBiblioteca(p => ({ ...p, fase: v }))}>
+              <option value="">Todas as fases</option>
+              {FASES_BIBLIOTECA.map(fase => <option key={fase} value={fase}>{fase}</option>)}
+            </FSelect>
+          </div>
+          <div>
+            <Label>Aplicar por ambiente</Label>
+            <FSelect value={filtroBiblioteca.ambiente} onChange={v => setFiltroBiblioteca(p => ({ ...p, ambiente: v }))}>
+              <option value="">Todos os ambientes</option>
+              <option value="Geral">Geral</option>
+              {ambientes.map(ambiente => <option key={ambiente.id} value={ambiente.nome}>{ambiente.nome}</option>)}
+            </FSelect>
+          </div>
+          <button onClick={aplicarBiblioteca} disabled={aplicando} style={{ background: THEME.ink, color: '#fff', border: 'none', borderRadius: 10, padding: '11px 16px', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+            {aplicando ? 'Aplicando...' : 'Aplicar Biblioteca'}
+          </button>
+        </div>
+        {mensagemBiblioteca && (
+          <div style={{ marginTop: 12, border: `1px solid ${mensagemBiblioteca.startsWith('Erro') ? '#F0C8C8' : THEME.border}`, background: mensagemBiblioteca.startsWith('Erro') ? '#FFF7F7' : '#FFFEFC', color: mensagemBiblioteca.startsWith('Erro') ? THEME.danger : THEME.muted, borderRadius: 10, padding: '10px 12px', fontSize: 12.5, fontWeight: 700 }}>
+            {mensagemBiblioteca}
+          </div>
+        )}
+      </Card>
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 18 }}>
         <KpiCard label="Progresso" value={`${pct}%`} helper={`${concluidos} de ${itens.length} itens`} />
         <KpiCard label="Ambientes" value={ambientes.length || 1} helper={ambientes.length ? 'ambientes da obra' : 'grupo geral'} />

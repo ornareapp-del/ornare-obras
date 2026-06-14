@@ -22,6 +22,7 @@ import Ocorrencias from './pages/gestao/Ocorrencias'
 import Gastos from './pages/gestao/Gastos'
 import Tarefas from './pages/gestao/Tarefas'
 import Planejamento from './pages/gestao/Planejamento'
+import BibliotecaMestre from './pages/gestao/BibliotecaMestre'
 
 // paginas por perfil
 import DashboardSupervisor from './pages/supervisor/DashboardSupervisor'
@@ -268,6 +269,15 @@ export default function App() {
             element={
               <RoleGuard allowedRoles={['gestao', 'supervisor', 'pos_venda', 'vendedor']}>
                 <Planejamento />
+              </RoleGuard>
+            }
+          />
+
+          <Route
+            path="/biblioteca-mestre"
+            element={
+              <RoleGuard allowedRoles={['gestao', 'supervisor']}>
+                <BibliotecaMestre />
               </RoleGuard>
             }
           />
