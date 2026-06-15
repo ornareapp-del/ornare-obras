@@ -1,0 +1,84 @@
+import { useLocation, useNavigate } from 'react-router-dom'
+import { useStore } from '../store/useStore'
+
+const ITEMS = {
+  gestao: [
+    { label: 'Início', to: '/dashboard', icon: IconHome },
+    { label: 'Obras', to: '/obras', icon: IconClipboard },
+    { label: 'Agenda', to: '/agenda', icon: IconCalendar },
+    { label: 'Planejamento', to: '/planejamento', icon: IconChart },
+  ],
+  supervisor: [
+    { label: 'Início', to: '/supervisor', icon: IconHome },
+    { label: 'Agenda', to: '/agenda', icon: IconCalendar },
+    { label: 'Obras', to: '/obras', icon: IconBuilding },
+    { label: 'Fotos', to: '/obras', icon: IconCamera },
+  ],
+  pos_venda: [
+    { label: 'Início', to: '/obras', icon: IconHome },
+    { label: 'Obras', to: '/obras', icon: IconClipboard },
+    { label: 'Agenda', to: '/agenda', icon: IconCalendar },
+    { label: 'Planejamento', to: '/planejamento', icon: IconChart },
+  ],
+}
+
+function normalizeRole(role) {
+  return role === 'vendedor' ? 'pos_venda' : role
+}
+
+export default function BottomNavigation({ onMore }) {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { profile } = useStore()
+  const role = normalizeRole(profile?.role || 'gestao')
+  const items = ITEMS[role] || ITEMS.gestao
+
+  return (
+    <nav className="ow-bottom-nav" aria-label="Navegação principal mobile">
+      {items.map(item => {
+        const Icon = item.icon
+        const active = item.to === '/obras'
+          ? location.pathname === '/obras' || location.pathname.startsWith('/obras/')
+          : location.pathname === item.to
+        return (
+          <button key={`${item.label}-${item.to}`} className={active ? 'active' : ''} onClick={() => navigate(item.to)}>
+            <Icon />
+            <span>{item.label}</span>
+          </button>
+        )
+      })}
+      <button onClick={onMore}>
+        <IconMore />
+        <span>Mais</span>
+      </button>
+    </nav>
+  )
+}
+
+function IconHome() {
+  return <svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10.5V20h14v-9.5"/><path d="M10 20v-5h4v5"/></svg>
+}
+
+function IconClipboard() {
+  return <svg viewBox="0 0 24 24"><path d="M8 4h8l1 3H7z"/><path d="M6 6H5v15h14V6h-1"/><path d="M8 12h8"/><path d="M8 16h6"/></svg>
+}
+
+function IconCalendar() {
+  return <svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>
+}
+
+function IconChart() {
+  return <svg viewBox="0 0 24 24"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16v-5M12 16V8M16 16v-8"/></svg>
+}
+
+function IconBuilding() {
+  return <svg viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M6 20V7l6-3 6 3v13"/><path d="M9 11h1M14 11h1M9 15h1M14 15h1"/></svg>
+}
+
+function IconCamera() {
+  return <svg viewBox="0 0 24 24"><path d="M4 8h4l2-3h4l2 3h4v11H4z"/><circle cx="12" cy="13.5" r="3.5"/></svg>
+}
+
+function IconMore() {
+  return <svg viewBox="0 0 24 24"><path d="M5 12h.01M12 12h.01M19 12h.01"/></svg>
+}

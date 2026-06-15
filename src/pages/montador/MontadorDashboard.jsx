@@ -95,6 +95,7 @@ export default function MontadorDashboard() {
   const checklistRef = useRef(null)
   const fotosRef = useRef(null)
   const ocorrenciasRef = useRef(null)
+  const perfilRef = useRef(null)
 
   function mostrarSucesso(msg) {
     setSucesso(msg)
@@ -484,7 +485,7 @@ export default function MontadorDashboard() {
 
       {sucesso && <div className="md-toast">{sucesso}</div>}
 
-      <header className="md-top">
+      <header className="md-top" ref={perfilRef}>
         <div>
           <span>Ornare Works</span>
           <h1>Olá, {profile?.full_name?.split(' ')[0] || 'Montador'}</h1>
@@ -690,6 +691,14 @@ export default function MontadorDashboard() {
           </div>
         ))}
       </section>
+
+      <nav className="md-bottom-nav" aria-label="Navegação do montador">
+        <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}><IconHome />Hoje</button>
+        <button onClick={() => scrollTo(checklistRef)}><IconCheck />Checklist</button>
+        <button onClick={() => scrollTo(fotosRef)}><IconCamera />Fotos</button>
+        <button onClick={() => scrollTo(ocorrenciasRef)}><IconAlert />Ocorrências</button>
+        <button onClick={() => scrollTo(perfilRef)}><IconUser />Perfil</button>
+      </nav>
     </div>
   )
 }
@@ -703,12 +712,32 @@ function Metric({ label, value, danger }) {
   )
 }
 
+function IconHome() {
+  return <svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10.5V20h14v-9.5"/><path d="M10 20v-5h4v5"/></svg>
+}
+
+function IconCheck() {
+  return <svg viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/><path d="M5 20h14"/></svg>
+}
+
+function IconCamera() {
+  return <svg viewBox="0 0 24 24"><path d="M4 8h4l2-3h4l2 3h4v11H4z"/><circle cx="12" cy="13.5" r="3.5"/></svg>
+}
+
+function IconAlert() {
+  return <svg viewBox="0 0 24 24"><path d="M12 4 3 20h18z"/><path d="M12 9v5"/><path d="M12 17h.01"/></svg>
+}
+
+function IconUser() {
+  return <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>
+}
+
 function Empty({ text }) {
   return <div className="md-empty">{text}</div>
 }
 
 const css = `
-.md-page{min-height:100vh;background:${THEME.bg};color:${THEME.ink};font-family:var(--font-sans);box-sizing:border-box;padding:18px 14px 36px;max-width:520px;margin:0 auto}
+.md-page{min-height:100vh;background:${THEME.bg};color:${THEME.ink};font-family:var(--font-sans);box-sizing:border-box;padding:18px 14px calc(112px + env(safe-area-inset-bottom));max-width:520px;margin:0 auto}
 .md-loading{min-height:70vh;display:flex;align-items:center;justify-content:center;color:${THEME.muted};font-size:14px}
 .md-loading-inline{font-size:12px;color:${THEME.muted};text-align:center;margin:10px 0 14px}
 .md-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px}
@@ -810,5 +839,10 @@ const css = `
 .md-modal-actions button.danger{border-color:${THEME.danger};background:${THEME.danger};color:#fff}
 .md-preview{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:900;display:flex;align-items:center;justify-content:center;padding:12px;cursor:pointer}
 .md-preview img{max-width:100%;max-height:92vh;border-radius:12px;object-fit:contain}
-@media (min-width:720px){.md-page{max-width:680px;padding:26px 20px 46px}.md-summary{grid-template-columns:repeat(4,1fr)}.md-quick{grid-template-columns:repeat(4,1fr)}}
+.md-bottom-nav{position:fixed;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:700;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;background:rgba(255,254,252,.96);border:1px solid ${THEME.border};border-radius:18px;padding:7px;box-shadow:0 18px 42px rgba(29,28,25,.18);backdrop-filter:blur(18px);max-width:500px;margin:0 auto}
+.md-bottom-nav button{border:0;background:transparent;color:${THEME.muted};border-radius:13px;min-height:54px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:9.5px;font-weight:900;cursor:pointer}
+.md-bottom-nav button:first-child{background:${THEME.ink};color:#fff}
+.md-bottom-nav svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;color:${THEME.gold}}
+.md-bottom-nav button:first-child svg{color:#fff}
+@media (min-width:720px){.md-page{max-width:680px;padding:26px 20px calc(112px + env(safe-area-inset-bottom))}.md-summary{grid-template-columns:repeat(4,1fr)}.md-quick{grid-template-columns:repeat(4,1fr)}}
 `

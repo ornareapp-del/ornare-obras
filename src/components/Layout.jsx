@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
+import BottomNavigation from './BottomNavigation'
 import Sidebar from './Sidebar'
 
 export default function Layout() {
@@ -34,12 +35,13 @@ export default function Layout() {
 
       <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} isMobile={isMobile} />
 
-      <main style={{ flex: 1, overflowY: 'auto', transition: 'all 0.25s', background: 'var(--color-bg, #F5F2EE)' }}>
+      <main className="ow-app-main" style={{ flex: 1, overflowY: 'auto', transition: 'all 0.25s', background: 'var(--color-bg, #F5F2EE)' }}>
 
         {/* botao hamburguer mobile — nova identidade */}
         {isMobile && collapsed && (
           <button
             onClick={() => setCollapsed(false)}
+            className="ow-mobile-menu-fallback"
             style={{
               position: 'fixed', top: 14, left: 14, zIndex: 30,
               background: '#1A1A18',
@@ -64,6 +66,7 @@ export default function Layout() {
         )}
 
         <Outlet />
+        {isMobile && <BottomNavigation onMore={() => setCollapsed(false)} />}
       </main>
     </div>
   )

@@ -600,8 +600,8 @@ const css = `
 .pc-preview-next{right:18px;top:50%}
 .pc-footer{text-align:center;padding:8px 20px 38px;color:#A79F93;font-size:10px;letter-spacing:2px;text-transform:uppercase}
 @media (max-width:760px){
-  .pc-page{padding-bottom:78px}
-  .pc-hero{min-height:305px}
+  .pc-page{padding-bottom:calc(102px + env(safe-area-inset-bottom))}
+  .pc-hero{min-height:286px}
   .pc-top{padding:16px 14px}
   .pc-top img{height:34px}
   .pc-hero-content{padding:18px 14px 42px}
@@ -612,13 +612,19 @@ const css = `
   .pc-pill span{font-size:7.5px;margin-bottom:4px}
   .pc-pill strong{font-size:12px}
   .pc-tabs{display:none}
-  .pc-bottom-nav{position:fixed;left:10px;right:10px;bottom:10px;z-index:40;display:grid;grid-template-columns:repeat(5,1fr);gap:4px;background:rgba(255,254,252,.94);border:1px solid ${THEME.border};border-radius:18px;padding:7px;box-shadow:0 18px 42px rgba(29,28,25,.18);backdrop-filter:blur(16px)}
-  .pc-bottom-nav button{border:0;background:transparent;color:${THEME.muted};border-radius:13px;padding:7px 4px 6px;font-size:9.5px;font-weight:900;cursor:pointer}
-  .pc-bottom-nav button span{display:block;font-size:15px;line-height:1;margin-bottom:3px;color:${THEME.gold}}
+  .pc-bottom-nav{position:fixed;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:40;display:grid;grid-template-columns:repeat(5,1fr);gap:4px;background:rgba(255,254,252,.96);border:1px solid ${THEME.border};border-radius:18px;padding:7px;box-shadow:0 18px 42px rgba(29,28,25,.18);backdrop-filter:blur(18px)}
+  .pc-bottom-nav button{border:0;background:transparent;color:${THEME.muted};border-radius:13px;min-height:54px;padding:7px 4px 6px;font-size:9.5px;font-weight:900;cursor:pointer}
+  .pc-bottom-nav button span{display:block;font-size:0;line-height:1;margin-bottom:3px;color:${THEME.gold}}
+  .pc-bottom-nav button span::before{font-size:16px}
+  .pc-bottom-nav button:nth-child(1) span::before{content:"\\2302"}
+  .pc-bottom-nav button:nth-child(2) span::before{content:"\\25F7"}
+  .pc-bottom-nav button:nth-child(3) span::before{content:"\\25A1"}
+  .pc-bottom-nav button:nth-child(4) span::before{content:"\\25C7"}
+  .pc-bottom-nav button:nth-child(5) span::before{content:"\\260E"}
   .pc-bottom-nav button.active{background:${THEME.ink};color:#fff}
   .pc-bottom-nav button.active span{color:#fff}
   .pc-alert{margin:12px 12px 0}
-  .pc-content{padding:14px 12px 26px}
+  .pc-content{padding:14px 12px calc(34px + env(safe-area-inset-bottom))}
   .pc-card{padding:15px;border-radius:16px}
   .pc-card-head strong{font-size:34px}
   .pc-dashboard-grid,.pc-filter-card,.pc-gallery{grid-template-columns:1fr}
@@ -634,12 +640,12 @@ const css = `
   .pc-preview-prev,.pc-preview-next{display:none}
 }
 @media (max-width:360px){
-  .pc-hero{min-height:292px}
+  .pc-hero{min-height:278px}
   .pc-hero h1{font-size:25px}
   .pc-hero-dashboard{gap:6px}
   .pc-pill{padding:8px}
   .pc-gallery img,.pc-gallery button>span{height:220px}
-  .pc-bottom-nav{left:6px;right:6px;bottom:6px}
+  .pc-bottom-nav{left:6px;right:6px;bottom:calc(6px + env(safe-area-inset-bottom))}
   .pc-bottom-nav button{font-size:8.8px}
 }
 `
