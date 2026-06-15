@@ -66,7 +66,7 @@ export default function Layout() {
         )}
 
         <Outlet />
-        {isMobile && <BottomNavigation onMore={() => setCollapsed(false)} />}
+        {isMobile && collapsed && <BottomNavigation onMore={() => setCollapsed(false)} />}
       </main>
     </div>
   )

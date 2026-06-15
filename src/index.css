@@ -457,6 +457,21 @@ a {
     display: none !important;
   }
 
+  .ow-empty-state {
+    padding: 24px 14px !important;
+    border-radius: 14px !important;
+    min-height: 0 !important;
+  }
+
+  .ow-empty-state strong {
+    font-size: 13px !important;
+    margin-bottom: 4px !important;
+  }
+
+  .ow-empty-state p {
+    font-size: 12px !important;
+  }
+
   .ow-page {
     width: 100% !important;
     max-width: none !important;
@@ -590,29 +605,28 @@ a {
   .ds-kpis,
   .pl-kpis,
   .bm-kpis {
-    display: flex !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     gap: 10px !important;
-    overflow-x: auto !important;
-    padding-bottom: 8px !important;
-    scroll-snap-type: x mandatory;
+    overflow: visible !important;
+    padding-bottom: 0 !important;
   }
 
   .dg-kpis > *,
   .ds-kpis > *,
   .pl-kpis > *,
   .bm-kpis > * {
-    min-width: 154px !important;
-    max-width: 176px !important;
-    flex: 0 0 154px !important;
-    scroll-snap-align: start;
+    min-width: 0 !important;
+    max-width: none !important;
+    width: 100% !important;
   }
 
   .dg-kpi,
   .ds-kpi,
   .pl-kpi,
   .bm-kpi {
-    min-width: 154px !important;
-    max-width: 176px !important;
+    min-width: 0 !important;
+    max-width: none !important;
     padding: 13px 12px !important;
   }
 

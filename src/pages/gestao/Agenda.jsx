@@ -88,6 +88,7 @@ export default function Agenda() {
 
   return (
     <div className="ow-page" style={s.page}>
+      <style>{css}</style>
 
       {modal && (
         <div style={s.modalBg} onClick={e => e.target === e.currentTarget && setModal(false)}>
@@ -167,7 +168,7 @@ export default function Agenda() {
         <button style={s.btnNew} onClick={() => setModal(true)}>+ Novo Evento</button>
       </div>
 
-      <div style={s.kpiGrid}>
+      <div className="ag-kpis" style={s.kpiGrid}>
         {kpis.map(k => (
           <div key={k.label} style={s.kpi}>
             <span style={s.kpiLabel}>{k.label}</span>
@@ -214,8 +215,8 @@ export default function Agenda() {
             const cor = TIPO_COR[ev.tipo] || '#888'
             const isHoje = ev.data === hoje_str
             return (
-              <div key={ev.id} style={{ ...s.card, borderLeft: '4px solid ' + cor, opacity: filtro === 'passados' ? 0.7 : 1 }}>
-                <div style={{ ...s.datebox, borderColor: isHoje ? cor : 'var(--color-border)', background: isHoje ? cor + '10' : '#fafaf8' }}>
+              <div key={ev.id} className="ag-card" style={{ ...s.card, borderLeft: '4px solid ' + cor, opacity: filtro === 'passados' ? 0.7 : 1 }}>
+                <div className="ag-datebox" style={{ ...s.datebox, borderColor: isHoje ? cor : 'var(--color-border)', background: isHoje ? cor + '10' : '#fafaf8' }}>
                   <div style={{ fontSize: 22, fontWeight: 700, color: isHoje ? cor : 'var(--color-ink)', fontFamily: 'var(--font-serif)', lineHeight: 1 }}>{d.getDate()}</div>
                   <div style={{ fontSize: 9, color: cor, letterSpacing: 1, fontWeight: 600 }}>{MESES[d.getMonth()].slice(0, 3).toUpperCase()}</div>
                   <div style={{ fontSize: 9, color: 'var(--color-ink-muted)' }}>{DIAS[d.getDay()]}</div>
@@ -227,8 +228,8 @@ export default function Agenda() {
                     {ev.reuniao_interna && <span style={{ ...s.tipoBadge, background: '#eef2f8', color: '#3a5580' }}>Reunião Interna</span>}
                     {isHoje && <span style={{ ...s.tipoBadge, background: '#edf7f0', color: '#3a7d4f' }}>Hoje</span>}
                   </div>
-                  {ev.descricao && <div style={s.cardDesc}>{ev.descricao}</div>}
-                  <div style={s.cardMeta}>
+                  {ev.descricao && <div className="ag-card-desc" style={s.cardDesc}>{ev.descricao}</div>}
+                  <div className="ag-card-meta" style={s.cardMeta}>
                     {ev.hora_inicio && <span>{ev.hora_inicio.slice(0, 5)}{ev.hora_fim ? ' - ' + ev.hora_fim.slice(0, 5) : ''}</span>}
                     {ev.obras?.nome && <span>Obra: {ev.obras.nome}</span>}
                     {ev.responsavel?.full_name && <span>{ev.responsavel.full_name}</span>}
@@ -248,6 +249,20 @@ export default function Agenda() {
 function L({ children }) { return <div style={{ fontSize: 11, color: '#888', marginBottom: 5, fontWeight: 500 }}>{children}</div> }
 function I({ onChange, ...props }) { return <input {...props} onChange={e => onChange(e.target.value)} style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1px solid #ddd', fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none' }} /> }
 function Sel({ onChange, children, ...props }) { return <select {...props} onChange={e => onChange(e.target.value)} style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1px solid #ddd', fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit', background: '#fff' }}>{children}</select> }
+
+const css = `
+@media (max-width:760px){
+  .ag-kpis{grid-template-columns:repeat(2,minmax(0,1fr)) !important;gap:10px !important;margin-bottom:14px !important}
+  .ag-kpis>div{min-width:0 !important;padding:13px 14px !important}
+  .ag-kpis span{font-size:9px !important;line-height:1.2 !important;letter-spacing:1.1px !important;white-space:normal !important}
+  .ag-kpis strong{font-size:28px !important}
+  .ag-card{padding:12px 13px !important;gap:12px !important;border-radius:16px !important;align-items:flex-start !important;margin-bottom:9px !important}
+  .ag-datebox{min-width:48px !important;padding:7px 0 !important}
+  .ag-card-desc{display:none !important}
+  .ag-card-meta{font-size:11.5px !important;gap:8px !important;line-height:1.35 !important;color:var(--color-ink-muted) !important}
+  .ag-card-meta span:nth-child(n+3){display:none !important}
+}
+`
 
 const s = {
   page: { padding: '32px 40px', maxWidth: 900, margin: '0 auto' },

@@ -74,6 +74,7 @@ export default function Obras() {
 
   return (
     <div className="ow-page" style={s.page}>
+      <style>{css}</style>
 
       {editModal && (
         <div style={s.modalBg} onClick={e => e.target === e.currentTarget && setEditModal(null)}>
@@ -131,7 +132,7 @@ export default function Obras() {
         <button style={s.btnNew} onClick={() => navigate('/obras/nova')}>+ Nova Obra</button>
       </div>
 
-      <div style={s.kpiGrid}>
+      <div className="ob-kpis" style={s.kpiGrid}>
         {kpis.map(k => (
           <div key={k.label} style={s.kpi}>
             <span style={s.kpiLabel}>{k.label}</span>
@@ -140,7 +141,7 @@ export default function Obras() {
         ))}
       </div>
 
-      <div style={s.filtros}>
+      <div className="ob-filters" style={s.filtros}>
         {['Todas', ...STATUS_LISTA].map(f => (
           <button key={f} onClick={() => setFiltro(f)} style={{
             ...s.filtroBtn,
@@ -162,32 +163,36 @@ export default function Obras() {
           <button style={s.btnNew} onClick={() => navigate('/obras/nova')}>+ Criar Nova Obra</button>
         </div>
       ) : (
-        <div style={s.list}>
+        <div className="ob-list" style={s.list}>
           {obrasFiltradas.map(obra => {
             const st = getStatus(obra.status)
             return (
-              <div key={obra.id} style={s.card}
+              <div key={obra.id} className="ob-card" style={s.card}
                 onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.07)'}
                 onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}>
-                <div onClick={() => navigate('/obras/' + obra.id)} style={s.cardMain}>
+                <div className="ob-card-main" onClick={() => navigate('/obras/' + obra.id)} style={s.cardMain}>
                   <div style={{ ...s.dot, background: st.dot }} />
                   <div style={s.cardInfo}>
                     <div style={s.cardTop}>
                       <span style={s.cardNome}>{obra.nome}</span>
                       <span style={{ ...s.badge, background: st.bg, color: st.color }}>{st.label}</span>
                     </div>
-                    <div style={s.cardMeta}>
+                    <div className="ob-card-meta" style={s.cardMeta}>
                       {[obra.cliente_nome, obra.cidade, obra.uf].filter(Boolean).join(' · ') || 'Cliente não informado'}
                     </div>
-                    <div style={s.cardDetails}>
+                    <div className="ob-card-details" style={s.cardDetails}>
                       <span>Supervisor: {profilePorId.get(obra.supervisor_id)?.full_name || 'Não definido'}</span>
                       <span>Fase: {obra.fase || obra.etapa || obra.status || '-'}</span>
                       <span>{obra.data_previsao ? 'Previsão: ' + new Date(obra.data_previsao + 'T00:00:00').toLocaleDateString('pt-BR') : 'Sem previsão'}</span>
                       {obra.numero_contrato && <span>Contrato {obra.numero_contrato}</span>}
                     </div>
+                    <div className="ob-mobile-summary">
+                      <span>{obra.data_previsao ? new Date(obra.data_previsao + 'T00:00:00').toLocaleDateString('pt-BR') : 'Sem previsão'}</span>
+                      <strong>{obra.progresso || 0}%</strong>
+                    </div>
                   </div>
                   {obra.progresso > 0 && (
-                    <div style={s.progressWrap}>
+                    <div className="ob-progress" style={s.progressWrap}>
                       <div style={s.progressPct}>{obra.progresso}%</div>
                       <div style={s.progressBar}>
                         <div style={{ ...s.progressFill, width: obra.progresso + '%' }} />
@@ -196,7 +201,7 @@ export default function Obras() {
                   )}
                   <div style={s.arrow}>›</div>
                 </div>
-                <div style={s.cardActions}>
+                <div className="ob-card-actions" style={s.cardActions}>
                   <button style={s.btnAcao} onClick={e => { e.stopPropagation(); setEditModal({ ...obra }) }}>
                     Editar
                   </button>
@@ -216,6 +221,29 @@ export default function Obras() {
 function L({ children }) { return <div style={{ fontSize: 11, color: '#888', marginBottom: 5, fontWeight: 500 }}>{children}</div> }
 function I({ onChange, ...props }) { return <input {...props} onChange={e => onChange(e.target.value)} style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1px solid #ddd', fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none' }} /> }
 function Sel({ onChange, children, ...props }) { return <select {...props} onChange={e => onChange(e.target.value)} style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1px solid #ddd', fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit', background: '#fff' }}>{children}</select> }
+
+const css = `
+.ob-mobile-summary{display:none}
+@media (max-width:760px){
+  .ob-kpis{grid-template-columns:repeat(2,minmax(0,1fr)) !important;gap:10px !important;margin-bottom:14px !important}
+  .ob-kpis>div{min-width:0 !important;padding:13px 14px !important}
+  .ob-kpis span{font-size:9px !important;line-height:1.2 !important;letter-spacing:1.1px !important;white-space:normal !important}
+  .ob-kpis strong{font-size:28px !important}
+  .ob-filters{display:flex !important;overflow-x:auto !important;gap:8px !important;flex-wrap:nowrap !important;margin-bottom:14px !important;padding-bottom:3px}
+  .ob-filters button{flex:0 0 auto !important;white-space:nowrap !important}
+  .ob-list{gap:10px !important}
+  .ob-card{border-radius:18px !important;box-shadow:0 14px 34px rgba(29,28,25,.06) !important}
+  .ob-card-main{padding:15px 16px !important;align-items:flex-start !important;gap:11px !important}
+  .ob-card-main>div:first-child{margin-top:8px !important}
+  .ob-card-main>div:last-child{display:none !important}
+  .ob-card-meta{font-size:12.5px !important;line-height:1.35 !important;color:var(--color-ink-muted) !important;display:-webkit-box !important;-webkit-line-clamp:1 !important;-webkit-box-orient:vertical !important;overflow:hidden !important}
+  .ob-card-details{display:none !important}
+  .ob-mobile-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px;font-size:12px;color:var(--color-ink-muted)}
+  .ob-mobile-summary strong{color:var(--color-gold);font-size:18px;line-height:1}
+  .ob-progress{display:none !important}
+  .ob-card-actions{display:none !important}
+}
+`
 
 const s = {
   page: { padding: '32px 40px', maxWidth: 1100, margin: '0 auto' },
