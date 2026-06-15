@@ -18,6 +18,11 @@ function getStatus(s) {
   return ST[s] || { label: s || '-', bg: '#f0ece6', color: '#888', dot: '#ccc' }
 }
 
+function dataCurta(data) {
+  if (!data) return 'Sem previsão'
+  return new Date(data + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+}
+
 export default function Obras() {
   const navigate = useNavigate()
   const [obras, setObras] = useState([])
@@ -123,20 +128,29 @@ export default function Obras() {
         </div>
       )}
 
-      <div style={s.header}>
+      <div className="ob-header" style={s.header}>
         <div>
           <div style={s.breadcrumb}>Gestão</div>
           <h1 style={s.title}>Central de Obras</h1>
           <p style={s.sub}>Operação, status e andamento das obras Ornare</p>
         </div>
-        <button style={s.btnNew} onClick={() => navigate('/obras/nova')}>+ Nova Obra</button>
+        <button className="ob-new" style={s.btnNew} onClick={() => navigate('/obras/nova')}>+ Nova Obra</button>
       </div>
 
-      <div className="ob-kpis" style={s.kpiGrid}>
+      <div className="ob-kpis ob-kpis-desktop" style={s.kpiGrid}>
         {kpis.map(k => (
           <div key={k.label} style={s.kpi}>
             <span style={s.kpiLabel}>{k.label}</span>
             <strong style={s.kpiValue}>{loading ? '-' : k.value}</strong>
+          </div>
+        ))}
+      </div>
+
+      <div className="ob-mobile-kpis" aria-label="Resumo das obras">
+        {kpis.map(k => (
+          <div key={k.label}>
+            <strong>{loading ? '-' : k.value}</strong>
+            <span>{k.label}</span>
           </div>
         ))}
       </div>
@@ -166,10 +180,28 @@ export default function Obras() {
         <div className="ob-list" style={s.list}>
           {obrasFiltradas.map(obra => {
             const st = getStatus(obra.status)
+            const cidadeUf = [obra.cidade, obra.uf].filter(Boolean).join(' • ') || 'Sem cidade'
+            const progresso = Number(obra.progresso || 0)
             return (
               <div key={obra.id} className="ob-card" style={s.card}
                 onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.07)'}
                 onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}>
+                <button className="ob-app-card" onClick={() => navigate('/obras/' + obra.id)}>
+                  <div className="ob-app-head">
+                    <div>
+                      <strong>{obra.nome || 'Obra sem nome'}</strong>
+                      <span>{cidadeUf}</span>
+                    </div>
+                    <small>{progresso}%</small>
+                  </div>
+                  <div className="ob-app-progress">
+                    <i style={{ width: `${Math.min(100, Math.max(0, progresso))}%` }} />
+                  </div>
+                  <div className="ob-app-foot">
+                    <span style={{ background: st.bg, color: st.color }}>{st.label}</span>
+                    <em>Previsão {dataCurta(obra.data_previsao)}</em>
+                  </div>
+                </button>
                 <div className="ob-card-main" onClick={() => navigate('/obras/' + obra.id)} style={s.cardMain}>
                   <div style={{ ...s.dot, background: st.dot }} />
                   <div style={s.cardInfo}>
@@ -224,24 +256,33 @@ function Sel({ onChange, children, ...props }) { return <select {...props} onCha
 
 const css = `
 .ob-mobile-summary{display:none}
+.ob-mobile-kpis,.ob-app-card{display:none}
 @media (max-width:760px){
-  .ob-kpis{grid-template-columns:repeat(2,minmax(0,1fr)) !important;gap:10px !important;margin-bottom:14px !important}
-  .ob-kpis>div{min-width:0 !important;padding:13px 14px !important}
-  .ob-kpis span{font-size:9px !important;line-height:1.2 !important;letter-spacing:1.1px !important;white-space:normal !important}
-  .ob-kpis strong{font-size:28px !important}
+  .ob-header{display:grid !important;grid-template-columns:1fr auto;gap:10px;align-items:end !important;margin-bottom:13px !important}
+  .ob-header h1{font-size:27px !important;line-height:1 !important}
+  .ob-header p{display:none !important}
+  .ob-new{padding:9px 12px !important;border-radius:12px !important;font-size:12px !important}
+  .ob-kpis-desktop{display:none !important}
+  .ob-mobile-kpis{display:flex;gap:8px;overflow-x:auto;margin:0 0 12px;padding:1px 0 4px}
+  .ob-mobile-kpis>div{flex:0 0 auto;display:flex;align-items:center;gap:6px;background:#fff;border:1px solid rgba(184,150,94,.22);border-radius:999px;padding:7px 10px;box-shadow:0 8px 20px rgba(29,28,25,.045)}
+  .ob-mobile-kpis strong{font-size:15px;line-height:1;color:var(--color-ink)}
+  .ob-mobile-kpis span{font-size:10.5px;line-height:1;color:var(--color-ink-muted);font-weight:800;white-space:nowrap}
   .ob-filters{display:flex !important;overflow-x:auto !important;gap:8px !important;flex-wrap:nowrap !important;margin-bottom:14px !important;padding-bottom:3px}
   .ob-filters button{flex:0 0 auto !important;white-space:nowrap !important}
   .ob-list{gap:10px !important}
-  .ob-card{border-radius:18px !important;box-shadow:0 14px 34px rgba(29,28,25,.06) !important}
-  .ob-card-main{padding:15px 16px !important;align-items:flex-start !important;gap:11px !important}
-  .ob-card-main>div:first-child{margin-top:8px !important}
-  .ob-card-main>div:last-child{display:none !important}
-  .ob-card-meta{font-size:12.5px !important;line-height:1.35 !important;color:var(--color-ink-muted) !important;display:-webkit-box !important;-webkit-line-clamp:1 !important;-webkit-box-orient:vertical !important;overflow:hidden !important}
-  .ob-card-details{display:none !important}
-  .ob-mobile-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px;font-size:12px;color:var(--color-ink-muted)}
-  .ob-mobile-summary strong{color:var(--color-gold);font-size:18px;line-height:1}
-  .ob-progress{display:none !important}
+  .ob-card{border-radius:18px !important;box-shadow:0 14px 34px rgba(29,28,25,.06) !important;border:1px solid rgba(231,224,213,.9) !important;background:#fff !important}
+  .ob-card-main{display:none !important}
   .ob-card-actions{display:none !important}
+  .ob-app-card{display:block;width:100%;border:0;background:transparent;text-align:left;font-family:inherit;padding:15px 15px 14px;cursor:pointer}
+  .ob-app-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+  .ob-app-head strong{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:16px;line-height:1.18;color:var(--color-ink);font-weight:900;word-break:normal;overflow-wrap:normal}
+  .ob-app-head span{display:block;margin-top:4px;font-size:12.5px;line-height:1.25;color:var(--color-ink-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px}
+  .ob-app-head small{flex:0 0 auto;color:var(--color-gold);font-size:20px;line-height:1;font-weight:900}
+  .ob-app-progress{height:5px;background:#EEE8DE;border-radius:999px;overflow:hidden;margin:13px 0 10px}
+  .ob-app-progress i{display:block;height:100%;background:var(--color-gold);border-radius:999px}
+  .ob-app-foot{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .ob-app-foot span{border-radius:999px;padding:5px 9px;font-size:11px;line-height:1;font-weight:900;white-space:nowrap}
+  .ob-app-foot em{font-style:normal;font-size:12px;color:var(--color-ink-muted);white-space:nowrap}
 }
 `
 

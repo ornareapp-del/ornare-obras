@@ -159,13 +159,13 @@ export default function Agenda() {
         </div>
       )}
 
-      <div style={s.header}>
+      <div className="ag-header" style={s.header}>
         <div>
           <div style={s.breadcrumb}>Gestão</div>
           <h1 style={s.title}>Central de Agenda</h1>
           <p style={s.sub}>Montagens, entregas, assistências e compromissos operacionais</p>
         </div>
-        <button style={s.btnNew} onClick={() => setModal(true)}>+ Novo Evento</button>
+        <button className="ag-new" style={s.btnNew} onClick={() => setModal(true)}>+ Novo Evento</button>
       </div>
 
       <div className="ag-kpis" style={s.kpiGrid}>
@@ -252,10 +252,14 @@ function Sel({ onChange, children, ...props }) { return <select {...props} onCha
 
 const css = `
 @media (max-width:760px){
-  .ag-kpis{grid-template-columns:repeat(2,minmax(0,1fr)) !important;gap:10px !important;margin-bottom:14px !important}
-  .ag-kpis>div{min-width:0 !important;padding:13px 14px !important}
-  .ag-kpis span{font-size:9px !important;line-height:1.2 !important;letter-spacing:1.1px !important;white-space:normal !important}
-  .ag-kpis strong{font-size:28px !important}
+  .ag-header{display:grid !important;grid-template-columns:1fr auto;gap:10px;align-items:end !important;margin-bottom:13px !important}
+  .ag-header h1{font-size:27px !important;line-height:1 !important}
+  .ag-header p{display:none !important}
+  .ag-new{padding:9px 12px !important;border-radius:12px !important;font-size:12px !important}
+  .ag-kpis{display:flex !important;gap:8px !important;overflow-x:auto !important;margin-bottom:12px !important;padding-bottom:4px !important}
+  .ag-kpis>div{flex:0 0 auto !important;min-width:auto !important;display:flex !important;align-items:center !important;gap:7px !important;border-radius:999px !important;padding:7px 10px !important;border-top:1px solid rgba(184,150,94,.22) !important;box-shadow:0 8px 20px rgba(29,28,25,.045) !important}
+  .ag-kpis span{font-size:10.5px !important;line-height:1 !important;letter-spacing:0 !important;white-space:nowrap !important;margin:0 !important;color:var(--color-ink-muted) !important}
+  .ag-kpis strong{font-size:15px !important;line-height:1 !important}
   .ag-card{padding:12px 13px !important;gap:12px !important;border-radius:16px !important;align-items:flex-start !important;margin-bottom:9px !important}
   .ag-datebox{min-width:48px !important;padding:7px 0 !important}
   .ag-card-desc{display:none !important}

@@ -98,19 +98,20 @@ export default function Equipe() {
 
   return (
     <div className="ow-page" style={s.page}>
+      <style>{css}</style>
       {toast.msg && <Toast msg={toast.msg} tipo={toast.tipo} />}
       {modal && <ModalNovoUsuario supervisores={supervisores} onClose={() => setModal(false)} onSaved={() => { setModal(false); carregar(); mostrarToast('Novo usuário criado com sucesso.') }} />}
 
-      <div style={s.header}>
+      <div className="eq-header" style={s.header}>
         <div>
           <div style={s.breadcrumb}>Gestão</div>
           <h1 style={s.title}>Central de Equipe</h1>
           <p style={s.sub}>{profiles.length} membro{profiles.length !== 1 ? 's' : ''} · {profiles.filter(p => p.ativo !== false).length} ativos</p>
         </div>
-        <button style={s.btnNew} onClick={() => setModal(true)}>+ Novo Usuário</button>
+        <button className="eq-new" style={s.btnNew} onClick={() => setModal(true)}>+ Novo Usuário</button>
       </div>
 
-      <div style={s.kpiGrid}>
+      <div className="eq-kpis" style={s.kpiGrid}>
         {kpis.map(k => (
           <div key={k.label} style={s.kpi}>
             <span style={s.kpiLabel}>{k.label}</span>
@@ -119,7 +120,7 @@ export default function Equipe() {
         ))}
       </div>
 
-      <div style={s.filters}>
+      <div className="eq-filters" style={s.filters}>
         {['todos', ...ROLES].map(f => (
           <button key={f} onClick={() => setFiltro(f)} style={{
             ...s.filterBtn,
@@ -141,7 +142,7 @@ export default function Equipe() {
           <button style={s.btnNew} onClick={() => setModal(true)}>+ Criar Primeiro Usuário</button>
         </div>
       ) : (
-        <div style={s.gridList}>
+        <div className="eq-grid" style={s.gridList}>
           {lista.map(p => {
             const cor = ROLE_COLOR[p.role] || '#888'
             const ativo = p.ativo !== false
@@ -150,7 +151,7 @@ export default function Equipe() {
             const isEditando = editando?.id === p.id
 
             return (
-              <section key={p.id} style={{ ...s.card, opacity: ativo ? 1 : 0.62, borderTopColor: cor }}>
+              <section key={p.id} className="eq-card" style={{ ...s.card, opacity: ativo ? 1 : 0.62, borderTopColor: cor }}>
                 {isEditando ? (
                   <EditForm
                     editando={editando}
@@ -173,9 +174,9 @@ export default function Equipe() {
                       <span style={{ ...s.badge, background: cor + '18', color: cor }}>{ROLE_LABEL[p.role] || p.role}</span>
                       <span style={{ ...s.badge, background: ativo ? '#EAF5EE' : '#F5F1EA', color: ativo ? '#2D7A4A' : '#8A8175' }}>{ativo ? 'Ativo' : 'Inativo'}</span>
                     </div>
-                    <div style={s.detailLine}>{p.telefone || 'Telefone não informado'}</div>
-                    <div style={s.detailLine}>{obrasPessoa.length ? `${obrasPessoa.length} obra${obrasPessoa.length === 1 ? '' : 's'} vinculada${obrasPessoa.length === 1 ? '' : 's'}` : 'Sem obras vinculadas'}</div>
-                    <div style={s.actions}>
+                    <div className="eq-detail" style={s.detailLine}>{p.telefone || 'Telefone não informado'}</div>
+                    <div className="eq-detail" style={s.detailLine}>{obrasPessoa.length ? `${obrasPessoa.length} obra${obrasPessoa.length === 1 ? '' : 's'} vinculada${obrasPessoa.length === 1 ? '' : 's'}` : 'Sem obras vinculadas'}</div>
+                    <div className="eq-actions" style={s.actions}>
                       <button style={s.btnEdit} onClick={() => setEditando({ ...p })}>Editar</button>
                       <button style={s.btnEdit} onClick={() => toggleAtivo(p)}>{ativo ? 'Desativar' : 'Ativar'}</button>
                       <button style={{ ...s.btnEdit, color: '#B84040', borderColor: '#F0C8C8' }} onClick={() => excluir(p)}>Excluir</button>
@@ -304,6 +305,25 @@ function ModalNovoUsuario({ supervisores, onClose, onSaved }) {
 function Field({ label, children }) {
   return <label style={s.field}><span>{label}</span>{children}</label>
 }
+
+const css = `
+@media (max-width:760px){
+  .eq-header{display:grid !important;grid-template-columns:1fr auto;gap:10px;align-items:end !important;margin-bottom:13px !important}
+  .eq-header h1{font-size:27px !important;line-height:1 !important}
+  .eq-header p{font-size:12px !important;margin-top:4px !important}
+  .eq-new{padding:9px 12px !important;border-radius:12px !important;font-size:12px !important}
+  .eq-kpis{display:flex !important;gap:8px !important;overflow-x:auto !important;margin-bottom:12px !important;padding-bottom:4px !important}
+  .eq-kpis>div{flex:0 0 auto !important;min-width:auto !important;display:flex !important;align-items:center !important;gap:7px !important;border-radius:999px !important;padding:7px 10px !important;border-top:1px solid rgba(184,150,94,.22) !important;box-shadow:0 8px 20px rgba(29,28,25,.045) !important}
+  .eq-kpis span{font-size:10.5px !important;line-height:1 !important;letter-spacing:0 !important;white-space:nowrap !important;margin:0 !important;color:var(--color-ink-muted) !important}
+  .eq-kpis strong{font-size:15px !important;line-height:1 !important}
+  .eq-filters{display:flex !important;overflow-x:auto !important;flex-wrap:nowrap !important;gap:8px !important;margin-bottom:12px !important;padding-bottom:3px !important}
+  .eq-filters button{flex:0 0 auto !important;white-space:nowrap !important}
+  .eq-grid{display:flex !important;flex-direction:column !important;gap:10px !important}
+  .eq-card{border-radius:18px !important;padding:14px !important;border-top-width:1px !important;box-shadow:0 14px 34px rgba(29,28,25,.05) !important}
+  .eq-detail{font-size:11.5px !important;padding:5px 0 !important;white-space:nowrap !important;overflow:hidden !important;text-overflow:ellipsis !important}
+  .eq-actions{display:none !important}
+}
+`
 
 const s = {
   page: { padding: '32px 40px', maxWidth: 1180, margin: '0 auto' },
