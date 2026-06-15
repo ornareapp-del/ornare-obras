@@ -255,6 +255,25 @@ export default function Planejamento() {
       ...registros.filter(r => r.travado).slice(0, 8).map(r => ({ tipo: 'Obra travada', obra: r.obra, detalhe: r.motivo_trava || 'Cronograma marcado como travado', cor: THEME.danger })),
     ].slice(0, 12)
 
+    const amanha = new Date(hoje)
+    amanha.setDate(hoje.getDate() + 1)
+    const fimSemanaOperacional = new Date(hoje)
+    fimSemanaOperacional.setDate(hoje.getDate() + 7)
+    const inicioProximaSemana = new Date(hoje)
+    inicioProximaSemana.setDate(hoje.getDate() + 8)
+    const fimProximaSemana = new Date(hoje)
+    fimProximaSemana.setDate(hoje.getDate() + 14)
+    const itensOperacionais = [
+      ...compromissosAgenda.map(a => ({ ...a, tipoOperacional: a.compromissoTipo || 'Compromisso', dataBase: a.inicio })),
+      ...registros.map(r => ({ ...r, tipoOperacional: r.fase || 'Cronograma', dataBase: r.inicio })),
+    ].filter(item => item.dataBase).sort((a, b) => a.dataBase - b.dataBase)
+    const mobileAgenda = [
+      { titulo: 'Hoje', itens: itensOperacionais.filter(i => i.dataBase.getTime() === hoje.getTime()) },
+      { titulo: 'Amanhã', itens: itensOperacionais.filter(i => i.dataBase.getTime() === amanha.getTime()) },
+      { titulo: 'Esta semana', itens: itensOperacionais.filter(i => i.dataBase > amanha && i.dataBase <= fimSemanaOperacional) },
+      { titulo: 'Próxima semana', itens: itensOperacionais.filter(i => i.dataBase >= inicioProximaSemana && i.dataBase <= fimProximaSemana) },
+    ]
+
     return {
       registros,
       compromissosAgenda,
@@ -268,6 +287,7 @@ export default function Planejamento() {
       cidades: [...new Set(dados.obras.map(o => o.cidade).filter(Boolean))].sort(),
       statuses: [...new Set(dados.cronogramas.map(c => c.status_operacional).filter(Boolean))].sort(),
       agendaMes,
+      mobileAgenda,
     }
   }, [dados, filtros, mesAtual])
 
@@ -387,6 +407,8 @@ export default function Planejamento() {
 
       <AtencaoPanel alertas={vm.alertas} abrirObra={abrirObra} />
 
+      <MobileOperacional grupos={vm.mobileAgenda} abrirObra={abrirObra} />
+
       <nav className="pl-tabs">
         {[
           ['calendario', 'Calendário Mensal'],
@@ -447,6 +469,33 @@ function AtencaoPanel({ alertas, abrirObra }) {
           ))}
         </div>
       )}
+    </section>
+  )
+}
+
+function MobileOperacional({ grupos, abrirObra }) {
+  return (
+    <section className="pl-mobile-operational">
+      {grupos.map(grupo => (
+        <div className="pl-mobile-group" key={grupo.titulo}>
+          <div className="pl-mobile-group-head">
+            <h2>{grupo.titulo}</h2>
+            <span>{grupo.itens.length}</span>
+          </div>
+          {grupo.itens.length === 0 ? (
+            <div className="pl-mobile-empty">Sem compromissos programados.</div>
+          ) : grupo.itens.slice(0, 8).map(item => (
+            <button className="pl-mobile-item" key={`${grupo.titulo}-${item.origem || 'cronograma'}-${item.id}`} onClick={() => abrirObra(item.obra_id)}>
+              <div>
+                <span>{item.tipoOperacional}</span>
+                <strong>{item.obra?.nome || 'Obra'}</strong>
+                <small>{dataBR(item.data || item.data_inicio_prevista)}{item.hora_inicio ? ` · ${String(item.hora_inicio).slice(0, 5)}` : ''}</small>
+              </div>
+              <em>{item.montadores?.[0] ? nomePessoa(item.montadores[0]) : nomePessoa(item.supervisor)}</em>
+            </button>
+          ))}
+        </div>
+      ))}
     </section>
   )
 }
@@ -703,6 +752,7 @@ const css = `
 .pl-attention-list strong{display:block;font-size:12px;color:${THEME.ink};margin-bottom:3px}
 .pl-attention-list span{display:block;font-size:11.5px;color:${THEME.muted};line-height:1.35}
 .pl-attention-empty{padding:18px 0;text-align:center;color:#A79F93;font-size:13px}
+.pl-mobile-operational{display:none}
 .pl-card{max-width:1480px;margin:0 auto;background:#fff;border:1px solid ${THEME.border};border-radius:18px;padding:18px 20px;box-shadow:0 14px 34px rgba(29,28,25,.05);box-sizing:border-box}
 .pl-card-head{display:flex;justify-content:space-between;gap:14px;align-items:center;margin-bottom:15px}
 .pl-card-head h2{font-size:15px;margin:0;font-weight:900;color:${THEME.ink}}
@@ -762,5 +812,5 @@ const css = `
 .pl-modal-foot button{border:1px solid ${THEME.border};background:#fff;color:${THEME.muted};border-radius:10px;padding:10px 15px;font-size:13px;font-weight:800;cursor:pointer}
 .pl-modal-foot button.primary{background:${THEME.gold};border-color:${THEME.gold};color:#fff}
 @media (max-width:1100px){.pl-kpis{grid-template-columns:repeat(3,1fr)}.pl-attention-list{grid-template-columns:1fr 1fr}.pl-filters{grid-template-columns:repeat(2,1fr)}.pl-calendar{grid-template-columns:repeat(2,1fr)}.pl-weekdays{display:none}.pl-day{min-height:auto}.pl-day.outside{display:none}.pl-form-grid{grid-template-columns:1fr 1fr}}
-@media (max-width:760px){.pl-page{padding:22px 14px calc(112px + env(safe-area-inset-bottom))}.pl-header{display:block;margin-bottom:14px}.pl-eyebrow{font-size:9px;letter-spacing:2px;margin-bottom:4px}.pl-header h1{font-size:28px;line-height:1.02}.pl-header p{font-size:12.5px;line-height:1.45}.pl-month-nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;justify-content:flex-start;margin-top:10px}.pl-month-nav strong{grid-column:1/-1;order:-1;text-align:left;min-width:0;font-size:16px}.pl-month-nav button{width:100%;padding:10px 9px;font-size:12px}.pl-kpis{display:flex;overflow-x:auto;padding-bottom:8px;gap:10px;scroll-snap-type:x mandatory}.pl-kpis>*{min-width:154px;max-width:176px;flex:0 0 154px;scroll-snap-align:start}.pl-kpi{min-width:154px;padding:13px 12px}.pl-kpi span{white-space:normal;font-size:9px;line-height:1.25;letter-spacing:1.1px}.pl-kpi strong{font-size:28px}.pl-attention{padding:15px 13px;border-radius:15px}.pl-attention-list{grid-template-columns:1fr}.pl-card{padding:15px 13px;border-radius:15px}.pl-card-head h2{font-size:20px}.pl-calendar{grid-template-columns:1fr;gap:10px}.pl-day{min-height:78px;padding:11px 12px}.pl-day.outside{display:none}.pl-day-items button{padding:9px 10px}.pl-day-items strong{white-space:normal}.pl-filters{grid-template-columns:1fr}.pl-gantt-head,.pl-gantt-row{grid-template-columns:190px repeat(var(--cols),100px)}.pl-modal-bg{align-items:flex-end;padding:8px}.pl-modal{max-height:94vh;border-radius:18px 18px 0 0}.pl-modal-head{padding:20px 18px 0}.pl-modal-body{padding:18px}.pl-modal-foot{padding:14px 18px}.pl-form-grid{grid-template-columns:1fr}}
+@media (max-width:760px){.pl-page{padding:22px 14px calc(112px + env(safe-area-inset-bottom))}.pl-header{display:block;margin-bottom:14px}.pl-eyebrow{font-size:9px;letter-spacing:2px;margin-bottom:4px}.pl-header h1{font-size:28px;line-height:1.02}.pl-header p{font-size:12.5px;line-height:1.45}.pl-month-nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;justify-content:flex-start;margin-top:10px}.pl-month-nav strong{grid-column:1/-1;order:-1;text-align:left;min-width:0;font-size:16px}.pl-month-nav button{width:100%;padding:10px 9px;font-size:12px}.pl-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible;padding-bottom:0;gap:10px}.pl-kpis>*{min-width:0;max-width:none;flex:auto}.pl-kpi{min-width:0;padding:13px 12px}.pl-kpi span{white-space:normal;font-size:9px;line-height:1.25;letter-spacing:1.1px}.pl-kpi strong{font-size:28px}.pl-attention{padding:15px 13px;border-radius:15px}.pl-attention-list{grid-template-columns:1fr}.pl-mobile-operational{display:grid;gap:12px;margin:0 auto 16px;max-width:1480px}.pl-mobile-group{background:#fff;border:1px solid ${THEME.border};border-radius:16px;padding:15px 13px;box-shadow:0 14px 34px rgba(29,28,25,.045)}.pl-mobile-group-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.pl-mobile-group-head h2{font-size:20px;margin:0}.pl-mobile-group-head span{color:${THEME.gold};font-size:13px;font-weight:900}.pl-mobile-item{width:100%;border:1px solid ${THEME.border};background:#FFFEFC;border-radius:13px;padding:12px;margin-top:8px;display:flex;justify-content:space-between;gap:12px;text-align:left;font-family:inherit}.pl-mobile-item span{display:block;font-size:10px;letter-spacing:1.4px;text-transform:uppercase;color:${THEME.gold};font-weight:900;margin-bottom:4px}.pl-mobile-item strong{display:block;font-size:14px;color:${THEME.ink};line-height:1.25}.pl-mobile-item small,.pl-mobile-item em{display:block;font-size:11.5px;color:${THEME.muted};line-height:1.35;font-style:normal}.pl-mobile-item em{text-align:right;max-width:120px}.pl-mobile-empty{border:1px dashed ${THEME.border};border-radius:13px;padding:14px;text-align:center;color:${THEME.muted};font-size:13px}.pl-tabs,.pl-card:has(.pl-calendar){display:none}.pl-card{padding:15px 13px;border-radius:15px}.pl-card-head h2{font-size:20px}.pl-calendar{grid-template-columns:1fr;gap:10px}.pl-day{min-height:78px;padding:11px 12px}.pl-day.outside{display:none}.pl-day-items button{padding:9px 10px}.pl-day-items strong{white-space:normal}.pl-filters{grid-template-columns:1fr}.pl-gantt-head,.pl-gantt-row{grid-template-columns:190px repeat(var(--cols),100px)}.pl-modal-bg{align-items:flex-end;padding:8px}.pl-modal{max-height:94vh;border-radius:18px 18px 0 0}.pl-modal-head{padding:20px 18px 0}.pl-modal-body{padding:18px}.pl-modal-foot{padding:14px 18px}.pl-form-grid{grid-template-columns:1fr}}
 `

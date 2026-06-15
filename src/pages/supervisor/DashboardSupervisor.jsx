@@ -343,6 +343,21 @@ export default function DashboardSupervisor() {
         </div>
       </header>
 
+      <section className="ds-priorities">
+        <Card title="Minhas prioridades">
+          {loading ? <Empty text="Carregando prioridades..." /> : vm.acoes.length === 0 ? <Empty text="Nenhuma prioridade crítica agora." /> : vm.acoes.slice(0, 5).map((acao, i) => (
+            <button className="ds-priority-row" key={`${acao.tipo}-${i}`} onClick={() => acao.obraId && navigate(`/obras/${acao.obraId}`)}>
+              <i style={{ background: acao.cor }} />
+              <div>
+                <span>{acao.tipo}</span>
+                <strong>{acao.titulo}</strong>
+                <small>{acao.detalhe}</small>
+              </div>
+            </button>
+          ))}
+        </Card>
+      </section>
+
       <section className="ds-kpis" aria-label="Indicadores do supervisor">
         {kpis.map(kpi => <Kpi key={kpi.label} {...kpi} loading={loading} />)}
       </section>
@@ -534,6 +549,13 @@ const css = `
 .ds-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .ds-actions button{border:1px solid ${THEME.border};background:#fff;color:${THEME.ink};border-radius:10px;padding:10px 14px;font-size:13px;font-weight:800;cursor:pointer}
 .ds-actions .primary{background:${THEME.gold};border-color:${THEME.gold};color:#fff}
+.ds-priorities{max-width:1380px;margin:0 auto 16px}
+.ds-priority-row{width:100%;border:0;background:transparent;border-bottom:1px solid ${THEME.border};padding:12px 0;display:flex;gap:11px;align-items:flex-start;text-align:left;cursor:pointer;font-family:inherit}
+.ds-priority-row:last-child{border-bottom:0}
+.ds-priority-row i{width:9px;height:9px;border-radius:999px;flex-shrink:0;margin-top:6px}
+.ds-priority-row span{display:block;font-size:10px;letter-spacing:1.4px;text-transform:uppercase;color:${THEME.gold};font-weight:900;margin-bottom:4px}
+.ds-priority-row strong{display:block;font-size:14px;color:${THEME.ink};line-height:1.25}
+.ds-priority-row small{display:block;font-size:12px;color:${THEME.muted};line-height:1.35;margin-top:3px}
 .ds-kpis{max-width:1380px;margin:0 auto 18px;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
 .ds-kpi{background:#fff;border:1px solid ${THEME.border};border-top:3px solid ${THEME.gold};border-radius:14px;padding:15px 16px;min-width:0}
 .ds-kpi span{display:block;font-size:10px;letter-spacing:1.8px;text-transform:uppercase;font-weight:800;margin-bottom:9px;white-space:nowrap}
@@ -583,5 +605,5 @@ const css = `
 .ds-mini-list.spaced{margin-top:12px}
 .ds-empty{padding:24px 0;text-align:center;color:#A79F93;font-size:13px}
 @media (max-width:1100px){.ds-grid-3,.ds-main{grid-template-columns:1fr}.ds-work-row{grid-template-columns:minmax(0,1fr) 86px auto auto}}
-@media (max-width:760px){.ds-page{padding:22px 14px calc(112px + env(safe-area-inset-bottom))}.ds-header{display:block;margin-bottom:14px}.ds-eyebrow{font-size:9px;letter-spacing:2px;margin-bottom:4px}.ds-header h1{font-size:28px;line-height:1.02}.ds-header p{font-size:12.5px;line-height:1.45}.ds-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;justify-content:flex-start;margin-top:10px}.ds-actions button{min-width:0;width:100%;padding:10px 9px;font-size:12px}.ds-kpis{display:flex;overflow-x:auto;padding-bottom:8px;scroll-snap-type:x mandatory;gap:10px}.ds-kpis>*{min-width:154px;max-width:176px;flex:0 0 154px;scroll-snap-align:start}.ds-kpi{min-width:154px;padding:13px 12px}.ds-kpi span{white-space:normal;font-size:9px;line-height:1.25;letter-spacing:1.1px}.ds-kpi strong{font-size:28px}.ds-kpi small{font-size:11px;line-height:1.25}.ds-grid-3,.ds-main{gap:12px}.ds-card{padding:16px 14px;border-radius:14px}.ds-card-head h2{font-size:20px}.ds-health{grid-template-columns:1fr 1fr 1fr}.ds-work-row{display:flex;align-items:flex-start;flex-direction:column}.ds-progress{width:100%}.ds-work-row>small{white-space:normal}.ds-badge{align-self:flex-start}.ds-action-row{padding:12px 0}.ds-split{grid-template-columns:1fr 1fr}}
+@media (max-width:760px){.ds-page{padding:22px 14px calc(112px + env(safe-area-inset-bottom));display:flex;flex-direction:column}.ds-header{display:block;margin-bottom:14px;order:0}.ds-priorities{order:1;margin-bottom:12px}.ds-main{order:2}.ds-grid-3{order:3}.ds-kpis{order:4}.ds-eyebrow{font-size:9px;letter-spacing:2px;margin-bottom:4px}.ds-header h1{font-size:28px;line-height:1.02}.ds-header p{font-size:12.5px;line-height:1.45}.ds-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;justify-content:flex-start;margin-top:10px}.ds-actions button{min-width:0;width:100%;padding:10px 9px;font-size:12px}.ds-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible;padding-bottom:0;gap:10px;margin-top:4px}.ds-kpis>*{min-width:0;max-width:none;flex:auto}.ds-kpi{min-width:0;padding:13px 12px}.ds-kpi span{white-space:normal;font-size:9px;line-height:1.25;letter-spacing:1.1px}.ds-kpi strong{font-size:28px}.ds-kpi small{font-size:11px;line-height:1.25}.ds-grid-3,.ds-main{gap:12px}.ds-card{padding:16px 14px;border-radius:14px}.ds-card-head h2{font-size:20px}.ds-health{grid-template-columns:1fr 1fr 1fr}.ds-work-row{display:flex;align-items:flex-start;flex-direction:column}.ds-progress{width:100%}.ds-work-row>small{white-space:normal}.ds-badge{align-self:flex-start}.ds-action-row{padding:12px 0}.ds-split{grid-template-columns:1fr 1fr}}
 `

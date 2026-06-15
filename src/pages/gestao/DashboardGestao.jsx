@@ -208,6 +208,14 @@ export default function DashboardGestao() {
 
     return {
       hojeStr,
+      travadasLista: dados.obras
+        .filter(o => inStatus(o, STATUS.travadas) || (ocorrPorObra.get(o.id) || []).some(oc => normalizar(oc.gravidade) === 'alta'))
+        .slice(0, 4),
+      riscoLista: saude.filter(s => s.atrasada || s.risco).map(s => s.obra).slice(0, 4),
+      pendenciasCriticas: [
+        ...ocorrenciasAbertas.slice(0, 3).map(o => ({ id: `oc-${o.id}`, tipo: 'Ocorrência aberta', titulo: o.titulo || o.descricao || 'Ocorrência sem título', obraId: o.obra_id, detalhe: obraNome(dados.obras, o.obra_id) })),
+        ...tarefasAtrasadas.slice(0, 3).map(t => ({ id: `ta-${t.id}`, tipo: 'Tarefa atrasada', titulo: t.titulo || t.descricao || 'Tarefa atrasada', obraId: t.obra_id, detalhe: obraNome(dados.obras, t.obra_id) })),
+      ].slice(0, 5),
       operacao: {
         producao: dados.obras.filter(o => inStatus(o, STATUS.producao)).length,
         montagem: dados.obras.filter(o => inStatus(o, STATUS.montagem)).length,
@@ -276,6 +284,55 @@ export default function DashboardGestao() {
           <button className="primary" onClick={() => navigate('/obras/nova')}>Nova Obra</button>
         </div>
       </header>
+
+      <section className="dg-priority-board">
+        <Card title="Exigem atenção agora" action="Abrir obras" onAction={() => navigate('/obras')}>
+          {vm.atencao.length === 0 ? <Empty text="Nenhuma pendência crítica." /> : vm.atencao.slice(0, 4).map(item => (
+            <button className="dg-priority-row" key={item.obra.id} onClick={() => navigate(`/obras/${item.obra.id}`)}>
+              <i style={{ background: item.motivos.includes('atrasada') ? THEME.danger : THEME.warn }} />
+              <div>
+                <strong>{item.obra.nome}</strong>
+                <span>{item.motivos.slice(0, 2).join(' · ')}</span>
+              </div>
+            </button>
+          ))}
+        </Card>
+
+        <Card title="Obras travadas">
+          {vm.travadasLista.length === 0 ? <Empty text="Nenhuma obra travada." /> : vm.travadasLista.map(obra => (
+            <button className="dg-priority-row compact" key={obra.id} onClick={() => navigate(`/obras/${obra.id}`)}>
+              <i style={{ background: THEME.danger }} />
+              <div><strong>{obra.nome}</strong><span>{obra.status || 'Ação imediata'}</span></div>
+            </button>
+          ))}
+        </Card>
+
+        <Card title="Pendências críticas">
+          {vm.pendenciasCriticas.length === 0 ? <Empty text="Nenhuma pendência crítica." /> : vm.pendenciasCriticas.map(item => (
+            <button className="dg-priority-row compact" key={item.id} onClick={() => item.obraId && navigate(`/obras/${item.obraId}`)}>
+              <i style={{ background: THEME.warn }} />
+              <div><strong>{item.titulo}</strong><span>{item.tipo} · {item.detalhe}</span></div>
+            </button>
+          ))}
+        </Card>
+
+        <Card title="Obras em risco">
+          {vm.riscoLista.length === 0 ? <Empty text="Nenhuma obra em risco." /> : vm.riscoLista.map(obra => (
+            <button className="dg-priority-row compact" key={obra.id} onClick={() => navigate(`/obras/${obra.id}`)}>
+              <i style={{ background: THEME.warn }} />
+              <div><strong>{obra.nome}</strong><span>{obra.data_previsao ? `Prev. ${dataBR(obra.data_previsao)}` : 'Sem previsão'}</span></div>
+            </button>
+          ))}
+        </Card>
+      </section>
+
+      <section className="dg-agenda-mobile">
+        <Card title="Agenda dos próximos dias" action="Agenda" onAction={() => navigate('/agenda')}>
+          <MiniAgenda label="Montagens" itens={vm.agenda7.montagens} />
+          <MiniAgenda label="Vistorias" itens={vm.agenda7.vistorias} />
+          <MiniAgenda label="Assist. técnicas" itens={vm.agenda7.assistencias} />
+        </Card>
+      </section>
 
       <section className="dg-kpis" aria-label="Indicadores operacionais">
         {kpis.map(k => <Kpi key={k.label} {...k} loading={loading} />)}
@@ -456,6 +513,14 @@ const css = `
 .dg-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .dg-actions button{border:1px solid ${THEME.border};background:#fff;color:${THEME.ink};border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;cursor:pointer}
 .dg-actions .primary{background:${THEME.gold};border-color:${THEME.gold};color:#fff}
+.dg-priority-board{max-width:1380px;margin:0 auto 16px;display:grid;grid-template-columns:1.25fr 1fr 1fr 1fr;gap:12px}
+.dg-agenda-mobile{max-width:1380px;margin:0 auto 16px}
+.dg-priority-row{width:100%;border:0;background:transparent;border-bottom:1px solid ${THEME.border};padding:11px 0;display:flex;gap:10px;align-items:flex-start;text-align:left;cursor:pointer;font-family:inherit}
+.dg-priority-row:last-child{border-bottom:0}
+.dg-priority-row i{width:9px;height:9px;border-radius:99px;margin-top:5px;flex-shrink:0}
+.dg-priority-row strong{display:block;font-size:13px;color:${THEME.ink};font-weight:900;line-height:1.25}
+.dg-priority-row span{display:block;font-size:11.5px;color:${THEME.muted};line-height:1.35;margin-top:3px}
+.dg-priority-row.compact{padding:9px 0}
 .dg-kpis{max-width:1380px;margin:0 auto 18px;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
 .dg-kpi{background:#fff;border:1px solid ${THEME.border};border-top:3px solid ${THEME.gold};border-radius:14px;padding:15px 16px;min-width:0}
 .dg-kpi span{display:block;font-size:10px;letter-spacing:1.8px;text-transform:uppercase;font-weight:800;margin-bottom:9px;white-space:nowrap}
@@ -507,5 +572,7 @@ const css = `
 .dg-activity em{font-style:normal;font-size:10px;color:#aaa}
 .dg-empty{padding:24px 0;text-align:center;color:#aaa;font-size:13px}
 @media (max-width:1100px){.dg-grid-3,.dg-main{grid-template-columns:1fr}.dg-flow{grid-template-columns:repeat(3,1fr)}.dg-flow-line{display:none}}
-@media (max-width:760px){.dg-page{padding:22px 14px calc(112px + env(safe-area-inset-bottom))}.dg-header{display:block;margin-bottom:14px}.dg-eyebrow{font-size:9px;letter-spacing:2px;margin-bottom:4px}.dg-header h1{font-size:28px;line-height:1.02}.dg-header p{font-size:12.5px;line-height:1.45}.dg-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;justify-content:flex-start;margin-top:10px}.dg-actions button{width:100%;padding:10px 9px;font-size:12px}.dg-kpis{display:flex;overflow-x:auto;padding-bottom:8px;scroll-snap-type:x mandatory;gap:10px}.dg-kpis>*{min-width:154px;max-width:176px;flex:0 0 154px;scroll-snap-align:start}.dg-kpi{min-width:154px;padding:13px 12px}.dg-kpi span{white-space:normal;font-size:9px;line-height:1.25;letter-spacing:1.1px}.dg-kpi strong{font-size:28px}.dg-kpi small{font-size:11px;line-height:1.25}.dg-grid-3,.dg-main{gap:12px}.dg-card{padding:16px 14px;border-radius:14px}.dg-card-head h2{font-size:20px}.dg-health{grid-template-columns:1fr 1fr 1fr}.dg-flow{display:flex;overflow-x:auto;padding-bottom:4px}.dg-flow-step{min-width:140px}.dg-attention,.dg-work-row{align-items:flex-start;flex-direction:column}.dg-tags{margin-left:0;justify-content:flex-start}.dg-progress{width:100%}.dg-activity{grid-template-columns:62px 1fr}.dg-activity em{display:none}}
+@media (max-width:1100px){.dg-priority-board{grid-template-columns:1fr 1fr}.dg-agenda-mobile{display:block}}
+@media (min-width:761px){.dg-agenda-mobile{display:none}}
+@media (max-width:760px){.dg-page{padding:22px 14px calc(112px + env(safe-area-inset-bottom))}.dg-header{display:block;margin-bottom:14px}.dg-eyebrow{font-size:9px;letter-spacing:2px;margin-bottom:4px}.dg-header h1{font-size:28px;line-height:1.02}.dg-header p{font-size:12.5px;line-height:1.45}.dg-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;justify-content:flex-start;margin-top:10px}.dg-actions button{width:100%;padding:10px 9px;font-size:12px}.dg-priority-board{grid-template-columns:1fr;gap:10px;margin-bottom:12px}.dg-priority-row{padding:12px 0}.dg-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible;padding-bottom:0;gap:10px}.dg-kpis>*{min-width:0;max-width:none;flex:auto}.dg-kpi{min-width:0;padding:13px 12px}.dg-kpi span{white-space:normal;font-size:9px;line-height:1.25;letter-spacing:1.1px}.dg-kpi strong{font-size:28px}.dg-kpi small{font-size:11px;line-height:1.25}.dg-grid-3,.dg-main{gap:12px}.dg-grid-3{display:none}.dg-card{padding:16px 14px;border-radius:14px}.dg-card-head h2{font-size:20px}.dg-health{grid-template-columns:1fr 1fr 1fr}.dg-flow{display:flex;overflow-x:auto;padding-bottom:4px}.dg-flow-step{min-width:140px}.dg-attention,.dg-work-row{align-items:flex-start;flex-direction:column}.dg-tags{margin-left:0;justify-content:flex-start}.dg-progress{width:100%}.dg-activity{grid-template-columns:62px 1fr}.dg-activity em{display:none}}
 `
