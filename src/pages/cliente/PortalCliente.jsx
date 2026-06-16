@@ -601,12 +601,12 @@ const css = `
   .pc-top{padding:20px 20px 0}
   .pc-top img{height:26px}
   .pc-top span{font-size:8px;letter-spacing:3px;margin-top:4px}
-  .pc-hero-content{padding:32px 20px 82px;display:flex;flex-direction:column}
-  .pc-hero-copy{order:1}
-  .pc-brand-lockup{order:2;align-items:flex-start;width:auto;margin:14px 0 0;padding-top:0;transform:none}
-  .pc-logo-frame{width:150px;height:36px}
-  .pc-logo-frame img{width:150px;height:150px}
+  .pc-hero-content{padding:28px 20px 92px;display:flex;flex-direction:column}
+  .pc-brand-lockup{order:1;align-items:flex-start;width:auto;margin:0 0 15px;padding-top:0;transform:none}
+  .pc-logo-frame{width:158px;height:38px}
+  .pc-logo-frame img{width:158px;height:158px}
   .pc-brand-lockup strong{font-size:8px;letter-spacing:2.8px;margin-top:4px;text-align:left}
+  .pc-hero-copy{order:2}
   .pc-eyebrow{display:none}
   .pc-hero h1{font-size:28px;line-height:1.05;font-weight:850;max-width:350px;text-shadow:0 14px 34px rgba(0,0,0,.55);letter-spacing:-.01em}
   .pc-hero p{display:block;font-size:12px;color:rgba(255,255,255,.9);margin-top:9px;white-space:normal;overflow:visible;text-overflow:clip;max-width:330px;line-height:1.3;font-weight:700}
@@ -624,7 +624,7 @@ const css = `
   .pc-bottom-nav button.active{background:${THEME.ink};color:#fff}
   .pc-bottom-nav button.active span{color:#fff}
   .pc-alert{margin:12px 12px 0}
-  .pc-content{padding:0 12px calc(34px + env(safe-area-inset-bottom));margin-top:-24px}
+  .pc-content{padding:0 12px calc(34px + env(safe-area-inset-bottom));margin-top:-8px}
   .pc-card{padding:14px;border-radius:16px}
   .pc-card-head{margin-bottom:12px}
   .pc-card-head span{font-size:12px}
