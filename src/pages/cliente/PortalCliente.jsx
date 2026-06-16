@@ -515,9 +515,9 @@ const css = `
 .pc-top img{height:44px;filter:brightness(0) invert(1)}
 .pc-top span{display:block;margin-top:5px;color:${THEME.gold};font-size:9px;letter-spacing:3px;text-transform:uppercase}
 .pc-hero-content{position:relative;z-index:2;max-width:980px;margin:0 auto;padding:38px 22px 34px}
-.pc-brand-lockup{position:absolute;top:12px;right:8px;display:flex;flex-direction:column;align-items:flex-end;margin-bottom:0}
+.pc-brand-lockup{position:absolute;top:44px;right:8px;display:flex;flex-direction:column;align-items:flex-end;margin-bottom:0}
 .pc-brand-lockup img{height:164px;filter:brightness(0) invert(1);opacity:.96}
-.pc-brand-lockup span{display:block;margin-top:-10px;color:${THEME.gold};font-size:10px;letter-spacing:3.5px;text-transform:uppercase;font-weight:900}
+.pc-brand-lockup span{display:block;margin-top:-28px;color:${THEME.gold};font-size:10px;letter-spacing:3.5px;text-transform:uppercase;font-weight:900}
 .pc-eyebrow{display:block;color:${THEME.gold};font-size:10px;letter-spacing:3px;text-transform:uppercase;font-weight:900;margin-bottom:10px}
 .pc-hero h1{font-family:var(--font-sans, Inter, system-ui, sans-serif);font-size:42px;line-height:1.05;font-weight:850;letter-spacing:-.01em;margin:0;max-width:820px;color:#fff;text-shadow:0 18px 42px rgba(0,0,0,.48)}
 .pc-hero p{font-size:15px;color:rgba(255,255,255,.86);margin:12px 0 0;font-weight:700;text-shadow:0 10px 28px rgba(0,0,0,.42)}
