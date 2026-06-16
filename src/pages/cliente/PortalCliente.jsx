@@ -257,7 +257,7 @@ export default function PortalCliente() {
         <div className="pc-hero-content">
           <div className="pc-brand-lockup">
             <img src="/logo-ornare.png" alt="Ornare" />
-            <span>Works</span>
+            <span>Minha Obra</span>
           </div>
           <h1>{vm.obra.nome || 'Projeto Ornare'}</h1>
           <p>{vm.obra.cliente_nome || 'Cliente'} · {[vm.obra.cidade, vm.obra.uf].filter(Boolean).join(' / ') || 'Florianópolis'}</p>
@@ -515,9 +515,9 @@ const css = `
 .pc-top img{height:44px;filter:brightness(0) invert(1)}
 .pc-top span{display:block;margin-top:5px;color:${THEME.gold};font-size:9px;letter-spacing:3px;text-transform:uppercase}
 .pc-hero-content{position:relative;z-index:2;max-width:980px;margin:0 auto;padding:48px 22px 102px}
-.pc-brand-lockup{display:flex;flex-direction:column;align-items:flex-start;margin-bottom:22px}
-.pc-brand-lockup img{height:38px;filter:brightness(0) invert(1);opacity:.96}
-.pc-brand-lockup span{display:block;margin-top:6px;color:${THEME.gold};font-size:9px;letter-spacing:3.4px;text-transform:uppercase;font-weight:900}
+.pc-brand-lockup{position:absolute;top:46px;right:28px;display:flex;flex-direction:column;align-items:flex-end;margin-bottom:0}
+.pc-brand-lockup img{height:48px;filter:brightness(0) invert(1);opacity:.96}
+.pc-brand-lockup span{display:block;margin-top:8px;color:${THEME.gold};font-size:9px;letter-spacing:3.2px;text-transform:uppercase;font-weight:900}
 .pc-eyebrow{display:block;color:${THEME.gold};font-size:10px;letter-spacing:3px;text-transform:uppercase;font-weight:900;margin-bottom:10px}
 .pc-hero h1{font-family:var(--font-sans, Inter, system-ui, sans-serif);font-size:42px;line-height:1.05;font-weight:850;letter-spacing:-.01em;margin:0;max-width:820px;color:#fff;text-shadow:0 18px 42px rgba(0,0,0,.48)}
 .pc-hero p{font-size:15px;color:rgba(255,255,255,.86);margin:12px 0 0;font-weight:700;text-shadow:0 10px 28px rgba(0,0,0,.42)}
@@ -597,9 +597,9 @@ const css = `
   .pc-top img{height:26px}
   .pc-top span{font-size:8px;letter-spacing:3px;margin-top:4px}
   .pc-hero-content{padding:30px 20px 72px}
-  .pc-brand-lockup{margin-bottom:14px}
+  .pc-brand-lockup{position:static;align-items:flex-start;margin-bottom:14px}
   .pc-brand-lockup img{height:28px}
-  .pc-brand-lockup span{font-size:8px;letter-spacing:3px;margin-top:4px}
+  .pc-brand-lockup span{font-size:8px;letter-spacing:2.6px;margin-top:4px}
   .pc-eyebrow{display:none}
   .pc-hero h1{font-size:27px;line-height:1.08;font-weight:850;max-width:350px;text-shadow:0 14px 34px rgba(0,0,0,.55);letter-spacing:-.01em}
   .pc-hero p{display:block;font-size:12.5px;color:rgba(255,255,255,.9);margin-top:9px;white-space:normal;overflow:visible;text-overflow:clip;max-width:330px;line-height:1.35;font-weight:700}
