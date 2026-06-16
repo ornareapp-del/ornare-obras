@@ -602,7 +602,7 @@ const css = `
   .pc-top img{height:26px}
   .pc-top span{font-size:8px;letter-spacing:3px;margin-top:4px}
   .pc-hero-content{padding:24px 20px 54px;display:flex;flex-direction:column}
-  .pc-brand-lockup{order:1;align-items:flex-start;width:auto;margin:0 0 14px;padding-top:0;transform:none}
+  .pc-brand-lockup{order:1;align-items:flex-start;width:auto;margin:0 0 5px;padding-top:0;transform:none}
   .pc-logo-frame{width:138px;height:34px}
   .pc-logo-frame img{width:138px;height:138px}
   .pc-brand-lockup strong{font-size:8px;letter-spacing:2.8px;margin-top:4px;text-align:left}
