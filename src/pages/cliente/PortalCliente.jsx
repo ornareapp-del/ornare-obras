@@ -595,16 +595,16 @@ const css = `
 .pc-footer{text-align:center;padding:8px 20px 38px;color:#A79F93;font-size:10px;letter-spacing:2px;text-transform:uppercase}
 @media (max-width:760px){
   .pc-page{padding-bottom:calc(102px + env(safe-area-inset-bottom))}
-  .pc-hero{min-height:260px}
+  .pc-hero{min-height:230px}
   .pc-hero-img{filter:grayscale(1) brightness(.48) contrast(1.18);object-position:center 18%}
   .pc-hero-overlay{background:linear-gradient(180deg,rgba(15,14,12,.82),rgba(15,14,12,.58) 48%,rgba(15,14,12,.18) 76%,rgba(246,243,238,1) 100%)}
   .pc-top{padding:20px 20px 0}
   .pc-top img{height:26px}
   .pc-top span{font-size:8px;letter-spacing:3px;margin-top:4px}
-  .pc-hero-content{padding:28px 20px 92px;display:flex;flex-direction:column}
-  .pc-brand-lockup{order:1;align-items:flex-start;width:auto;margin:0 0 15px;padding-top:0;transform:none}
-  .pc-logo-frame{width:158px;height:38px}
-  .pc-logo-frame img{width:158px;height:158px}
+  .pc-hero-content{padding:24px 20px 54px;display:flex;flex-direction:column}
+  .pc-brand-lockup{order:1;align-items:flex-start;width:auto;margin:0 0 14px;padding-top:0;transform:none}
+  .pc-logo-frame{width:138px;height:34px}
+  .pc-logo-frame img{width:138px;height:138px}
   .pc-brand-lockup strong{font-size:8px;letter-spacing:2.8px;margin-top:4px;text-align:left}
   .pc-hero-copy{order:2}
   .pc-eyebrow{display:none}
@@ -624,11 +624,11 @@ const css = `
   .pc-bottom-nav button.active{background:${THEME.ink};color:#fff}
   .pc-bottom-nav button.active span{color:#fff}
   .pc-alert{margin:12px 12px 0}
-  .pc-content{padding:0 12px calc(34px + env(safe-area-inset-bottom));margin-top:-8px}
+  .pc-content{padding:10px 12px calc(34px + env(safe-area-inset-bottom));margin-top:0}
   .pc-card{padding:14px;border-radius:16px}
   .pc-card-head{margin-bottom:12px}
   .pc-card-head span{font-size:12px}
-  .pc-card-head strong{font-size:34px}
+  .pc-card-head strong{font-size:30px}
   .pc-progress{height:7px;margin-bottom:14px}
   .pc-dashboard-grid{gap:8px}
   .pc-metric{padding:12px;border-radius:13px}
