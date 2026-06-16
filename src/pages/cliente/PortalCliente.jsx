@@ -508,19 +508,19 @@ const css = `
 .pc-page{min-height:100vh;background:${THEME.warm};color:${THEME.ink};font-family:var(--font-sans, Inter, system-ui, sans-serif);overflow-x:hidden}
 .pc-loading{min-height:100vh;background:${THEME.dark};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;color:#fff;letter-spacing:2px;text-transform:uppercase;font-size:11px}
 .pc-loading img{height:54px;filter:brightness(0) invert(1);opacity:.8}
-.pc-hero{position:relative;min-height:260px;color:#fff;overflow:hidden}
+.pc-hero{position:relative;min-height:300px;color:#fff;overflow:hidden}
 .pc-hero-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top;filter:grayscale(1) brightness(.66) contrast(1.08)}
-.pc-hero-overlay{position:absolute;inset:0;background:linear-gradient(180deg,rgba(15,14,12,.62),rgba(15,14,12,.48) 44%,rgba(246,243,238,1) 100%)}
+.pc-hero-overlay{position:absolute;inset:0;background:linear-gradient(180deg,rgba(15,14,12,.76),rgba(15,14,12,.62) 42%,rgba(15,14,12,.22) 68%,rgba(246,243,238,1) 100%)}
 .pc-top{position:relative;z-index:2;padding:22px;display:flex;justify-content:space-between;align-items:flex-start}
 .pc-top img{height:44px;filter:brightness(0) invert(1)}
 .pc-top span{display:block;margin-top:5px;color:${THEME.gold};font-size:9px;letter-spacing:3px;text-transform:uppercase}
-.pc-hero-content{position:relative;z-index:2;max-width:980px;margin:0 auto;padding:54px 22px 82px}
+.pc-hero-content{position:relative;z-index:2;max-width:980px;margin:0 auto;padding:48px 22px 102px}
 .pc-brand-lockup{display:flex;flex-direction:column;align-items:flex-start;margin-bottom:22px}
-.pc-brand-lockup img{height:34px;filter:brightness(0) invert(1);opacity:.92}
+.pc-brand-lockup img{height:38px;filter:brightness(0) invert(1);opacity:.96}
 .pc-brand-lockup span{display:block;margin-top:6px;color:${THEME.gold};font-size:9px;letter-spacing:3.4px;text-transform:uppercase;font-weight:900}
 .pc-eyebrow{display:block;color:${THEME.gold};font-size:10px;letter-spacing:3px;text-transform:uppercase;font-weight:900;margin-bottom:10px}
-.pc-hero h1{font-family:var(--font-serif, Georgia, serif);font-size:46px;line-height:1.02;font-weight:500;margin:0;max-width:760px}
-.pc-hero p{font-size:15px;color:rgba(255,255,255,.78);margin:10px 0 0}
+.pc-hero h1{font-family:var(--font-sans, Inter, system-ui, sans-serif);font-size:42px;line-height:1.05;font-weight:850;letter-spacing:-.01em;margin:0;max-width:820px;color:#fff;text-shadow:0 18px 42px rgba(0,0,0,.48)}
+.pc-hero p{font-size:15px;color:rgba(255,255,255,.86);margin:12px 0 0;font-weight:700;text-shadow:0 10px 28px rgba(0,0,0,.42)}
 .pc-hero-dashboard{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:24px}
 .pc-pill{background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);border-radius:14px;padding:12px 13px;backdrop-filter:blur(10px);min-width:0}
 .pc-pill span{display:block;color:${THEME.gold};font-size:8.5px;letter-spacing:1.7px;text-transform:uppercase;font-weight:900;margin-bottom:6px}
@@ -590,19 +590,19 @@ const css = `
 .pc-footer{text-align:center;padding:8px 20px 38px;color:#A79F93;font-size:10px;letter-spacing:2px;text-transform:uppercase}
 @media (max-width:760px){
   .pc-page{padding-bottom:calc(102px + env(safe-area-inset-bottom))}
-  .pc-hero{min-height:178px}
-  .pc-hero-img{filter:grayscale(1) brightness(.55) contrast(1.16);object-position:center 18%}
-  .pc-hero-overlay{background:linear-gradient(180deg,rgba(15,14,12,.58),rgba(15,14,12,.34) 54%,rgba(246,243,238,1) 100%)}
+  .pc-hero{min-height:230px}
+  .pc-hero-img{filter:grayscale(1) brightness(.48) contrast(1.18);object-position:center 18%}
+  .pc-hero-overlay{background:linear-gradient(180deg,rgba(15,14,12,.82),rgba(15,14,12,.58) 48%,rgba(15,14,12,.18) 76%,rgba(246,243,238,1) 100%)}
   .pc-top{padding:20px 20px 0}
   .pc-top img{height:26px}
   .pc-top span{font-size:8px;letter-spacing:3px;margin-top:4px}
-  .pc-hero-content{padding:30px 20px 50px}
+  .pc-hero-content{padding:30px 20px 72px}
   .pc-brand-lockup{margin-bottom:14px}
-  .pc-brand-lockup img{height:23px}
+  .pc-brand-lockup img{height:28px}
   .pc-brand-lockup span{font-size:8px;letter-spacing:3px;margin-top:4px}
   .pc-eyebrow{display:none}
-  .pc-hero h1{font-size:34px;line-height:.96;font-weight:500;max-width:330px;text-shadow:0 12px 30px rgba(0,0,0,.22)}
-  .pc-hero p{display:block;font-size:12px;color:rgba(255,255,255,.72);margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:310px}
+  .pc-hero h1{font-size:27px;line-height:1.08;font-weight:850;max-width:350px;text-shadow:0 14px 34px rgba(0,0,0,.55);letter-spacing:-.01em}
+  .pc-hero p{display:block;font-size:12.5px;color:rgba(255,255,255,.9);margin-top:9px;white-space:normal;overflow:visible;text-overflow:clip;max-width:330px;line-height:1.35;font-weight:700}
   .pc-hero-dashboard{display:none}
   .pc-tabs{display:none}
   .pc-bottom-nav{position:fixed;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:40;display:grid;grid-template-columns:repeat(5,1fr);gap:4px;background:rgba(255,254,252,.96);border:1px solid ${THEME.border};border-radius:18px;padding:7px;box-shadow:0 18px 42px rgba(29,28,25,.18);backdrop-filter:blur(18px)}
@@ -617,7 +617,7 @@ const css = `
   .pc-bottom-nav button.active{background:${THEME.ink};color:#fff}
   .pc-bottom-nav button.active span{color:#fff}
   .pc-alert{margin:12px 12px 0}
-  .pc-content{padding:0 12px calc(34px + env(safe-area-inset-bottom));margin-top:-28px}
+  .pc-content{padding:0 12px calc(34px + env(safe-area-inset-bottom));margin-top:-40px}
   .pc-card{padding:14px;border-radius:16px}
   .pc-card-head{margin-bottom:12px}
   .pc-card-head span{font-size:12px}
@@ -643,8 +643,8 @@ const css = `
   .pc-preview-prev,.pc-preview-next{display:none}
 }
 @media (max-width:360px){
-  .pc-hero{min-height:164px}
-  .pc-hero h1{font-size:25px}
+  .pc-hero{min-height:218px}
+  .pc-hero h1{font-size:24px}
   .pc-pill{padding:8px}
   .pc-gallery img,.pc-gallery button>span{height:220px}
   .pc-bottom-nav{left:6px;right:6px;bottom:calc(6px + env(safe-area-inset-bottom))}
