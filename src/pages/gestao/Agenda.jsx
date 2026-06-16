@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 
 const TIPOS = ['Apresentação','Assistência Técnica','Compromisso','Entrega','Medição','Montagem','Tarefa','Reunião Interna']
@@ -14,7 +15,22 @@ function norm(value) {
   return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 }
 
+function statusEvento(ev, hojeStr) {
+  const status = ev.status || ev.situacao || ev.situacao_agenda
+  if (status) {
+    const n = norm(status)
+    if (n.includes('conclu') || n.includes('realiz')) return { label: 'Realizada', tone: 'success' }
+    if (n.includes('andamento')) return { label: 'Em andamento', tone: 'info' }
+    if (n.includes('atras')) return { label: 'Atrasada', tone: 'danger' }
+    return { label: status, tone: 'warn' }
+  }
+  if ((ev.data_fim || ev.data) < hojeStr) return { label: 'Realizada', tone: 'success' }
+  if (ev.data === hojeStr) return { label: 'Hoje', tone: 'info' }
+  return { label: 'Pendente', tone: 'warn' }
+}
+
 export default function Agenda() {
+  const navigate = useNavigate()
   const [eventos, setEventos] = useState([])
   const [obras, setObras] = useState([])
   const [profiles, setProfiles] = useState([])
@@ -78,6 +94,7 @@ export default function Agenda() {
   const hoje_str = hoje.toISOString().split('T')[0]
   const proximos = eventos.filter(e => (e.data_fim || e.data) >= hoje_str)
   const passados = eventos.filter(e => (e.data_fim || e.data) < hoje_str)
+  const hojeEventos = eventos.filter(e => e.data === hoje_str)
   const lista = filtro === 'proximos' ? proximos : passados
   const kpis = [
     { label: 'Montagens', value: eventos.filter(e => norm(e.tipo || e.titulo).includes('montagem')).length },
@@ -177,7 +194,22 @@ export default function Agenda() {
         ))}
       </div>
 
-      <div style={s.filtros}>
+      <section className="ag-mobile-home" aria-label="Resumo da agenda">
+        <button onClick={() => setFiltro('proximos')}>
+          <strong>{loading ? '-' : hojeEventos.length}</strong>
+          <span>hoje</span>
+        </button>
+        <button onClick={() => setFiltro('proximos')}>
+          <strong>{loading ? '-' : proximos.length}</strong>
+          <span>próximos</span>
+        </button>
+        <button className={passados.length ? 'muted' : ''} onClick={() => setFiltro('passados')}>
+          <strong>{loading ? '-' : passados.length}</strong>
+          <span>anteriores</span>
+        </button>
+      </section>
+
+      <div className="ag-filters" style={s.filtros}>
         {[
           { id: 'proximos', label: 'Próximos (' + proximos.length + ')' },
           { id: 'passados', label: 'Anteriores (' + passados.length + ')' },
@@ -214,8 +246,9 @@ export default function Agenda() {
             const d = new Date(ev.data + 'T00:00:00')
             const cor = TIPO_COR[ev.tipo] || '#888'
             const isHoje = ev.data === hoje_str
+            const status = statusEvento(ev, hoje_str)
             return (
-              <div key={ev.id} className="ag-card" style={{ ...s.card, borderLeft: '4px solid ' + cor, opacity: filtro === 'passados' ? 0.7 : 1 }}>
+              <div key={ev.id} className="ag-card" onClick={() => ev.obra_id && navigate('/obras/' + ev.obra_id)} style={{ ...s.card, borderLeft: '4px solid ' + cor, opacity: filtro === 'passados' ? 0.7 : 1, cursor: ev.obra_id ? 'pointer' : 'default' }}>
                 <div className="ag-datebox" style={{ ...s.datebox, borderColor: isHoje ? cor : 'var(--color-border)', background: isHoje ? cor + '10' : '#fafaf8' }}>
                   <div style={{ fontSize: 22, fontWeight: 700, color: isHoje ? cor : 'var(--color-ink)', fontFamily: 'var(--font-serif)', lineHeight: 1 }}>{d.getDate()}</div>
                   <div style={{ fontSize: 9, color: cor, letterSpacing: 1, fontWeight: 600 }}>{MESES[d.getMonth()].slice(0, 3).toUpperCase()}</div>
@@ -224,6 +257,7 @@ export default function Agenda() {
                 <div style={s.cardBody}>
                   <div style={s.cardTop}>
                     <span style={s.cardTitulo}>{ev.titulo}</span>
+                    <span className={`ag-status tone-${status.tone}`}>{status.label}</span>
                     <span style={{ ...s.tipoBadge, background: cor + '18', color: cor }}>{ev.tipo}</span>
                     {ev.reuniao_interna && <span style={{ ...s.tipoBadge, background: '#eef2f8', color: '#3a5580' }}>Reunião Interna</span>}
                     {isHoje && <span style={{ ...s.tipoBadge, background: '#edf7f0', color: '#3a7d4f' }}>Hoje</span>}
@@ -236,7 +270,7 @@ export default function Agenda() {
                     {ev.data_fim && ev.data_fim !== ev.data && <span>Até {new Date(ev.data_fim + 'T00:00:00').toLocaleDateString('pt-BR')}</span>}
                   </div>
                 </div>
-                <button onClick={() => excluir(ev.id)} style={s.btnExcluir}>X</button>
+                <button onClick={e => { e.stopPropagation(); excluir(ev.id) }} style={s.btnExcluir}>X</button>
               </div>
             )
           })}
@@ -251,6 +285,12 @@ function I({ onChange, ...props }) { return <input {...props} onChange={e => onC
 function Sel({ onChange, children, ...props }) { return <select {...props} onChange={e => onChange(e.target.value)} style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1px solid #ddd', fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit', background: '#fff' }}>{children}</select> }
 
 const css = `
+.ag-mobile-home{display:none}
+.ag-status{border-radius:999px;padding:3px 8px;font-size:10px;font-weight:900;line-height:1;white-space:nowrap}
+.ag-status.tone-success{background:#EAF5EE;color:#2D7A4A}
+.ag-status.tone-info{background:#EEF5FB;color:#1E5A8A}
+.ag-status.tone-warn{background:#FFF4E5;color:#9A6A22}
+.ag-status.tone-danger{background:#FFF1F1;color:#B84040}
 @media (max-width:760px){
   .ag-header{display:grid !important;grid-template-columns:1fr auto;gap:10px;align-items:end !important;margin-bottom:13px !important}
   .ag-header h1{font-size:27px !important;line-height:1 !important}
@@ -260,11 +300,19 @@ const css = `
   .ag-kpis>div{flex:0 0 auto !important;min-width:auto !important;display:flex !important;align-items:center !important;gap:7px !important;border-radius:999px !important;padding:7px 10px !important;border-top:1px solid rgba(184,150,94,.22) !important;box-shadow:0 8px 20px rgba(29,28,25,.045) !important}
   .ag-kpis span{font-size:10.5px !important;line-height:1 !important;letter-spacing:0 !important;white-space:nowrap !important;margin:0 !important;color:var(--color-ink-muted) !important}
   .ag-kpis strong{font-size:15px !important;line-height:1 !important}
+  .ag-mobile-home{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 12px}
+  .ag-mobile-home button{border:1px solid var(--color-border);background:#fff;border-radius:15px;padding:11px 9px;text-align:left;font-family:inherit;box-shadow:0 10px 26px rgba(29,28,25,.04)}
+  .ag-mobile-home button.muted{background:#FFFEFC}
+  .ag-mobile-home strong{display:block;font-size:23px;line-height:1;color:var(--color-ink)}
+  .ag-mobile-home span{display:block;font-size:10.5px;color:var(--color-ink-muted);font-weight:900;margin-top:5px}
+  .ag-filters{margin-bottom:12px !important}
+  .ag-filters button{padding:8px 13px !important}
   .ag-card{padding:12px 13px !important;gap:12px !important;border-radius:16px !important;align-items:flex-start !important;margin-bottom:9px !important}
   .ag-datebox{min-width:48px !important;padding:7px 0 !important}
   .ag-card-desc{display:none !important}
   .ag-card-meta{font-size:11.5px !important;gap:8px !important;line-height:1.35 !important;color:var(--color-ink-muted) !important}
   .ag-card-meta span:nth-child(n+3){display:none !important}
+  .ag-card button:last-child{display:none !important}
 }
 `
 

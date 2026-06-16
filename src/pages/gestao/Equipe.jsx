@@ -111,6 +111,21 @@ export default function Equipe() {
         <button className="eq-new" style={s.btnNew} onClick={() => setModal(true)}>+ Novo Usuário</button>
       </div>
 
+      <div className="eq-mobile-summary" aria-label="Resumo da equipe">
+        <button type="button" onClick={() => setFiltro('todos')}>
+          <strong>{loading ? '-' : profiles.length}</strong>
+          <span>total</span>
+        </button>
+        <button type="button" onClick={() => setFiltro('todos')}>
+          <strong>{loading ? '-' : profiles.filter(p => p.ativo !== false).length}</strong>
+          <span>ativos</span>
+        </button>
+        <button type="button" onClick={() => setFiltro('montador')}>
+          <strong>{loading ? '-' : profiles.filter(p => p.role === 'montador').length}</strong>
+          <span>montadores</span>
+        </button>
+      </div>
+
       <div className="eq-kpis" style={s.kpiGrid}>
         {kpis.map(k => (
           <div key={k.label} style={s.kpi}>
@@ -164,7 +179,7 @@ export default function Equipe() {
                 ) : (
                   <>
                     <div style={s.cardTop}>
-                      <div style={{ ...s.avatar, background: cor + '18', color: cor }}>{initials}</div>
+                      <div className="eq-avatar" style={{ ...s.avatar, background: cor + '18', color: cor }}>{initials}</div>
                       <div style={s.personInfo}>
                         <strong style={s.personName}>{p.full_name || 'Sem nome'}</strong>
                         <span style={s.personMeta}>{p.cargo || p.email || 'Sem cargo informado'}</span>
@@ -307,12 +322,18 @@ function Field({ label, children }) {
 }
 
 const css = `
+.eq-mobile-summary{display:none}
 @media (max-width:760px){
+  .ow-page{padding-bottom:112px !important}
   .eq-header{display:grid !important;grid-template-columns:1fr auto;gap:10px;align-items:end !important;margin-bottom:13px !important}
   .eq-header h1{font-size:27px !important;line-height:1 !important}
   .eq-header p{font-size:12px !important;margin-top:4px !important}
   .eq-new{padding:9px 12px !important;border-radius:12px !important;font-size:12px !important}
-  .eq-kpis{display:flex !important;gap:8px !important;overflow-x:auto !important;margin-bottom:12px !important;padding-bottom:4px !important}
+  .eq-mobile-summary{display:grid !important;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 10px}
+  .eq-mobile-summary button{appearance:none;border:1px solid rgba(231,224,213,.95);background:#fff;border-radius:16px;padding:10px 8px;text-align:left;box-shadow:0 10px 24px rgba(29,28,25,.045);font-family:inherit}
+  .eq-mobile-summary strong{display:block;font-size:22px;line-height:1;color:var(--color-ink)}
+  .eq-mobile-summary span{display:block;margin-top:5px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--color-ink-muted)}
+  .eq-kpis{display:none !important}
   .eq-kpis>div{flex:0 0 auto !important;min-width:auto !important;display:flex !important;align-items:center !important;gap:7px !important;border-radius:999px !important;padding:7px 10px !important;border-top:1px solid rgba(184,150,94,.22) !important;box-shadow:0 8px 20px rgba(29,28,25,.045) !important}
   .eq-kpis span{font-size:10.5px !important;line-height:1 !important;letter-spacing:0 !important;white-space:nowrap !important;margin:0 !important;color:var(--color-ink-muted) !important}
   .eq-kpis strong{font-size:15px !important;line-height:1 !important}
@@ -320,8 +341,15 @@ const css = `
   .eq-filters button{flex:0 0 auto !important;white-space:nowrap !important}
   .eq-grid{display:flex !important;flex-direction:column !important;gap:10px !important}
   .eq-card{border-radius:18px !important;padding:14px !important;border-top-width:1px !important;box-shadow:0 14px 34px rgba(29,28,25,.05) !important}
+  .eq-card>div:first-child{margin-bottom:10px !important}
+  .eq-avatar{width:38px !important;height:38px !important;font-size:12px !important}
+  .eq-card strong{font-size:14px !important;line-height:1.15 !important}
+  .eq-card span{max-width:100%}
   .eq-detail{font-size:11.5px !important;padding:5px 0 !important;white-space:nowrap !important;overflow:hidden !important;text-overflow:ellipsis !important}
   .eq-actions{display:none !important}
+  .eq-card label{font-size:9px !important}
+  .eq-card input,.eq-card select{font-size:13px !important}
+  .eq-card [style*="grid-template-columns"]{grid-template-columns:1fr !important}
 }
 `
 
