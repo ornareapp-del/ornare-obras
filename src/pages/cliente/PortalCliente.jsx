@@ -521,7 +521,7 @@ const css = `
 .pc-brand-lockup{display:flex;flex-direction:column;align-items:center;justify-self:end;padding-top:0;width:260px;transform:translateY(-16px)}
 .pc-logo-frame{display:block;width:260px;height:72px;position:relative;overflow:hidden}
 .pc-logo-frame img{position:absolute;left:50%;top:50%;width:260px;height:260px;max-width:none;filter:brightness(0) invert(1);opacity:.96;transform:translate(-50%,-50%)}
-.pc-brand-lockup strong{display:block;margin-top:7px;color:${THEME.gold};font-size:10px;letter-spacing:3.6px;text-transform:uppercase;font-weight:900;text-align:center}
+.pc-brand-lockup strong{display:block;margin-top:7px;color:${THEME.gold};font-size:11px;letter-spacing:3.8px;text-transform:uppercase;font-weight:900;text-align:center;width:260px}
 .pc-eyebrow{display:block;color:${THEME.gold};font-size:10px;letter-spacing:3px;text-transform:uppercase;font-weight:900;margin-bottom:10px}
 .pc-hero h1{font-family:var(--font-sans, Inter, system-ui, sans-serif);font-size:42px;line-height:1.05;font-weight:850;letter-spacing:-.01em;margin:0;max-width:820px;color:#fff;text-shadow:0 18px 42px rgba(0,0,0,.48)}
 .pc-hero p{font-size:15px;color:rgba(255,255,255,.86);margin:12px 0 0;font-weight:700;text-shadow:0 10px 28px rgba(0,0,0,.42)}
@@ -605,7 +605,7 @@ const css = `
   .pc-brand-lockup{order:1;align-items:flex-start;width:auto;margin:0 0 5px;padding-top:0;transform:none}
   .pc-logo-frame{width:138px;height:34px}
   .pc-logo-frame img{width:138px;height:138px}
-  .pc-brand-lockup strong{font-size:8px;letter-spacing:2.8px;margin-top:4px;text-align:left}
+  .pc-brand-lockup strong{font-size:9px;letter-spacing:3px;margin-top:4px;text-align:center;width:150px}
   .pc-hero-copy{order:2}
   .pc-eyebrow{display:none}
   .pc-hero h1{font-size:28px;line-height:1.05;font-weight:850;max-width:350px;text-shadow:0 14px 34px rgba(0,0,0,.55);letter-spacing:-.01em}
