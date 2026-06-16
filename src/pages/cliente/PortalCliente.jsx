@@ -4,13 +4,16 @@ import { supabase } from '../../lib/supabase'
 import bgImage from '../../assets/ornare-milao-40-anos.jpg'
 
 const THEME = {
-  ink: '#171512',
-  warm: '#F6F3EE',
-  card: '#FFFEFC',
+  ink: '#1A1A1A',
+  warm: '#F5F0EB',
+  card: '#FFFFFF',
   border: '#E7E0D5',
   muted: '#6D675E',
-  gold: '#B8965E',
+  soft: '#9E9E9E',
+  gold: '#C9A96E',
   dark: '#0F0E0C',
+  success: '#1F6B43',
+  danger: '#B44747',
 }
 
 const DESKTOP_NAV = [
@@ -20,6 +23,7 @@ const DESKTOP_NAV = [
   { id: 'fotos', label: 'Fotos' },
   { id: 'mensagens', label: 'Mensagens' },
   { id: 'contatos', label: 'Contatos' },
+  { id: 'docs', label: 'Docs' },
 ]
 
 const MOBILE_NAV = [
@@ -28,9 +32,10 @@ const MOBILE_NAV = [
   { id: 'fotos', label: 'Fotos', icon: '▣' },
   { id: 'mensagens', label: 'Mensagens', icon: '◇' },
   { id: 'contatos', label: 'Contatos', icon: '☎' },
+  { id: 'docs', label: 'Docs', icon: '▤' },
 ]
 
-const TIMELINE = ['Pré-Montagem', 'Produção', 'Montagem', 'Entrega', 'Pós-Venda']
+const PHASES = ['Pedido', 'Projeto aprovado', 'Em produção', 'Pronto para montagem', 'Montagem', 'Entregue']
 
 function safeArray(result) {
   return result?.data || []
@@ -83,8 +88,10 @@ export default function PortalCliente() {
     agenda: [],
     comunicados: [],
     mensagens: [],
+    mensagensCliente: [],
     contatos: [],
     profiles: [],
+    documentos: [],
   })
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState('')
@@ -93,10 +100,19 @@ export default function PortalCliente() {
   const [touchStart, setTouchStart] = useState(null)
   const [filtrosFoto, setFiltrosFoto] = useState({ ambiente: '', categoria: '' })
   const [copiado, setCopiado] = useState('')
+  const [usuario, setUsuario] = useState(null)
+  const [textoMensagem, setTextoMensagem] = useState('')
+  const [enviandoMensagem, setEnviandoMensagem] = useState(false)
+  const [mensagemStatus, setMensagemStatus] = useState('')
+  const [agendaStatus, setAgendaStatus] = useState('')
+  const [modalReagendamento, setModalReagendamento] = useState(null)
+  const [badgesLidos, setBadgesLidos] = useState({ agenda: false, mensagens: false })
 
   async function carregar() {
     setLoading(true)
     setErro('')
+    const { data: authData } = await supabase.auth.getUser()
+    setUsuario(authData?.user || null)
 
     const [
       obra,
@@ -106,8 +122,10 @@ export default function PortalCliente() {
       agenda,
       comunicados,
       mensagens,
+      mensagensCliente,
       contatos,
       profiles,
+      documentos,
     ] = await Promise.all([
       supabase.from('obras').select('*').eq('id', id).single(),
       supabase.from('obra_cronograma').select('*').eq('obra_id', id).maybeSingle(),
@@ -116,8 +134,10 @@ export default function PortalCliente() {
       supabase.from('agenda').select('*').eq('obra_id', id).order('data', { ascending: true }),
       supabase.from('comunicados_cliente').select('*').eq('obra_id', id).order('created_at', { ascending: false }),
       supabase.from('mensagens_obra').select('*').eq('obra_id', id).order('created_at', { ascending: false }),
+      supabase.from('mensagens').select('*').eq('obra_id', id).order('created_at', { ascending: false }),
       supabase.from('contatos_cliente').select('*').eq('obra_id', id),
       supabase.from('profiles').select('id, full_name, email, role, telefone'),
+      supabase.from('documentos').select('*').eq('obra_id', id).order('created_at', { ascending: false }),
     ])
 
     if (obra.error) {
@@ -126,7 +146,7 @@ export default function PortalCliente() {
       return
     }
 
-    const falha = [cronograma, fotos, ambientes, agenda, comunicados, mensagens, contatos, profiles].find(r => r.error)
+    const falha = [cronograma, fotos, ambientes, agenda, comunicados, mensagens, mensagensCliente, contatos, profiles, documentos].find(r => r.error)
     if (falha?.error) setErro(falha.error.message)
 
     setDados({
@@ -137,8 +157,10 @@ export default function PortalCliente() {
       agenda: safeArray(agenda).filter(isAgendaCliente),
       comunicados: safeArray(comunicados),
       mensagens: safeArray(mensagens).filter(isMensagemCliente),
+      mensagensCliente: safeArray(mensagensCliente),
       contatos: safeArray(contatos),
       profiles: safeArray(profiles),
+      documentos: safeArray(documentos),
     })
     setLoading(false)
   }
@@ -154,7 +176,7 @@ export default function PortalCliente() {
     const supervisor = profilesPorId.get(cronograma.supervisor_id || obra.supervisor_id)
     const posVenda = profilesPorId.get(cronograma.comercial_id || obra.comercial_id)
     const progresso = Math.max(0, Math.min(100, Number(cronograma.percentual_concluido ?? obra.progresso ?? 0)))
-    const faseAtual = cronograma.visivel_cliente === false ? (obra.status || '-') : (cronograma.fase || obra.status || '-')
+    const faseAtual = cronograma.visivel_cliente === false ? (obra.fase_atual || obra.status || '-') : (obra.fase_atual || cronograma.fase || obra.status || '-')
     const proximaEtapa = cronograma.visivel_cliente === false ? 'Acompanhamento pela equipe Ornare' : (cronograma.acao_recomendada || cronograma.etapa_atual || 'Acompanhamento pela equipe Ornare')
     const fotos = dados.fotos.filter(f => {
       const porAmbiente = !filtrosFoto.ambiente || f.ambiente_id === filtrosFoto.ambiente
@@ -183,13 +205,98 @@ export default function PortalCliente() {
       fotos,
       categorias: [...new Set(dados.fotos.map(f => f.categoria).filter(Boolean))].sort(),
       ambientesPorId,
-      documentos: [
-        { titulo: 'Relatório do Cliente', descricao: 'PDFs liberados pela equipe aparecerão aqui.' },
-        { titulo: 'Termos de Entrega', descricao: 'Documentos de aceite serão disponibilizados nesta área.' },
+      documentos: dados.documentos,
+      mensagens: [
+        ...dados.comunicados.map(c => ({ ...c, origem: 'Comunicado' })),
+        ...dados.mensagens.map(m => ({ ...m, origem: 'Mensagem' })),
+        ...dados.mensagensCliente.map(m => ({ ...m, origem: m.tipo === 'reagendamento' ? 'Reagendamento' : 'Mensagem' })),
       ],
-      mensagens: [...dados.comunicados.map(c => ({ ...c, origem: 'Comunicado' })), ...dados.mensagens.map(m => ({ ...m, origem: 'Mensagem' }))],
     }
   }, [dados, filtrosFoto])
+
+  const agendaComBadge = useMemo(() => {
+    const hoje = new Date()
+    const limite = new Date()
+    limite.setDate(hoje.getDate() + 7)
+    return dados.agenda.some(item => {
+      if (!item.data) return false
+      const data = new Date(`${String(item.data).slice(0, 10)}T00:00:00`)
+      return data >= hoje && data <= limite
+    })
+  }, [dados.agenda])
+
+  const mensagensComBadge = useMemo(
+    () => dados.mensagensCliente.some(item => item.lido_cliente === false),
+    [dados.mensagensCliente],
+  )
+
+  function temBadge(tab) {
+    if (tab === 'agenda') return agendaComBadge && !badgesLidos.agenda
+    if (tab === 'mensagens') return mensagensComBadge && !badgesLidos.mensagens
+    return false
+  }
+
+  function trocarAba(tab) {
+    setAba(tab)
+    if (tab === 'agenda' || tab === 'mensagens') {
+      setBadgesLidos(prev => ({ ...prev, [tab]: true }))
+    }
+  }
+
+  async function enviarMensagemCliente() {
+    const conteudo = textoMensagem.trim()
+    if (!conteudo) return
+    setEnviandoMensagem(true)
+    setMensagemStatus('')
+
+    const { error } = await supabase.from('mensagens').insert({
+      obra_id: id,
+      remetente_id: usuario?.id || null,
+      conteudo,
+      tipo: 'cliente',
+    })
+
+    setEnviandoMensagem(false)
+    if (error) {
+      setMensagemStatus(`Não foi possível enviar: ${error.message}`)
+      return
+    }
+
+    setTextoMensagem('')
+    setMensagemStatus('Dúvida enviada para a equipe Ornare.')
+    await carregar()
+  }
+
+  async function confirmarPresencaAgenda(item) {
+    setAgendaStatus('')
+    const { error } = await supabase.from('agenda').update({ confirmado_cliente: true }).eq('id', item.id)
+    if (error) {
+      setAgendaStatus(`Não foi possível confirmar presença: ${error.message}`)
+      return
+    }
+    setAgendaStatus('Presença confirmada.')
+    await carregar()
+  }
+
+  async function enviarReagendamento() {
+    const texto = modalReagendamento?.texto?.trim()
+    if (!texto) return
+    const evento = modalReagendamento.evento
+    const conteudo = `Solicitação de reagendamento: ${evento?.titulo || evento?.tipo || 'Compromisso'} (${dataBR(evento?.data)}). Motivo/sugestão: ${texto}`
+    const { error } = await supabase.from('mensagens').insert({
+      obra_id: id,
+      remetente_id: usuario?.id || null,
+      conteudo,
+      tipo: 'reagendamento',
+    })
+    if (error) {
+      setAgendaStatus(`Não foi possível solicitar reagendamento: ${error.message}`)
+      return
+    }
+    setModalReagendamento(null)
+    setAgendaStatus('Solicitação enviada para a equipe Ornare.')
+    await carregar()
+  }
 
   async function copiar(texto, label) {
     if (!texto) return
@@ -251,6 +358,24 @@ export default function PortalCliente() {
         </div>
       )}
 
+      {modalReagendamento && (
+        <div className="pc-modal" role="dialog" aria-modal="true">
+          <div className="pc-modal-card">
+            <button className="pc-modal-close" onClick={() => setModalReagendamento(null)}>Fechar</button>
+            <span>Agenda</span>
+            <h2>Solicitar reagendamento</h2>
+            <p>{modalReagendamento.evento?.titulo || modalReagendamento.evento?.tipo || 'Compromisso'} · {dataBR(modalReagendamento.evento?.data)}</p>
+            <textarea
+              value={modalReagendamento.texto}
+              onChange={e => setModalReagendamento(prev => ({ ...prev, texto: e.target.value }))}
+              placeholder="Motivo ou sugestão de data"
+              rows={5}
+            />
+            <button className="pc-primary-action" onClick={enviarReagendamento}>Enviar solicitação</button>
+          </div>
+        </div>
+      )}
+
       <section className="pc-hero">
         <img className="pc-hero-img" src={bgImage} alt="" />
         <div className="pc-hero-overlay" />
@@ -268,8 +393,9 @@ export default function PortalCliente() {
 
       <nav className="pc-tabs">
         {DESKTOP_NAV.map(item => (
-          <button key={item.id} className={aba === item.id ? 'active' : ''} onClick={() => setAba(item.id)}>
+          <button key={item.id} className={aba === item.id ? 'active' : ''} onClick={() => trocarAba(item.id)}>
             {item.label}
+            {temBadge(item.id) && <i className="pc-tab-badge" />}
           </button>
         ))}
       </nav>
@@ -280,7 +406,7 @@ export default function PortalCliente() {
       <section className="pc-content">
         {aba === 'obra' && <HomeObra vm={vm} />}
         {aba === 'cronograma' && <Cronograma vm={vm} />}
-        {aba === 'agenda' && <AgendaCliente agenda={dados.agenda} />}
+        {aba === 'agenda' && <AgendaCliente agenda={dados.agenda} status={agendaStatus} onConfirmar={confirmarPresencaAgenda} onReagendar={item => setModalReagendamento({ evento: item, texto: '' })} />}
         {aba === 'fotos' && (
           <FotosCliente
             vm={vm}
@@ -290,15 +416,17 @@ export default function PortalCliente() {
             abrirFoto={setPreview}
           />
         )}
-        {aba === 'mensagens' && <MensagensCliente mensagens={vm.mensagens} />}
+        {aba === 'mensagens' && <MensagensCliente mensagens={vm.mensagens} texto={textoMensagem} setTexto={setTextoMensagem} enviando={enviandoMensagem} status={mensagemStatus} onEnviar={enviarMensagemCliente} />}
         {aba === 'contatos' && <ContatosCliente vm={vm} contatos={dados.contatos} copiar={copiar} />}
+        {aba === 'docs' && <DocumentosCliente documentos={vm.documentos} />}
       </section>
 
       <nav className="pc-bottom-nav">
         {MOBILE_NAV.map(item => (
-          <button key={item.id} className={aba === item.id ? 'active' : ''} onClick={() => setAba(item.id)}>
+          <button key={item.id} className={aba === item.id ? 'active' : ''} onClick={() => trocarAba(item.id)}>
             <span>{item.icon}</span>
             {item.label}
+            {temBadge(item.id) && <i className="pc-tab-badge" />}
           </button>
         ))}
       </nav>
@@ -327,9 +455,13 @@ function HomeObra({ vm }) {
       </Card>
       <Timeline faseAtual={vm.faseAtual} />
       <Card title="Documentos">
-        <div className="pc-doc-list">
-          {vm.documentos.map(doc => <Documento key={doc.titulo} doc={doc} />)}
-        </div>
+        {vm.documentos.length === 0 ? (
+          <Empty icon="document" title="Nenhum documento disponível ainda." />
+        ) : (
+          <div className="pc-doc-list">
+            {vm.documentos.map(doc => <Documento key={doc.id || doc.url_arquivo || doc.nome_arquivo} doc={doc} />)}
+          </div>
+        )}
       </Card>
     </div>
   )
@@ -348,26 +480,48 @@ function Cronograma({ vm }) {
   )
 }
 
-function AgendaCliente({ agenda }) {
+function statusAgenda(item) {
+  if (item.confirmado_cliente) return { label: 'Confirmado', tone: 'success' }
+  const hoje = new Date()
+  const inicioHoje = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate())
+  const data = new Date(`${String(item.data || '').slice(0, 10)}T00:00:00`)
+  if (Number.isNaN(data.getTime())) return { label: 'Pendente', tone: 'neutral' }
+  if (data < inicioHoje) return { label: 'Realizada', tone: 'neutral' }
+  if (data.toDateString() === inicioHoje.toDateString()) return { label: 'Hoje', tone: 'gold' }
+  return { label: 'Pendente', tone: 'gold' }
+}
+
+function AgendaCliente({ agenda, status, onConfirmar, onReagendar }) {
   if (agenda.length === 0) {
     return <Empty title="Nenhum evento liberado" text="Visitas, montagem, vistoria e entrega aparecerão aqui quando forem confirmadas." />
   }
   return (
     <div className="pc-stack">
-      {agenda.map(item => (
-        <Card key={item.id}>
-          <div className="pc-agenda-row">
-            <div>
-              <span>{dataBR(item.data)}</span>
-              {item.hora_inicio && <small>{String(item.hora_inicio).slice(0, 5)}</small>}
+      {status && <div className="pc-inline-status">{status}</div>}
+      {agenda.map(item => {
+        const agendaStatus = statusAgenda(item)
+        return (
+          <Card key={item.id}>
+            <div className="pc-agenda-row">
+              <div>
+                <span>{dataBR(item.data)}</span>
+                {item.hora_inicio && <small>{String(item.hora_inicio).slice(0, 5)}</small>}
+              </div>
+              <div>
+                <div className="pc-agenda-title">
+                  <strong>{item.titulo || item.tipo || 'Compromisso'}</strong>
+                  <em className={`pc-agenda-status ${agendaStatus.tone}`}>{agendaStatus.label}</em>
+                </div>
+                {item.observacao && <p>{item.observacao}</p>}
+                <div className="pc-agenda-actions">
+                  <button className="confirm" onClick={() => onConfirmar(item)} disabled={item.confirmado_cliente}>Confirmar presença</button>
+                  <button className="reschedule" onClick={() => onReagendar(item)}>Solicitar reagendamento</button>
+                </div>
+              </div>
             </div>
-            <div>
-              <strong>{item.titulo || item.tipo || 'Compromisso'}</strong>
-              {item.observacao && <p>{item.observacao}</p>}
-            </div>
-          </div>
-        </Card>
-      ))}
+          </Card>
+        )
+      })}
     </div>
   )
 }
@@ -386,7 +540,7 @@ function FotosCliente({ vm, ambientes, filtros, setFiltros, abrirFoto }) {
         </select>
       </div>
       {vm.fotos.length === 0 ? (
-        <Empty title="Nenhuma foto disponível ainda" text="As fotos aprovadas pela equipe Ornare aparecerão aqui." />
+        <Empty icon="camera" title="Nenhuma foto ainda" text="As fotos da sua obra aparecerão aqui conforme o andamento." />
       ) : (
         <div className="pc-gallery">
           {vm.fotos.map((foto, index) => (
@@ -404,21 +558,27 @@ function FotosCliente({ vm, ambientes, filtros, setFiltros, abrirFoto }) {
   )
 }
 
-function MensagensCliente({ mensagens }) {
-  if (mensagens.length === 0) {
-    return <Empty title="Nenhum comunicado no momento" text="Atualizações importantes da sua obra serão centralizadas nesta área." />
-  }
+function MensagensCliente({ mensagens, texto, setTexto, enviando, status, onEnviar }) {
   return (
     <div className="pc-feed">
-      {mensagens.map(item => (
-        <Card key={`${item.origem}-${item.id}`}>
-          <div className="pc-message">
-            <span>{item.origem} · {dataBR(item.created_at)}</span>
-            {item.titulo && <strong>{item.titulo}</strong>}
-            <p>{item.mensagem || item.texto || item.descricao}</p>
-          </div>
-        </Card>
-      ))}
+      {mensagens.length === 0 ? (
+        <Empty icon="bell" title="Nenhum comunicado ainda" text="Atualizações importantes da sua obra serão publicadas aqui." />
+      ) : (
+        mensagens.map(item => (
+          <Card key={`${item.origem}-${item.id}`}>
+            <div className="pc-message">
+              <span>{item.origem} · {dataBR(item.created_at)}</span>
+              {item.titulo && <strong>{item.titulo}</strong>}
+              <p>{item.conteudo || item.mensagem || item.texto || item.descricao}</p>
+            </div>
+          </Card>
+        ))
+      )}
+      <div className="pc-message-composer">
+        <textarea value={texto} onChange={e => setTexto(e.target.value)} placeholder="Envie uma dúvida ou comentário..." rows={3} />
+        <button onClick={onEnviar} disabled={enviando || !texto.trim()}>{enviando ? 'Enviando...' : 'Enviar dúvida'}</button>
+        {status && <span>{status}</span>}
+      </div>
     </div>
   )
 }
@@ -454,11 +614,12 @@ function Detail({ label, value }) {
 
 function Timeline({ faseAtual }) {
   const atual = normalizar(faseAtual)
+  const etapaAtual = Math.max(0, PHASES.findIndex(fase => atual.includes(normalizar(fase)) || normalizar(fase).includes(atual)))
   return (
     <div className="pc-timeline">
-      {TIMELINE.map(fase => (
-        <div key={fase} className={normalizar(faseAtual).includes(normalizar(fase)) || normalizar(fase).includes(atual) ? 'active' : ''}>
-          <i />
+      {PHASES.map((fase, index) => (
+        <div key={fase} className={index < etapaAtual ? 'done' : index === etapaAtual ? 'active' : 'future'}>
+          <i>{index < etapaAtual ? '✓' : index + 1}</i>
           <span>{fase}</span>
         </div>
       ))}
@@ -470,16 +631,67 @@ function Documento({ doc }) {
   return (
     <div className="pc-doc">
       <div>
-        <strong>{doc.titulo}</strong>
-        <p>{doc.descricao}</p>
+        <strong>{doc.nome_arquivo || doc.titulo || 'Documento'}</strong>
+        <p>{doc.created_at ? `Publicado em ${dataBR(doc.created_at)}` : (doc.descricao || 'Arquivo liberado pela equipe Ornare.')}</p>
       </div>
-      <span>Em breve</span>
+      <div className="pc-doc-actions">
+        <span>{doc.tipo || 'documento'}</span>
+        {doc.url_arquivo ? <a href={doc.url_arquivo} target="_blank" rel="noreferrer">Abrir</a> : <span>Em breve</span>}
+      </div>
     </div>
   )
 }
 
-function Empty({ title, text }) {
-  return <div className="pc-empty"><strong>{title}</strong>{text && <p>{text}</p>}</div>
+function DocumentosCliente({ documentos }) {
+  if (documentos.length === 0) {
+    return <Empty icon="document" title="Nenhum documento disponível ainda." />
+  }
+  return (
+    <Card title="Documentos">
+      <div className="pc-doc-list">
+        {documentos.map(doc => <Documento key={doc.id || doc.url_arquivo || doc.nome_arquivo} doc={doc} />)}
+      </div>
+    </Card>
+  )
+}
+
+function EmptyIcon({ type }) {
+  if (type === 'camera') {
+    return (
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M20 22l4-6h16l4 6h6a6 6 0 016 6v20a6 6 0 01-6 6H14a6 6 0 01-6-6V28a6 6 0 016-6h6z" />
+        <circle cx="32" cy="38" r="10" />
+      </svg>
+    )
+  }
+  if (type === 'bell') {
+    return (
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M32 56a7 7 0 007-7H25a7 7 0 007 7z" />
+        <path d="M50 44H14l4-6V27a14 14 0 0128 0v11l4 6z" />
+      </svg>
+    )
+  }
+  if (type === 'document') {
+    return (
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M18 8h20l12 12v36H18V8z" />
+        <path d="M38 8v14h12" />
+        <path d="M26 34h16M26 42h16" />
+      </svg>
+    )
+  }
+  return null
+}
+
+function Empty({ title, text, icon }) {
+  return (
+    <div className="pc-empty">
+      {icon && <EmptyIcon type={icon} />}
+      <strong>{title}</strong>
+      {text && <p>{text}</p>}
+    </div>
+  )
 }
 
 function Contato({ title, pessoa, onCopy }) {
@@ -529,9 +741,10 @@ const css = `
 .pc-pill{background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);border-radius:14px;padding:12px 13px;backdrop-filter:blur(10px);min-width:0}
 .pc-pill span{display:block;color:${THEME.gold};font-size:8.5px;letter-spacing:1.7px;text-transform:uppercase;font-weight:900;margin-bottom:6px}
 .pc-pill strong{display:block;color:#fff;font-size:13px;line-height:1.25;overflow:hidden;text-overflow:ellipsis}
-.pc-tabs{position:sticky;top:0;z-index:10;margin:-6px auto 0;max-width:960px;display:grid;grid-template-columns:repeat(6,1fr);gap:6px;overflow:hidden;padding:7px;background:rgba(255,254,252,.9);border:1px solid ${THEME.border};border-radius:16px;backdrop-filter:blur(16px);box-shadow:0 18px 40px rgba(29,28,25,.08)}
-.pc-tabs button{border:0;background:transparent;color:${THEME.muted};border-radius:11px;padding:10px 13px;font-size:12px;font-weight:800;white-space:nowrap;cursor:pointer}
+.pc-tabs{position:sticky;top:0;z-index:10;margin:-6px auto 0;max-width:960px;display:grid;grid-template-columns:repeat(7,1fr);gap:6px;overflow:hidden;padding:7px;background:rgba(255,254,252,.9);border:1px solid ${THEME.border};border-radius:16px;backdrop-filter:blur(16px);box-shadow:0 18px 40px rgba(29,28,25,.08)}
+.pc-tabs button{position:relative;border:0;background:transparent;color:${THEME.muted};border-radius:11px;padding:10px 13px;font-size:12px;font-weight:800;white-space:nowrap;cursor:pointer}
 .pc-tabs button.active{background:${THEME.ink};color:#fff}
+.pc-tab-badge{position:absolute;right:9px;top:8px;width:8px;height:8px;border-radius:50%;background:${THEME.danger};box-shadow:0 0 0 2px #fff}
 .pc-bottom-nav{display:none}
 .pc-alert{max-width:960px;margin:14px auto 0;border:1px solid #F0C8C8;background:#FFF7F7;color:#A33E3E;border-radius:12px;padding:11px 14px;font-size:13px;font-weight:700}
 .pc-toast{position:fixed;left:50%;bottom:86px;transform:translateX(-50%);z-index:50;background:${THEME.ink};color:#fff;border-left:3px solid ${THEME.gold};border-radius:12px;padding:11px 15px;font-size:13px;font-weight:800;box-shadow:0 12px 32px rgba(0,0,0,.18)}
@@ -552,11 +765,13 @@ const css = `
 .pc-detail{display:flex;justify-content:space-between;gap:16px;padding:12px 0;border-bottom:1px solid ${THEME.border}}
 .pc-detail:last-child{border-bottom:0}
 .pc-detail strong{text-align:right;color:${THEME.ink};font-size:14px;line-height:1.35}
-.pc-timeline{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
-.pc-timeline div{background:${THEME.card};border:1px solid ${THEME.border};border-radius:14px;padding:13px 10px;color:${THEME.muted};font-size:12px;font-weight:900;text-align:center}
-.pc-timeline div.active{background:#2D7A4A;border-color:#2D7A4A;color:#fff;box-shadow:0 12px 30px rgba(45,122,74,.18)}
-.pc-timeline i{display:block;width:8px;height:8px;border-radius:50%;background:${THEME.gold};margin:0 auto 8px}
-.pc-timeline div.active i{background:#fff}
+.pc-timeline{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+.pc-timeline div{background:${THEME.card};border:1px solid ${THEME.border};border-radius:14px;padding:13px 10px;color:${THEME.soft};font-size:12px;font-weight:900;text-align:center}
+.pc-timeline div.done{color:${THEME.ink};border-color:#D8D0C6;background:#FAF7F1}
+.pc-timeline div.active{background:${THEME.gold};border-color:${THEME.gold};color:#fff;box-shadow:0 12px 30px rgba(201,169,110,.22)}
+.pc-timeline i{display:flex;width:22px;height:22px;border-radius:50%;background:#E8E0D5;color:${THEME.soft};margin:0 auto 8px;align-items:center;justify-content:center;font-style:normal;font-size:10px;font-weight:950}
+.pc-timeline div.done i{background:${THEME.ink};color:#fff}
+.pc-timeline div.active i{background:#fff;color:${THEME.gold}}
 .pc-filter-card{display:grid;grid-template-columns:1fr 1fr;gap:10px;background:${THEME.card};border:1px solid ${THEME.border};border-radius:16px;padding:12px}
 .pc-filter-card select{width:100%;border:1px solid ${THEME.border};background:#FFFEFC;border-radius:10px;padding:11px;font-family:inherit;color:${THEME.ink}}
 .pc-gallery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
@@ -571,11 +786,29 @@ const css = `
 .pc-agenda-row small{display:block;color:${THEME.muted};margin-top:4px}
 .pc-agenda-row strong,.pc-doc strong,.pc-message strong{display:block;color:${THEME.ink};font-size:15px}
 .pc-agenda-row p,.pc-doc p,.pc-message p{margin:7px 0 0;color:${THEME.muted};font-size:13px;line-height:1.55}
+.pc-inline-status{background:#F5FBF7;border:1px solid #C8E1D0;color:${THEME.success};border-radius:14px;padding:11px 13px;font-size:13px;font-weight:900}
+.pc-agenda-title{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.pc-agenda-status{border-radius:999px;padding:5px 9px;font-size:10px;font-style:normal;font-weight:950;white-space:nowrap}
+.pc-agenda-status.success{background:#E8F3EC;color:${THEME.success}}
+.pc-agenda-status.gold{background:#FBF3E2;color:#9C7838}
+.pc-agenda-status.neutral{background:#F0EDEA;color:${THEME.muted}}
+.pc-agenda-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.pc-agenda-actions button{border-radius:10px;padding:9px 11px;font-size:12px;font-weight:900;font-family:inherit;cursor:pointer}
+.pc-agenda-actions .confirm{border:1px solid ${THEME.success};background:${THEME.success};color:#fff}
+.pc-agenda-actions .confirm:disabled{opacity:.55;cursor:default}
+.pc-agenda-actions .reschedule{border:1px solid ${THEME.gold};background:#fff;color:${THEME.gold}}
 .pc-doc-list{display:grid;gap:10px}
 .pc-doc{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;border:1px solid ${THEME.border};border-radius:14px;padding:14px;background:#FFFBF5}
-.pc-doc span{border:1px solid ${THEME.border};border-radius:999px;padding:6px 10px;font-size:11px;color:${THEME.muted};white-space:nowrap}
+.pc-doc-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.pc-doc span,.pc-doc a{border:1px solid ${THEME.border};border-radius:999px;padding:6px 10px;font-size:11px;color:${THEME.muted};white-space:nowrap;text-decoration:none;font-weight:900}
+.pc-doc a{background:${THEME.ink};border-color:${THEME.ink};color:#fff}
 .pc-message>span{display:block;color:${THEME.gold};font-size:10px;letter-spacing:1.5px;text-transform:uppercase;font-weight:900;margin-bottom:8px}
 .pc-message p{white-space:pre-wrap}
+.pc-message-composer{position:sticky;bottom:calc(92px + env(safe-area-inset-bottom));background:${THEME.card};border:1px solid ${THEME.border};border-radius:18px;padding:13px;box-shadow:0 18px 42px rgba(29,28,25,.08)}
+.pc-message-composer textarea{width:100%;border:1px solid ${THEME.border};border-radius:13px;background:#FFFEFC;padding:12px;font-family:inherit;font-size:14px;color:${THEME.ink};resize:vertical;min-height:82px;box-sizing:border-box}
+.pc-message-composer button{margin-top:10px;width:100%;border:0;border-radius:12px;background:${THEME.gold};color:#fff;padding:12px;font-weight:950;font-family:inherit;cursor:pointer}
+.pc-message-composer button:disabled{opacity:.55;cursor:default}
+.pc-message-composer span{display:block;margin-top:8px;color:${THEME.muted};font-size:12px;font-weight:800}
 .pc-contact{display:flex;gap:14px;align-items:center}
 .pc-avatar{width:48px;height:48px;border-radius:50%;background:#F1E6D3;color:${THEME.gold};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;flex-shrink:0;text-transform:uppercase}
 .pc-contact span{display:block;color:${THEME.gold};font-size:10px;letter-spacing:1.4px;text-transform:uppercase;font-weight:900;margin-bottom:4px}
@@ -584,8 +817,17 @@ const css = `
 .pc-contact-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
 .pc-contact-actions button,.pc-contact-actions a{border:1px solid ${THEME.border};background:#FFFEFC;color:${THEME.ink};border-radius:10px;padding:9px 12px;font-size:12px;font-weight:800;text-decoration:none;cursor:pointer;font-family:inherit}
 .pc-empty{text-align:center;background:${THEME.card};border:1px solid ${THEME.border};border-radius:18px;padding:52px 22px;color:${THEME.muted}}
+.pc-empty svg{width:54px;height:54px;margin:0 auto 16px;stroke:${THEME.gold};fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
 .pc-empty strong{display:block;color:${THEME.ink};font-size:15px;margin-bottom:6px}
 .pc-empty p{margin:0;font-size:13px;line-height:1.5}
+.pc-modal{position:fixed;inset:0;z-index:120;background:rgba(15,14,12,.58);display:flex;align-items:center;justify-content:center;padding:18px}
+.pc-modal-card{width:min(460px,100%);background:${THEME.card};border:1px solid ${THEME.border};border-radius:20px;padding:20px;box-shadow:0 28px 70px rgba(0,0,0,.28);position:relative}
+.pc-modal-close{position:absolute;right:14px;top:14px;border:1px solid ${THEME.border};background:#fff;border-radius:999px;padding:7px 10px;font-family:inherit;font-weight:900;cursor:pointer}
+.pc-modal-card>span{display:block;color:${THEME.gold};font-size:10px;letter-spacing:1.7px;text-transform:uppercase;font-weight:950;margin-bottom:7px}
+.pc-modal-card h2{margin:0;color:${THEME.ink};font-size:22px}
+.pc-modal-card p{margin:8px 0 14px;color:${THEME.muted};font-size:13px}
+.pc-modal-card textarea{width:100%;border:1px solid ${THEME.border};border-radius:13px;background:#FFFEFC;padding:12px;font-family:inherit;color:${THEME.ink};resize:vertical;box-sizing:border-box}
+.pc-primary-action{margin-top:12px;width:100%;border:0;border-radius:12px;background:${THEME.gold};color:#fff;padding:12px;font-family:inherit;font-weight:950;cursor:pointer}
 .pc-preview{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.94);display:flex;align-items:center;justify-content:center;padding:16px;cursor:zoom-out}
 .pc-preview img{max-width:96vw;max-height:92vh;border-radius:10px;object-fit:contain}
 .pc-preview button{position:absolute;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);color:#fff;border-radius:10px;padding:9px 12px;cursor:pointer}
@@ -612,8 +854,8 @@ const css = `
   .pc-hero p{display:block;font-size:12px;color:rgba(255,255,255,.9);margin-top:9px;white-space:normal;overflow:visible;text-overflow:clip;max-width:330px;line-height:1.3;font-weight:700}
   .pc-hero-dashboard{display:none}
   .pc-tabs{display:none}
-  .pc-bottom-nav{position:fixed;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:40;display:grid;grid-template-columns:repeat(5,1fr);gap:4px;background:rgba(255,254,252,.96);border:1px solid ${THEME.border};border-radius:18px;padding:7px;box-shadow:0 18px 42px rgba(29,28,25,.18);backdrop-filter:blur(18px)}
-  .pc-bottom-nav button{border:0;background:transparent;color:${THEME.muted};border-radius:13px;min-height:54px;padding:7px 4px 6px;font-size:9.5px;font-weight:900;cursor:pointer}
+  .pc-bottom-nav{position:fixed;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:40;display:grid;grid-template-columns:repeat(6,1fr);gap:4px;background:rgba(255,254,252,.96);border:1px solid ${THEME.border};border-radius:18px;padding:7px;box-shadow:0 18px 42px rgba(29,28,25,.18);backdrop-filter:blur(18px)}
+  .pc-bottom-nav button{position:relative;border:0;background:transparent;color:${THEME.muted};border-radius:13px;min-height:54px;padding:7px 4px 6px;font-size:9px;font-weight:900;cursor:pointer}
   .pc-bottom-nav button span{display:block;font-size:0;line-height:1;margin-bottom:3px;color:${THEME.gold}}
   .pc-bottom-nav button span::before{font-size:16px}
   .pc-bottom-nav button:nth-child(1) span::before{content:"\\2302"}
@@ -621,6 +863,7 @@ const css = `
   .pc-bottom-nav button:nth-child(3) span::before{content:"\\25A1"}
   .pc-bottom-nav button:nth-child(4) span::before{content:"\\25C7"}
   .pc-bottom-nav button:nth-child(5) span::before{content:"\\260E"}
+  .pc-bottom-nav button:nth-child(6) span::before{content:"\\25A4"}
   .pc-bottom-nav button.active{background:${THEME.ink};color:#fff}
   .pc-bottom-nav button.active span{color:#fff}
   .pc-alert{margin:12px 12px 0}
@@ -646,7 +889,8 @@ const css = `
   .pc-detail{display:block}
   .pc-detail strong{text-align:left;display:block}
   .pc-doc{display:block}
-  .pc-doc span{display:inline-flex;margin-top:10px}
+  .pc-doc-actions{justify-content:flex-start;margin-top:10px}
+  .pc-doc span,.pc-doc a{display:inline-flex}
   .pc-preview-prev,.pc-preview-next{display:none}
 }
 @media (max-width:360px){
