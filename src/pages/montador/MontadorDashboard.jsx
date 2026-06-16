@@ -51,6 +51,44 @@ function horaBR(value) {
   return value ? new Date(value).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '-'
 }
 
+function mesmoDia(value, base) {
+  if (!value) return false
+  const data = new Date(value)
+  return data.getFullYear() === base.getFullYear() && data.getMonth() === base.getMonth() && data.getDate() === base.getDate()
+}
+
+function coordenadaCurta(value) {
+  const num = Number(value)
+  return Number.isFinite(num) ? num.toFixed(4) : null
+}
+
+function localizacaoCheckin(checkin) {
+  if (!checkin?.latitude || !checkin?.longitude) return 'Localização não registrada'
+  const lat = coordenadaCurta(checkin.latitude)
+  const lng = coordenadaCurta(checkin.longitude)
+  return lat && lng ? `Localização salva (${lat}, ${lng})` : 'Localização salva'
+}
+
+function statusAgenda(item) {
+  const statusOriginal = item?.status || item?.situacao || item?.situacao_agenda
+  if (statusOriginal) {
+    const n = norm(statusOriginal)
+    if (n.includes('conclu') || n.includes('realiz')) return { label: 'Concluída', tone: 'success' }
+    if (n.includes('andamento')) return { label: 'Em andamento', tone: 'info' }
+    if (n.includes('atras')) return { label: 'Atrasada', tone: 'danger' }
+    if (n.includes('pend')) return { label: 'Pendente', tone: 'warn' }
+    return { label: statusOriginal, tone: 'warn' }
+  }
+
+  if (!item?.data) return { label: 'Pendente', tone: 'warn' }
+  const hoje = new Date()
+  hoje.setHours(0, 0, 0, 0)
+  const data = new Date(`${item.data}T00:00:00`)
+  if (data < hoje) return { label: 'Realizada', tone: 'success' }
+  if (data.getTime() === hoje.getTime()) return { label: 'Hoje', tone: 'info' }
+  return { label: 'Pendente', tone: 'warn' }
+}
+
 function enderecoObra(obra) {
   if (!obra) return ''
   const rua = [obra.rua, obra.numero, obra.complemento].filter(Boolean).join(', ')
@@ -88,6 +126,7 @@ export default function MontadorDashboard() {
   const [modalProblema, setModalProblema] = useState(null)
   const [problema, setProblema] = useState('')
   const [sucesso, setSucesso] = useState('')
+  const [servicoFeedback, setServicoFeedback] = useState('')
   const [preview, setPreview] = useState(null)
   const [formFoto, setFormFoto] = useState({ categoria: '', ambiente_id: '', observacao: '' })
 
@@ -243,15 +282,22 @@ export default function MontadorDashboard() {
       // O check-in continua mesmo se a localização não estiver disponível.
     }
 
-    await supabase.from('checkins').insert([{
+    const { error } = await supabase.from('checkins').insert([{
       user_id: user.id,
       obra_id: obraAtiva.id,
       entrada: new Date().toISOString(),
       latitude: lat,
       longitude: lng,
     }])
+    if (error) {
+      mostrarSucesso('Nao foi possivel registrar o check-in.')
+      setCheckando(false)
+      return
+    }
 
-    mostrarSucesso(lat ? 'Check-in registrado com localização.' : 'Check-in registrado.')
+    const mensagem = lat ? 'Check-in registrado com localização.' : 'Check-in registrado.'
+    setServicoFeedback(mensagem)
+    mostrarSucesso(mensagem)
     await carregarDadosObra()
     setCheckando(false)
   }
@@ -260,8 +306,14 @@ export default function MontadorDashboard() {
     setCheckando(true)
     const ultimo = checkins.find(c => !c.saida)
     if (ultimo) {
-      await supabase.from('checkins').update({ saida: new Date().toISOString() }).eq('id', ultimo.id)
+      const { error } = await supabase.from('checkins').update({ saida: new Date().toISOString() }).eq('id', ultimo.id)
+      if (error) {
+        mostrarSucesso('Não foi possível registrar o check-out.')
+        setCheckando(false)
+        return
+      }
     }
+    setServicoFeedback('Check-out registrado.')
     mostrarSucesso('Check-out registrado.')
     await carregarDadosObra()
     setCheckando(false)
@@ -368,10 +420,17 @@ export default function MontadorDashboard() {
     const agendaFutura = agenda
       .filter(item => item.data && new Date(`${item.data}T00:00:00`) >= hoje)
       .sort((a, b) => `${a.data || ''}${a.hora_inicio || ''}`.localeCompare(`${b.data || ''}${b.hora_inicio || ''}`))
-    const proximaAgenda = agendaFutura[0] || null
+    const agendaPassada = agenda
+      .filter(item => item.data && new Date(`${item.data}T00:00:00`) < hoje)
+      .sort((a, b) => `${b.data || ''}${b.hora_inicio || ''}`.localeCompare(`${a.data || ''}${a.hora_inicio || ''}`))
+    const proximaAgenda = agendaFutura[0] || agendaPassada[0] || null
+    const proximaAgendaStatus = proximaAgenda ? statusAgenda(proximaAgenda) : null
 
     const emServico = checkins.some(c => !c.saida)
     const ultimoCheckin = checkins[0] || null
+    const registrosHoje = checkins.filter(c => mesmoDia(c.entrada || c.created_at, hoje))
+    const registroHoje = registrosHoje.find(c => !c.saida) || registrosHoje[0] || null
+    const ultimoServico = checkins.find(c => c.saida) || ultimoCheckin
     const pctChecklist = checklist.length ? Math.round((checklistConcluidos.length / checklist.length) * 100) : 0
 
     const checklistGrupos = [
@@ -416,8 +475,11 @@ export default function MontadorDashboard() {
       ocorrenciasAbertas,
       fotosHoje,
       proximaAgenda,
+      proximaAgendaStatus,
       emServico,
       ultimoCheckin,
+      registroHoje,
+      ultimoServico,
       pctChecklist,
       checklistGrupos,
       fotosGrupos,
@@ -522,17 +584,52 @@ export default function MontadorDashboard() {
       </section>
 
       <section className={vm.emServico ? 'md-check-card active' : 'md-check-card'}>
-        <div>
+        <div className="md-check-info">
           <span>{vm.emServico ? 'Em serviço' : 'Fora de serviço'}</span>
           <p>
             {vm.ultimoCheckin ? `${vm.emServico ? 'Entrada' : 'Último registro'} às ${horaBR(vm.ultimoCheckin.entrada || vm.ultimoCheckin.created_at)}` : 'Nenhum registro hoje'}
             {vm.ultimoCheckin?.latitude ? ' · localização registrada' : ''}
           </p>
+          <p className="md-check-primary">
+            {vm.emServico && vm.ultimoCheckin
+              ? `Entrada registrada às ${horaBR(vm.ultimoCheckin.entrada || vm.ultimoCheckin.created_at)}`
+              : vm.ultimoServico?.saida
+                ? `Último serviço: ${horaBR(vm.ultimoServico.entrada || vm.ultimoServico.created_at)} às ${horaBR(vm.ultimoServico.saida)}`
+                : 'Nenhum registro hoje'}
+          </p>
+          {vm.ultimoCheckin && <small>{localizacaoCheckin(vm.ultimoCheckin)}</small>}
+          <small>Obra: {obraAtiva.nome || 'Obra ativa'}</small>
+          {(servicoFeedback || vm.emServico) && (
+            <div className="md-check-feedback">
+              {servicoFeedback || 'Check-in registrado com localização.'}
+            </div>
+          )}
         </div>
         {vm.emServico ? (
           <button className="checkout" onClick={fazerCheckout} disabled={checkando}>{checkando ? '...' : 'Check-out'}</button>
         ) : (
           <button onClick={fazerCheckin} disabled={checkando}>{checkando ? '...' : 'Check-in'}</button>
+        )}
+      </section>
+
+      <section className="md-today-card">
+        <div className="md-card-head compact">
+          <h2>Registro de hoje</h2>
+        </div>
+        {vm.registroHoje ? (
+          <div className="md-today-row">
+            <div>
+              <strong>Entrada</strong>
+              <span>{horaBR(vm.registroHoje.entrada || vm.registroHoje.created_at)}</span>
+            </div>
+            <div>
+              <strong>Saída</strong>
+              <span>{vm.registroHoje.saida ? horaBR(vm.registroHoje.saida) : 'Em serviço'}</span>
+            </div>
+            <p>{obraAtiva.nome || 'Obra ativa'} · {localizacaoCheckin(vm.registroHoje)}</p>
+          </div>
+        ) : (
+          <div className="md-today-empty">Nenhum registro hoje.</div>
         )}
       </section>
 
@@ -542,7 +639,10 @@ export default function MontadorDashboard() {
         </div>
         {vm.proximaAgenda ? (
           <div className="md-next">
-            <strong>{tipoAgenda(vm.proximaAgenda)}</strong>
+            <div className="md-next-head">
+              <strong>{tipoAgenda(vm.proximaAgenda)}</strong>
+              <em className={`tone-${vm.proximaAgendaStatus?.tone || 'warn'}`}>{vm.proximaAgendaStatus?.label || 'Pendente'}</em>
+            </div>
             <span>{vm.proximaAgenda.titulo || vm.proximaAgenda.descricao || 'Compromisso da obra'}</span>
             <small>{dataBR(vm.proximaAgenda.data)}{vm.proximaAgenda.hora_inicio ? ` · ${vm.proximaAgenda.hora_inicio}` : ''}</small>
           </div>
@@ -765,14 +865,33 @@ const css = `
 .md-check-card.active{background:#F1FAF4;border-color:#C8E1D0}
 .md-check-card span{display:block;font-size:15px;font-weight:800;color:${THEME.ink};margin-bottom:3px}
 .md-check-card p{margin:0;font-size:11.5px;color:${THEME.muted};line-height:1.4}
+.md-check-info{min-width:0}
+.md-check-info>p:not(.md-check-primary){display:none}
+.md-check-primary{font-size:12px!important;color:${THEME.ink}!important;font-weight:800!important;margin-bottom:5px!important}
+.md-check-info small{display:block;font-size:11px;color:${THEME.muted};line-height:1.35;margin-top:3px}
+.md-check-feedback{display:inline-flex;margin-top:8px;background:#EAF5EE;color:${THEME.success};border:1px solid #C8E1D0;border-radius:999px;padding:6px 9px;font-size:11px;font-weight:900;line-height:1.1}
 .md-check-card button{border:0;background:${THEME.ink};color:#fff;border-radius:14px;padding:15px 18px;min-width:118px;font-size:15px;font-weight:900;cursor:pointer}
 .md-check-card button.checkout{background:${THEME.danger}}
+.md-today-card{background:#fff;border:1px solid ${THEME.border};border-radius:18px;padding:14px;margin-bottom:12px;box-shadow:0 10px 26px rgba(29,28,25,.04)}
+.md-card-head.compact{margin-bottom:9px}
+.md-today-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.md-today-row div{background:#FFFEFC;border:1px solid ${THEME.border};border-radius:13px;padding:10px}
+.md-today-row strong{display:block;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:${THEME.gold};font-weight:900;margin-bottom:5px}
+.md-today-row span{display:block;font-size:15px;color:${THEME.ink};font-weight:900}
+.md-today-row p{grid-column:1/-1;margin:0;color:${THEME.muted};font-size:12px;line-height:1.35}
+.md-today-empty{color:${THEME.muted};font-size:12.5px;padding:2px 0}
 .md-card{background:#fff;border:1px solid ${THEME.border};border-radius:18px;padding:16px 15px;margin-bottom:12px;box-shadow:0 10px 26px rgba(29,28,25,.04);scroll-margin-top:14px}
 .md-card-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px}
 .md-card-head h2{font-size:15px;margin:0;font-weight:900;color:${THEME.ink}}
 .md-card-head span{font-size:12px;color:${THEME.gold};font-weight:900}
 .md-card-head button{border:0;background:transparent;color:${THEME.gold};font-size:12px;font-weight:900;cursor:pointer}
-.md-next strong{display:block;font-size:16px;color:${THEME.ink};margin-bottom:5px}
+.md-next-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:5px}
+.md-next strong{display:block;font-size:16px;color:${THEME.ink};margin-bottom:0}
+.md-next em{font-style:normal;border-radius:999px;padding:5px 8px;font-size:10.5px;font-weight:900;white-space:nowrap}
+.md-next em.tone-success{background:#EAF5EE;color:${THEME.success}}
+.md-next em.tone-info{background:#EEF5FB;color:#1E5A8A}
+.md-next em.tone-warn{background:#FFF4E5;color:${THEME.warn}}
+.md-next em.tone-danger{background:#FFF1F1;color:${THEME.danger}}
 .md-next span{display:block;font-size:13px;color:${THEME.muted};line-height:1.4}
 .md-next small{display:block;font-size:12px;color:${THEME.gold};font-weight:800;margin-top:8px}
 .md-quick{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px}
