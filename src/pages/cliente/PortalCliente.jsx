@@ -254,23 +254,13 @@ export default function PortalCliente() {
       <section className="pc-hero">
         <img className="pc-hero-img" src={bgImage} alt="" />
         <div className="pc-hero-overlay" />
-        <header className="pc-top">
-          <div>
+        <div className="pc-hero-content">
+          <div className="pc-brand-lockup">
             <img src="/logo-ornare.png" alt="Ornare" />
             <span>Works</span>
           </div>
-        </header>
-        <div className="pc-hero-content">
-          <span className="pc-eyebrow">Minha Obra</span>
           <h1>{vm.obra.nome || 'Projeto Ornare'}</h1>
           <p>{vm.obra.cliente_nome || 'Cliente'} · {[vm.obra.cidade, vm.obra.uf].filter(Boolean).join(' / ') || 'Florianópolis'}</p>
-          <div className="pc-hero-dashboard">
-            <InfoPill label="Progresso" value={`${vm.progresso}%`} />
-            <InfoPill label="Fase atual" value={vm.faseAtual} />
-            <InfoPill label="Próxima etapa" value={vm.proximaEtapa} />
-            <InfoPill label="Data prevista" value={vm.previsao} />
-            <InfoPill label="Supervisor" value={nomePessoa(vm.supervisor)} />
-          </div>
         </div>
       </section>
 
@@ -442,10 +432,6 @@ function ContatosCliente({ vm, contatos, copiar }) {
   )
 }
 
-function InfoPill({ label, value }) {
-  return <div className="pc-pill"><span>{label}</span><strong>{value || '-'}</strong></div>
-}
-
 function Card({ title, destaque, children }) {
   return (
     <article className={destaque ? 'pc-card destaque' : 'pc-card'}>
@@ -522,13 +508,16 @@ const css = `
 .pc-page{min-height:100vh;background:${THEME.warm};color:${THEME.ink};font-family:var(--font-sans, Inter, system-ui, sans-serif);overflow-x:hidden}
 .pc-loading{min-height:100vh;background:${THEME.dark};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;color:#fff;letter-spacing:2px;text-transform:uppercase;font-size:11px}
 .pc-loading img{height:54px;filter:brightness(0) invert(1);opacity:.8}
-.pc-hero{position:relative;min-height:350px;color:#fff;overflow:hidden}
-.pc-hero-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top;filter:brightness(.72) saturate(.9)}
-.pc-hero-overlay{position:absolute;inset:0;background:linear-gradient(180deg,rgba(15,14,12,.54),rgba(15,14,12,.58) 44%,rgba(246,243,238,1) 100%)}
+.pc-hero{position:relative;min-height:260px;color:#fff;overflow:hidden}
+.pc-hero-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top;filter:grayscale(1) brightness(.66) contrast(1.08)}
+.pc-hero-overlay{position:absolute;inset:0;background:linear-gradient(180deg,rgba(15,14,12,.62),rgba(15,14,12,.48) 44%,rgba(246,243,238,1) 100%)}
 .pc-top{position:relative;z-index:2;padding:22px;display:flex;justify-content:space-between;align-items:flex-start}
 .pc-top img{height:44px;filter:brightness(0) invert(1)}
 .pc-top span{display:block;margin-top:5px;color:${THEME.gold};font-size:9px;letter-spacing:3px;text-transform:uppercase}
-.pc-hero-content{position:relative;z-index:2;max-width:980px;margin:0 auto;padding:24px 22px 74px}
+.pc-hero-content{position:relative;z-index:2;max-width:980px;margin:0 auto;padding:54px 22px 82px}
+.pc-brand-lockup{display:flex;flex-direction:column;align-items:flex-start;margin-bottom:22px}
+.pc-brand-lockup img{height:34px;filter:brightness(0) invert(1);opacity:.92}
+.pc-brand-lockup span{display:block;margin-top:6px;color:${THEME.gold};font-size:9px;letter-spacing:3.4px;text-transform:uppercase;font-weight:900}
 .pc-eyebrow{display:block;color:${THEME.gold};font-size:10px;letter-spacing:3px;text-transform:uppercase;font-weight:900;margin-bottom:10px}
 .pc-hero h1{font-family:var(--font-serif, Georgia, serif);font-size:46px;line-height:1.02;font-weight:500;margin:0;max-width:760px}
 .pc-hero p{font-size:15px;color:rgba(255,255,255,.78);margin:10px 0 0}
@@ -601,15 +590,20 @@ const css = `
 .pc-footer{text-align:center;padding:8px 20px 38px;color:#A79F93;font-size:10px;letter-spacing:2px;text-transform:uppercase}
 @media (max-width:760px){
   .pc-page{padding-bottom:calc(102px + env(safe-area-inset-bottom))}
-  .pc-hero{min-height:172px}
-  .pc-hero-overlay{background:linear-gradient(180deg,rgba(15,14,12,.50),rgba(15,14,12,.42) 48%,rgba(246,243,238,1) 100%)}
+  .pc-hero{min-height:178px}
+  .pc-hero-img{filter:grayscale(1) brightness(.55) contrast(1.16);object-position:center 18%}
+  .pc-hero-overlay{background:linear-gradient(180deg,rgba(15,14,12,.58),rgba(15,14,12,.34) 54%,rgba(246,243,238,1) 100%)}
   .pc-top{padding:20px 20px 0}
   .pc-top img{height:26px}
   .pc-top span{font-size:8px;letter-spacing:3px;margin-top:4px}
-  .pc-hero-content{padding:9px 20px 42px}
+  .pc-hero-content{padding:30px 20px 50px}
+  .pc-brand-lockup{margin-bottom:14px}
+  .pc-brand-lockup img{height:23px}
+  .pc-brand-lockup span{font-size:8px;letter-spacing:3px;margin-top:4px}
   .pc-eyebrow{display:none}
-  .pc-hero h1{font-size:34px;line-height:.98;font-weight:500;max-width:320px;text-shadow:0 12px 30px rgba(0,0,0,.22)}
-  .pc-hero p,.pc-hero-dashboard{display:none}
+  .pc-hero h1{font-size:34px;line-height:.96;font-weight:500;max-width:330px;text-shadow:0 12px 30px rgba(0,0,0,.22)}
+  .pc-hero p{display:block;font-size:12px;color:rgba(255,255,255,.72);margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:310px}
+  .pc-hero-dashboard{display:none}
   .pc-tabs{display:none}
   .pc-bottom-nav{position:fixed;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:40;display:grid;grid-template-columns:repeat(5,1fr);gap:4px;background:rgba(255,254,252,.96);border:1px solid ${THEME.border};border-radius:18px;padding:7px;box-shadow:0 18px 42px rgba(29,28,25,.18);backdrop-filter:blur(18px)}
   .pc-bottom-nav button{border:0;background:transparent;color:${THEME.muted};border-radius:13px;min-height:54px;padding:7px 4px 6px;font-size:9.5px;font-weight:900;cursor:pointer}
@@ -623,16 +617,20 @@ const css = `
   .pc-bottom-nav button.active{background:${THEME.ink};color:#fff}
   .pc-bottom-nav button.active span{color:#fff}
   .pc-alert{margin:12px 12px 0}
-  .pc-content{padding:0 12px calc(34px + env(safe-area-inset-bottom));margin-top:-18px}
+  .pc-content{padding:0 12px calc(34px + env(safe-area-inset-bottom));margin-top:-28px}
   .pc-card{padding:14px;border-radius:16px}
   .pc-card-head{margin-bottom:12px}
+  .pc-card-head span{font-size:12px}
   .pc-card-head strong{font-size:34px}
   .pc-progress{height:7px;margin-bottom:14px}
   .pc-dashboard-grid{gap:8px}
-  .pc-metric{padding:12px}
+  .pc-metric{padding:12px;border-radius:13px}
   .pc-metric span{font-size:9px;letter-spacing:1.2px}
   .pc-metric strong{font-size:14px;line-height:1.28}
   .pc-dashboard-grid,.pc-filter-card,.pc-gallery{grid-template-columns:1fr}
+  .pc-card.destaque .pc-dashboard-grid{grid-template-columns:1fr 1fr}
+  .pc-card.destaque .pc-metric:nth-child(2){grid-column:1/-1}
+  .pc-card.destaque .pc-metric:nth-child(4){grid-column:1/-1}
   .pc-timeline{grid-template-columns:1fr}
   .pc-timeline div{display:flex;align-items:center;gap:10px;text-align:left;padding:12px}
   .pc-timeline i{margin:0}

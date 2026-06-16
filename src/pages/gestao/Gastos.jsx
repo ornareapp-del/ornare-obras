@@ -356,6 +356,7 @@ export default function Gastos() {
 
   return (
     <div className="ow-page" style={s.page}>
+      <style>{css}</style>
 
       {/* Toast */}
       {toast && (
@@ -385,7 +386,7 @@ export default function Gastos() {
       )}
 
       {/* ── HEADER ──────────────────────────────────────────────────────────── */}
-      <div style={s.header}>
+      <div className="ga-header" style={s.header}>
         <div>
           <div style={s.breadcrumb}>Gestão</div>
           <h1 style={s.title}>Central Financeira Operacional</h1>
@@ -394,9 +395,24 @@ export default function Gastos() {
         <button style={s.btnNew} onClick={() => setModal(true)}>+ Lançar Gasto</button>
       </div>
 
+      <div className="ga-mobile-summary" aria-label="Resumo financeiro">
+        <button type="button" onClick={() => { setFiltroStatus(''); setFiltroObra(''); setFiltroCategoria('') }}>
+          <strong>R$ {totalMes.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</strong>
+          <span>mês</span>
+        </button>
+        <button type="button" onClick={() => setFiltroStatus('pendente_aprovacao')}>
+          <strong>{pendentes.length}</strong>
+          <span>pendentes</span>
+        </button>
+        <button type="button" onClick={() => setFiltroStatus('recusado')}>
+          <strong>{recusados.length}</strong>
+          <span>reprovados</span>
+        </button>
+      </div>
+
       {/* ── APROVACOES PENDENTES ─────────────────────────────────────────────── */}
       {pendentes.length > 0 && (
-        <div style={s.pendentesBox}>
+        <div className="ga-pendentes" style={s.pendentesBox}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-gold)' }}>🔒 Aprovações pendentes ({pendentes.length})</span>
           </div>
@@ -418,7 +434,7 @@ export default function Gastos() {
       )}
 
       {/* ── KPIs ─────────────────────────────────────────────────────────────── */}
-      <div style={s.statsGrid}>
+      <div className="ga-stats" style={s.statsGrid}>
         <div style={s.stat}>
           <div style={s.statLabel}>Gastos mês</div>
           <div style={s.statValue}>R$ {totalMes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
@@ -439,7 +455,7 @@ export default function Gastos() {
 
       {/* ── POR CATEGORIA ────────────────────────────────────────────────────── */}
       {porCategoria.length > 0 && (
-        <div style={s.card}>
+        <div className="ga-categorias" style={s.card}>
           <div style={s.cardLabel}>Por categoria</div>
           {porCategoria.map(([cat, val]) => (
             <div key={cat} style={s.catRow}>
@@ -456,7 +472,7 @@ export default function Gastos() {
       )}
 
       {/* ── FILTROS ──────────────────────────────────────────────────────────── */}
-      <div style={s.filters}>
+      <div className="ga-filters" style={s.filters}>
         <select style={s.select} value={filtroObra} onChange={e => setFiltroObra(e.target.value)}>
           <option value="">Todas as obras</option>
           {obras.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
@@ -484,11 +500,11 @@ export default function Gastos() {
           <button style={s.btnNew} onClick={() => setModal(true)}>+ Lançar Primeiro Gasto</button>
         </div>
       ) : (
-        <div style={s.list}>
+        <div className="ga-list" style={s.list}>
           {lista.map(g => {
             const sc = statusCor[g.status] || statusCor.aprovado
             return (
-              <div key={g.id} style={s.item} onClick={() => g.obra_id && navigate(`/obras/${g.obra_id}`)}>
+              <div key={g.id} className="ga-item" style={s.item} onClick={() => g.obra_id && navigate(`/obras/${g.obra_id}`)}>
                 <div style={{ ...s.itemDot, background: CAT[g.categoria]?.cor || '#ccc' }} />
                 <div style={s.itemBody}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -529,6 +545,39 @@ export default function Gastos() {
 }
 
 // ─── ESTILOS ──────────────────────────────────────────────────────────────────
+const css = `
+.ga-mobile-summary{display:none}
+@media (max-width:760px){
+  .ow-page{padding-bottom:112px !important}
+  .ga-header{display:grid !important;grid-template-columns:1fr;gap:10px;margin-bottom:14px !important}
+  .ga-header h1{font-size:27px !important;line-height:1.02 !important}
+  .ga-header p{font-size:12px !important;line-height:1.35 !important;max-width:31ch}
+  .ga-header button{width:100% !important;border-radius:14px !important;padding:11px 14px !important}
+  .ga-mobile-summary{display:grid !important;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 10px}
+  .ga-mobile-summary button{appearance:none;border:1px solid rgba(231,224,213,.95);background:#fff;border-radius:16px;padding:10px 8px;text-align:left;box-shadow:0 10px 24px rgba(29,28,25,.045);font-family:inherit}
+  .ga-mobile-summary strong{display:block;font-size:17px;line-height:1;color:var(--color-ink);white-space:nowrap}
+  .ga-mobile-summary span{display:block;margin-top:5px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.45px;color:var(--color-ink-muted);white-space:nowrap}
+  .ga-stats{display:none !important}
+  .ga-pendentes{border-radius:18px !important;padding:14px !important;margin-bottom:12px !important}
+  .ga-pendentes>div:not(:first-child){display:grid !important;grid-template-columns:1fr auto !important;gap:8px !important;align-items:start !important}
+  .ga-pendentes button{padding:6px 10px !important;border-radius:10px !important}
+  .ga-categorias{border-radius:18px !important;padding:14px !important;margin-bottom:12px !important}
+  .ga-categorias [style*="display: flex"]{gap:7px !important}
+  .ga-categorias [style*="min-width: 130"]{min-width:88px !important;font-size:11px !important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ga-categorias [style*="min-width: 100"]{min-width:70px !important;font-size:11px !important}
+  .ga-categorias [style*="min-width: 36"]{display:none !important}
+  .ga-filters{display:grid !important;grid-template-columns:1fr;gap:8px !important;margin-bottom:12px !important}
+  .ga-filters select{width:100% !important;border-radius:14px !important;padding:10px 9px !important;font-size:12px !important}
+  .ga-list{gap:10px !important}
+  .ga-item{display:grid !important;grid-template-columns:8px 1fr !important;gap:10px !important;align-items:start !important;border-radius:18px !important;padding:14px !important;box-shadow:0 14px 34px rgba(29,28,25,.052) !important}
+  .ga-item>div:first-child{margin-top:6px !important}
+  .ga-item>div:last-child{grid-column:2 !important;align-items:flex-start !important;margin-top:4px}
+  .ga-item [style*="font-size: 14"]{font-size:14.5px !important;line-height:1.18 !important}
+  .ga-item [style*="font-size: 11"]{font-size:10.5px !important;line-height:1.35 !important;color:var(--color-ink-muted) !important}
+  .ga-item [style*="white-space: nowrap"]{font-size:16px !important}
+}
+`
+
 const s = {
   page:         { padding: '32px 40px', maxWidth: 1000, margin: '0 auto' },
   header:       { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 },

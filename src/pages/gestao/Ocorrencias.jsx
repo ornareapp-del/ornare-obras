@@ -164,13 +164,14 @@ export default function Ocorrencias() {
 
   return (
     <div className="ow-page" style={s.page}>
+      <style>{css}</style>
       {modal && (
         <Modal obras={obras} profiles={profiles}
           onClose={() => setModal(false)}
           onSaved={() => { setModal(false); carregar() }} />
       )}
 
-      <div style={s.header}>
+      <div className="oc-header" style={s.header}>
         <div>
           <div style={s.breadcrumb}>Gestão</div>
           <h1 style={s.title}>Central de Ocorrências</h1>
@@ -181,7 +182,22 @@ export default function Ocorrencias() {
         </button>
       </div>
 
-      <div style={s.statsGrid}>
+      <div className="oc-mobile-summary" aria-label="Resumo de ocorrências">
+        <button type="button" onClick={() => { setFiltroGrav('alta'); setFiltroStatus('') }}>
+          <strong>{loading ? '-' : kpis[0].value}</strong>
+          <span>críticas</span>
+        </button>
+        <button type="button" onClick={() => { setFiltroStatus('Aberta'); setFiltroGrav('') }}>
+          <strong>{loading ? '-' : ocorrencias.filter(o => norm(o.status).includes('aberta')).length}</strong>
+          <span>abertas</span>
+        </button>
+        <button type="button" onClick={() => { setFiltroStatus('Em andamento'); setFiltroGrav('') }}>
+          <strong>{loading ? '-' : kpis[1].value}</strong>
+          <span>andamento</span>
+        </button>
+      </div>
+
+      <div className="oc-stats" style={s.statsGrid}>
         {kpis.map(k => (
           <div key={k.label} style={{ ...s.stat, borderTop: '3px solid ' + k.color }}>
             <div style={{ ...s.statLabel, color: k.color }}>{k.label}</div>
@@ -190,7 +206,7 @@ export default function Ocorrencias() {
         ))}
       </div>
 
-      <div style={s.filters}>
+      <div className="oc-filters" style={s.filters}>
         <select style={s.select} value={filtroGrav}
           onChange={e => setFiltroGrav(e.target.value)}>
           <option value="">Todas as gravidades</option>
@@ -213,9 +229,14 @@ export default function Ocorrencias() {
           <button style={s.btnNew} onClick={() => setModal(true)}>+ Registrar Ocorrência</button>
         </div>
       ) : (
-        <div style={s.list}>
+        <div className="oc-list" style={s.list}>
           {lista.map(oc => (
-            <div key={oc.id} style={{ ...s.item, borderLeftColor: GRAV[oc.gravidade]?.cor || '#ccc' }}>
+            <div
+              key={oc.id}
+              className="oc-card"
+              style={{ ...s.item, borderLeftColor: GRAV[oc.gravidade]?.cor || '#ccc' }}
+              onClick={() => oc.obra_id && navigate(`/obras/${oc.obra_id}`)}
+            >
               <div style={s.itemTop}>
                 <div style={s.itemTitle}>{oc.titulo}</div>
                 <div style={s.itemBadges}>
@@ -240,13 +261,13 @@ export default function Ocorrencias() {
               {oc.descricao && <p style={s.itemDesc}>{oc.descricao}</p>}
               <div style={s.itemMeta}>
                 {oc.tipo && <span>{oc.tipo}</span>}
-                {oc.obras?.nome && <span>📍 {oc.obras.nome}</span>}
-                {oc.responsavel?.full_name && <span>👤 {oc.responsavel.full_name}</span>}
-                {oc.prazo && <span>📅 Prazo: {new Date(oc.prazo + 'T00:00:00').toLocaleDateString('pt-BR')}</span>}
+                {oc.obras?.nome && <span>Obra: {oc.obras.nome}</span>}
+                {oc.responsavel?.full_name && <span>Responsável: {oc.responsavel.full_name}</span>}
+                {oc.prazo && <span>Prazo: {new Date(oc.prazo + 'T00:00:00').toLocaleDateString('pt-BR')}</span>}
                 <span>{new Date(oc.created_at).toLocaleDateString('pt-BR')}</span>
               </div>
               {oc.obra_id && (
-                <button style={s.btnObra} onClick={() => navigate(`/obras/${oc.obra_id}`)}>
+                <button style={s.btnObra} onClick={e => { e.stopPropagation(); navigate(`/obras/${oc.obra_id}`) }}>
                   Ver obra →
                 </button>
               )}
@@ -257,6 +278,32 @@ export default function Ocorrencias() {
     </div>
   )
 }
+
+const css = `
+.oc-mobile-summary{display:none}
+@media (max-width:760px){
+  .ow-page{padding-bottom:112px !important}
+  .oc-header{display:grid !important;grid-template-columns:1fr;gap:10px;margin-bottom:14px !important}
+  .oc-header h1{font-size:27px !important;line-height:1.02 !important}
+  .oc-header p{font-size:12px !important;line-height:1.35 !important;max-width:29ch}
+  .oc-header button{width:100% !important;border-radius:14px !important;padding:11px 14px !important}
+  .oc-mobile-summary{display:grid !important;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 10px}
+  .oc-mobile-summary button{appearance:none;border:1px solid rgba(231,224,213,.95);background:#fff;border-radius:16px;padding:10px 8px;text-align:left;box-shadow:0 10px 24px rgba(29,28,25,.045);font-family:inherit}
+  .oc-mobile-summary strong{display:block;font-size:22px;line-height:1;color:var(--color-ink)}
+  .oc-mobile-summary span{display:block;margin-top:5px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.55px;color:var(--color-ink-muted);white-space:nowrap}
+  .oc-stats{display:none !important}
+  .oc-filters{display:grid !important;grid-template-columns:1fr 1fr;gap:8px !important;margin-bottom:12px !important}
+  .oc-filters select{width:100% !important;min-width:0 !important;border-radius:14px !important;padding:10px 9px !important;font-size:12px !important}
+  .oc-list{gap:10px !important}
+  .oc-card{border-radius:18px !important;padding:14px !important;box-shadow:0 14px 34px rgba(29,28,25,.052) !important;cursor:pointer}
+  .oc-card [style*="justify-content: space-between"]{display:grid !important;grid-template-columns:1fr;gap:8px !important}
+  .oc-card [style*="font-size: 14"]{font-size:14.5px !important;line-height:1.2 !important}
+  .oc-card select{max-width:145px !important}
+  .oc-card p{font-size:12px !important;line-height:1.4 !important;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .oc-card div[style*="flex-wrap: wrap"]{gap:5px 8px !important;font-size:10.5px !important;color:var(--color-ink-muted) !important}
+  .oc-card button{display:none !important}
+}
+`
 
 const s = {
   page: { padding: '32px 40px', maxWidth: 1000, margin: '0 auto' },

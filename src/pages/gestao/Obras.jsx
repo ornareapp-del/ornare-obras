@@ -258,15 +258,16 @@ const css = `
 .ob-mobile-summary{display:none}
 .ob-mobile-kpis,.ob-app-card{display:none}
 @media (max-width:760px){
+  .ow-page{padding-bottom:112px !important}
   .ob-header{display:grid !important;grid-template-columns:1fr auto;gap:10px;align-items:end !important;margin-bottom:13px !important}
   .ob-header h1{font-size:27px !important;line-height:1 !important}
   .ob-header p{display:none !important}
   .ob-new{padding:9px 12px !important;border-radius:12px !important;font-size:12px !important}
   .ob-kpis-desktop{display:none !important}
-  .ob-mobile-kpis{display:flex;gap:8px;overflow-x:auto;margin:0 0 12px;padding:1px 0 4px}
-  .ob-mobile-kpis>div{flex:0 0 auto;display:flex;align-items:center;gap:6px;background:#fff;border:1px solid rgba(184,150,94,.22);border-radius:999px;padding:7px 10px;box-shadow:0 8px 20px rgba(29,28,25,.045)}
-  .ob-mobile-kpis strong{font-size:15px;line-height:1;color:var(--color-ink)}
-  .ob-mobile-kpis span{font-size:10.5px;line-height:1;color:var(--color-ink-muted);font-weight:800;white-space:nowrap}
+  .ob-mobile-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 12px;padding:0}
+  .ob-mobile-kpis>div{min-width:0;display:flex;align-items:center;justify-content:space-between;gap:7px;background:#fff;border:1px solid rgba(184,150,94,.22);border-radius:16px;padding:10px 11px;box-shadow:0 8px 20px rgba(29,28,25,.045)}
+  .ob-mobile-kpis strong{font-size:19px;line-height:1;color:var(--color-ink)}
+  .ob-mobile-kpis span{font-size:10.5px;line-height:1.05;color:var(--color-ink-muted);font-weight:800;white-space:normal;text-align:right}
   .ob-filters{display:flex !important;overflow-x:auto !important;gap:8px !important;flex-wrap:nowrap !important;margin-bottom:14px !important;padding-bottom:3px}
   .ob-filters button{flex:0 0 auto !important;white-space:nowrap !important}
   .ob-list{gap:10px !important}
