@@ -255,12 +255,14 @@ export default function PortalCliente() {
         <img className="pc-hero-img" src={bgImage} alt="" />
         <div className="pc-hero-overlay" />
         <div className="pc-hero-content">
-          <div className="pc-brand-lockup">
-            <img src="/logo-ornare.png" alt="Ornare" />
-            <span>Minha Obra</span>
+          <div className="pc-hero-copy">
+            <h1>{vm.obra.nome || 'Projeto Ornare'}</h1>
+            <p>{vm.obra.cliente_nome || 'Cliente'} · {[vm.obra.cidade, vm.obra.uf].filter(Boolean).join(' / ') || 'Florianópolis'}</p>
           </div>
-          <h1>{vm.obra.nome || 'Projeto Ornare'}</h1>
-          <p>{vm.obra.cliente_nome || 'Cliente'} · {[vm.obra.cidade, vm.obra.uf].filter(Boolean).join(' / ') || 'Florianópolis'}</p>
+          <div className="pc-brand-lockup">
+            <span className="pc-logo-frame"><img src="/logo-ornare.png" alt="Ornare" /></span>
+            <strong>Minha Obra</strong>
+          </div>
         </div>
       </section>
 
@@ -514,10 +516,12 @@ const css = `
 .pc-top{position:relative;z-index:2;padding:22px;display:flex;justify-content:space-between;align-items:flex-start}
 .pc-top img{height:44px;filter:brightness(0) invert(1)}
 .pc-top span{display:block;margin-top:5px;color:${THEME.gold};font-size:9px;letter-spacing:3px;text-transform:uppercase}
-.pc-hero-content{position:relative;z-index:2;max-width:980px;margin:0 auto;padding:38px 22px 34px}
-.pc-brand-lockup{position:absolute;top:44px;right:8px;display:flex;flex-direction:column;align-items:flex-end;margin-bottom:0}
-.pc-brand-lockup img{height:164px;filter:brightness(0) invert(1);opacity:.96}
-.pc-brand-lockup span{display:block;margin-top:-28px;color:${THEME.gold};font-size:10px;letter-spacing:3.5px;text-transform:uppercase;font-weight:900}
+.pc-hero-content{position:relative;z-index:2;max-width:980px;margin:0 auto;padding:34px 22px 34px;display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:42px;align-items:start}
+.pc-hero-copy{min-width:0;padding-top:0}
+.pc-brand-lockup{display:flex;flex-direction:column;align-items:center;justify-self:end;padding-top:8px;width:260px}
+.pc-logo-frame{display:block;width:260px;height:72px;position:relative;overflow:hidden}
+.pc-logo-frame img{position:absolute;left:50%;top:50%;width:260px;height:260px;max-width:none;filter:brightness(0) invert(1);opacity:.96;transform:translate(-50%,-50%)}
+.pc-brand-lockup strong{display:block;margin-top:7px;color:${THEME.gold};font-size:10px;letter-spacing:3.6px;text-transform:uppercase;font-weight:900;text-align:center}
 .pc-eyebrow{display:block;color:${THEME.gold};font-size:10px;letter-spacing:3px;text-transform:uppercase;font-weight:900;margin-bottom:10px}
 .pc-hero h1{font-family:var(--font-sans, Inter, system-ui, sans-serif);font-size:42px;line-height:1.05;font-weight:850;letter-spacing:-.01em;margin:0;max-width:820px;color:#fff;text-shadow:0 18px 42px rgba(0,0,0,.48)}
 .pc-hero p{font-size:15px;color:rgba(255,255,255,.86);margin:12px 0 0;font-weight:700;text-shadow:0 10px 28px rgba(0,0,0,.42)}
@@ -597,10 +601,11 @@ const css = `
   .pc-top{padding:20px 20px 0}
   .pc-top img{height:26px}
   .pc-top span{font-size:8px;letter-spacing:3px;margin-top:4px}
-  .pc-hero-content{padding:30px 20px 72px}
-  .pc-brand-lockup{position:static;align-items:flex-start;margin-bottom:14px}
-  .pc-brand-lockup img{height:28px}
-  .pc-brand-lockup span{font-size:8px;letter-spacing:2.6px;margin-top:4px}
+  .pc-hero-content{padding:30px 20px 72px;display:block}
+  .pc-brand-lockup{align-items:flex-start;width:auto;margin-bottom:14px;padding-top:0}
+  .pc-logo-frame{width:120px;height:30px}
+  .pc-logo-frame img{width:120px;height:120px}
+  .pc-brand-lockup strong{font-size:8px;letter-spacing:2.6px;margin-top:4px;text-align:left}
   .pc-eyebrow{display:none}
   .pc-hero h1{font-size:27px;line-height:1.08;font-weight:850;max-width:350px;text-shadow:0 14px 34px rgba(0,0,0,.55);letter-spacing:-.01em}
   .pc-hero p{display:block;font-size:12.5px;color:rgba(255,255,255,.9);margin-top:9px;white-space:normal;overflow:visible;text-overflow:clip;max-width:330px;line-height:1.35;font-weight:700}
