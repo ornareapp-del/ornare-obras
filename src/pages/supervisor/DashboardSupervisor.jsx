@@ -358,6 +358,42 @@ export default function DashboardSupervisor() {
         </Card>
       </section>
 
+      <section className="ds-mobile-ops">
+        <Card title="Equipe em campo">
+          <div className="ds-field-status">
+            <div>
+              <strong>{loading ? '-' : vm.checkins.emServico}</strong>
+              <span>em serviço</span>
+            </div>
+            <div>
+              <strong>{loading ? '-' : vm.checkins.entraram}</strong>
+              <span>entraram hoje</span>
+            </div>
+            <div className={vm.checkins.aindaNaoEntraram ? 'warn' : ''}>
+              <strong>{loading ? '-' : vm.checkins.aindaNaoEntraram}</strong>
+              <span>sem entrada</span>
+            </div>
+          </div>
+          <div className="ds-mini-list spaced">
+            {loading ? <Empty text="Carregando equipe..." /> : vm.equipe.montadores.length === 0 ? <Empty text="Nenhum montador alocado." /> : vm.equipe.montadores.slice(0, 4).map(m => (
+              <div className="ds-field-person" key={m.id}>
+                <span className={m.emServico ? 'on' : m.entrouHoje ? 'done' : 'off'} />
+                <div>
+                  <strong>{m.nome}</strong>
+                  <small>{m.emServico ? 'Em serviço agora' : m.entrouHoje ? 'Entrada registrada' : 'Ainda sem check-in'}</small>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card title="Agenda da semana" action="Abrir agenda" onAction={() => navigate('/agenda')}>
+          <MiniAgenda label="Montagens" items={vm.agenda.montagens} loading={loading} />
+          <MiniAgenda label="Vistorias" items={vm.agenda.vistorias} loading={loading} />
+          <MiniAgenda label="Assistências" items={vm.agenda.assistencias} loading={loading} />
+        </Card>
+      </section>
+
       <section className="ds-kpis" aria-label="Indicadores do supervisor">
         {kpis.map(kpi => <Kpi key={kpi.label} {...kpi} loading={loading} />)}
       </section>
@@ -550,6 +586,7 @@ const css = `
 .ds-actions button{border:1px solid ${THEME.border};background:#fff;color:${THEME.ink};border-radius:10px;padding:10px 14px;font-size:13px;font-weight:800;cursor:pointer}
 .ds-actions .primary{background:${THEME.gold};border-color:${THEME.gold};color:#fff}
 .ds-priorities{max-width:1380px;margin:0 auto 16px}
+.ds-mobile-ops{display:none}
 .ds-priority-row{width:100%;border:0;background:transparent;border-bottom:1px solid ${THEME.border};padding:12px 0;display:flex;gap:11px;align-items:flex-start;text-align:left;cursor:pointer;font-family:inherit}
 .ds-priority-row:last-child{border-bottom:0}
 .ds-priority-row i{width:9px;height:9px;border-radius:999px;flex-shrink:0;margin-top:6px}
@@ -597,6 +634,18 @@ const css = `
 .ds-action-row>span{width:8px;height:8px;border-radius:99px;margin-top:5px;flex-shrink:0}
 .ds-action-row strong{display:block;font-size:13px;color:${THEME.ink};font-weight:800}
 .ds-action-row small{display:block;font-size:11.5px;color:${THEME.muted};margin-top:2px}
+.ds-field-status{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.ds-field-status div{background:#FFFEFC;border:1px solid ${THEME.border};border-radius:13px;padding:10px}
+.ds-field-status div.warn{border-color:#ECD7B5;background:#FFF8EC}
+.ds-field-status strong{display:block;font-size:22px;line-height:1;color:${THEME.ink}}
+.ds-field-status span{display:block;font-size:10.5px;color:${THEME.muted};margin-top:5px;font-weight:800}
+.ds-field-person{display:flex;gap:9px;align-items:flex-start;padding:9px 0;border-bottom:1px solid ${THEME.border}}
+.ds-field-person:last-child{border-bottom:0}
+.ds-field-person>span{width:9px;height:9px;border-radius:999px;margin-top:5px;background:#CFC7BB;flex-shrink:0}
+.ds-field-person>span.on{background:${THEME.success};box-shadow:0 0 0 4px rgba(45,122,74,.08)}
+.ds-field-person>span.done{background:${THEME.gold}}
+.ds-field-person strong{display:block;font-size:13px;color:${THEME.ink};line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ds-field-person small{display:block;font-size:11.5px;color:${THEME.muted};margin-top:2px}
 .ds-metric-line,.ds-line{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid ${THEME.border};align-items:center}
 .ds-line{width:100%;border-left:0;border-right:0;border-top:0;background:transparent;text-align:left;font-family:inherit}
 .ds-metric-line span,.ds-line span{font-size:12.5px;color:${THEME.ink};font-weight:800;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -605,5 +654,5 @@ const css = `
 .ds-mini-list.spaced{margin-top:12px}
 .ds-empty{padding:24px 0;text-align:center;color:#A79F93;font-size:13px}
 @media (max-width:1100px){.ds-grid-3,.ds-main{grid-template-columns:1fr}.ds-work-row{grid-template-columns:minmax(0,1fr) 86px auto auto}}
-@media (max-width:760px){.ds-page{padding:22px 14px calc(112px + env(safe-area-inset-bottom));display:flex;flex-direction:column}.ds-header{display:block;margin-bottom:14px;order:0}.ds-priorities{order:1;margin-bottom:12px}.ds-main{order:2}.ds-grid-3{order:3}.ds-kpis{order:4}.ds-eyebrow{font-size:9px;letter-spacing:2px;margin-bottom:4px}.ds-header h1{font-size:28px;line-height:1.02}.ds-header p{font-size:12.5px;line-height:1.45}.ds-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;justify-content:flex-start;margin-top:10px}.ds-actions button{min-width:0;width:100%;padding:10px 9px;font-size:12px}.ds-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible;padding-bottom:0;gap:10px;margin-top:4px}.ds-kpis>*{min-width:0;max-width:none;flex:auto}.ds-kpi{min-width:0;padding:13px 12px}.ds-kpi span{white-space:normal;font-size:9px;line-height:1.25;letter-spacing:1.1px}.ds-kpi strong{font-size:28px}.ds-kpi small{font-size:11px;line-height:1.25}.ds-grid-3,.ds-main{gap:12px}.ds-card{padding:16px 14px;border-radius:14px}.ds-card-head h2{font-size:20px}.ds-health{grid-template-columns:1fr 1fr 1fr}.ds-work-row{display:flex;align-items:flex-start;flex-direction:column}.ds-progress{width:100%}.ds-work-row>small{white-space:normal}.ds-badge{align-self:flex-start}.ds-action-row{padding:12px 0}.ds-split{grid-template-columns:1fr 1fr}}
+@media (max-width:760px){.ds-page{padding:22px 14px calc(112px + env(safe-area-inset-bottom));display:flex;flex-direction:column}.ds-header{display:block;margin-bottom:14px;order:0}.ds-priorities{order:1;margin-bottom:12px}.ds-mobile-ops{display:grid;gap:12px;order:2;margin:0 auto 12px;max-width:1380px;width:100%}.ds-main{order:3}.ds-kpis{order:4}.ds-grid-3{display:none}.ds-eyebrow{font-size:9px;letter-spacing:2px;margin-bottom:4px}.ds-header h1{font-size:28px;line-height:1.02}.ds-header p{font-size:12.5px;line-height:1.45}.ds-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;justify-content:flex-start;margin-top:10px}.ds-actions button{min-width:0;width:100%;padding:10px 9px;font-size:12px}.ds-kpis{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-top:4px}.ds-kpis>*{flex:0 0 auto;min-width:auto;max-width:none}.ds-kpi{display:flex;align-items:center;gap:7px;border-radius:999px;padding:7px 10px;min-width:auto;max-width:none;border-top:1px solid rgba(184,150,94,.22)}.ds-kpi span{white-space:nowrap;font-size:10.5px;line-height:1;letter-spacing:0;margin:0}.ds-kpi strong{font-size:15px}.ds-kpi small{display:none}.ds-main{gap:12px}.ds-card{padding:15px 13px;border-radius:15px}.ds-card-head h2{font-size:19px}.ds-health{grid-template-columns:1fr 1fr 1fr}.ds-work-row{display:block;padding:13px 0}.ds-work-main strong{font-size:15px;line-height:1.2;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}.ds-work-main span{font-size:12px}.ds-tags em:nth-child(n+3){display:none}.ds-progress{width:100%;margin:10px 0 9px}.ds-work-row>small{display:inline-block;white-space:nowrap;margin-right:8px}.ds-badge{display:inline-flex;align-self:flex-start}.ds-action-row{padding:12px 0}.ds-split{grid-template-columns:1fr 1fr}}
 `

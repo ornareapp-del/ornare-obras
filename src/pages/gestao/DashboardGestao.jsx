@@ -285,6 +285,26 @@ export default function DashboardGestao() {
         </div>
       </header>
 
+      <section className="dg-mobile-home" aria-label="Resumo executivo">
+        <button className={vm.operacao.travadas ? 'critical' : ''} onClick={() => navigate('/obras')}>
+          <strong>{loading ? '-' : vm.operacao.travadas}</strong>
+          <span>travadas</span>
+        </button>
+        <button className={vm.pendenciasCriticas.length ? 'warn' : ''} onClick={() => navigate('/ocorrencias')}>
+          <strong>{loading ? '-' : vm.pendenciasCriticas.length}</strong>
+          <span>pendências</span>
+        </button>
+        <button className={vm.saude.risco ? 'warn' : ''} onClick={() => navigate('/planejamento')}>
+          <strong>{loading ? '-' : vm.saude.risco}</strong>
+          <span>em risco</span>
+        </button>
+        <div className="dg-mobile-quick">
+          <button onClick={() => navigate('/obras')}>Obras</button>
+          <button onClick={() => navigate('/agenda')}>Agenda</button>
+          <button onClick={() => navigate('/planejamento')}>Planejamento</button>
+        </div>
+      </section>
+
       <section className="dg-priority-board">
         <Card title="Exigem atenção agora" action="Abrir obras" onAction={() => navigate('/obras')}>
           {vm.atencao.length === 0 ? <Empty text="Nenhuma pendência crítica." /> : vm.atencao.slice(0, 4).map(item => (
@@ -513,6 +533,7 @@ const css = `
 .dg-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .dg-actions button{border:1px solid ${THEME.border};background:#fff;color:${THEME.ink};border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;cursor:pointer}
 .dg-actions .primary{background:${THEME.gold};border-color:${THEME.gold};color:#fff}
+.dg-mobile-home{display:none}
 .dg-priority-board{max-width:1380px;margin:0 auto 16px;display:grid;grid-template-columns:1.25fr 1fr 1fr 1fr;gap:12px}
 .dg-agenda-mobile{max-width:1380px;margin:0 auto 16px}
 .dg-priority-row{width:100%;border:0;background:transparent;border-bottom:1px solid ${THEME.border};padding:11px 0;display:flex;gap:10px;align-items:flex-start;text-align:left;cursor:pointer;font-family:inherit}
@@ -575,5 +596,5 @@ const css = `
 @media (max-width:1100px){.dg-grid-3,.dg-main{grid-template-columns:1fr}.dg-flow{grid-template-columns:repeat(3,1fr)}.dg-flow-line{display:none}}
 @media (max-width:1100px){.dg-priority-board{grid-template-columns:1fr 1fr}.dg-agenda-mobile{display:block}}
 @media (min-width:761px){.dg-agenda-mobile{display:none}}
-@media (max-width:760px){.dg-page{padding:22px 14px calc(112px + env(safe-area-inset-bottom));display:flex;flex-direction:column}.dg-header{display:block;margin-bottom:14px;order:0}.dg-eyebrow{font-size:9px;letter-spacing:2px;margin-bottom:4px}.dg-header h1{font-size:28px;line-height:1.02}.dg-header p{font-size:12.5px;line-height:1.45}.dg-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;justify-content:flex-start;margin-top:10px}.dg-actions button{width:100%;padding:10px 9px;font-size:12px}.dg-priority-board{grid-template-columns:1fr;gap:10px;margin-bottom:12px;order:1}.dg-priority-row{padding:11px 0}.dg-agenda-mobile{order:2}.dg-main{order:3}.dg-kpis{order:4;display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px}.dg-kpis>*{flex:0 0 auto;min-width:auto;max-width:none}.dg-kpi{display:flex;align-items:center;gap:7px;border-radius:999px;padding:7px 10px;min-width:auto;max-width:none;border-top:1px solid rgba(184,150,94,.22)}.dg-kpi span{white-space:nowrap;font-size:10.5px;line-height:1;letter-spacing:0;margin:0}.dg-kpi strong{font-size:15px}.dg-kpi small{display:none}.dg-grid-3,.dg-main{gap:12px}.dg-grid-3{display:none}.dg-card{padding:15px 13px;border-radius:15px}.dg-card-head h2{font-size:19px}.dg-health{grid-template-columns:1fr 1fr 1fr}.dg-flow{display:none}.dg-card:has(.dg-flow){display:none}.dg-attention,.dg-work-row{align-items:flex-start;flex-direction:column}.dg-attention strong,.dg-attention span,.dg-work-main strong,.dg-work-main span{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;white-space:normal}.dg-tags{margin-left:0;justify-content:flex-start}.dg-tags span:nth-child(n+3){display:none}.dg-progress{width:100%}.dg-activity{grid-template-columns:62px 1fr}.dg-activity em{display:none}}
+@media (max-width:760px){.dg-page{padding:22px 14px calc(112px + env(safe-area-inset-bottom));display:flex;flex-direction:column}.dg-header{display:block;margin-bottom:12px;order:0}.dg-eyebrow{font-size:9px;letter-spacing:2px;margin-bottom:4px}.dg-header h1{font-size:28px;line-height:1.02}.dg-header p{font-size:12.5px;line-height:1.45}.dg-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;justify-content:flex-start;margin-top:10px}.dg-actions button{width:100%;padding:10px 9px;font-size:12px}.dg-mobile-home{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;order:1;margin:0 auto 12px;max-width:1380px;width:100%}.dg-mobile-home>button{border:1px solid ${THEME.border};background:#fff;border-radius:15px;padding:11px 9px;text-align:left;font-family:inherit;box-shadow:0 10px 26px rgba(29,28,25,.04)}.dg-mobile-home>button.warn{border-color:#ECD7B5;background:#FFF8EC}.dg-mobile-home>button.critical{border-color:#F1C8C8;background:#FFF5F5}.dg-mobile-home strong{display:block;font-size:24px;line-height:1;color:${THEME.ink}}.dg-mobile-home span{display:block;font-size:10.5px;color:${THEME.muted};font-weight:900;margin-top:5px}.dg-mobile-quick{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.dg-mobile-quick button{border:1px solid ${THEME.border};background:#fff;color:${THEME.ink};border-radius:13px;padding:10px 8px;font-size:12px;font-weight:900}.dg-priority-board{grid-template-columns:1fr;gap:10px;margin-bottom:12px;order:2}.dg-priority-board>*:nth-child(n+2){display:none}.dg-priority-row{padding:11px 0}.dg-agenda-mobile{order:3}.dg-main{order:4}.dg-kpis{order:5;display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px}.dg-kpis>*{flex:0 0 auto;min-width:auto;max-width:none}.dg-kpi{display:flex;align-items:center;gap:7px;border-radius:999px;padding:7px 10px;min-width:auto;max-width:none;border-top:1px solid rgba(184,150,94,.22)}.dg-kpi span{white-space:nowrap;font-size:10.5px;line-height:1;letter-spacing:0;margin:0}.dg-kpi strong{font-size:15px}.dg-kpi small{display:none}.dg-grid-3,.dg-main{gap:12px}.dg-grid-3{display:none}.dg-card{padding:15px 13px;border-radius:15px}.dg-card-head h2{font-size:19px}.dg-health{grid-template-columns:1fr 1fr 1fr}.dg-flow{display:none}.dg-card:has(.dg-flow){display:none}.dg-attention,.dg-work-row{align-items:flex-start;flex-direction:column}.dg-attention strong,.dg-attention span,.dg-work-main strong,.dg-work-main span{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;white-space:normal}.dg-tags{margin-left:0;justify-content:flex-start}.dg-tags span:nth-child(n+3){display:none}.dg-progress{width:100%}.dg-activity{grid-template-columns:62px 1fr}.dg-activity em{display:none}}
 `
