@@ -196,6 +196,7 @@ export default function ObraDetalhe() {
 
   async function salvarEdicaoObra() {
     setSalvando(true)
+    console.log("GASTO META ENVIADO:", formObra.gasto_meta, parseFloat(formObra.gasto_meta))
     const { error } = await supabase.from('obras').update({
       nome:               formObra.nome,
       numero_contrato:    formObra.numero_contrato    || null,
@@ -1736,4 +1737,5 @@ function Info({ label, value }) {
 function Label({ children }) { return <div style={{ fontSize: 11, color: THEME.muted, marginBottom: 6, fontWeight: 700 }}>{children}</div> }
 function FInput({ onChange, ...props }) { return <input {...props} onChange={e => onChange(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: 9, border: `1px solid ${THEME.border}`, fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none', background: '#FFFEFC', color: THEME.ink }} /> }
 function FSelect({ onChange, children, ...props }) { return <select {...props} onChange={e => onChange(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: 9, border: `1px solid ${THEME.border}`, fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit', background: '#FFFEFC', color: THEME.ink }}>{children}</select> }
+
 
