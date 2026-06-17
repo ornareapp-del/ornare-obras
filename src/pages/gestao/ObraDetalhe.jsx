@@ -206,7 +206,7 @@ export default function ObraDetalhe() {
       data_inicio:        formObra.data_inicio        || null,
       data_previsao:      formObra.data_previsao      || null,
       observacoes:        formObra.observacoes        || null,
-      gasto_meta:         formObra.gasto_meta         ? parseFloat(formObra.gasto_meta)    : null,
+      gasto_meta:         (formObra.gasto_meta !== '' && formObra.gasto_meta !== null && formObra.gasto_meta !== undefined) ? parseFloat(String(formObra.gasto_meta).replace(',','.')) : null,
       valor_contrato:     formObra.valor_contrato     ? parseFloat(formObra.valor_contrato): null,
       cliente_nome:       formObra.cliente_nome       || null,
       cliente_email:      formObra.cliente_email      || null,
@@ -1737,5 +1737,6 @@ function Info({ label, value }) {
 function Label({ children }) { return <div style={{ fontSize: 11, color: THEME.muted, marginBottom: 6, fontWeight: 700 }}>{children}</div> }
 function FInput({ onChange, ...props }) { return <input {...props} onChange={e => onChange(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: 9, border: `1px solid ${THEME.border}`, fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none', background: '#FFFEFC', color: THEME.ink }} /> }
 function FSelect({ onChange, children, ...props }) { return <select {...props} onChange={e => onChange(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: 9, border: `1px solid ${THEME.border}`, fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit', background: '#FFFEFC', color: THEME.ink }}>{children}</select> }
+
 
 
