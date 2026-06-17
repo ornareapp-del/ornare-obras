@@ -1131,79 +1131,197 @@ function AbaOcorrencias({ obraId }) {
 }
 
 function AbaGastos({ obraId, obraInfo }) {
-  const [gastos, setGastos] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [salvando, setSalvando] = useState(false)
-  const [novo, setNovo] = useState({ descricao: '', valor: '', categoria: 'material', data: '' })
+  const CATS_G = [
+    { value: 'combustivel', label: 'Combustivel', emoji: '⛽', cor: '#E8A020' },
+    { value: 'pedagio',     label: 'Pedagio',     emoji: '🛣️', cor: '#9070C0' },
+    { value: 'hospedagem',  label: 'Hospedagem',  emoji: '🏨', cor: '#4A90D9' },
+    { value: 'alimentacao', label: 'Alimentacao', emoji: '🍽️', cor: '#5AAB6E' },
+    { value: 'frete',       label: 'Frete',       emoji: '🚚', cor: '#D9704A' },
+    { value: 'terceiros',   label: 'Terceiros',   emoji: '👷', cor: '#B09A7A' },
+    { value: 'ferragens',   label: 'Ferragens',   emoji: '🔧', cor: '#888'    },
+    { value: 'material',    label: 'Material',    emoji: '📦', cor: '#6A8A6A' },
+    { value: 'outro',       label: 'Outros',      emoji: '📋', cor: '#AAA'    },
+  ]
+  const CAT_G = Object.fromEntries(CATS_G.map(c => [c.value, c]))
+  const msG = {
+    bg:      { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 },
+    box:     { background: '#fff', borderRadius: 14, width: '100%', maxWidth: 560, maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' },
+    header:  { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '22px 26px 0', flexShrink: 0 },
+    title:   { fontFamily: 'var(--font-serif)', fontSize: 22, fontWeight: 500, margin: 0, color: 'var(--color-ink)' },
+    close:   { background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: '#999', padding: 4 },
+    body:    { overflowY: 'auto', padding: '18px 26px', flex: 1 },
+    label:   { display: 'block', fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: '#888', marginBottom: 6, fontWeight: 700 },
+    input:   { width: '100%', border: '1px solid #e0dbd4', borderRadius: 8, padding: '9px 12px', fontSize: 13, fontFamily: 'inherit', color: 'var(--color-ink)', background: '#fafaf8', outline: 'none', boxSizing: 'border-box' },
+    upload:  { display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px dashed #e0dbd4', borderRadius: 8, padding: 16, cursor: 'pointer', background: '#fafaf8', width: '100%', boxSizing: 'border-box' },
+    footer:  { display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '14px 26px', borderTop: '1px solid #f0ece6', flexShrink: 0 },
+    btnCan:  { background: 'none', border: '1px solid #e0dbd4', borderRadius: 8, padding: '9px 18px', fontSize: 13, cursor: 'pointer', color: '#888', fontFamily: 'inherit' },
+    btnSave: { background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' },
+    btnDel:  { background: '#fdecea', color: '#a03030', border: 'none', borderRadius: 8, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', marginRight: 'auto' },
+  }
+
+  const hoje = new Date().toISOString().split('T')[0]
+  const [gastos,      setGastos]      = useState([])
+  const [loading,     setLoading]     = useState(true)
+  const [modalAberto, setModalAberto] = useState(false)
+  const [gastoEdit,   setGastoEdit]   = useState(null)
+  const [form,        setForm]        = useState({ descricao: '', valor: '', categoria: 'combustivel', data: hoje, observacao: '' })
+  const [arquivo,     setArquivo]     = useState(null)
+  const [salvando,    setSalvando]    = useState(false)
+  const [erro,        setErro]        = useState('')
+
   useEffect(() => { carregar() }, [])
+
   async function carregar() {
     const { data } = await supabase.from('gastos').select('*').eq('obra_id', obraId).order('created_at', { ascending: false })
     setGastos(data || []); setLoading(false)
   }
-  async function salvar() {
-    if (!novo.descricao.trim() || !novo.valor) return
-    setSalvando(true)
-    await supabase.from('gastos').insert([{ ...novo, obra_id: obraId, valor: parseFloat(novo.valor) }])
-    setNovo({ descricao: '', valor: '', categoria: 'material', data: '' }); setShowForm(false); await carregar(); setSalvando(false)
+
+  function abrirNovo() {
+    setGastoEdit(null)
+    setForm({ descricao: '', valor: '', categoria: 'combustivel', data: hoje, observacao: '' })
+    setArquivo(null); setErro(''); setModalAberto(true)
   }
-  const total = gastos.reduce((s, g) => s + (parseFloat(g.valor) || 0), 0)
-  const meta = parseFloat(obraInfo?.gasto_meta) || 0
+
+  function abrirEditar(g) {
+    setGastoEdit(g)
+    setForm({ descricao: g.descricao || '', valor: String(g.valor || ''), categoria: g.categoria || 'combustivel', data: g.data || hoje, observacao: g.observacao || '' })
+    setArquivo(null); setErro(''); setModalAberto(true)
+  }
+
+  function fechar() { setModalAberto(false); setGastoEdit(null); setErro('') }
+
+  function setF(k, v) { setForm(f => ({ ...f, [k]: v })) }
+
+  async function salvar() {
+    if (!form.descricao.trim() || !form.valor || !form.data) { setErro('Preencha descricao, valor e data.'); return }
+    const vNum = parseFloat(String(form.valor).replace(',', '.'))
+    if (isNaN(vNum) || vNum <= 0) { setErro('Valor invalido.'); return }
+    setSalvando(true)
+    if (gastoEdit) {
+      await supabase.from('gastos').update({ descricao: form.descricao.trim(), valor: vNum, categoria: form.categoria, data: form.data || null, observacao: form.observacao || null }).eq('id', gastoEdit.id)
+    } else {
+      const { data: ins } = await supabase.from('gastos').insert([{ obra_id: obraId, descricao: form.descricao.trim(), valor: vNum, categoria: form.categoria, data: form.data, observacao: form.observacao || null, status: 'aprovado' }]).select().single()
+      if (arquivo && ins) {
+        const ext = arquivo.name.split('.').pop()
+        await supabase.storage.from('fotos-obras').upload('gastos/' + ins.id + '.' + ext, arquivo)
+      }
+    }
+    setSalvando(false); fechar(); carregar()
+  }
+
+  async function deletar(g) {
+    if (!window.confirm('Excluir este gasto?')) return
+    await supabase.from('gastos').delete().eq('id', g.id)
+    fechar(); carregar()
+  }
+
+  const total    = gastos.reduce((s, g) => s + (parseFloat(g.valor) || 0), 0)
+  const meta     = parseFloat(obraInfo?.gasto_meta) || 0
   const pctGasto = meta > 0 ? Math.min(Math.round(total / meta * 100), 100) : 0
   const corGasto = pctGasto >= 90 ? '#d94a4a' : pctGasto >= 70 ? '#b09a7a' : '#5aab6e'
+
   return (
-    <div>
-      <div style={{ display: 'grid', gridTemplateColumns: meta > 0 ? '1fr 1fr 1fr' : '1fr auto', gap: 12, marginBottom: 20, alignItems: 'center' }}>
-        <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 20px' }}>
-          <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 4 }}>Total gasto</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-ink)' }}>R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-        </div>
-        {meta > 0 && (
-          <>
-            <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 20px' }}>
-              <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 4 }}>Meta / Limite</div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-ink)' }}>R$ {meta.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+    <>
+      {modalAberto && (
+        <div style={msG.bg} onClick={e => e.target === e.currentTarget && fechar()}>
+          <div style={msG.box}>
+            <div style={msG.header}>
+              <h2 style={msG.title}>{gastoEdit ? 'Editar Gasto' : 'Novo Gasto'}</h2>
+              <button style={msG.close} onClick={fechar}>✕</button>
             </div>
-            <div style={{ background: pctGasto >= 90 ? '#fdecea' : '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 20px' }}>
-              <div style={{ fontSize: 9, letterSpacing: 2, color: pctGasto >= 90 ? '#d94a4a' : 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 4 }}>Utilizado</div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: corGasto }}>{pctGasto}%</div>
-              <div style={{ height: 4, background: '#f0ece6', borderRadius: 2, marginTop: 8 }}><div style={{ height: 4, borderRadius: 2, background: corGasto, width: pctGasto + '%', transition: 'width .3s' }} /></div>
+            <div style={msG.body}>
+              {erro && <div style={{ background: '#fceee9', borderLeft: '3px solid #c4421e', color: '#5c2010', padding: '10px 14px', borderRadius: 6, fontSize: 12, marginBottom: 16 }}>{erro}</div>}
+              {obraInfo && (
+                <div style={{ background: '#f9f7f4', border: '1px solid #e8d9b8', borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
+                  <div style={{ fontSize: 10, color: 'var(--color-gold)', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4 }}>Obra vinculada</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-ink)' }}>{obraInfo.nome || obraInfo.cliente_nome}</div>
+                  {obraInfo.gasto_meta && <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>Meta: R$ {parseFloat(obraInfo.gasto_meta).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>}
+                </div>
+              )}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <div style={{ gridColumn: '1/-1' }}>
+                  <label style={msG.label}>Descricao *</label>
+                  <input style={msG.input} value={form.descricao} onChange={e => setF('descricao', e.target.value)} placeholder="Ex: Combustivel ida a obra..." />
+                </div>
+                <div>
+                  <label style={msG.label}>Categoria *</label>
+                  <select style={msG.input} value={form.categoria} onChange={e => setF('categoria', e.target.value)}>
+                    {CATS_G.map(c => <option key={c.value} value={c.value}>{c.emoji} {c.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={msG.label}>Valor (R$) *</label>
+                  <input style={msG.input} value={form.valor} onChange={e => setF('valor', e.target.value)} placeholder="0,00" />
+                </div>
+                <div style={{ gridColumn: '1/-1' }}>
+                  <label style={msG.label}>Data *</label>
+                  <input style={msG.input} type="date" value={form.data} onChange={e => setF('data', e.target.value)} />
+                </div>
+                {!gastoEdit && (
+                  <div style={{ gridColumn: '1/-1' }}>
+                    <label style={msG.label}>Comprovante (foto ou PDF)</label>
+                    <label style={msG.upload}>
+                      <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={e => setArquivo(e.target.files[0])} />
+                      {arquivo ? <span style={{ color: 'var(--color-ink)', fontSize: 13 }}>📎 {arquivo.name}</span> : <span style={{ color: '#aaa', fontSize: 13 }}>📎 Toque para anexar comprovante</span>}
+                    </label>
+                  </div>
+                )}
+                <div style={{ gridColumn: '1/-1' }}>
+                  <label style={msG.label}>Observacao</label>
+                  <textarea style={{ ...msG.input, height: 64, resize: 'vertical' }} value={form.observacao} onChange={e => setF('observacao', e.target.value)} placeholder="Informacoes adicionais..." />
+                </div>
+              </div>
             </div>
-          </>
-        )}
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button onClick={() => setShowForm(!showForm)} style={{ background: 'var(--color-ink)', color: '#f9f7f4', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 12.5, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' }}>{showForm ? 'Cancelar' : '+ Novo Gasto'}</button>
-        </div>
-      </div>
-      {showForm && (
-        <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, padding: 22, marginBottom: 20 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div style={{ gridColumn: '1/-1' }}><Label>Descrição *</Label><FInput value={novo.descricao} onChange={v => setNovo(p => ({ ...p, descricao: v }))} placeholder="Ex: Material de proteção" /></div>
-            <div><Label>Valor (R$) *</Label><FInput type="number" value={novo.valor} onChange={v => setNovo(p => ({ ...p, valor: v }))} placeholder="0,00" /></div>
-            <div><Label>Data</Label><FInput type="date" value={novo.data} onChange={v => setNovo(p => ({ ...p, data: v }))} /></div>
-            <div style={{ gridColumn: '1/-1' }}><Label>Categoria</Label><FSelect value={novo.categoria} onChange={v => setNovo(p => ({ ...p, categoria: v }))}><option value="combustivel">Combustivel</option><option value="pedagio">Pedagio</option><option value="hospedagem">Hospedagem</option><option value="alimentacao">Alimentacao</option><option value="frete">Frete</option><option value="terceiros">Terceiros</option><option value="ferragens">Ferragens</option><option value="material">Material</option><option value="outro">Outro</option></FSelect></div>
-          </div>
-          <div style={{ marginTop: 14, display: 'flex', justifyContent: 'flex-end' }}>
-            <button onClick={salvar} disabled={salvando} style={{ background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{salvando ? 'Salvando...' : 'Registrar'}</button>
+            <div style={msG.footer}>
+              {gastoEdit && <button style={msG.btnDel} onClick={() => deletar(gastoEdit)}>Excluir</button>}
+              <button style={msG.btnCan} onClick={fechar}>Cancelar</button>
+              <button style={msG.btnSave} onClick={salvar} disabled={salvando}>{salvando ? 'Salvando...' : gastoEdit ? 'Salvar alteracoes' : 'Registrar Gasto'}</button>
+            </div>
           </div>
         </div>
       )}
-      {loading ? <div style={{ color: '#bbb' }}>Carregando...</div>
-        : gastos.length === 0 ? <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhum gasto registrado.</div>
-        : gastos.map(g => (
-          <div key={g.id} style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 18px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 16 }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--color-ink)' }}>{g.descricao}</div>
-              <div style={{ fontSize: 11, color: '#aaa', marginTop: 3 }}>{g.categoria}{g.data ? ' · ' + new Date(g.data + 'T00:00:00').toLocaleDateString('pt-BR') : ''}</div>
-            </div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-ink)' }}>R$ {parseFloat(g.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+      <div>
+        <div style={{ display: 'grid', gridTemplateColumns: meta > 0 ? '1fr 1fr 1fr' : '1fr auto', gap: 12, marginBottom: 20, alignItems: 'center' }}>
+          <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 20px' }}>
+            <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 4 }}>Total gasto</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-ink)' }}>R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
           </div>
-        ))
-      }
-    </div>
+          {meta > 0 && (
+            <>
+              <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 20px' }}>
+                <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 4 }}>Meta / Limite</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-ink)' }}>R$ {meta.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+              </div>
+              <div style={{ background: pctGasto >= 90 ? '#fdecea' : '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 20px' }}>
+                <div style={{ fontSize: 9, letterSpacing: 2, color: pctGasto >= 90 ? '#d94a4a' : 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 4 }}>Utilizado</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: corGasto }}>{pctGasto}%</div>
+                <div style={{ height: 4, background: '#f0ece6', borderRadius: 2, marginTop: 8 }}><div style={{ height: 4, borderRadius: 2, background: corGasto, width: pctGasto + '%', transition: 'width .3s' }} /></div>
+              </div>
+            </>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button onClick={abrirNovo} style={{ background: 'var(--color-ink)', color: '#f9f7f4', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 12.5, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' }}>+ Novo Gasto</button>
+          </div>
+        </div>
+        {loading ? <div style={{ color: '#bbb' }}>Carregando...</div>
+          : gastos.length === 0 ? <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhum gasto registrado.</div>
+          : gastos.map(g => (
+            <div key={g.id} onClick={() => abrirEditar(g)} style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 18px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer' }}>
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: CAT_G[g.categoria]?.cor || '#ccc', flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--color-ink)' }}>{g.descricao}</div>
+                <div style={{ fontSize: 11, color: '#aaa', marginTop: 3 }}>{CAT_G[g.categoria]?.emoji} {CAT_G[g.categoria]?.label || g.categoria}{g.data ? ' · ' + new Date(g.data + 'T00:00:00').toLocaleDateString('pt-BR') : ''}</div>
+                {g.observacao && <div style={{ fontSize: 11, color: '#bbb', marginTop: 2, fontStyle: 'italic' }}>{g.observacao}</div>}
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-ink)' }}>R$ {parseFloat(g.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+              <span style={{ fontSize: 12, color: '#aaa' }}>✏️</span>
+            </div>
+          ))
+        }
+      </div>
+    </>
   )
 }
-
 function AbaChat({ obraId }) {
   const { user } = useStore()
   const [mensagens, setMensagens] = useState([])
@@ -1737,6 +1855,7 @@ function Info({ label, value }) {
 function Label({ children }) { return <div style={{ fontSize: 11, color: THEME.muted, marginBottom: 6, fontWeight: 700 }}>{children}</div> }
 function FInput({ onChange, ...props }) { return <input {...props} onChange={e => onChange(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: 9, border: `1px solid ${THEME.border}`, fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none', background: '#FFFEFC', color: THEME.ink }} /> }
 function FSelect({ onChange, children, ...props }) { return <select {...props} onChange={e => onChange(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: 9, border: `1px solid ${THEME.border}`, fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit', background: '#FFFEFC', color: THEME.ink }}>{children}</select> }
+
 
 
 
