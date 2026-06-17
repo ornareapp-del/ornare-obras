@@ -5,14 +5,15 @@ import { supabase } from '../../lib/supabase'
 import { useStore } from '../../store/useStore'
 
 const THEME = {
-  bg: '#F6F3EE',
+  bg: '#F5F0EB',
   card: '#FFFFFF',
   border: '#E7E0D5',
-  ink: '#1D1C19',
+  ink: '#1A1A1A',
   muted: '#6D675E',
-  gold: '#B8965E',
-  danger: '#B84040',
-  warn: '#B8965E',
+  soft: '#9E9E9E',
+  gold: '#C9A96E',
+  danger: '#C0392B',
+  warn: '#E07B39',
   success: '#2D7A4A',
   blue: '#3B5F86',
 }
@@ -23,7 +24,7 @@ const STATUS_OBRA = {
   'Concluida': { bg: '#EAF5EE', color: '#2D7A4A', label: 'Concluída' },
   'Concluída': { bg: '#EAF5EE', color: '#2D7A4A', label: 'Concluída' },
   'Pausada': { bg: '#FFF3E0', color: '#9A5B13', label: 'Pausada' },
-  'Em producao': { bg: '#F4EFE6', color: '#8A6A38', label: 'Em producao' },
+  'Em producao': { bg: '#F4EFE6', color: '#8A6A38', label: 'Em produção' },
   'Em produção': { bg: '#F4EFE6', color: '#8A6A38', label: 'Em produção' },
 }
 
@@ -42,6 +43,12 @@ const agendaTipo = item => {
   if (tipo.includes('reuniao') || tipo.includes('reuni')) return 'reunioes'
   return 'montagens'
 }
+
+const PERIODOS = [
+  { id: 'hoje', label: 'Hoje' },
+  { id: 'semana', label: 'Esta semana' },
+  { id: 'mes', label: 'Este mês' },
+]
 
 function saudeObra(obra, hoje) {
   const previsao = obra.data_previsao || obra.data_previsao_entrega
@@ -74,6 +81,7 @@ export default function DashboardSupervisor() {
     fotos: [],
   })
   const [loading, setLoading] = useState(true)
+  const [periodo, setPeriodo] = useState('semana')
 
   useEffect(() => {
     if (!profile?.id) return
@@ -155,8 +163,10 @@ export default function DashboardSupervisor() {
     hoje.setHours(0, 0, 0, 0)
     const amanha = new Date(hoje)
     amanha.setDate(hoje.getDate() + 1)
-    const fimSemana = new Date(hoje)
-    fimSemana.setDate(hoje.getDate() + 7)
+    const fimPeriodo = new Date(hoje)
+    if (periodo === 'hoje') fimPeriodo.setDate(hoje.getDate() + 1)
+    else if (periodo === 'mes') fimPeriodo.setMonth(hoje.getMonth() + 1, 1)
+    else fimPeriodo.setDate(hoje.getDate() + 7)
     const seteDiasAtras = new Date(hoje)
     seteDiasAtras.setDate(hoje.getDate() - 7)
 
@@ -176,7 +186,7 @@ export default function DashboardSupervisor() {
     const agendaSemana = dados.agenda.filter(item => {
       if (!item.data) return false
       const data = new Date(`${item.data}T00:00:00`)
-      return data >= hoje && data <= fimSemana
+      return data >= hoje && data <= fimPeriodo
     })
 
     const agenda = agendaSemana.reduce((acc, item) => {
@@ -254,7 +264,7 @@ export default function DashboardSupervisor() {
         acoes.push({
           tipo: 'Sem foto recente',
           titulo: obra.nome || 'Obra',
-          detalhe: ultima ? `Ultima foto em ${ultima.toLocaleDateString('pt-BR')}` : 'Nenhuma foto registrada',
+          detalhe: ultima ? `Última foto em ${ultima.toLocaleDateString('pt-BR')}` : 'Nenhuma foto registrada',
           obraId: obra.id,
           cor: THEME.blue,
         })
@@ -275,6 +285,15 @@ export default function DashboardSupervisor() {
       ].filter(Boolean)
       return { ...obra, alertas }
     })
+
+    const statusResumo = {
+      emProducao: dados.obras.filter(o => norm(o.status).includes('producao')).length,
+      emMontagem: dados.obras.filter(o => norm(o.status).includes('montagem')).length,
+      aguardandoCliente: dados.obras.filter(o => norm(o.status).includes('aguard') && norm(o.status).includes('cliente')).length,
+      aguardandoProducao: dados.obras.filter(o => norm(o.status).includes('aguard') && norm(o.status).includes('producao')).length,
+      concluidas: dados.obras.filter(o => isConcluido(o.status)).length,
+      travadas: dados.obras.filter(o => norm(o.status).includes('travad') || norm(o.status).includes('pausad')).length,
+    }
 
     return {
       kpis: {
@@ -313,17 +332,27 @@ export default function DashboardSupervisor() {
       },
       obras: obrasDetalhadas,
       acoes: acoes.slice(0, 10),
+      statusResumo,
       obraPorId,
     }
-  }, [dados])
+  }, [dados, periodo])
 
   const kpis = [
     { label: 'Minhas obras', value: vm.kpis.minhasObras, sub: 'sob responsabilidade', tone: THEME.gold },
-    { label: 'Em montagem', value: vm.kpis.emMontagem, sub: 'operacao ativa', tone: THEME.blue },
+    { label: 'Em montagem', value: vm.kpis.emMontagem, sub: 'operação ativa', tone: THEME.blue },
     { label: 'Atrasadas', value: vm.kpis.atrasadas, sub: 'exigem plano', tone: vm.kpis.atrasadas ? THEME.danger : THEME.success },
-    { label: 'Pendencias', value: vm.kpis.pendencias, sub: 'tarefas, ocorrencias e checklist', tone: vm.kpis.pendencias ? THEME.warn : THEME.success },
-    { label: 'Fotos pendentes', value: vm.kpis.fotosPendentes, sub: 'aguardando validacao', tone: vm.kpis.fotosPendentes ? THEME.warn : THEME.success },
+    { label: 'Pendências', value: vm.kpis.pendencias, sub: 'tarefas, ocorrências e checklist', tone: vm.kpis.pendencias ? THEME.warn : THEME.success },
+    { label: 'Fotos pendentes', value: vm.kpis.fotosPendentes, sub: 'aguardando validação', tone: vm.kpis.fotosPendentes ? THEME.warn : THEME.success },
     { label: 'Check-ins hoje', value: vm.kpis.checkinsHoje, sub: 'movimentações de equipe', tone: THEME.gold },
+  ]
+
+  const statusCards = [
+    { label: 'Em produção', value: vm.statusResumo.emProducao, tone: THEME.gold, status: 'em-producao' },
+    { label: 'Em montagem', value: vm.statusResumo.emMontagem, tone: THEME.blue, status: 'em-montagem' },
+    { label: 'Aguard. cliente', value: vm.statusResumo.aguardandoCliente, tone: THEME.warn, status: 'aguardando-cliente' },
+    { label: 'Aguard. produção', value: vm.statusResumo.aguardandoProducao, tone: THEME.gold, status: 'aguardando-producao' },
+    { label: 'Concluídas', value: vm.statusResumo.concluidas, tone: THEME.success, status: 'concluida' },
+    { label: 'Travadas', value: vm.statusResumo.travadas, tone: THEME.danger, status: 'travada' },
   ]
 
   return (
@@ -334,17 +363,51 @@ export default function DashboardSupervisor() {
         <div>
           <div className="ds-eyebrow">Supervisor Ornare</div>
           <h1>Central do Supervisor</h1>
-          <p>Obras sob sua responsabilidade, equipe em campo e pendencias da semana</p>
+          <p>Obras sob sua responsabilidade, equipe em campo e pendências da semana</p>
         </div>
         <div className="ds-actions">
           <button onClick={() => navigate('/obras')}>Minhas obras</button>
           <button onClick={() => navigate('/agenda')}>Agenda</button>
-          <button className="primary" onClick={() => navigate('/ocorrencias')}>Registrar ocorrencia</button>
+          <button className="primary" onClick={() => navigate('/ocorrencias')}>Registrar ocorrência</button>
         </div>
       </header>
 
+      <div className="ds-period-filter" aria-label="Filtro de período">
+        {PERIODOS.map(item => (
+          <button
+            key={item.id}
+            className={periodo === item.id ? 'active' : ''}
+            onClick={() => setPeriodo(item.id)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      <section className="ds-kpis" aria-label="Indicadores do supervisor">
+        {kpis.map(kpi => <Kpi key={kpi.label} {...kpi} loading={loading} />)}
+      </section>
+
+      <section className="ds-status-flow">
+        <Card title="Fluxo Ornare" action="Obras" onAction={() => navigate('/obras')}>
+          <div className="ds-status-grid">
+            {statusCards.map(card => (
+              <button
+                key={card.label}
+                className={card.status === 'travada' ? 'urgent' : ''}
+                style={{ borderTopColor: card.tone }}
+                onClick={() => navigate(`/obras?status=${card.status}`)}
+              >
+                <strong>{loading ? '-' : card.value}</strong>
+                <span>{card.label}</span>
+              </button>
+            ))}
+          </div>
+        </Card>
+      </section>
+
       <section className="ds-priorities">
-        <Card title="Minhas prioridades">
+        <Card title="Exigem atenção agora">
           {loading ? <Empty text="Carregando prioridades..." /> : vm.acoes.length === 0 ? <Empty text="Nenhuma prioridade crítica agora." /> : vm.acoes.slice(0, 5).map((acao, i) => (
             <button className="ds-priority-row" key={`${acao.tipo}-${i}`} onClick={() => acao.obraId && navigate(`/obras/${acao.obraId}`)}>
               <i style={{ background: acao.cor }} />
@@ -394,12 +457,8 @@ export default function DashboardSupervisor() {
         </Card>
       </section>
 
-      <section className="ds-kpis" aria-label="Indicadores do supervisor">
-        {kpis.map(kpi => <Kpi key={kpi.label} {...kpi} loading={loading} />)}
-      </section>
-
       <section className="ds-grid-3">
-        <Card title="Saude das minhas obras">
+        <Card title="Saúde das minhas obras">
           <div className="ds-health">
             <Health label="Atrasadas" value={vm.saude.atrasada} color={THEME.danger} loading={loading} />
             <Health label="Em risco" value={vm.saude.risco} color={THEME.warn} loading={loading} />
@@ -411,7 +470,7 @@ export default function DashboardSupervisor() {
           <MiniAgenda label="Montagens" items={vm.agenda.montagens} loading={loading} />
           <MiniAgenda label="Vistorias" items={vm.agenda.vistorias} loading={loading} />
           <MiniAgenda label="Assistências técnicas" items={vm.agenda.assistencias} loading={loading} />
-          <MiniAgenda label="Reunioes" items={vm.agenda.reunioes} loading={loading} />
+          <MiniAgenda label="Reuniões" items={vm.agenda.reunioes} loading={loading} />
         </Card>
 
         <Card title="Check-ins de hoje">
@@ -426,7 +485,7 @@ export default function DashboardSupervisor() {
       <section className="ds-main">
         <div className="ds-stack">
           <Card title="Minhas obras" action="Ver obras" onAction={() => navigate('/obras')}>
-            {loading ? <Empty text="Carregando obras..." /> : vm.obras.length === 0 ? <Empty text="Nenhuma obra atribuida." /> : (
+            {loading ? <Empty text="Carregando obras..." /> : vm.obras.length === 0 ? <Empty text="Nenhuma obra atribuída." /> : (
               <div className="ds-work-list">
                 {vm.obras.slice(0, 10).map(obra => {
                   const st = obraStatus(obra.status)
@@ -435,13 +494,16 @@ export default function DashboardSupervisor() {
                     <button className="ds-work-row" key={obra.id} onClick={() => navigate(`/obras/${obra.id}`)}>
                       <div className="ds-work-main">
                         <strong>{obra.nome || 'Obra sem nome'}</strong>
-                        <span>{[obra.cliente_nome, obra.cidade].filter(Boolean).join(' - ') || 'Cliente nao informado'}</span>
+                        <span>{[obra.cliente_nome, obra.cidade].filter(Boolean).join(' - ') || 'Cliente não informado'}</span>
                         <div className="ds-tags">
                           {obra.alertas.length ? obra.alertas.slice(0, 3).map(a => <em key={a}>{a}</em>) : <em className="ok">Sem alerta</em>}
                         </div>
                       </div>
-                      <div className="ds-progress"><i style={{ width: `${obra.progresso || 0}%`, background: obra.alertas.length ? THEME.warn : THEME.gold }} /></div>
-                      <small>{previsao ? dataBR(previsao) : 'Sem previsao'}</small>
+                      <div className="ds-progress-wrap">
+                        <div className="ds-progress"><i style={{ width: `${obra.progresso || 0}%`, background: THEME.gold }} /></div>
+                        <b>{Number(obra.progresso || 0)}%</b>
+                      </div>
+                      <small>{previsao ? dataBR(previsao) : 'Sem previsão'}</small>
                       <span className="ds-badge" style={{ background: st.bg, color: st.color }}>{st.label}</span>
                     </button>
                   )
@@ -453,10 +515,10 @@ export default function DashboardSupervisor() {
           <Card title="Checklist">
             <div className="ds-split">
               <Metric label="Pendentes" value={vm.checklist.pendentes} color={THEME.warn} loading={loading} />
-              <Metric label="Concluidos" value={vm.checklist.concluidos} color={THEME.success} loading={loading} />
+              <Metric label="Concluídos" value={vm.checklist.concluidos} color={THEME.success} loading={loading} />
             </div>
             <div className="ds-mini-list spaced">
-              {loading ? <Empty text="Carregando checklist..." /> : vm.checklist.obras.length === 0 ? <Empty text="Nenhuma pendencia de checklist." /> : vm.checklist.obras.slice(0, 5).map(item => (
+              {loading ? <Empty text="Carregando checklist..." /> : vm.checklist.obras.length === 0 ? <Empty text="Nenhuma pendência de checklist." /> : vm.checklist.obras.slice(0, 5).map(item => (
                 <Line key={item.obra.id} label={item.obra.nome || 'Obra'} value={`${item.total} pendente${item.total === 1 ? '' : 's'}`} onClick={() => navigate(`/obras/${item.obra.id}`)} />
               ))}
             </div>
@@ -464,18 +526,6 @@ export default function DashboardSupervisor() {
         </div>
 
         <div className="ds-stack">
-          <Card title="Próximas ações">
-            {loading ? <Empty text="Carregando ações..." /> : vm.acoes.length === 0 ? <Empty text="Operação sem ações urgentes." /> : vm.acoes.map((acao, i) => (
-              <button className="ds-action-row" key={`${acao.tipo}-${i}`} onClick={() => acao.obraId && navigate(`/obras/${acao.obraId}`)}>
-                <span style={{ background: acao.cor }} />
-                <div>
-                  <strong>{acao.titulo}</strong>
-                  <small>{acao.tipo} · {acao.detalhe}</small>
-                </div>
-              </button>
-            ))}
-          </Card>
-
           <Card title="Equipe">
             <MetricLine label="Montadores alocados" value={vm.equipe.total} color={THEME.gold} loading={loading} />
             <div className="ds-mini-list spaced">
@@ -585,7 +635,11 @@ const css = `
 .ds-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .ds-actions button{border:1px solid ${THEME.border};background:#fff;color:${THEME.ink};border-radius:10px;padding:10px 14px;font-size:13px;font-weight:800;cursor:pointer}
 .ds-actions .primary{background:${THEME.gold};border-color:${THEME.gold};color:#fff}
+.ds-period-filter{max-width:1380px;margin:0 auto 14px;display:flex;gap:8px;flex-wrap:wrap}
+.ds-period-filter button{border:1px solid ${THEME.gold};background:#fff;color:${THEME.ink};border-radius:999px;padding:9px 13px;font-size:12px;font-weight:900;cursor:pointer;font-family:inherit}
+.ds-period-filter button.active{background:${THEME.gold};color:#fff}
 .ds-priorities{max-width:1380px;margin:0 auto 16px}
+.ds-status-flow{max-width:1380px;margin:0 auto 16px}
 .ds-mobile-ops{display:none}
 .ds-priority-row{width:100%;border:0;background:transparent;border-bottom:1px solid ${THEME.border};padding:12px 0;display:flex;gap:11px;align-items:flex-start;text-align:left;cursor:pointer;font-family:inherit}
 .ds-priority-row:last-child{border-bottom:0}
@@ -598,6 +652,11 @@ const css = `
 .ds-kpi span{display:block;font-size:10px;letter-spacing:1.8px;text-transform:uppercase;font-weight:800;margin-bottom:9px;white-space:nowrap}
 .ds-kpi strong{display:block;font-size:34px;line-height:1;color:${THEME.ink}}
 .ds-kpi small{display:block;font-size:12px;color:${THEME.muted};margin-top:7px}
+.ds-status-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+.ds-status-grid button{border:1px solid ${THEME.border};border-top:3px solid ${THEME.gold};background:#FFFEFC;border-radius:13px;padding:14px 12px;text-align:left;font-family:inherit;cursor:pointer}
+.ds-status-grid button.urgent{background:#FFF5F5;border-color:#F1D3D3}
+.ds-status-grid strong{display:block;font-size:28px;line-height:1;color:${THEME.ink};margin-bottom:8px}
+.ds-status-grid span{font-size:11px;color:${THEME.muted};font-weight:900;letter-spacing:.6px;text-transform:uppercase}
 .ds-grid-3,.ds-main{max-width:1380px;margin:0 auto 16px;display:grid;gap:16px}
 .ds-grid-3{grid-template-columns:1fr 1.15fr 1fr}
 .ds-main{grid-template-columns:minmax(0,1.45fr) minmax(340px,.75fr)}
@@ -618,13 +677,15 @@ const css = `
 .ds-agenda-block span{font-size:12px;color:${THEME.muted};font-weight:800}
 .ds-agenda-block small{display:block;font-size:11px;color:${THEME.muted};overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ds-work-list{display:flex;flex-direction:column}
-.ds-work-row{width:100%;border:0;background:transparent;border-bottom:1px solid ${THEME.border};padding:12px 0;display:grid;grid-template-columns:minmax(0,1fr) 86px auto auto;gap:12px;align-items:center;text-align:left;cursor:pointer;font-family:inherit}
+.ds-work-row{width:100%;border:0;background:transparent;border-bottom:1px solid ${THEME.border};padding:12px 0;display:grid;grid-template-columns:minmax(0,1fr) 120px auto auto;gap:12px;align-items:center;text-align:left;cursor:pointer;font-family:inherit}
 .ds-work-row:last-child{border-bottom:0}
 .ds-work-main{min-width:0}
 .ds-work-main strong{display:block;font-size:13.5px;color:${THEME.ink};margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ds-work-main span{display:block;font-size:12px;color:${THEME.muted};overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ds-progress{width:86px;height:5px;background:${THEME.border};border-radius:999px;overflow:hidden}
+.ds-progress-wrap{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}
+.ds-progress{width:100%;height:6px;background:#E0E0E0;border-radius:999px;overflow:hidden}
 .ds-progress i{display:block;height:100%;border-radius:999px}
+.ds-progress-wrap b{font-size:11px;color:${THEME.ink};font-weight:900}
 .ds-work-row>small{font-size:11px;color:${THEME.muted};white-space:nowrap}
 .ds-badge{font-size:10px;font-weight:800;border-radius:999px;padding:5px 8px;white-space:nowrap}
 .ds-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
@@ -653,6 +714,6 @@ const css = `
 .ds-line small{font-size:11px;color:${THEME.muted};white-space:nowrap}
 .ds-mini-list.spaced{margin-top:12px}
 .ds-empty{padding:24px 0;text-align:center;color:#A79F93;font-size:13px}
-@media (max-width:1100px){.ds-grid-3,.ds-main{grid-template-columns:1fr}.ds-work-row{grid-template-columns:minmax(0,1fr) 86px auto auto}}
-@media (max-width:760px){.ds-page{padding:22px 14px calc(112px + env(safe-area-inset-bottom));display:flex;flex-direction:column}.ds-header{display:block;margin-bottom:14px;order:0}.ds-priorities{order:1;margin-bottom:12px}.ds-mobile-ops{display:grid;gap:12px;order:2;margin:0 auto 12px;max-width:1380px;width:100%}.ds-main{order:3}.ds-kpis{order:4}.ds-grid-3{display:none}.ds-eyebrow{font-size:9px;letter-spacing:2px;margin-bottom:4px}.ds-header h1{font-size:28px;line-height:1.02}.ds-header p{font-size:12.5px;line-height:1.45}.ds-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;justify-content:flex-start;margin-top:10px}.ds-actions button{min-width:0;width:100%;padding:10px 9px;font-size:12px}.ds-kpis{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-top:4px}.ds-kpis>*{flex:0 0 auto;min-width:auto;max-width:none}.ds-kpi{display:flex;align-items:center;gap:7px;border-radius:999px;padding:7px 10px;min-width:auto;max-width:none;border-top:1px solid rgba(184,150,94,.22)}.ds-kpi span{white-space:nowrap;font-size:10.5px;line-height:1;letter-spacing:0;margin:0}.ds-kpi strong{font-size:15px}.ds-kpi small{display:none}.ds-main{gap:12px}.ds-card{padding:15px 13px;border-radius:15px}.ds-card-head h2{font-size:19px}.ds-health{grid-template-columns:1fr 1fr 1fr}.ds-work-row{display:block;padding:13px 0}.ds-work-main strong{font-size:15px;line-height:1.2;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}.ds-work-main span{font-size:12px}.ds-tags em:nth-child(n+3){display:none}.ds-progress{width:100%;margin:10px 0 9px}.ds-work-row>small{display:inline-block;white-space:nowrap;margin-right:8px}.ds-badge{display:inline-flex;align-self:flex-start}.ds-action-row{padding:12px 0}.ds-split{grid-template-columns:1fr 1fr}}
+@media (max-width:1100px){.ds-grid-3,.ds-main{grid-template-columns:1fr}.ds-work-row{grid-template-columns:minmax(0,1fr) 120px auto auto}.ds-status-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:760px){.ds-page{padding:22px 14px calc(112px + env(safe-area-inset-bottom));display:flex;flex-direction:column}.ds-header{display:block;margin-bottom:12px;order:0}.ds-period-filter{order:1;margin-bottom:10px}.ds-kpis{order:2}.ds-status-flow{order:3;margin-bottom:12px}.ds-priorities{order:4;margin-bottom:12px}.ds-mobile-ops{display:grid;gap:12px;order:5;margin:0 auto 12px;max-width:1380px;width:100%}.ds-main{order:6}.ds-grid-3{display:none}.ds-eyebrow{font-size:9px;letter-spacing:2px;margin-bottom:4px}.ds-header h1{font-size:28px;line-height:1.02}.ds-header p{font-size:12.5px;line-height:1.45}.ds-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;justify-content:flex-start;margin-top:10px}.ds-actions button{min-width:0;width:100%;padding:10px 9px;font-size:12px}.ds-period-filter{overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px}.ds-period-filter button{white-space:nowrap;padding:8px 12px}.ds-kpis{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-top:4px}.ds-kpis>*{flex:0 0 auto;min-width:auto;max-width:none}.ds-kpi{display:flex;align-items:center;gap:7px;border-radius:999px;padding:7px 10px;min-width:auto;max-width:none;border-top:1px solid rgba(184,150,94,.22)}.ds-kpi span{white-space:nowrap;font-size:10.5px;line-height:1;letter-spacing:0;margin:0}.ds-kpi strong{font-size:15px}.ds-kpi small{display:none}.ds-status-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.ds-status-grid button{padding:11px 10px}.ds-status-grid strong{font-size:22px;margin-bottom:5px}.ds-status-grid span{font-size:9.5px}.ds-main{gap:12px}.ds-card{padding:15px 13px;border-radius:15px}.ds-card-head h2{font-size:19px}.ds-health{grid-template-columns:1fr 1fr 1fr}.ds-work-row{display:block;padding:13px 0}.ds-work-main strong{font-size:15px;line-height:1.2;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}.ds-work-main span{font-size:12px}.ds-tags em:nth-child(n+3){display:none}.ds-progress-wrap{grid-template-columns:minmax(0,1fr) auto;margin:10px 0 9px}.ds-work-row>small{display:inline-block;white-space:nowrap;margin-right:8px}.ds-badge{display:inline-flex;align-self:flex-start}.ds-action-row{padding:12px 0}.ds-split{grid-template-columns:1fr 1fr}}
 `
