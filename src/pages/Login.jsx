@@ -43,8 +43,7 @@ export default function Login() {
             <span>Works</span>
           </div>
           <div className="ow-login-copy">
-            <span>Gestão operacional Ornare</span>
-            <h1>Gestão premium de obras</h1>
+            <h1>Gestão Operacional Ornare</h1>
             <p>Operação, montagem, assistência e acompanhamento em uma central corporativa Ornare.</p>
           </div>
           <div className="ow-login-points" aria-label="Resumo do sistema">
@@ -128,11 +127,10 @@ const css = `
 .ow-login-shade{position:absolute;inset:0;background:radial-gradient(circle at 78% 30%,rgba(201,169,110,.12),transparent 30%),linear-gradient(90deg,rgba(15,14,12,.96),rgba(15,14,12,.84) 48%,rgba(15,14,12,.64));box-shadow:inset 0 0 0 1px rgba(255,255,255,.03)}
 .ow-login-shell{position:relative;z-index:1;width:min(1080px,100%);display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:72px;align-items:center}
 .ow-login-brand{min-height:430px;display:flex;flex-direction:column;justify-content:center;align-items:flex-start}
-.ow-login-logo{display:flex;flex-direction:column;align-items:center;margin-bottom:54px}
-.ow-login-logo img{width:158px;filter:brightness(0) invert(1);opacity:.96}
-.ow-login-logo span{display:block;margin-top:12px;color:var(--color-gold);font-size:10px;letter-spacing:4.8px;text-transform:uppercase;font-weight:900}
+.ow-login-logo{display:flex;flex-direction:column;align-items:center;margin-bottom:44px;width:190px}
+.ow-login-logo img{width:172px;filter:brightness(0) invert(1);opacity:.96}
+.ow-login-logo span{display:block;margin-top:7px;color:var(--color-gold);font-size:10px;letter-spacing:5px;text-transform:uppercase;font-weight:900;text-align:center}
 .ow-login-copy{position:relative;padding-left:22px;border-left:2px solid rgba(201,169,110,.72)}
-.ow-login-copy>span{display:block;color:var(--color-gold);font-size:10px;letter-spacing:2.8px;text-transform:uppercase;font-weight:900;margin-bottom:13px}
 .ow-login-brand h1{font-family:var(--font-serif);font-size:56px;line-height:.96;font-weight:500;margin:0 0 16px;max-width:590px;color:#fff;text-shadow:0 24px 58px rgba(0,0,0,.66)}
 .ow-login-brand p{max-width:470px;margin:0;color:rgba(248,245,239,.88);font-size:16px;line-height:1.65;font-weight:600;text-shadow:0 18px 38px rgba(0,0,0,.46)}
 .ow-login-points{display:flex;gap:10px;margin-top:28px;padding-left:22px}
@@ -160,11 +158,10 @@ const css = `
   .ow-login-shade{background:linear-gradient(180deg,rgba(15,14,12,.58),rgba(15,14,12,.78) 42%,rgba(15,14,12,.96))}
   .ow-login-shell{display:flex;flex-direction:column;gap:18px;align-items:stretch;justify-content:flex-end;min-height:calc(100svh - 36px)}
   .ow-login-brand{min-height:auto}
-  .ow-login-logo{align-items:flex-start;margin-bottom:22px}
-  .ow-login-logo img{width:112px}
-  .ow-login-logo span{font-size:8px;letter-spacing:3.2px;margin-top:8px}
+  .ow-login-logo{align-items:center;margin-bottom:22px;width:128px}
+  .ow-login-logo img{width:126px}
+  .ow-login-logo span{font-size:8px;letter-spacing:3.2px;margin-top:6px}
   .ow-login-copy{padding-left:16px}
-  .ow-login-copy>span{font-size:8.5px;letter-spacing:2px;margin-bottom:10px}
   .ow-login-brand h1{font-size:34px;margin:0 0 10px;max-width:320px}
   .ow-login-brand p{font-size:12.5px;line-height:1.45;max-width:315px}
   .ow-login-points{padding-left:16px;margin-top:16px;gap:7px}
