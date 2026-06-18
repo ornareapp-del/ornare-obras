@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import bgImage from '../assets/ornare-milao-40-anos.jpg'
 
@@ -43,7 +43,8 @@ export default function Login() {
             <span>Works</span>
           </div>
           <div className="ow-login-copy">
-            <h1>Gestão Operacional Ornare</h1>
+            <h1>Gestão Operacional
+Ornare</h1>
             <p>Operação, montagem, assistência e acompanhamento em uma central corporativa Ornare.</p>
           </div>
           <div className="ow-login-points" aria-label="Resumo do sistema">
@@ -69,7 +70,7 @@ export default function Login() {
             <div className="ow-login-head">
               <span>{modo === 'login' ? 'Acesso seguro' : 'Recuperação de acesso'}</span>
               <h2>{modo === 'login' ? 'Entrar no Ornare Works' : 'Redefinir senha'}</h2>
-              <p>{modo === 'login' ? 'Use seu e-mail corporativo para continuar.' : 'Informe seu e-mail para receber o link de recuperação.'}</p>
+              <p>{modo === 'login' ? 'Use seu e-mail e senha para continuar.' : 'Informe seu e-mail para receber o link de recuperação.'}</p>
             </div>
 
             <label className="ow-field">
@@ -134,8 +135,8 @@ const css = `
 .ow-login-brand h1{font-family:var(--font-serif);font-size:56px;line-height:.96;font-weight:500;margin:0 0 16px;max-width:590px;color:#fff;text-shadow:0 24px 58px rgba(0,0,0,.66)}
 .ow-login-brand p{max-width:470px;margin:0;color:rgba(248,245,239,.88);font-size:16px;line-height:1.65;font-weight:600;text-shadow:0 18px 38px rgba(0,0,0,.46)}
 .ow-login-points{display:flex;gap:10px;margin-top:28px;padding-left:22px}
-.ow-login-points strong{border:1px solid rgba(201,169,110,.38);background:rgba(255,255,255,.06);color:#F8F5EF;border-radius:999px;padding:8px 12px;font-size:11px;font-weight:900;letter-spacing:.5px;backdrop-filter:blur(8px)}
-.ow-login-card{background:rgba(255,254,252,.96);border:1px solid rgba(231,224,213,.88);border-top:3px solid var(--color-gold);border-radius:24px;padding:32px;box-shadow:0 34px 90px rgba(0,0,0,.36);backdrop-filter:blur(20px);color:var(--color-ink)}
+.ow-login-points strong{border:1px solid rgba(201,169,110,.38);background:rgba(255,255,255,.06);color:#F8F5EF;border-radius:999px;padding:8px 12px;font-size:11px;font-weight:900;letter-spacing:.5px;backdrop-filter:blur(8px);cursor:default;user-select:none}
+.ow-login-card{background:rgba(255,254,252,.97);border:1px solid rgba(231,224,213,.88);border-top:3px solid var(--color-gold);border-radius:24px;padding:36px;box-shadow:0 40px 100px rgba(0,0,0,.42),0 2px 0 rgba(255,255,255,.08) inset;backdrop-filter:blur(24px);color:var(--color-ink)}
 .ow-login-card.success{text-align:center}
 .ow-login-mark{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;background:#F1E6D3;color:var(--color-gold);font-size:13px;font-weight:900}
 .ow-login-card.success strong{display:block;font-size:18px;margin-bottom:8px}
@@ -146,10 +147,11 @@ const css = `
 .ow-login-head p{margin:8px 0 0;color:var(--color-ink-muted);font-size:13px;line-height:1.45}
 .ow-field{display:block;margin-bottom:14px}
 .ow-field span{display:block;font-size:10px;letter-spacing:1.7px;color:var(--color-ink-muted);margin-bottom:7px;text-transform:uppercase;font-weight:900}
-.ow-field input{width:100%;min-height:50px;padding:12px 14px;border-radius:14px;border:1px solid var(--color-border);font-size:15px;font-family:inherit;background:#fff;box-sizing:border-box;outline:none;color:var(--color-ink)}
+.ow-field input{width:100%;min-height:50px;padding:12px 14px;border-radius:14px;border:1.5px solid var(--color-border);font-size:15px;font-family:inherit;background:#fff;box-sizing:border-box;outline:none;color:var(--color-ink);transition:border-color .15s,box-shadow .15s}
 .ow-field input:focus{border-color:var(--color-gold);box-shadow:0 0 0 3px rgba(184,150,94,.14)}
 .ow-login-error{font-size:12px;color:var(--color-danger);margin:2px 0 12px;padding:10px 12px;background:#fdecea;border-radius:12px;border-left:3px solid var(--color-danger)}
-.ow-login-submit{width:100%;min-height:52px;border-radius:14px;background:var(--color-ink);color:#F8F5EF;border:0;font-size:12px;font-weight:900;letter-spacing:1.6px;cursor:pointer;margin-top:4px;text-transform:uppercase;font-family:inherit;box-shadow:0 14px 32px rgba(23,21,18,.18)}
+.ow-login-submit{width:100%;min-height:52px;border-radius:14px;background:var(--color-ink);color:#F8F5EF;border:0;font-size:12px;font-weight:900;letter-spacing:1.6px;cursor:pointer;margin-top:4px;text-transform:uppercase;font-family:inherit;box-shadow:0 14px 32px rgba(23,21,18,.18);transition:background .18s,box-shadow .18s}
+.ow-login-submit:hover:not(:disabled){background:var(--color-gold);box-shadow:0 16px 36px rgba(184,150,94,.32)}
 .ow-login-submit:disabled{background:#8A8175;cursor:not-allowed}
 .ow-login-alt{text-align:center;margin-top:18px}
 .ow-login-alt button,.ow-login-link{background:transparent;border:0;color:var(--color-gold);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit}
@@ -175,3 +177,4 @@ const css = `
   .ow-login-card{padding:18px}
 }
 `
+
