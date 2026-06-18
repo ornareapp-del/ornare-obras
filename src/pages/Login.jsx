@@ -128,7 +128,7 @@ const css = `
 .ow-login-shade{position:absolute;inset:0;background:radial-gradient(circle at 78% 30%,rgba(201,169,110,.12),transparent 30%),linear-gradient(90deg,rgba(15,14,12,.96),rgba(15,14,12,.84) 48%,rgba(15,14,12,.64));box-shadow:inset 0 0 0 1px rgba(255,255,255,.03)}
 .ow-login-shell{position:relative;z-index:1;width:min(1080px,100%);display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:72px;align-items:center}
 .ow-login-brand{min-height:430px;display:flex;flex-direction:column;justify-content:center;align-items:flex-start}
-.ow-login-logo{display:flex;flex-direction:column;align-items:center;margin-bottom:44px;width:190px}
+.ow-login-logo{display:flex;flex-direction:column;align-items:flex-start;margin-bottom:44px;width:190px}
 .ow-login-logo img{width:172px;filter:brightness(0) invert(1);opacity:.96}
 .ow-login-logo span{display:block;margin-top:7px;color:var(--color-gold);font-size:10px;letter-spacing:5px;text-transform:uppercase;font-weight:900;text-align:center}
 .ow-login-copy{position:relative;padding-left:22px;border-left:2px solid rgba(201,169,110,.72)}
@@ -177,4 +177,5 @@ const css = `
   .ow-login-card{padding:18px}
 }
 `
+
 
