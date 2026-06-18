@@ -123,14 +123,14 @@ Ornare</h1>
 }
 
 const css = `
-.ow-login{position:relative;min-height:100vh;background:#11100E;color:#F8F5EF;display:flex;align-items:center;justify-content:center;font-family:var(--font-sans);padding:32px;overflow:hidden}
+.ow-login{position:relative;min-height:100vh;background:#11100E;color:#F8F5EF;display:flex;align-items:center;justify-content:center;font-family:var(--font-sans);padding:48px 64px;overflow:hidden}
 .ow-login-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:grayscale(1) brightness(.36) contrast(1.18);transform:scale(1.02)}
 .ow-login-shade{position:absolute;inset:0;background:radial-gradient(circle at 78% 30%,rgba(201,169,110,.12),transparent 30%),linear-gradient(90deg,rgba(15,14,12,.96),rgba(15,14,12,.84) 48%,rgba(15,14,12,.64));box-shadow:inset 0 0 0 1px rgba(255,255,255,.03)}
-.ow-login-shell{position:relative;z-index:1;width:min(1080px,100%);display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:72px;align-items:center}
-.ow-login-brand{min-height:430px;display:flex;flex-direction:column;justify-content:center;align-items:flex-start}
-.ow-login-logo{display:flex;flex-direction:column;align-items:flex-start;margin-bottom:44px;width:190px}
+.ow-login-shell{position:relative;z-index:1;width:min(1080px,100%);display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:72px;align-items:center;margin:0 auto}
+.ow-login-brand{display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:0}
+.ow-login-logo{display:flex;flex-direction:column;align-items:flex-start;margin-bottom:32px;width:190px}
 .ow-login-logo img{width:172px;filter:brightness(0) invert(1);opacity:.96}
-.ow-login-logo span{display:block;margin-top:7px;color:var(--color-gold);font-size:10px;letter-spacing:5px;text-transform:uppercase;font-weight:900;text-align:center}
+.ow-login-logo span{display:block;margin-top:4px;color:var(--color-gold);font-size:10px;letter-spacing:5px;text-transform:uppercase;font-weight:900;text-align:left;padding-left:0}
 .ow-login-copy{position:relative;padding-left:22px;border-left:2px solid rgba(201,169,110,.72)}
 .ow-login-brand h1{font-family:var(--font-serif);font-size:56px;line-height:.96;font-weight:500;margin:0 0 16px;max-width:590px;color:#fff;text-shadow:0 24px 58px rgba(0,0,0,.66)}
 .ow-login-brand p{max-width:470px;margin:0;color:rgba(248,245,239,.88);font-size:16px;line-height:1.65;font-weight:600;text-shadow:0 18px 38px rgba(0,0,0,.46)}
@@ -177,5 +177,7 @@ const css = `
   .ow-login-card{padding:18px}
 }
 `
+
+
 
 
