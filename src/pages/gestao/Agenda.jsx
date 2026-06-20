@@ -75,6 +75,8 @@ export default function Agenda() {
   const [filtro, setFiltro] = useState('proximos')
   const [acaoStatus, setAcaoStatus] = useState('')
   const [vistoriaStats, setVistoriaStats] = useState({ checklist: 0, fotos: 0 })
+  const [checkinsCompromisso, setCheckinsCompromisso] = useState([])
+  const [checkinsLoading, setCheckinsLoading] = useState(false)
   const [erroModal, setErroModal] = useState('')
   const [toast, setToast] = useState('')
   const hoje = new Date()
@@ -107,6 +109,7 @@ export default function Agenda() {
     setForm(formInicial())
     setAcaoStatus('')
     setVistoriaStats({ checklist: 0, fotos: 0 })
+    setCheckinsCompromisso([])
     setModal(true)
   }
 
@@ -134,6 +137,7 @@ export default function Agenda() {
     setAcaoStatus('')
     setErroModal('')
     carregarVistoriaStats(ev.id)
+    carregarCheckinsCompromisso(ev.obra_id, ev.data)
     setModal(true)
 
     const { data, error } = await supabase
@@ -147,7 +151,10 @@ export default function Agenda() {
       return
     }
 
-    if (data) preencherForm(data)
+    if (data) {
+      preencherForm(data)
+      carregarCheckinsCompromisso(data.obra_id, data.data)
+    }
   }
 
   async function carregarVistoriaStats(agendaId = editandoId) {
@@ -160,6 +167,32 @@ export default function Agenda() {
       supabase.from('fotos').select('id', { count: 'exact', head: true }).eq('agenda_id', agendaId),
     ])
     setVistoriaStats({ checklist: checklistCount || 0, fotos: fotosCount || 0 })
+  }
+
+  async function carregarCheckinsCompromisso(obraId, dataCompromisso) {
+    if (!obraId || !dataCompromisso) {
+      setCheckinsCompromisso([])
+      return
+    }
+    setCheckinsLoading(true)
+    const inicio = new Date(`${dataCompromisso}T00:00:00`)
+    const fim = new Date(inicio)
+    fim.setDate(fim.getDate() + 1)
+    const { data, error } = await supabase
+      .from('checkins')
+      .select('id, user_id, obra_id, entrada, saida, latitude, longitude, created_at, profiles(full_name)')
+      .eq('obra_id', obraId)
+      .gte('entrada', inicio.toISOString())
+      .lt('entrada', fim.toISOString())
+      .order('entrada', { ascending: false })
+
+    setCheckinsCompromisso(error ? [] : (data || []))
+    setCheckinsLoading(false)
+  }
+
+  function horaCurta(value) {
+    if (!value) return '-'
+    return new Date(value).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
   }
 
   async function carregar() {
@@ -421,6 +454,48 @@ export default function Agenda() {
                   {acaoStatus && <div style={s.vistoriaMessage}>{acaoStatus}</div>}
                 </div>
               )}
+              {editandoId && form.obra_id && (
+                <div style={s.campoBox}>
+                  <div style={s.vistoriaHead}>
+                    <div>
+                      <div style={s.vistoriaEyebrow}>Registro de campo</div>
+                      <strong style={s.vistoriaTitle}>Check-in e check-out do compromisso</strong>
+                    </div>
+                    <span style={s.campoStatus}>
+                      {checkinsCompromisso.some(c => c.entrada && !c.saida) ? 'Em serviço' : checkinsCompromisso.length ? 'Registrado' : 'Pendente'}
+                    </span>
+                  </div>
+
+                  {checkinsLoading ? (
+                    <div style={s.campoEmpty}>Carregando registros...</div>
+                  ) : checkinsCompromisso.length === 0 ? (
+                    <div style={s.campoEmpty}>Nenhum check-in registrado para esta obra nesta data.</div>
+                  ) : (
+                    <div style={s.campoList}>
+                      {checkinsCompromisso.map(registro => {
+                        const temLocal = registro.latitude && registro.longitude
+                        return (
+                          <div key={registro.id} style={s.campoItem}>
+                            <div style={s.campoPerson}>{registro.profiles?.full_name || 'Profissional'}</div>
+                            <div className="ag-field-grid" style={s.campoGrid}>
+                              <span style={s.campoInfo}><strong style={s.campoInfoLabel}>Entrada</strong>{horaCurta(registro.entrada || registro.created_at)}</span>
+                              <span style={s.campoInfo}><strong style={s.campoInfoLabel}>Saída</strong>{registro.saida ? horaCurta(registro.saida) : 'Em serviço'}</span>
+                              <span style={s.campoInfo}>
+                                <strong style={s.campoInfoLabel}>Localização</strong>
+                                {temLocal ? (
+                                  <a href={`https://www.google.com/maps?q=${registro.latitude},${registro.longitude}`} target="_blank" rel="noreferrer" style={s.localLink}>
+                                    Abrir mapa
+                                  </a>
+                                ) : 'Não autorizada'}
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
               {(erroModal || (!norm(form.tipo).includes('vistoria') && acaoStatus)) && (
                 <div style={{
                   marginTop: 14,
@@ -590,6 +665,7 @@ const css = `
   .ag-card-meta{font-size:11.5px !important;gap:8px !important;line-height:1.35 !important;color:var(--color-ink-muted) !important}
   .ag-card-meta span:nth-child(n+3){display:none !important}
   .ag-card button:last-child{display:none !important}
+  .ag-field-grid{grid-template-columns:1fr !important}
 }
 `
 
@@ -645,4 +721,14 @@ const s = {
   vistoriaPrimary: { background: 'var(--color-ink)', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 12px', fontSize: 12, fontWeight: 900, cursor: 'pointer', fontFamily: 'inherit' },
   vistoriaButton: { background: '#fff', color: 'var(--color-ink)', border: '1px solid var(--color-border)', borderRadius: 10, padding: '9px 12px', fontSize: 12, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' },
   vistoriaMessage: { marginTop: 12, borderRadius: 10, background: '#fff', border: '1px solid var(--color-border)', padding: '9px 11px', fontSize: 12, color: 'var(--color-ink-muted)', fontWeight: 700 },
+  campoBox: { marginTop: 14, border: '1px solid #DDE7DD', background: '#FBFEFC', borderRadius: 14, padding: 16 },
+  campoStatus: { borderRadius: 999, background: '#EAF5EE', color: '#2D7A4A', padding: '6px 11px', fontSize: 11, fontWeight: 900, whiteSpace: 'nowrap' },
+  campoEmpty: { border: '1px dashed var(--color-border)', background: '#fff', borderRadius: 12, padding: 14, color: 'var(--color-ink-muted)', fontSize: 12.5, fontWeight: 700 },
+  campoList: { display: 'grid', gap: 9 },
+  campoItem: { border: '1px solid var(--color-border)', background: '#fff', borderRadius: 12, padding: 12 },
+  campoPerson: { fontSize: 13, color: 'var(--color-ink)', fontWeight: 900, marginBottom: 9 },
+  campoGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 },
+  campoInfo: { display: 'block', borderRadius: 10, background: '#F7FAF7', padding: '9px 10px', fontSize: 12, color: 'var(--color-ink)', fontWeight: 800 },
+  campoInfoLabel: { display: 'block', fontSize: 9, letterSpacing: 1.2, textTransform: 'uppercase', color: 'var(--color-ink-muted)', marginBottom: 4 },
+  localLink: { color: '#2D7A4A', fontWeight: 900, textDecoration: 'none' },
 }
