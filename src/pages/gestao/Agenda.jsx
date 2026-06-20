@@ -12,12 +12,12 @@ const TIPO_COR = {
 }
 
 const TIPO_CORES = [
-  { termos: ['vistoria'], cor: '#2D7A4A' },
-  { termos: ['montagem'], cor: '#B8965E' },
+  { termos: ['vistoria'], cor: '#2563EB' },
+  { termos: ['montagem'], cor: '#2D7A4A' },
   { termos: ['assistencia', 'tecnica'], cor: '#C0392B' },
   { termos: ['medicao'], cor: '#7A5AA6' },
-  { termos: ['entrega'], cor: '#365C7D' },
-  { termos: ['reuniao'], cor: '#8A8175' },
+  { termos: ['entrega'], cor: '#E07B39' },
+  { termos: ['reuniao'], cor: '#6D675E' },
   { termos: ['intern'], cor: '#1D1C19' },
 ]
 

@@ -27,12 +27,12 @@ const FASE_CORES = {
 }
 
 const COMPROMISSO_CORES = {
-  vistoria: '#2D7A4A',
-  montagem: '#B8965E',
+  vistoria: '#2563EB',
+  montagem: '#2D7A4A',
   assistencia: '#C0392B',
   medicao: '#7A5AA6',
-  entrega: '#365C7D',
-  reuniao: '#8A8175',
+  entrega: '#E07B39',
+  reuniao: '#6D675E',
   interno: '#1D1C19',
 }
 
@@ -580,10 +580,14 @@ function Calendario({ dias, mesAtual, abrirObra, abrirModalDia }) {
             <div className="pl-day-num">{dia.data.getDate()}</div>
             <div className="pl-day-items">
               {dia.obras.slice(0, 4).map(item => (
-                <button key={`${dia.key}-${item.origem}-${item.id}`} onClick={e => { e.stopPropagation(); abrirObra(item.obra_id) }}>
+                <button
+                  key={`${dia.key}-${item.origem}-${item.id}`}
+                  onClick={e => { e.stopPropagation(); abrirObra(item.obra_id) }}
+                  style={{ borderLeftColor: item.faseCor, background: `${item.faseCor}12` }}
+                >
                   <strong>{item.obra.nome || 'Obra'}</strong>
                   <span>{item.montadores[0] ? nomePessoa(item.montadores[0]) : nomePessoa(item.supervisor)}</span>
-                  <em>{item.compromissoTipo}</em>
+                  <em style={{ color: item.faseCor }}>{item.compromissoTipo}</em>
                 </button>
               ))}
               {dia.obras.length > 4 && <small>+{dia.obras.length - 4} obras</small>}
