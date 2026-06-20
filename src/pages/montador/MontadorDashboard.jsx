@@ -129,7 +129,7 @@ export default function MontadorDashboard() {
   const [sucesso, setSucesso] = useState('')
   const [servicoFeedback, setServicoFeedback] = useState('')
   const [preview, setPreview] = useState(null)
-  const [formFoto, setFormFoto] = useState({ categoria: '', ambiente_id: '', observacao: '' })
+  const [formFoto, setFormFoto] = useState({ categoria: '', ambiente_id: '', agenda_id: '', observacao: '' })
 
   const tarefasRef = useRef(null)
   const checklistRef = useRef(null)
@@ -358,6 +358,7 @@ export default function MontadorDashboard() {
         enviada_por: user.id,
         categoria: formFoto.categoria,
         ambiente_id: formFoto.ambiente_id || null,
+        agenda_id: formFoto.agenda_id || null,
         aprovada: false,
         aprovada_gestao: false,
         visivel_cliente: false,
@@ -367,7 +368,7 @@ export default function MontadorDashboard() {
       }])
       if (insertError) throw insertError
 
-      setFormFoto({ categoria: '', ambiente_id: '', observacao: '' })
+      setFormFoto({ categoria: '', ambiente_id: '', agenda_id: '', observacao: '' })
       mostrarSucesso('Foto enviada.')
       await carregarDadosObra()
     } catch {
@@ -447,6 +448,7 @@ export default function MontadorDashboard() {
       categoria,
       fotos: fotos.filter(foto => (foto.categoria || 'Geral') === categoria),
     })).filter(grupo => grupo.fotos.length > 0)
+    const fotosVistoria = fotos.filter(foto => norm(foto.categoria || foto.etapa).includes('vistoria'))
 
     const historico = [
       ...checkins.slice(0, 4).map(c => ({
@@ -484,11 +486,13 @@ export default function MontadorDashboard() {
       pctChecklist,
       checklistGrupos,
       fotosGrupos,
+      fotosVistoria,
       historico,
     }
   }, [agenda, ambientes, checkins, checklist, fotos, ocorrencias, tarefas])
 
   const ambienteNome = ambienteId => ambientes.find(a => a.id === ambienteId)?.nome || 'Sem ambiente'
+  const vistoriasAgenda = agenda.filter(item => norm(item.tipo || item.titulo).includes('vistoria'))
 
   if (loading) {
     return (
@@ -652,6 +656,28 @@ export default function MontadorDashboard() {
         )}
       </section>
 
+      <section className="md-card">
+        <div className="md-card-head">
+          <h2>Fotos de vistoria</h2>
+          <span>{vm.fotosVistoria.length}</span>
+        </div>
+        {vm.fotosVistoria.length === 0 ? (
+          <Empty text="Nenhuma foto de vistoria vinculada ainda." />
+        ) : (
+          <>
+            <p className="md-card-note">Referência visual para conferir acessos, ambientes e pontos de atenção antes da montagem.</p>
+            <div className="md-photo-grid compact">
+              {vm.fotosVistoria.slice(0, 6).map(foto => (
+                <button key={foto.id} className="md-photo" onClick={() => foto.publicUrl && setPreview(foto.publicUrl)}>
+                  {foto.publicUrl && <img src={foto.publicUrl} alt={foto.observacao || 'Foto de vistoria'} />}
+                  <span>{ambienteNome(foto.ambiente_id)}</span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </section>
+
       <section className="md-quick">
         <button onClick={() => scrollTo(fotosRef)}>Enviar foto</button>
         <button onClick={() => setModalProblema('Ocorrência geral')}>Relatar problema</button>
@@ -743,6 +769,12 @@ export default function MontadorDashboard() {
             <option value="">Sem ambiente</option>
             {ambientes.map(ambiente => <option key={ambiente.id} value={ambiente.id}>{ambiente.nome}</option>)}
           </select>
+          {formFoto.categoria === 'Vistoria' && (
+            <select value={formFoto.agenda_id} onChange={e => setFormFoto(p => ({ ...p, agenda_id: e.target.value }))}>
+              <option value="">Sem vistoria vinculada</option>
+              {vistoriasAgenda.map(item => <option key={item.id} value={item.id}>{item.titulo || 'Vistoria'}{item.data ? ` - ${dataBR(item.data)}` : ''}</option>)}
+            </select>
+          )}
           <input value={formFoto.observacao} onChange={e => setFormFoto(p => ({ ...p, observacao: e.target.value }))} placeholder="Observação opcional" />
           <label className={formFoto.categoria ? 'md-file' : 'md-file disabled'}>
             {uploading ? 'Enviando...' : 'Selecionar e enviar foto'}
@@ -886,6 +918,7 @@ const css = `
 .md-card-head h2{font-size:15px;margin:0;font-weight:900;color:${THEME.ink}}
 .md-card-head span{font-size:12px;color:${THEME.gold};font-weight:900}
 .md-card-head button{border:0;background:transparent;color:${THEME.gold};font-size:12px;font-weight:900;cursor:pointer}
+.md-card-note{margin:-3px 0 12px;color:${THEME.muted};font-size:12.5px;line-height:1.45}
 .md-next-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:5px}
 .md-next strong{display:block;font-size:16px;color:${THEME.ink};margin-bottom:0}
 .md-next em{font-style:normal;border-radius:999px;padding:5px 8px;font-size:10.5px;font-weight:900;white-space:nowrap}
@@ -932,6 +965,7 @@ const css = `
 .md-photo-group{margin-top:16px}
 .md-photo-group h3{font-size:10px;letter-spacing:1.8px;text-transform:uppercase;color:${THEME.gold};font-weight:900;margin:0 0 9px}
 .md-photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.md-photo-grid.compact{margin-top:4px}
 .md-photo{position:relative;aspect-ratio:1;border:0;border-radius:13px;overflow:hidden;background:#F0ECE6;padding:0;cursor:pointer}
 .md-photo img{width:100%;height:100%;object-fit:cover;display:block}
 .md-photo span{position:absolute;left:5px;right:5px;bottom:5px;background:rgba(29,28,25,.72);color:#fff;border-radius:8px;padding:4px 5px;font-size:9px;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

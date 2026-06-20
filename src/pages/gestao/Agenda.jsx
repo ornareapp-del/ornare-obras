@@ -11,6 +11,15 @@ const TIPO_COR = {
   'Apresentacao': '#4a90d9', 'Compromisso': '#888', 'Tarefa': '#b09a7a',
 }
 
+const VISTORIA_CHECKLIST = [
+  'Conferir acesso à obra, elevador, carga e descarga.',
+  'Validar se os ambientes estão limpos, liberados e desimpedidos.',
+  'Conferir pontos elétricos, hidráulicos e interferências aparentes.',
+  'Registrar fotos de vistoria por ambiente.',
+  'Sinalizar pendências que podem impedir o início da montagem.',
+  'Confirmar se a obra está apta para receber a equipe de montagem.',
+]
+
 function norm(value) {
   return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 }
@@ -39,12 +48,17 @@ export default function Agenda() {
   const [editandoId, setEditandoId] = useState(null)
   const [salvando, setSalvando] = useState(false)
   const [filtro, setFiltro] = useState('proximos')
+  const [acaoStatus, setAcaoStatus] = useState('')
+  const [vistoriaStats, setVistoriaStats] = useState({ checklist: 0, fotos: 0 })
   const hoje = new Date()
   const [form, setForm] = useState({
     titulo: '', descricao: '', tipo: 'Compromisso', obra_id: '',
     responsavel_id: '', data: hoje.toISOString().split('T')[0],
     data_fim: '', hora_inicio: '08:00', hora_fim: '',
     reuniao_interna: false,
+    status: 'pendente',
+    visivel_montador: true,
+    visivel_cliente: false,
   })
 
   useEffect(() => { carregar() }, [])
@@ -55,12 +69,17 @@ export default function Agenda() {
       responsavel_id: '', data: hoje.toISOString().split('T')[0],
       data_fim: '', hora_inicio: '08:00', hora_fim: '',
       reuniao_interna: false,
+      status: 'pendente',
+      visivel_montador: true,
+      visivel_cliente: false,
     }
   }
 
   function abrirNovo() {
     setEditandoId(null)
     setForm(formInicial())
+    setAcaoStatus('')
+    setVistoriaStats({ checklist: 0, fotos: 0 })
     setModal(true)
   }
 
@@ -77,8 +96,25 @@ export default function Agenda() {
       hora_inicio: ev.hora_inicio ? ev.hora_inicio.slice(0, 5) : '08:00',
       hora_fim: ev.hora_fim ? ev.hora_fim.slice(0, 5) : '',
       reuniao_interna: Boolean(ev.reuniao_interna),
+      status: ev.status || 'pendente',
+      visivel_montador: ev.visivel_montador !== false,
+      visivel_cliente: Boolean(ev.visivel_cliente),
     })
+    setAcaoStatus('')
+    carregarVistoriaStats(ev.id)
     setModal(true)
+  }
+
+  async function carregarVistoriaStats(agendaId = editandoId) {
+    if (!agendaId) {
+      setVistoriaStats({ checklist: 0, fotos: 0 })
+      return
+    }
+    const [{ count: checklistCount }, { count: fotosCount }] = await Promise.all([
+      supabase.from('checklist_items').select('id', { count: 'exact', head: true }).eq('agenda_id', agendaId),
+      supabase.from('fotos').select('id', { count: 'exact', head: true }).eq('agenda_id', agendaId),
+    ])
+    setVistoriaStats({ checklist: checklistCount || 0, fotos: fotosCount || 0 })
   }
 
   async function carregar() {
@@ -108,6 +144,9 @@ export default function Agenda() {
       hora_inicio: form.hora_inicio,
       hora_fim: form.hora_fim || null,
       reuniao_interna: form.reuniao_interna,
+      status: form.status || 'pendente',
+      visivel_montador: Boolean(form.visivel_montador),
+      visivel_cliente: Boolean(form.visivel_cliente),
     }
 
     if (editandoId) await supabase.from('agenda').update(payload).eq('id', editandoId)
@@ -115,6 +154,8 @@ export default function Agenda() {
 
     setForm(formInicial())
     setEditandoId(null)
+    setAcaoStatus('')
+    setVistoriaStats({ checklist: 0, fotos: 0 })
     setModal(false)
     await carregar()
     setSalvando(false)
@@ -127,6 +168,83 @@ export default function Agenda() {
       setModal(false)
       setEditandoId(null)
     }
+    await carregar()
+  }
+
+  async function atualizarStatusCompromisso(status) {
+    if (!editandoId) return
+    setAcaoStatus('Atualizando status...')
+    const { error } = await supabase.from('agenda').update({ status }).eq('id', editandoId)
+    if (error) {
+      setAcaoStatus('Não foi possível atualizar o status.')
+      return
+    }
+    setForm(p => ({ ...p, status }))
+    setAcaoStatus('Status atualizado.')
+    await carregar()
+  }
+
+  async function gerarChecklistVistoria() {
+    if (!editandoId || !form.obra_id) {
+      setAcaoStatus('Vincule uma obra antes de gerar o checklist.')
+      return
+    }
+    setAcaoStatus('Gerando checklist de vistoria...')
+
+    const { data: existentes, error: consultaError } = await supabase
+      .from('checklist_items')
+      .select('id')
+      .eq('agenda_id', editandoId)
+      .limit(1)
+
+    if (consultaError) {
+      setAcaoStatus('Não foi possível consultar o checklist da vistoria.')
+      return
+    }
+
+    if ((existentes || []).length > 0) {
+      setAcaoStatus('Esta vistoria já possui checklist vinculado.')
+      await carregarVistoriaStats(editandoId)
+      return
+    }
+
+    const rows = VISTORIA_CHECKLIST.map(descricao => ({
+      obra_id: form.obra_id,
+      agenda_id: editandoId,
+      descricao,
+      concluido: false,
+      fase: 'Pré-Montagem',
+      responsavel_perfil: 'supervisor',
+      status: 'pendente',
+      criticidade: 'alta',
+      exige_foto: norm(descricao).includes('foto'),
+    }))
+
+    const { error: insertError } = await supabase.from('checklist_items').insert(rows)
+
+    if (insertError) {
+      const fallbackRows = VISTORIA_CHECKLIST.map(descricao => ({
+        obra_id: form.obra_id,
+        agenda_id: editandoId,
+        descricao,
+        concluido: false,
+      }))
+      const { error: fallbackError } = await supabase.from('checklist_items').insert(fallbackRows)
+      if (fallbackError) {
+        setAcaoStatus('Não foi possível gerar o checklist da vistoria.')
+        return
+      }
+    }
+
+    await supabase.from('agenda').update({
+      checklist_gerado: true,
+      checklist_gerado_em: new Date().toISOString(),
+      status: form.status === 'pendente' ? 'em andamento' : form.status,
+    }).eq('id', editandoId)
+
+    setForm(p => ({ ...p, status: p.status === 'pendente' ? 'em andamento' : p.status }))
+    setAcaoStatus('Checklist de vistoria gerado.')
+    await carregarVistoriaStats(editandoId)
     await carregar()
   }
 
@@ -188,6 +306,17 @@ export default function Agenda() {
                   <L>Hora fim</L>
                   <I type="time" value={form.hora_fim} onChange={v => setForm(p => ({ ...p, hora_fim: v }))} />
                 </div>
+                <div>
+                  <L>Status</L>
+                  <Sel value={form.status} onChange={v => setForm(p => ({ ...p, status: v }))}>
+                    <option value="pendente">Pendente</option>
+                    <option value="em andamento">Em andamento</option>
+                    <option value="realizada">Realizada</option>
+                    <option value="concluida">Concluída</option>
+                    <option value="remarcada">Remarcada</option>
+                    <option value="cancelada">Cancelada</option>
+                  </Sel>
+                </div>
                 <div style={s.full}>
                   <L>Obra vinculada</L>
                   <Sel value={form.obra_id} onChange={v => setForm(p => ({ ...p, obra_id: v }))} disabled={form.reuniao_interna}>
@@ -203,7 +332,38 @@ export default function Agenda() {
                   <input type="checkbox" id="ri" checked={form.reuniao_interna} onChange={e => setForm(p => ({ ...p, reuniao_interna: e.target.checked, obra_id: '' }))} />
                   <label htmlFor="ri" style={{ fontSize: 13, color: 'var(--color-ink-muted)', cursor: 'pointer' }}>Reunião Interna</label>
                 </div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: 'var(--color-ink-muted)', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={form.visivel_montador} onChange={e => setForm(p => ({ ...p, visivel_montador: e.target.checked }))} />
+                  Visível para montador
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: 'var(--color-ink-muted)', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={form.visivel_cliente} onChange={e => setForm(p => ({ ...p, visivel_cliente: e.target.checked }))} />
+                  Visível para cliente
+                </label>
               </div>
+
+              {editandoId && norm(form.tipo).includes('vistoria') && (
+                <div style={s.vistoriaBox}>
+                  <div style={s.vistoriaHead}>
+                    <div>
+                      <div style={s.vistoriaEyebrow}>Vistoria operacional</div>
+                      <strong style={s.vistoriaTitle}>Checklist, fotos e status da vistoria</strong>
+                    </div>
+                    <span style={s.vistoriaStatus}>{form.status || 'pendente'}</span>
+                  </div>
+                  <div style={s.vistoriaStats}>
+                    <div style={s.vistoriaStat}><strong style={s.vistoriaStatValue}>{vistoriaStats.checklist}</strong><span style={s.vistoriaStatLabel}>itens vinculados</span></div>
+                    <div style={s.vistoriaStat}><strong style={s.vistoriaStatValue}>{vistoriaStats.fotos}</strong><span style={s.vistoriaStatLabel}>fotos de vistoria</span></div>
+                  </div>
+                  <div style={s.vistoriaActions}>
+                    <button type="button" style={s.vistoriaPrimary} onClick={gerarChecklistVistoria}>Gerar checklist</button>
+                    <button type="button" style={s.vistoriaButton} onClick={() => atualizarStatusCompromisso('em andamento')}>Em andamento</button>
+                    <button type="button" style={s.vistoriaButton} onClick={() => atualizarStatusCompromisso('realizada')}>Marcar realizada</button>
+                    {form.obra_id && <button type="button" style={s.vistoriaButton} onClick={() => navigate('/obras/' + form.obra_id)}>Abrir obra</button>}
+                  </div>
+                  {acaoStatus && <div style={s.vistoriaMessage}>{acaoStatus}</div>}
+                </div>
+              )}
             </div>
             <div style={s.modalFooter}>
           {editandoId && form.obra_id && (
@@ -336,6 +496,7 @@ const css = `
 .ag-status.tone-info{background:#EEF5FB;color:#1E5A8A}
 .ag-status.tone-warn{background:#FFF4E5;color:#9A6A22}
 .ag-status.tone-danger{background:#FFF1F1;color:#B84040}
+.ag-vistoria-placeholder{display:none}
 @media (max-width:760px){
   .ag-header{display:grid !important;grid-template-columns:1fr auto;gap:10px;align-items:end !important;margin-bottom:13px !important}
   .ag-header h1{font-size:27px !important;line-height:1 !important}
@@ -399,4 +560,17 @@ const s = {
   btnSave: { background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer' },
   grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 },
   full: { gridColumn: '1/-1' },
+  vistoriaBox: { marginTop: 18, border: '1px solid #E4D7C0', background: '#FFFCF7', borderRadius: 14, padding: 16 },
+  vistoriaHead: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 14 },
+  vistoriaEyebrow: { fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--color-gold)', fontWeight: 900, marginBottom: 5 },
+  vistoriaTitle: { display: 'block', fontSize: 15, color: 'var(--color-ink)' },
+  vistoriaStatus: { borderRadius: 999, background: '#EAF5EE', color: '#2D7A4A', padding: '6px 10px', fontSize: 11, fontWeight: 900, textTransform: 'capitalize', whiteSpace: 'nowrap' },
+  vistoriaStats: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 },
+  vistoriaStat: { background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, padding: '12px 13px' },
+  vistoriaStatValue: { display: 'block', fontSize: 24, lineHeight: 1, color: 'var(--color-ink)', marginBottom: 5 },
+  vistoriaStatLabel: { display: 'block', fontSize: 11, color: 'var(--color-ink-muted)', fontWeight: 800 },
+  vistoriaActions: { display: 'flex', gap: 8, flexWrap: 'wrap' },
+  vistoriaPrimary: { background: 'var(--color-ink)', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 12px', fontSize: 12, fontWeight: 900, cursor: 'pointer', fontFamily: 'inherit' },
+  vistoriaButton: { background: '#fff', color: 'var(--color-ink)', border: '1px solid var(--color-border)', borderRadius: 10, padding: '9px 12px', fontSize: 12, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' },
+  vistoriaMessage: { marginTop: 12, borderRadius: 10, background: '#fff', border: '1px solid var(--color-border)', padding: '9px 11px', fontSize: 12, color: 'var(--color-ink-muted)', fontWeight: 700 },
 }

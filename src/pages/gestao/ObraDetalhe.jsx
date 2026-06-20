@@ -947,11 +947,20 @@ function CampoEdit({ label, children, full }) {
 
 function AbaAgenda({ obraId }) {
   const [agenda, setAgenda] = useState([])
+  const [checklistVistoria, setChecklistVistoria] = useState([])
+  const [fotosVistoria, setFotosVistoria] = useState([])
   const [loading, setLoading] = useState(true)
+  const normalizarAgenda = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 
   async function carregar() {
-    const { data } = await supabase.from('agenda').select('*').eq('obra_id', obraId).order('data', { ascending: true })
+    const [{ data }, { data: checklist }, { data: fotos }] = await Promise.all([
+      supabase.from('agenda').select('*').eq('obra_id', obraId).order('data', { ascending: true }),
+      supabase.from('checklist_items').select('id, agenda_id, concluido').eq('obra_id', obraId).not('agenda_id', 'is', null),
+      supabase.from('fotos').select('id, agenda_id, categoria').eq('obra_id', obraId).not('agenda_id', 'is', null),
+    ])
     setAgenda(data || [])
+    setChecklistVistoria(checklist || [])
+    setFotosVistoria(fotos || [])
     setLoading(false)
   }
 
@@ -972,6 +981,17 @@ function AbaAgenda({ obraId }) {
           <div style={{ flex: 1, minWidth: 180 }}>
             <div style={{ fontSize: 14, color: THEME.ink, fontWeight: 700 }}>{item.titulo || item.tipo || 'Compromisso'}</div>
             {item.descricao && <div style={{ fontSize: 13, color: THEME.muted, marginTop: 4, lineHeight: 1.5 }}>{item.descricao}</div>}
+            {normalizarAgenda(item.tipo || item.titulo).includes('vistoria') && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+                <span style={{ fontSize: 11, color: THEME.success, background: '#EAF5EE', borderRadius: 999, padding: '5px 9px', fontWeight: 800 }}>{item.status || 'pendente'}</span>
+                <span style={{ fontSize: 11, color: THEME.muted, background: '#F7F4EF', borderRadius: 999, padding: '5px 9px', fontWeight: 800 }}>
+                  {checklistVistoria.filter(i => i.agenda_id === item.id).filter(i => i.concluido).length}/{checklistVistoria.filter(i => i.agenda_id === item.id).length} checklist
+                </span>
+                <span style={{ fontSize: 11, color: THEME.muted, background: '#F7F4EF', borderRadius: 999, padding: '5px 9px', fontWeight: 800 }}>
+                  {fotosVistoria.filter(f => f.agenda_id === item.id).length} fotos
+                </span>
+              </div>
+            )}
           </div>
           {item.tipo && <span style={{ fontSize: 11, color: THEME.muted, border: `1px solid ${THEME.border}`, borderRadius: 999, padding: '5px 10px' }}>{item.tipo}</span>}
         </div>
@@ -1431,20 +1451,23 @@ function AbaFotos({ obraId }) {
   const { user } = useStore()
   const [fotos, setFotos] = useState([])
   const [ambientes, setAmbientes] = useState([])
+  const [agendaVistorias, setAgendaVistorias] = useState([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [preview, setPreview] = useState(null)
   const [filtroCategoria, setFiltroCategoria] = useState('')
   const [filtroAmbiente, setFiltroAmbiente] = useState('')
   const [filtroAprovacao, setFiltroAprovacao] = useState('')
-  const [formFoto, setFormFoto] = useState({ categoria: '', ambiente_id: '', observacao: '', visivel_cliente: false })
+  const [formFoto, setFormFoto] = useState({ categoria: '', ambiente_id: '', agenda_id: '', observacao: '', visivel_cliente: false })
   async function carregar() {
-    const [{ data }, { data: amb }] = await Promise.all([
+    const [{ data }, { data: amb }, { data: vistorias }] = await Promise.all([
       supabase.from('fotos').select('*').eq('obra_id', obraId).order('created_at', { ascending: false }),
       supabase.from('obra_ambientes').select('id, nome').eq('obra_id', obraId),
+      supabase.from('agenda').select('id, titulo, tipo, data, hora_inicio, status').eq('obra_id', obraId).ilike('tipo', '%vistoria%').order('data', { ascending: false }),
     ])
     setFotos((data || []).map(f => ({ ...f, categoria: f.categoria || 'Geral', publicUrl: fotoUrl(f) })))
     setAmbientes(amb || [])
+    setAgendaVistorias(vistorias || [])
     setLoading(false)
   }
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
@@ -1467,13 +1490,14 @@ function AbaFotos({ obraId }) {
         storage_path: path,
         categoria: formFoto.categoria,
         ambiente_id: formFoto.ambiente_id || null,
+        agenda_id: formFoto.agenda_id || null,
         observacao: formFoto.observacao || file.name,
         visivel_cliente: formFoto.visivel_cliente,
         aprovada: false,
         aprovada_gestao: false,
         visibilidade: formFoto.visivel_cliente ? 'cliente' : 'interna',
       }])
-      setFormFoto({ categoria: '', ambiente_id: '', observacao: '', visivel_cliente: false })
+      setFormFoto({ categoria: '', ambiente_id: '', agenda_id: '', observacao: '', visivel_cliente: false })
       await carregar()
     }
     setUploading(false); e.target.value = ''
@@ -1524,6 +1548,9 @@ function AbaFotos({ obraId }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 12 }}>
           <div><Label>Categoria *</Label><FSelect value={formFoto.categoria} onChange={v => setFormFoto(p => ({ ...p, categoria: v }))}><option value="">Selecione</option>{FOTO_CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}</FSelect></div>
           <div><Label>Ambiente</Label><FSelect value={formFoto.ambiente_id} onChange={v => setFormFoto(p => ({ ...p, ambiente_id: v }))}><option value="">Sem ambiente</option>{ambientes.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}</FSelect></div>
+          {formFoto.categoria === 'Vistoria' && (
+            <div><Label>Vistoria vinculada</Label><FSelect value={formFoto.agenda_id} onChange={v => setFormFoto(p => ({ ...p, agenda_id: v }))}><option value="">Sem vínculo</option>{agendaVistorias.map(v => <option key={v.id} value={v.id}>{v.titulo || 'Vistoria'}{v.data ? ` - ${new Date(v.data + 'T00:00:00').toLocaleDateString('pt-BR')}` : ''}</option>)}</FSelect></div>
+          )}
           <div><Label>Observação</Label><FInput value={formFoto.observacao} onChange={v => setFormFoto(p => ({ ...p, observacao: v }))} placeholder="Opcional" /></div>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
