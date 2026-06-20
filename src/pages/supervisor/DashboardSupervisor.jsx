@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { EmptyState, KpiCard as DesignKpiCard, PremiumCard } from '../../components/DesignSystem'
+import { EmptyState, PremiumCard } from '../../components/DesignSystem'
 import { supabase } from '../../lib/supabase'
 import { useStore } from '../../store/useStore'
 
@@ -35,6 +35,14 @@ const dataBR = value => value ? new Date(`${value}T00:00:00`).toLocaleDateString
 const isConcluido = status => ['concluida', 'concluido', 'finalizada', 'finalizado'].includes(norm(status))
 
 const obraStatus = status => STATUS_OBRA[status] || { bg: '#F5F1EA', color: THEME.muted, label: status || '-' }
+
+function limparNome(nome) {
+  if (!nome) return ''
+  const roles = ['Montador', 'Supervisor', 'Gestao', 'Gestão', 'Vendedor', 'Cliente', 'Pos_venda', 'Pós-venda']
+  const partes = String(nome).trim().split(/\s+/)
+  if (roles.includes(partes[partes.length - 1])) return partes.slice(0, -1).join(' ')
+  return String(nome).trim()
+}
 
 const agendaTipo = item => {
   const tipo = norm(item.tipo || item.titulo || item.descricao)
@@ -82,6 +90,9 @@ export default function DashboardSupervisor() {
   })
   const [loading, setLoading] = useState(true)
   const [periodo, setPeriodo] = useState('semana')
+  const [fluxoAberto, setFluxoAberto] = useState(false)
+  const [metricasAberto, setMetricasAberto] = useState(false)
+  const [equipeAberta, setEquipeAberta] = useState(false)
 
   useEffect(() => {
     if (!profile?.id) return
@@ -207,7 +218,7 @@ export default function DashboardSupervisor() {
       const obrasIds = dados.obraMontadores.filter(m => m.montador_id === id).map(m => m.obra_id)
       return {
         id,
-        nome: profilePorId.get(id)?.full_name || profilePorId.get(id)?.email || 'Montador',
+        nome: limparNome(profilePorId.get(id)?.full_name || profilePorId.get(id)?.email || 'Montador'),
         obras: obrasIds.map(obraId => obraPorId.get(obraId)).filter(Boolean),
         entrouHoje: entraramIds.has(id),
         emServico: emServicoIds.has(id),
@@ -337,13 +348,16 @@ export default function DashboardSupervisor() {
     }
   }, [dados, periodo])
 
-  const kpis = [
-    { label: 'Minhas obras', value: vm.kpis.minhasObras, sub: 'sob responsabilidade', tone: THEME.gold },
-    { label: 'Em montagem', value: vm.kpis.emMontagem, sub: 'operação ativa', tone: THEME.blue },
-    { label: 'Atrasadas', value: vm.kpis.atrasadas, sub: 'exigem plano', tone: vm.kpis.atrasadas ? THEME.danger : THEME.success },
+  const kpisPrincipais = [
+    { label: 'Obras ativas', value: vm.kpis.minhasObras, sub: 'sob responsabilidade', tone: THEME.gold },
     { label: 'Pendências', value: vm.kpis.pendencias, sub: 'tarefas, ocorrências e checklist', tone: vm.kpis.pendencias ? THEME.warn : THEME.success },
+    { label: 'Travadas', value: vm.statusResumo.travadas, sub: 'ação imediata', tone: vm.statusResumo.travadas ? THEME.danger : THEME.success, onClick: () => navigate('/obras?status=travada') },
+  ]
+
+  const kpisSecundarios = [
     { label: 'Fotos pendentes', value: vm.kpis.fotosPendentes, sub: 'aguardando validação', tone: vm.kpis.fotosPendentes ? THEME.warn : THEME.success },
     { label: 'Check-ins hoje', value: vm.kpis.checkinsHoje, sub: 'movimentações de equipe', tone: THEME.gold },
+    { label: 'Em montagem', value: vm.kpis.emMontagem, sub: 'operação ativa', tone: THEME.blue },
   ]
 
   const statusCards = [
@@ -355,20 +369,57 @@ export default function DashboardSupervisor() {
     { label: 'Travadas', value: vm.statusResumo.travadas, tone: THEME.danger, status: 'travada' },
   ]
 
+  const agendaVisivel = [
+    { label: 'Montagens', items: vm.agenda.montagens },
+    { label: 'Vistorias', items: vm.agenda.vistorias },
+    { label: 'Assistências técnicas', items: vm.agenda.assistencias },
+    { label: 'Reuniões', items: vm.agenda.reunioes },
+  ].filter(item => loading || item.items.length > 0)
+
   return (
     <div className="ds-page">
       <style>{css}</style>
+
+      {equipeAberta && (
+        <div className="ds-modal" role="dialog" aria-modal="true">
+          <div className="ds-modal-card">
+            <button className="ds-modal-close" onClick={() => setEquipeAberta(false)}>Fechar</button>
+            <span>Equipe em campo</span>
+            <h2>Montadores alocados</h2>
+            <div className="ds-field-status modal-status">
+              <div>
+                <strong>{loading ? '-' : vm.checkins.emServico}</strong>
+                <span>em serviço</span>
+              </div>
+              <div>
+                <strong>{loading ? '-' : vm.checkins.entraram}</strong>
+                <span>entraram hoje</span>
+              </div>
+              <div className={vm.checkins.aindaNaoEntraram ? 'warn' : ''}>
+                <strong>{loading ? '-' : vm.checkins.aindaNaoEntraram}</strong>
+                <span>sem entrada</span>
+              </div>
+            </div>
+            <div className="ds-mini-list spaced">
+              {loading ? <Empty text="Carregando equipe..." /> : vm.equipe.montadores.length === 0 ? <Empty text="Nenhum montador alocado." /> : vm.equipe.montadores.map(m => (
+                <div className="ds-field-person" key={m.id}>
+                  <span className={m.emServico ? 'on' : m.entrouHoje ? 'done' : 'off'} />
+                  <div>
+                    <strong>{m.nome}</strong>
+                    <small>{m.emServico ? 'Em serviço agora' : m.entrouHoje ? 'Entrada registrada' : 'Ainda sem check-in'} · {m.obras.length} obra{m.obras.length === 1 ? '' : 's'}</small>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <header className="ds-header">
         <div>
           <div className="ds-eyebrow">Supervisor Ornare</div>
           <h1>Central do Supervisor</h1>
           <p>Obras sob sua responsabilidade, equipe em campo e pendências da semana</p>
-        </div>
-        <div className="ds-actions">
-          <button onClick={() => navigate('/obras')}>Minhas obras</button>
-          <button onClick={() => navigate('/agenda')}>Agenda</button>
-          <button className="primary" onClick={() => navigate('/ocorrencias')}>Registrar ocorrência</button>
         </div>
       </header>
 
@@ -384,32 +435,49 @@ export default function DashboardSupervisor() {
         ))}
       </div>
 
-      <section className="ds-kpis" aria-label="Indicadores do supervisor">
-        {kpis.map(kpi => <Kpi key={kpi.label} {...kpi} loading={loading} />)}
+      <section className="ds-kpis primary-kpis" aria-label="Indicadores principais do supervisor">
+        {kpisPrincipais.map(kpi => <Kpi key={kpi.label} {...kpi} loading={loading} />)}
+      </section>
+
+      <section className="ds-secondary-metrics">
+        <button className="ds-collapse-trigger" onClick={() => setMetricasAberto(v => !v)}>
+          {metricasAberto ? 'Ocultar indicadores complementares' : 'Ver indicadores complementares'}
+        </button>
+        {metricasAberto && (
+          <div className="ds-kpis secondary-kpis">
+            {kpisSecundarios.map(kpi => <Kpi key={kpi.label} {...kpi} loading={loading} />)}
+          </div>
+        )}
       </section>
 
       <section className="ds-status-flow">
-        <Card title="Fluxo Ornare" action="Obras" onAction={() => navigate('/obras')}>
-          <div className="ds-status-grid">
-            {statusCards.map(card => (
-              <button
-                key={card.label}
-                className={card.status === 'travada' ? 'urgent' : ''}
-                style={{ borderTopColor: card.tone }}
-                onClick={() => navigate(`/obras?status=${card.status}`)}
-              >
-                <strong>{loading ? '-' : card.value}</strong>
-                <span>{card.label}</span>
-              </button>
-            ))}
-          </div>
+        <Card title="Fluxo Ornare" action={fluxoAberto ? 'Ocultar fluxo' : 'Ver fluxo completo'} onAction={() => setFluxoAberto(v => !v)}>
+          {fluxoAberto ? (
+            <div className="ds-status-grid">
+              {statusCards.map(card => (
+                <button
+                  key={card.label}
+                  className={card.status === 'travada' ? 'urgent' : ''}
+                  style={{ borderTopColor: card.tone }}
+                  onClick={() => navigate(`/obras?status=${card.status}`)}
+                >
+                  <strong>{loading ? '-' : card.value}</strong>
+                  <span>{card.label}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <button className="ds-collapsed-note" onClick={() => setFluxoAberto(true)}>
+              Ver os 6 status operacionais da carteira
+            </button>
+          )}
         </Card>
       </section>
 
       <section className="ds-priorities">
         <Card title="Exigem atenção agora">
           {loading ? <Empty text="Carregando prioridades..." /> : vm.acoes.length === 0 ? <Empty text="Nenhuma prioridade crítica agora." /> : vm.acoes.slice(0, 5).map((acao, i) => (
-            <button className="ds-priority-row" key={`${acao.tipo}-${i}`} onClick={() => acao.obraId && navigate(`/obras/${acao.obraId}`)}>
+            <button className={`ds-priority-row ${priorityClass(acao.tipo)}`} key={`${acao.tipo}-${i}`} onClick={() => acao.obraId && navigate(`/obras/${acao.obraId}`)}>
               <i style={{ background: acao.cor }} />
               <div>
                 <span>{acao.tipo}</span>
@@ -422,7 +490,7 @@ export default function DashboardSupervisor() {
       </section>
 
       <section className="ds-mobile-ops">
-        <Card title="Equipe em campo">
+        <Card title="Equipe em campo" action="Ver equipe" onAction={() => setEquipeAberta(true)}>
           <div className="ds-field-status">
             <div>
               <strong>{loading ? '-' : vm.checkins.emServico}</strong>
@@ -437,23 +505,13 @@ export default function DashboardSupervisor() {
               <span>sem entrada</span>
             </div>
           </div>
-          <div className="ds-mini-list spaced">
-            {loading ? <Empty text="Carregando equipe..." /> : vm.equipe.montadores.length === 0 ? <Empty text="Nenhum montador alocado." /> : vm.equipe.montadores.slice(0, 4).map(m => (
-              <div className="ds-field-person" key={m.id}>
-                <span className={m.emServico ? 'on' : m.entrouHoje ? 'done' : 'off'} />
-                <div>
-                  <strong>{m.nome}</strong>
-                  <small>{m.emServico ? 'Em serviço agora' : m.entrouHoje ? 'Entrada registrada' : 'Ainda sem check-in'}</small>
-                </div>
-              </div>
-            ))}
-          </div>
+          <button className="ds-team-open" onClick={() => setEquipeAberta(true)}>Abrir lista completa</button>
         </Card>
 
         <Card title="Agenda da semana" action="Abrir agenda" onAction={() => navigate('/agenda')}>
-          <MiniAgenda label="Montagens" items={vm.agenda.montagens} loading={loading} />
-          <MiniAgenda label="Vistorias" items={vm.agenda.vistorias} loading={loading} />
-          <MiniAgenda label="Assistências" items={vm.agenda.assistencias} loading={loading} />
+          {agendaVisivel.length === 0 ? <Empty text="Nenhum compromisso no período." /> : agendaVisivel.map(item => (
+            <MiniAgenda key={item.label} label={item.label} items={item.items} loading={loading} />
+          ))}
         </Card>
       </section>
 
@@ -467,10 +525,9 @@ export default function DashboardSupervisor() {
         </Card>
 
         <Card title="Agenda da semana" action="Abrir agenda" onAction={() => navigate('/agenda')}>
-          <MiniAgenda label="Montagens" items={vm.agenda.montagens} loading={loading} />
-          <MiniAgenda label="Vistorias" items={vm.agenda.vistorias} loading={loading} />
-          <MiniAgenda label="Assistências técnicas" items={vm.agenda.assistencias} loading={loading} />
-          <MiniAgenda label="Reuniões" items={vm.agenda.reunioes} loading={loading} />
+          {agendaVisivel.length === 0 ? <Empty text="Nenhum compromisso no período." /> : agendaVisivel.map(item => (
+            <MiniAgenda key={item.label} label={item.label} items={item.items} loading={loading} />
+          ))}
         </Card>
 
         <Card title="Check-ins de hoje">
@@ -512,52 +569,65 @@ export default function DashboardSupervisor() {
             )}
           </Card>
 
-          <Card title="Checklist">
-            <div className="ds-split">
-              <Metric label="Pendentes" value={vm.checklist.pendentes} color={THEME.warn} loading={loading} />
-              <Metric label="Concluídos" value={vm.checklist.concluidos} color={THEME.success} loading={loading} />
-            </div>
-            <div className="ds-mini-list spaced">
-              {loading ? <Empty text="Carregando checklist..." /> : vm.checklist.obras.length === 0 ? <Empty text="Nenhuma pendência de checklist." /> : vm.checklist.obras.slice(0, 5).map(item => (
-                <Line key={item.obra.id} label={item.obra.nome || 'Obra'} value={`${item.total} pendente${item.total === 1 ? '' : 's'}`} onClick={() => navigate(`/obras/${item.obra.id}`)} />
-              ))}
-            </div>
-          </Card>
+          <div className="ds-compact-grid">
+            <CompactCard
+              title="Checklist"
+              value={loading ? '-' : vm.checklist.pendentes}
+              suffix={vm.checklist.pendentes === 1 ? 'pendente' : 'pendentes'}
+              color={THEME.warn}
+              onClick={() => navigate('/obras?filtro=checklist')}
+            />
+            <CompactCard
+              title="Fotos"
+              value={loading ? '-' : vm.fotos.pendentes}
+              suffix={vm.fotos.pendentes === 1 ? 'pendente' : 'pendentes'}
+              color={THEME.gold}
+              onClick={() => navigate('/obras?filtro=fotos')}
+            />
+            <CompactCard
+              title="Ocorrências"
+              value={loading ? '-' : vm.ocorrencias.abertas}
+              suffix={vm.ocorrencias.abertas === 1 ? 'aberta' : 'abertas'}
+              color={THEME.danger}
+              onClick={() => navigate('/ocorrencias')}
+            />
+          </div>
         </div>
 
         <div className="ds-stack">
-          <Card title="Equipe">
+          <Card title="Equipe" action="Ver equipe" onAction={() => setEquipeAberta(true)}>
             <MetricLine label="Montadores alocados" value={vm.equipe.total} color={THEME.gold} loading={loading} />
-            <div className="ds-mini-list spaced">
-              {loading ? <Empty text="Carregando equipe..." /> : vm.equipe.montadores.length === 0 ? <Empty text="Nenhum montador alocado." /> : vm.equipe.montadores.slice(0, 6).map(m => (
-                <Line
-                  key={m.id}
-                  label={m.nome}
-                  value={`${m.obras.length} obra${m.obras.length === 1 ? '' : 's'}${m.emServico ? ' · em serviço' : ''}`}
-                />
-              ))}
-            </div>
-          </Card>
-
-          <Card title="Fotos">
-            <MetricLine label="Fotos enviadas" value={vm.fotos.total} color={THEME.gold} loading={loading} />
-            <MetricLine label="Aguardando aprovação" value={vm.fotos.pendentes} color={THEME.warn} loading={loading} />
-            <MetricLine label="Não conformidades" value={vm.fotos.naoConformidades} color={THEME.danger} loading={loading} />
-          </Card>
-
-          <Card title="Ocorrências">
-            <MetricLine label="Abertas" value={vm.ocorrencias.abertas} color={THEME.warn} loading={loading} />
-            <MetricLine label="Em andamento" value={vm.ocorrencias.andamento} color={THEME.blue} loading={loading} />
-            <MetricLine label="Críticas" value={vm.ocorrencias.criticas} color={THEME.danger} loading={loading} />
+            <button className="ds-team-open" onClick={() => setEquipeAberta(true)}>Abrir lista completa</button>
           </Card>
         </div>
       </section>
+
+      <button className="ds-fab" onClick={() => navigate('/ocorrencias')}>
+        Registrar ocorrência
+      </button>
     </div>
   )
 }
 
-function Kpi({ label, value, sub, tone, loading }) {
-  return <DesignKpiCard label={label} value={loading ? '-' : value} helper={sub} tone={tone} />
+function priorityClass(tipo) {
+  const t = norm(tipo)
+  if (t.includes('ocorrencia')) return 'critical'
+  if (t.includes('tarefa')) return 'late'
+  if (t.includes('checklist')) return 'checklist'
+  if (t.includes('foto')) return 'photo'
+  return ''
+}
+
+function Kpi({ label, value, sub, tone, loading, onClick }) {
+  const content = (
+    <div className="ds-kpi" style={{ borderTopColor: tone }}>
+      <span>{label}</span>
+      <strong>{loading ? '-' : value}</strong>
+      {sub && <small>{sub}</small>}
+    </div>
+  )
+  if (!onClick) return content
+  return <button className="ds-kpi-button" onClick={onClick}>{content}</button>
 }
 
 function Card({ title, action, onAction, children }) {
@@ -594,15 +664,6 @@ function MiniAgenda({ label, items, loading }) {
   )
 }
 
-function Metric({ label, value, color, loading }) {
-  return (
-    <div className="ds-metric">
-      <strong style={{ color }}>{loading ? '-' : value}</strong>
-      <span>{label}</span>
-    </div>
-  )
-}
-
 function MetricLine({ label, value, color, loading }) {
   return (
     <div className="ds-metric-line">
@@ -612,13 +673,13 @@ function MetricLine({ label, value, color, loading }) {
   )
 }
 
-function Line({ label, value, onClick }) {
-  const Tag = onClick ? 'button' : 'div'
+function CompactCard({ title, value, suffix, color, onClick }) {
   return (
-    <Tag className="ds-line" onClick={onClick}>
-      <span>{label}</span>
-      <small>{value}</small>
-    </Tag>
+    <button className="ds-compact-card" onClick={onClick}>
+      <span>{title}</span>
+      <strong style={{ color }}>{value}</strong>
+      <small>{suffix}</small>
+    </button>
   )
 }
 
@@ -638,16 +699,26 @@ const css = `
 .ds-period-filter{max-width:1380px;margin:0 auto 14px;display:flex;gap:8px;flex-wrap:wrap}
 .ds-period-filter button{border:1px solid ${THEME.gold};background:#fff;color:${THEME.ink};border-radius:999px;padding:9px 13px;font-size:12px;font-weight:900;cursor:pointer;font-family:inherit}
 .ds-period-filter button.active{background:${THEME.gold};color:#fff}
+.ds-secondary-metrics{max-width:1380px;margin:0 auto 14px}
+.ds-collapse-trigger,.ds-collapsed-note,.ds-team-open{border:1px solid ${THEME.border};background:#fff;color:${THEME.ink};border-radius:999px;padding:9px 13px;font-size:12px;font-weight:900;cursor:pointer;font-family:inherit}
+.ds-collapsed-note{width:100%;border-style:dashed;color:${THEME.muted};border-radius:14px;padding:18px;background:#FFFEFC}
 .ds-priorities{max-width:1380px;margin:0 auto 16px}
 .ds-status-flow{max-width:1380px;margin:0 auto 16px}
 .ds-mobile-ops{display:none}
-.ds-priority-row{width:100%;border:0;background:transparent;border-bottom:1px solid ${THEME.border};padding:12px 0;display:flex;gap:11px;align-items:flex-start;text-align:left;cursor:pointer;font-family:inherit}
+.ds-priority-row{width:100%;border:0;border-left:4px solid transparent;background:transparent;border-bottom:1px solid ${THEME.border};padding:12px 12px;display:flex;gap:11px;align-items:flex-start;text-align:left;cursor:pointer;font-family:inherit;border-radius:12px;margin-bottom:6px}
 .ds-priority-row:last-child{border-bottom:0}
+.ds-priority-row.critical{border-left-color:${THEME.danger};background:#FFF5F5}
+.ds-priority-row.late{border-left-color:${THEME.warn};background:#FFF8F5}
+.ds-priority-row.checklist{border-left-color:${THEME.gold};background:#FDFAF5}
+.ds-priority-row.photo{border-left-color:${THEME.soft};background:#FAFAFA}
 .ds-priority-row i{width:9px;height:9px;border-radius:999px;flex-shrink:0;margin-top:6px}
 .ds-priority-row span{display:block;font-size:10px;letter-spacing:1.4px;text-transform:uppercase;color:${THEME.gold};font-weight:900;margin-bottom:4px}
 .ds-priority-row strong{display:block;font-size:14px;color:${THEME.ink};line-height:1.25}
 .ds-priority-row small{display:block;font-size:12px;color:${THEME.muted};line-height:1.35;margin-top:3px}
-.ds-kpis{max-width:1380px;margin:0 auto 18px;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+.ds-kpis{max-width:1380px;margin:0 auto 18px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.ds-kpis.secondary-kpis{grid-template-columns:repeat(3,minmax(0,1fr));margin-top:10px;margin-bottom:0}
+.ds-kpi-button{border:0;background:transparent;padding:0;text-align:left;font-family:inherit;cursor:pointer}
+.ds-kpi-button>*{height:100%}
 .ds-kpi{background:#fff;border:1px solid ${THEME.border};border-top:3px solid ${THEME.gold};border-radius:14px;padding:15px 16px;min-width:0}
 .ds-kpi span{display:block;font-size:10px;letter-spacing:1.8px;text-transform:uppercase;font-weight:800;margin-bottom:9px;white-space:nowrap}
 .ds-kpi strong{display:block;font-size:34px;line-height:1;color:${THEME.ink}}
@@ -707,6 +778,11 @@ const css = `
 .ds-field-person>span.done{background:${THEME.gold}}
 .ds-field-person strong{display:block;font-size:13px;color:${THEME.ink};line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ds-field-person small{display:block;font-size:11.5px;color:${THEME.muted};margin-top:2px}
+.ds-compact-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.ds-compact-card{border:1px solid ${THEME.border};background:#fff;border-radius:15px;padding:16px;text-align:left;font-family:inherit;cursor:pointer;box-shadow:0 12px 28px rgba(29,28,25,.04)}
+.ds-compact-card span{display:block;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:${THEME.muted};font-weight:900;margin-bottom:10px}
+.ds-compact-card strong{display:block;font-size:30px;line-height:1}
+.ds-compact-card small{display:block;margin-top:6px;color:${THEME.muted};font-size:12px;font-weight:800}
 .ds-metric-line,.ds-line{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid ${THEME.border};align-items:center}
 .ds-line{width:100%;border-left:0;border-right:0;border-top:0;background:transparent;text-align:left;font-family:inherit}
 .ds-metric-line span,.ds-line span{font-size:12.5px;color:${THEME.ink};font-weight:800;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -714,6 +790,13 @@ const css = `
 .ds-line small{font-size:11px;color:${THEME.muted};white-space:nowrap}
 .ds-mini-list.spaced{margin-top:12px}
 .ds-empty{padding:24px 0;text-align:center;color:#A79F93;font-size:13px}
+.ds-modal{position:fixed;inset:0;z-index:80;background:rgba(15,14,12,.52);display:flex;align-items:center;justify-content:center;padding:18px}
+.ds-modal-card{width:min(520px,100%);max-height:min(720px,88vh);overflow:auto;background:#fff;border:1px solid ${THEME.border};border-radius:22px;padding:20px;box-shadow:0 28px 70px rgba(0,0,0,.28);position:relative}
+.ds-modal-close{position:absolute;right:14px;top:14px;border:1px solid ${THEME.border};background:#fff;border-radius:999px;padding:7px 10px;font-size:12px;font-weight:900;cursor:pointer}
+.ds-modal-card>span{display:block;color:${THEME.gold};font-size:10px;letter-spacing:2px;text-transform:uppercase;font-weight:900;margin-bottom:7px}
+.ds-modal-card h2{font-family:var(--font-serif);font-size:27px;font-weight:500;margin:0 0 14px;color:${THEME.ink}}
+.modal-status{margin-bottom:8px}
+.ds-fab{position:fixed;right:22px;bottom:calc(92px + env(safe-area-inset-bottom));z-index:50;border:0;background:${THEME.gold};color:#fff;border-radius:999px;padding:14px 18px;font-size:13px;font-weight:950;box-shadow:0 18px 42px rgba(201,169,110,.36);cursor:pointer;font-family:inherit}
 @media (max-width:1100px){.ds-grid-3,.ds-main{grid-template-columns:1fr}.ds-work-row{grid-template-columns:minmax(0,1fr) 120px auto auto}.ds-status-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media (max-width:760px){.ds-page{padding:22px 14px calc(112px + env(safe-area-inset-bottom));display:flex;flex-direction:column}.ds-header{display:block;margin-bottom:12px;order:0}.ds-period-filter{order:1;margin-bottom:10px}.ds-kpis{order:2}.ds-status-flow{order:3;margin-bottom:12px}.ds-priorities{order:4;margin-bottom:12px}.ds-mobile-ops{display:grid;gap:12px;order:5;margin:0 auto 12px;max-width:1380px;width:100%}.ds-main{order:6}.ds-grid-3{display:none}.ds-eyebrow{font-size:9px;letter-spacing:2px;margin-bottom:4px}.ds-header h1{font-size:28px;line-height:1.02}.ds-header p{font-size:12.5px;line-height:1.45}.ds-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;justify-content:flex-start;margin-top:10px}.ds-actions button{min-width:0;width:100%;padding:10px 9px;font-size:12px}.ds-period-filter{overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px}.ds-period-filter button{white-space:nowrap;padding:8px 12px}.ds-kpis{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-top:4px}.ds-kpis>*{flex:0 0 auto;min-width:auto;max-width:none}.ds-kpi{display:flex;align-items:center;gap:7px;border-radius:999px;padding:7px 10px;min-width:auto;max-width:none;border-top:1px solid rgba(184,150,94,.22)}.ds-kpi span{white-space:nowrap;font-size:10.5px;line-height:1;letter-spacing:0;margin:0}.ds-kpi strong{font-size:15px}.ds-kpi small{display:none}.ds-status-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.ds-status-grid button{padding:11px 10px}.ds-status-grid strong{font-size:22px;margin-bottom:5px}.ds-status-grid span{font-size:9.5px}.ds-main{gap:12px}.ds-card{padding:15px 13px;border-radius:15px}.ds-card-head h2{font-size:19px}.ds-health{grid-template-columns:1fr 1fr 1fr}.ds-work-row{display:block;padding:13px 0}.ds-work-main strong{font-size:15px;line-height:1.2;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}.ds-work-main span{font-size:12px}.ds-tags em:nth-child(n+3){display:none}.ds-progress-wrap{grid-template-columns:minmax(0,1fr) auto;margin:10px 0 9px}.ds-work-row>small{display:inline-block;white-space:nowrap;margin-right:8px}.ds-badge{display:inline-flex;align-self:flex-start}.ds-action-row{padding:12px 0}.ds-split{grid-template-columns:1fr 1fr}}
+@media (max-width:760px){.ds-page{padding:22px 14px calc(128px + env(safe-area-inset-bottom));display:flex;flex-direction:column}.ds-header{display:block;margin-bottom:12px;order:0}.ds-period-filter{order:1;margin-bottom:10px}.primary-kpis{order:2}.ds-secondary-metrics{order:3}.ds-status-flow{order:4;margin-bottom:12px}.ds-priorities{order:5;margin-bottom:12px}.ds-mobile-ops{display:grid;gap:12px;order:6;margin:0 auto 12px;max-width:1380px;width:100%}.ds-main{order:7}.ds-grid-3{display:none}.ds-eyebrow{font-size:9px;letter-spacing:2px;margin-bottom:4px}.ds-header h1{font-size:28px;line-height:1.02}.ds-header p{font-size:12.5px;line-height:1.45}.ds-period-filter{overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px}.ds-period-filter button{white-space:nowrap;padding:8px 12px}.ds-kpis{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px}.ds-kpis.secondary-kpis{grid-template-columns:1fr;gap:8px}.ds-kpi{border-radius:14px;padding:10px 9px;min-width:0;border-top:3px solid rgba(184,150,94,.55)}.ds-kpi span{font-size:9px;line-height:1.1;letter-spacing:.8px;margin-bottom:7px;white-space:normal}.ds-kpi strong{font-size:24px}.ds-kpi small{font-size:10px;line-height:1.25}.ds-kpi-button{width:100%}.ds-collapse-trigger{width:100%;margin-bottom:8px}.ds-status-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.ds-status-grid button{padding:11px 10px}.ds-status-grid strong{font-size:22px;margin-bottom:5px}.ds-status-grid span{font-size:9.5px}.ds-main{gap:12px}.ds-card{padding:15px 13px;border-radius:15px}.ds-card-head h2{font-size:19px}.ds-health{grid-template-columns:1fr 1fr 1fr}.ds-work-row{display:block;padding:13px 0}.ds-work-main strong{font-size:15px;line-height:1.2;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}.ds-work-main span{font-size:12px}.ds-tags em:nth-child(n+3){display:none}.ds-progress-wrap{grid-template-columns:minmax(0,1fr) auto;margin:10px 0 9px}.ds-work-row>small{display:inline-block;white-space:nowrap;margin-right:8px}.ds-badge{display:inline-flex;align-self:flex-start}.ds-compact-grid{grid-template-columns:1fr}.ds-action-row{padding:12px 0}.ds-split{grid-template-columns:1fr 1fr}.ds-fab{right:16px;bottom:calc(88px + env(safe-area-inset-bottom));padding:13px 16px}.ds-modal{align-items:flex-end;padding:12px}.ds-modal-card{max-height:86vh;border-radius:22px 22px 16px 16px}}
 `
