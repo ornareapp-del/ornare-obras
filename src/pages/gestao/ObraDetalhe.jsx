@@ -10,12 +10,15 @@ const ST = {
   'Em montagem':         { label: 'Em montagem',        bg: '#edf7f0', color: '#3a7d4f' },
   'Em andamento':        { label: 'Em andamento',        bg: '#edf7f0', color: '#3a7d4f' },
   'Concluida':           { label: 'Concluída',           bg: '#eef2f8', color: '#3a5580' },
+  'Concluída':           { label: 'Concluída',           bg: '#eef2f8', color: '#3a5580' },
   'Pausada':             { label: 'Pausada',             bg: '#fdf3e3', color: '#a0692a' },
   'Cancelada':           { label: 'Cancelada',           bg: '#fdecea', color: '#a03030' },
   'Planejamento':        { label: 'Planejamento',        bg: '#f5f0ff', color: '#6040a0' },
-  'Aguardando inicio':   { label: 'Ag. inicio',          bg: '#f5f5f5', color: '#616161' },
+  'Aguardando inicio':   { label: 'Ag. início',          bg: '#f5f5f5', color: '#616161' },
+  'Aguardando início':   { label: 'Ag. início',          bg: '#f5f5f5', color: '#616161' },
   'Montagem agendada':   { label: 'Mont. agendada',      bg: '#E3F2FD', color: '#1565C0' },
-  'Em producao':         { label: 'Em producao',         bg: '#EFF4FA', color: '#1E3A5F' },
+  'Em producao':         { label: 'Em produção',         bg: '#EFF4FA', color: '#1E3A5F' },
+  'Em produção':         { label: 'Em produção',         bg: '#EFF4FA', color: '#1E3A5F' },
   'Aguardando montagem': { label: 'Ag. montagem',        bg: '#FFF3E0', color: '#E65100' },
   'Vistoria final':      { label: 'Vistoria final',      bg: '#F3E5F5', color: '#6A1B9A' },
   'Pronta para entrega': { label: 'Pronta p/ entrega',   bg: '#E8F5E9', color: '#2E7D32' },
@@ -29,15 +32,15 @@ const STATUS_TAREFA = {
 }
 const PRIORIDADE = {
   baixa: { label: 'Baixa', color: '#aaa' },
-  media: { label: 'Media', color: '#b09a7a' },
+  media: { label: 'Média', color: '#b09a7a' },
   alta:  { label: 'Alta',  color: '#d94a4a' },
 }
 
 const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO']
 const STATUS_LIST = [
-  'Aguardando inicio','Medicao agendada','Em medicao','Projeto em conferencia',
-  'Em producao','Pronta para entrega','Aguardando montagem','Montagem agendada',
-  'Em montagem','Pausada','Vistoria final','Concluida','Cancelada',
+  'Aguardando início','Medição agendada','Em medição','Projeto em conferência',
+  'Em produção','Pronta para entrega','Aguardando montagem','Montagem agendada',
+  'Em montagem','Pausada','Vistoria final','Concluída','Cancelada',
 ]
 const FASES_CRONOGRAMA = ['Pré-Obra', 'Produção', 'Pré-Montagem', 'Montagem', 'Entrega', 'Pós-Venda']
 const FASES_CRONOGRAMA_FORM = [...FASES_CRONOGRAMA, 'Assistência Técnica', 'Garantia']
@@ -127,7 +130,7 @@ export default function ObraDetalhe() {
   const [loading,   setLoading]   = useState(true)
   const [tarefas,   setTarefas]   = useState([])
   const [profiles,  setProfiles]  = useState([])
-  const [resumo,    setResumo]    = useState({ gastos: 0, tarefasAbertas: 0, agenda: 0 })
+  const [resumo,    setResumo]    = useState({ gastos: 0, tarefasAbertas: 0, agenda: 0, fotos: 0, ocorrencias: 0, equipe: 0, checklistPendentes: 0 })
   const [progresso, setProgresso] = useState(0)
   const [showForm,  setShowForm]  = useState(false)
   const [salvando,  setSalvando]  = useState(false)
@@ -165,14 +168,27 @@ export default function ObraDetalhe() {
   }
 
   async function carregarResumo() {
-    const [{ data: gs }, { data: ts }, { data: ag }] = await Promise.all([
+    const [{ data: gs }, { data: ts }, { data: ag }, { data: fotos }, { data: ocorrencias }, { data: equipe }, { data: checklist }] = await Promise.all([
       supabase.from('gastos').select('valor').eq('obra_id', id),
       supabase.from('tarefas').select('id, status').eq('obra_id', id),
       supabase.from('agenda').select('id').eq('obra_id', id),
+      supabase.from('fotos').select('id').eq('obra_id', id),
+      supabase.from('ocorrencias').select('id').eq('obra_id', id),
+      supabase.from('obra_montadores').select('montador_id').eq('obra_id', id),
+      supabase.from('checklist_items').select('id, concluido').eq('obra_id', id),
     ])
     const totalGastos = (gs || []).reduce((s, g) => s + (parseFloat(g.valor) || 0), 0)
     const abertas = (ts || []).filter(t => t.status !== 'concluida').length
-    setResumo({ gastos: totalGastos, tarefasAbertas: abertas, agenda: (ag || []).length })
+    const checklistPendentes = (checklist || []).filter(i => !i.concluido).length
+    setResumo({
+      gastos: totalGastos,
+      tarefasAbertas: abertas,
+      agenda: (ag || []).length,
+      fotos: (fotos || []).length,
+      ocorrencias: (ocorrencias || []).length,
+      equipe: (equipe || []).length,
+      checklistPendentes,
+    })
   }
 
   function mostrarToast(msg, tipo = 'ok') {
@@ -480,17 +496,28 @@ export default function ObraDetalhe() {
         <KpiCard label="Progresso" value={`${progressoObra}%`} helper="andamento geral" />
         <KpiCard label="Previsão" value={previsao} helper="término previsto" />
         <KpiCard label="Gastos" value={`R$ ${resumo.gastos.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} helper="registrados" />
-        <KpiCard label="Pendencias" value={resumo.tarefasAbertas} helper="tarefas abertas" />
+        <KpiCard label="Pendências" value={resumo.tarefasAbertas} helper="tarefas abertas" />
       </div>
 
-      <nav style={{ position: 'sticky', top: 0, zIndex: 20, display: 'flex', gap: 6, border: `1px solid ${THEME.border}`, background: 'rgba(246,243,238,0.94)', backdropFilter: 'blur(12px)', borderRadius: 14, marginBottom: 24, padding: 6, overflowX: 'auto' }}>
-        {SECOES.map(s => (
-          <button key={s.id} onClick={() => setAba(s.id)} style={{ background: aba === s.id ? THEME.ink : 'transparent', border: 'none', cursor: 'pointer', padding: '9px 14px', fontSize: 12.5, whiteSpace: 'nowrap', color: aba === s.id ? '#fff' : THEME.muted, fontWeight: aba === s.id ? 700 : 500, borderRadius: 10, fontFamily: 'inherit' }}>{s.label}</button>
-        ))}
-      </nav>
+      <div style={{ position: 'sticky', top: 0, zIndex: 20, marginBottom: 24 }}>
+        <nav style={{ position: 'relative', display: 'flex', gap: 6, border: `1px solid ${THEME.border}`, background: 'rgba(246,243,238,0.94)', backdropFilter: 'blur(12px)', borderRadius: 14, padding: 6, overflowX: 'auto', boxShadow: compacto ? '0 10px 24px rgba(29,28,25,0.06)' : 'none' }}>
+          {SECOES.map(s => (
+            <button key={s.id} onClick={() => setAba(s.id)} style={{ background: aba === s.id ? THEME.ink : 'transparent', border: 'none', cursor: 'pointer', padding: compacto ? '10px 13px' : '9px 14px', fontSize: 12.5, whiteSpace: 'nowrap', color: aba === s.id ? '#fff' : THEME.muted, fontWeight: aba === s.id ? 700 : 500, borderRadius: 10, fontFamily: 'inherit', flex: '0 0 auto' }}>{s.label}</button>
+          ))}
+        </nav>
+        {compacto && <div style={{ position: 'absolute', right: 0, top: 2, bottom: 2, width: 32, pointerEvents: 'none', borderRadius: '0 14px 14px 0', background: 'linear-gradient(90deg, rgba(246,243,238,0), rgba(246,243,238,0.96))' }} />}
+      </div>
 
       {aba === 'Resumo' && (
         <div style={{ display: 'grid', gridTemplateColumns: compacto ? '1fr' : '1fr 1fr', gap: 16 }}>
+          <div style={{ gridColumn: '1/-1', display: 'grid', gridTemplateColumns: compacto ? '1fr 1fr' : 'repeat(6, minmax(0, 1fr))', gap: 10 }}>
+            <ResumoAtalho titulo="Equipe" valor={resumo.equipe} detalhe="montadores" onClick={() => setAba('Equipe')} />
+            <ResumoAtalho titulo="Agenda" valor={resumo.agenda} detalhe="eventos" onClick={() => setAba('Agenda')} />
+            <ResumoAtalho titulo="Fotos" valor={resumo.fotos} detalhe="registros" onClick={() => setAba('Fotos')} />
+            <ResumoAtalho titulo="Checklist" valor={resumo.checklistPendentes} detalhe="pendentes" onClick={() => setAba('Checklist')} />
+            <ResumoAtalho titulo="Gastos" valor={`R$ ${resumo.gastos.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`} detalhe="total" onClick={() => setAba('Gastos')} />
+            <ResumoAtalho titulo="Ocorrências" valor={resumo.ocorrencias} detalhe="registros" onClick={() => setAba('Ocorrencias')} />
+          </div>
           <Card titulo="Cliente">
             <Info label="Nome"     value={obra.cliente_nome}     />
             <Info label="E-mail"   value={obra.cliente_email}    />
@@ -501,13 +528,13 @@ export default function ObraDetalhe() {
             <Info label="Bairro / Cidade" value={[obra.bairro, obra.cidade, obra.uf].filter(Boolean).join(', ')} />
             <Info label="CEP"            value={obra.cep} />
           </Card>
-          <Card titulo="Equipe responsavel">
+          <Card titulo="Equipe responsável">
             <Info label="Supervisor"   value={supervisorNome} />
             <Info label="Comercial"    value={comercialNome} />
             <Info label="Executivista" value={obra.executivista_nome} />
           </Card>
           <Card titulo="Contrato">
-            <Info label="Numero" value={obra.numero_contrato} />
+            <Info label="Número" value={obra.numero_contrato} />
             <Info label="Pedido Ornare" value={obra.pedido_ornare} />
             <Info label="Valor" value={obra.valor_contrato ? `R$ ${Number(obra.valor_contrato).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : null} />
           </Card>
@@ -544,13 +571,13 @@ export default function ObraDetalhe() {
       {aba === 'Contrato' && (
         <div style={{ display: 'grid', gridTemplateColumns: compacto ? '1fr' : '1fr 1fr', gap: 16 }}>
           <Card titulo="Contrato">
-            <Info label="Numero do contrato" value={obra.numero_contrato} />
+            <Info label="Número do contrato" value={obra.numero_contrato} />
             <Info label="Pedido Ornare" value={obra.pedido_ornare} />
             <Info label="Valor do contrato" value={obra.valor_contrato ? `R$ ${Number(obra.valor_contrato).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : null} />
             <Info label="Gasto meta" value={obra.gasto_meta ? `R$ ${Number(obra.gasto_meta).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : null} />
           </Card>
           <Card titulo="Datas">
-            <Info label="Inicio" value={obra.data_inicio ? new Date(obra.data_inicio + 'T00:00:00').toLocaleDateString('pt-BR') : null} />
+            <Info label="Início" value={obra.data_inicio ? new Date(obra.data_inicio + 'T00:00:00').toLocaleDateString('pt-BR') : null} />
             <Info label="Previsão" value={previsao} />
             <Info label="Status" value={obra.status} />
             <Info label="Progresso" value={`${progressoObra}%`} />
@@ -562,7 +589,7 @@ export default function ObraDetalhe() {
 
       {aba === 'Equipe' && (
         <div style={{ display: 'grid', gridTemplateColumns: compacto ? '1fr' : '1fr 1fr', gap: 16 }}>
-          <Card titulo="Responsaveis">
+          <Card titulo="Responsáveis">
             <Info label="Supervisor" value={supervisorNome} />
             <Info label="Comercial" value={comercialNome} />
             <Info label="Executivista" value={obra.executivista_nome} />
@@ -585,7 +612,7 @@ export default function ObraDetalhe() {
           {tarefas.length > 0 && (
             <div style={{ marginBottom: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--color-ink-muted)', marginBottom: 6 }}>
-                <span>{tarefas.filter(t => t.status === 'concluida').length} de {tarefas.length} concluidas</span>
+                <span>{tarefas.filter(t => t.status === 'concluida').length} de {tarefas.length} concluídas</span>
                 <span style={{ color: 'var(--color-gold)', fontWeight: 600 }}>{progresso}%</span>
               </div>
               <div style={{ height: 4, background: 'var(--color-border)', borderRadius: 2 }}>
@@ -603,7 +630,7 @@ export default function ObraDetalhe() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div style={{ gridColumn: '1/-1' }}><Label>Titulo *</Label><FInput value={nova.titulo} onChange={v => setNova(p => ({ ...p, titulo: v }))} placeholder="Titulo da tarefa" /></div>
                 <div style={{ gridColumn: '1/-1' }}><Label>Descrição</Label><textarea value={nova.descricao} onChange={e => setNova(p => ({ ...p, descricao: e.target.value }))} rows={2} style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1px solid #ddd', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }} /></div>
-                <div><Label>Prioridade</Label><FSelect value={nova.prioridade} onChange={v => setNova(p => ({ ...p, prioridade: v }))}><option value="baixa">Baixa</option><option value="media">Media</option><option value="alta">Alta</option></FSelect></div>
+                <div><Label>Prioridade</Label><FSelect value={nova.prioridade} onChange={v => setNova(p => ({ ...p, prioridade: v }))}><option value="baixa">Baixa</option><option value="media">Média</option><option value="alta">Alta</option></FSelect></div>
                 <div><Label>Prazo</Label><FInput type="date" value={nova.prazo} onChange={v => setNova(p => ({ ...p, prazo: v }))} /></div>
                 <div style={{ gridColumn: '1/-1' }}><Label>Responsável</Label><FSelect value={nova.responsavel_id} onChange={v => setNova(p => ({ ...p, responsavel_id: v }))}><option value="">Sem responsável</option>{profiles.map(p => <option key={p.id} value={p.id}>{p.full_name || p.email}</option>)}</FSelect></div>
               </div>
@@ -634,6 +661,29 @@ function KpiCard({ label, value, helper }) {
       <div style={{ fontSize: 22, fontWeight: 700, color: THEME.ink, lineHeight: 1.1, wordBreak: 'break-word' }}>{value}</div>
       {helper && <div style={{ fontSize: 12, color: THEME.muted, marginTop: 6 }}>{helper}</div>}
     </div>
+  )
+}
+
+function ResumoAtalho({ titulo, valor, detalhe, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        border: `1px solid ${THEME.border}`,
+        background: '#FFFEFC',
+        borderRadius: 14,
+        padding: '14px 13px',
+        textAlign: 'left',
+        cursor: 'pointer',
+        fontFamily: 'inherit',
+        minWidth: 0,
+        boxShadow: '0 12px 26px rgba(29,28,25,0.035)',
+      }}
+    >
+      <span style={{ display: 'block', fontSize: 10, letterSpacing: 1.7, textTransform: 'uppercase', color: THEME.gold, fontWeight: 800, marginBottom: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{titulo}</span>
+      <strong style={{ display: 'block', fontSize: 22, lineHeight: 1, color: THEME.ink, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis' }}>{valor ?? 0}</strong>
+      <small style={{ display: 'block', marginTop: 6, color: THEME.muted, fontSize: 11.5, fontWeight: 700 }}>{detalhe}</small>
+    </button>
   )
 }
 

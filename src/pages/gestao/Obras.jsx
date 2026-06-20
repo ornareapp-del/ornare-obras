@@ -3,19 +3,38 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 
 const ST = {
+  'Em produção':       { label: 'Em produção',       bg: '#edf7f0', color: '#2D7A4A', dot: '#2D7A4A' },
+  'Em producao':       { label: 'Em produção',       bg: '#edf7f0', color: '#2D7A4A', dot: '#2D7A4A' },
   'Em montagem':       { label: 'Em montagem',       bg: '#edf7f0', color: '#3a7d4f', dot: '#5aab6e' },
   'Em andamento':      { label: 'Em andamento',      bg: '#edf7f0', color: '#3a7d4f', dot: '#5aab6e' },
   'Concluida':         { label: 'Concluída',         bg: '#eef2f8', color: '#3a5580', dot: '#7090c0' },
+  'Concluída':         { label: 'Concluída',         bg: '#eef2f8', color: '#3a5580', dot: '#7090c0' },
   'Pausada':           { label: 'Pausada',           bg: '#fdf3e3', color: '#a0692a', dot: '#d4a055' },
   'Cancelada':         { label: 'Cancelada',         bg: '#fdecea', color: '#a03030', dot: '#d45555' },
   'Aguardando inicio': { label: 'Ag. início',        bg: '#f5f5f5', color: '#616161', dot: '#9E9E9E' },
+  'Aguardando início': { label: 'Ag. início',        bg: '#f5f5f5', color: '#616161', dot: '#9E9E9E' },
   'Montagem agendada': { label: 'Mont. agendada',    bg: '#E3F2FD', color: '#1565C0', dot: '#1565C0' },
   'Planejamento':      { label: 'Planejamento',      bg: '#f5f0ff', color: '#6040a0', dot: '#9070c0' },
 }
-const STATUS_LISTA = Object.keys(ST)
+const STATUS_LISTA = ['Em produção', 'Em montagem', 'Em andamento', 'Concluída', 'Pausada', 'Cancelada', 'Aguardando início', 'Montagem agendada', 'Planejamento']
+
+function normalizar(v) {
+  return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+}
 
 function getStatus(s) {
-  return ST[s] || { label: s || '-', bg: '#f0ece6', color: '#888', dot: '#ccc' }
+  const key = Object.keys(ST).find(k => normalizar(k) === normalizar(s))
+  return ST[key] || { label: s || '-', bg: '#f0ece6', color: '#888', dot: '#ccc' }
+}
+
+function titleCase(nome) {
+  if (!nome) return ''
+  return String(nome)
+    .toLowerCase()
+    .split(' ')
+    .filter(Boolean)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
 }
 
 function dataCurta(data) {
@@ -66,13 +85,14 @@ export default function Obras() {
     setSalvando(false)
   }
 
-  const obrasFiltradas = filtro === 'Todas' ? obras : obras.filter(o => o.status === filtro)
+  const obrasFiltradas = filtro === 'Todas' ? obras : obras.filter(o => normalizar(o.status) === normalizar(filtro))
   const profilePorId = new Map(profiles.map(p => [p.id, p]))
-  const isStatus = (obra, termos) => termos.some(t => String(obra.status || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(t))
+  const isStatus = (obra, termos) => termos.some(t => normalizar(obra.status).includes(t))
   const kpis = [
     { label: 'Obras Ativas', value: obras.filter(o => !isStatus(o, ['concluida', 'cancelada'])).length },
     { label: 'Em Produção', value: obras.filter(o => isStatus(o, ['producao'])).length },
     { label: 'Em Montagem', value: obras.filter(o => isStatus(o, ['montagem'])).length },
+    { label: 'Aguard. Produção', value: obras.filter(o => isStatus(o, ['aguardando inicio', 'medicao', 'conferencia'])).length },
     { label: 'Travadas', value: obras.filter(o => isStatus(o, ['pausada', 'cancelada'])).length },
     { label: 'Concluídas', value: obras.filter(o => isStatus(o, ['concluida'])).length },
   ]
@@ -189,7 +209,7 @@ export default function Obras() {
                 <button className="ob-app-card" onClick={() => navigate('/obras/' + obra.id)}>
                   <div className="ob-app-head">
                     <div>
-                      <strong>{obra.nome || 'Obra sem nome'}</strong>
+                      <strong>{titleCase(obra.nome) || 'Obra sem nome'}</strong>
                       <span>{cidadeUf}</span>
                     </div>
                     <small>{progresso}%</small>
@@ -198,7 +218,7 @@ export default function Obras() {
                     <i style={{ width: `${Math.min(100, Math.max(0, progresso))}%` }} />
                   </div>
                   <div className="ob-app-foot">
-                    <span style={{ background: st.bg, color: st.color }}>{st.label}</span>
+                      <span style={{ background: st.bg, color: st.color }}>{st.label}</span>
                     <em>Previsão {dataCurta(obra.data_previsao)}</em>
                   </div>
                 </button>
@@ -206,7 +226,7 @@ export default function Obras() {
                   <div style={{ ...s.dot, background: st.dot }} />
                   <div style={s.cardInfo}>
                     <div style={s.cardTop}>
-                      <span style={s.cardNome}>{obra.nome}</span>
+                      <span style={s.cardNome}>{titleCase(obra.nome)}</span>
                       <span style={{ ...s.badge, background: st.bg, color: st.color }}>{st.label}</span>
                     </div>
                     <div className="ob-card-meta" style={s.cardMeta}>
@@ -282,7 +302,7 @@ const css = `
   .ob-app-progress{height:5px;background:#EEE8DE;border-radius:999px;overflow:hidden;margin:13px 0 10px}
   .ob-app-progress i{display:block;height:100%;background:var(--color-gold);border-radius:999px}
   .ob-app-foot{display:flex;align-items:center;justify-content:space-between;gap:10px}
-  .ob-app-foot span{border-radius:999px;padding:5px 9px;font-size:11px;line-height:1;font-weight:900;white-space:nowrap}
+  .ob-app-foot span{border-radius:999px;padding:5px 10px;font-size:11px;line-height:1;font-weight:900;white-space:nowrap}
   .ob-app-foot em{font-style:normal;font-size:12px;color:var(--color-ink-muted);white-space:nowrap}
 }
 `
@@ -294,7 +314,7 @@ const s = {
   title: { fontFamily: 'var(--font-serif)', fontSize: 36, fontWeight: 500, color: 'var(--color-ink)', margin: 0 },
   sub: { fontSize: 13, color: 'var(--color-ink-muted)', marginTop: 4 },
   btnNew: { background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' },
-  kpiGrid: { display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 12, marginBottom: 20 },
+  kpiGrid: { display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 12, marginBottom: 20 },
   kpi: { background: '#fff', border: '1px solid var(--color-border)', borderTop: '3px solid var(--color-gold)', borderRadius: 14, padding: '15px 16px', boxShadow: 'var(--shadow)' },
   kpiLabel: { display: 'block', fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: 'var(--color-gold)', fontWeight: 800, marginBottom: 8 },
   kpiValue: { display: 'block', fontSize: 30, lineHeight: 1, color: 'var(--color-ink)' },
@@ -307,7 +327,7 @@ const s = {
   cardInfo: { flex: 1, minWidth: 0 },
   cardTop: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, flexWrap: 'wrap' },
   cardNome: { fontSize: 15, fontWeight: 600, color: 'var(--color-ink)' },
-  badge: { fontSize: 10, padding: '2px 10px', borderRadius: 20, fontWeight: 500 },
+  badge: { fontSize: 11, padding: '4px 10px', borderRadius: 999, fontWeight: 700, lineHeight: 1 },
   cardMeta: { fontSize: 12, color: 'var(--color-ink-muted)' },
   cardDetails: { display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8, fontSize: 11, color: 'var(--color-ink-muted)' },
   progressWrap: { minWidth: 100, textAlign: 'right', flexShrink: 0 },

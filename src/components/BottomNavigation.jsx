@@ -11,7 +11,7 @@ const ITEMS = {
   supervisor: [
     { label: 'Início', to: '/supervisor', icon: IconHome },
     { label: 'Agenda', to: '/agenda', icon: IconCalendar },
-    { label: 'Obras', to: '/obras', icon: IconBuilding },
+    { label: 'Obras', to: '/obras', icon: IconBuilding, matchObras: true },
     { label: 'Fotos', to: '/obras', icon: IconCamera },
   ],
   pos_venda: [
@@ -37,7 +37,7 @@ export default function BottomNavigation({ onMore }) {
     <nav className="ow-bottom-nav" aria-label="Navegação principal mobile">
       {items.map(item => {
         const Icon = item.icon
-        const active = item.to === '/obras'
+        const active = item.matchObras
           ? location.pathname === '/obras' || location.pathname.startsWith('/obras/')
           : location.pathname === item.to
         return (
