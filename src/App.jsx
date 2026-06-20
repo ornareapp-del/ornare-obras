@@ -1,32 +1,26 @@
-import { useCallback, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { supabase } from './lib/supabase'
 import { useStore } from './store/useStore'
 
-// paginas publicas
-import Login from './pages/Login'
-import PortalCliente from './pages/cliente/PortalCliente'
 import Splash from './pages/Splash'
 
-// layout com sidebar
-import Layout from './components/Layout'
-
-// paginas gestao
-import DashboardGestao from './pages/gestao/DashboardGestao'
-import Obras from './pages/gestao/Obras'
-import ObraDetalhe from './pages/gestao/ObraDetalhe'
-import NovaObra from './pages/gestao/NovaObra'
-import Agenda from './pages/gestao/Agenda'
-import Equipe from './pages/gestao/Equipe'
-import Ocorrencias from './pages/gestao/Ocorrencias'
-import Gastos from './pages/gestao/Gastos'
-import Tarefas from './pages/gestao/Tarefas'
-import Planejamento from './pages/gestao/Planejamento'
-import BibliotecaMestre from './pages/gestao/BibliotecaMestre'
-
-// paginas por perfil
-import DashboardSupervisor from './pages/supervisor/DashboardSupervisor'
-import MontadorDashboard from './pages/montador/MontadorDashboard'
+const Login = lazy(() => import('./pages/Login'))
+const PortalCliente = lazy(() => import('./pages/cliente/PortalCliente'))
+const Layout = lazy(() => import('./components/Layout'))
+const DashboardGestao = lazy(() => import('./pages/gestao/DashboardGestao'))
+const Obras = lazy(() => import('./pages/gestao/Obras'))
+const ObraDetalhe = lazy(() => import('./pages/gestao/ObraDetalhe'))
+const NovaObra = lazy(() => import('./pages/gestao/NovaObra'))
+const Agenda = lazy(() => import('./pages/gestao/Agenda'))
+const Equipe = lazy(() => import('./pages/gestao/Equipe'))
+const Ocorrencias = lazy(() => import('./pages/gestao/Ocorrencias'))
+const Gastos = lazy(() => import('./pages/gestao/Gastos'))
+const Tarefas = lazy(() => import('./pages/gestao/Tarefas'))
+const Planejamento = lazy(() => import('./pages/gestao/Planejamento'))
+const BibliotecaMestre = lazy(() => import('./pages/gestao/BibliotecaMestre'))
+const DashboardSupervisor = lazy(() => import('./pages/supervisor/DashboardSupervisor'))
+const MontadorDashboard = lazy(() => import('./pages/montador/MontadorDashboard'))
 
 const ROLE_ALIASES = {
   vendedor: 'pos_venda',
@@ -185,133 +179,135 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={!user ? <Login /> : <Navigate to="/" replace />} />
-        <Route path="/cliente/:id" element={<PortalCliente />} />
+      <Suspense fallback={<LoadingAuth />}>
+        <Routes>
+          <Route path="/login" element={!user ? <Login /> : <Navigate to="/" replace />} />
+          <Route path="/cliente/:id" element={<PortalCliente />} />
 
-        <Route path="/" element={<RedirectByRole user={user} profile={profile} />} />
+          <Route path="/" element={<RedirectByRole user={user} profile={profile} />} />
 
-        <Route
-          path="/montador"
-          element={
-            <PrivateRoute allowedRoles={['montador']}>
-              <MontadorDashboard />
-            </PrivateRoute>
-          }
-        />
-
-        <Route element={<PrivateLayout />}>
           <Route
-            path="/dashboard"
+            path="/montador"
             element={
-              <RoleGuard allowedRoles={['gestao']}>
-                <DashboardGestao />
-              </RoleGuard>
+              <PrivateRoute allowedRoles={['montador']}>
+                <MontadorDashboard />
+              </PrivateRoute>
             }
           />
 
-          <Route
-            path="/supervisor"
-            element={
-              <RoleGuard allowedRoles={['supervisor', 'gestao']}>
-                <DashboardSupervisor />
-              </RoleGuard>
-            }
-          />
+          <Route element={<PrivateLayout />}>
+            <Route
+              path="/dashboard"
+              element={
+                <RoleGuard allowedRoles={['gestao']}>
+                  <DashboardGestao />
+                </RoleGuard>
+              }
+            />
 
-          <Route
-            path="/obras"
-            element={
-              <RoleGuard allowedRoles={['gestao', 'supervisor', 'pos_venda', 'vendedor']}>
-                <Obras />
-              </RoleGuard>
-            }
-          />
+            <Route
+              path="/supervisor"
+              element={
+                <RoleGuard allowedRoles={['supervisor', 'gestao']}>
+                  <DashboardSupervisor />
+                </RoleGuard>
+              }
+            />
 
-          <Route
-            path="/obras/nova"
-            element={
-              <RoleGuard allowedRoles={['gestao']}>
-                <NovaObra />
-              </RoleGuard>
-            }
-          />
+            <Route
+              path="/obras"
+              element={
+                <RoleGuard allowedRoles={['gestao', 'supervisor', 'pos_venda', 'vendedor']}>
+                  <Obras />
+                </RoleGuard>
+              }
+            />
 
-          <Route
-            path="/obras/:id"
-            element={
-              <RoleGuard allowedRoles={['gestao', 'supervisor', 'pos_venda', 'vendedor']}>
-                <ObraDetalhe />
-              </RoleGuard>
-            }
-          />
+            <Route
+              path="/obras/nova"
+              element={
+                <RoleGuard allowedRoles={['gestao']}>
+                  <NovaObra />
+                </RoleGuard>
+              }
+            />
 
-          <Route
-            path="/tarefas"
-            element={
-              <RoleGuard allowedRoles={['gestao', 'supervisor']}>
-                <Tarefas />
-              </RoleGuard>
-            }
-          />
+            <Route
+              path="/obras/:id"
+              element={
+                <RoleGuard allowedRoles={['gestao', 'supervisor', 'pos_venda', 'vendedor']}>
+                  <ObraDetalhe />
+                </RoleGuard>
+              }
+            />
 
-          <Route
-            path="/agenda"
-            element={
-              <RoleGuard allowedRoles={['gestao', 'supervisor', 'pos_venda', 'vendedor']}>
-                <Agenda />
-              </RoleGuard>
-            }
-          />
+            <Route
+              path="/tarefas"
+              element={
+                <RoleGuard allowedRoles={['gestao', 'supervisor']}>
+                  <Tarefas />
+                </RoleGuard>
+              }
+            />
 
-          <Route
-            path="/planejamento"
-            element={
-              <RoleGuard allowedRoles={['gestao', 'supervisor', 'pos_venda', 'vendedor']}>
-                <Planejamento />
-              </RoleGuard>
-            }
-          />
+            <Route
+              path="/agenda"
+              element={
+                <RoleGuard allowedRoles={['gestao', 'supervisor', 'pos_venda', 'vendedor']}>
+                  <Agenda />
+                </RoleGuard>
+              }
+            />
 
-          <Route
-            path="/biblioteca-mestre"
-            element={
-              <RoleGuard allowedRoles={['gestao', 'supervisor']}>
-                <BibliotecaMestre />
-              </RoleGuard>
-            }
-          />
+            <Route
+              path="/planejamento"
+              element={
+                <RoleGuard allowedRoles={['gestao', 'supervisor', 'pos_venda', 'vendedor']}>
+                  <Planejamento />
+                </RoleGuard>
+              }
+            />
 
-          <Route
-            path="/equipe"
-            element={
-              <RoleGuard allowedRoles={['gestao', 'supervisor']}>
-                <Equipe />
-              </RoleGuard>
-            }
-          />
+            <Route
+              path="/biblioteca-mestre"
+              element={
+                <RoleGuard allowedRoles={['gestao', 'supervisor']}>
+                  <BibliotecaMestre />
+                </RoleGuard>
+              }
+            />
 
-          <Route
-            path="/ocorrencias"
-            element={
-              <RoleGuard allowedRoles={['gestao', 'supervisor']}>
-                <Ocorrencias />
-              </RoleGuard>
-            }
-          />
+            <Route
+              path="/equipe"
+              element={
+                <RoleGuard allowedRoles={['gestao', 'supervisor']}>
+                  <Equipe />
+                </RoleGuard>
+              }
+            />
 
-          <Route
-            path="/gastos"
-            element={
-              <RoleGuard allowedRoles={['gestao', 'supervisor']}>
-                <Gastos />
-              </RoleGuard>
-            }
-          />
+            <Route
+              path="/ocorrencias"
+              element={
+                <RoleGuard allowedRoles={['gestao', 'supervisor']}>
+                  <Ocorrencias />
+                </RoleGuard>
+              }
+            />
 
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
+            <Route
+              path="/gastos"
+              element={
+                <RoleGuard allowedRoles={['gestao', 'supervisor']}>
+                  <Gastos />
+                </RoleGuard>
+              }
+            />
+
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   )
 }
