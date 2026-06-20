@@ -287,6 +287,12 @@ export default function MontadorDashboard() {
     ;(gestores || []).forEach(p => p.id && destinatarios.add(p.id))
     destinatarios.delete(user.id)
 
+    let rota = `/obras/${obraAtiva.id}`
+    if (entidadeTipo === 'fotos') rota = `/obras/${obraAtiva.id}?aba=Fotos&foto=${entidadeId || ''}`
+    else if (entidadeTipo === 'ocorrencias') rota = `/obras/${obraAtiva.id}?aba=Ocorrencias&ocorrencia=${entidadeId || ''}`
+    else if (entidadeTipo === 'checklist_items') rota = `/obras/${obraAtiva.id}?aba=Checklist&checklist=${entidadeId || ''}`
+    else if (agendaId) rota = `/agenda?compromisso=${agendaId}`
+
     const registros = [...destinatarios].map(usuario_id => ({
       usuario_id,
       obra_id: obraAtiva.id,
@@ -295,7 +301,7 @@ export default function MontadorDashboard() {
       descricao,
       prioridade,
       status: 'nao_lida',
-      rota: agendaId ? `/agenda?compromisso=${agendaId}` : `/obras/${obraAtiva.id}`,
+      rota,
       entidade_tipo: entidadeTipo,
       entidade_id: entidadeId || agendaId || obraAtiva.id,
     }))

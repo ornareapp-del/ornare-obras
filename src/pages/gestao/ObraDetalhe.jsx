@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useStore } from '../../store/useStore'
 import { tarefasService } from '../../services/tarefasService'
@@ -126,6 +126,7 @@ function acaoBtn(primary, active = false) {
 export default function ObraDetalhe() {
   const { id }      = useParams()
   const navigate    = useNavigate()
+  const location    = useLocation()
 
   const [obra,      setObra]      = useState(null)
   const [aba,       setAba]       = useState('Resumo')
@@ -144,6 +145,17 @@ export default function ObraDetalhe() {
   const [nova, setNova] = useState({ titulo: '', descricao: '', prioridade: 'media', prazo: '', responsavel_id: '', status: 'pendente' })
 
   const [compacto, setCompacto] = useState(false)
+  const paramsUrl = new URLSearchParams(location.search)
+  const fotoDestaque = paramsUrl.get('foto')
+  const ocorrenciaDestaque = paramsUrl.get('ocorrencia')
+  const checklistDestaque = paramsUrl.get('checklist')
+
+  useEffect(() => {
+    const abaUrl = new URLSearchParams(location.search).get('aba')
+    if (!abaUrl || !SECOES.some(secao => secao.id === abaUrl)) return undefined
+    const timer = setTimeout(() => setAba(abaUrl), 0)
+    return () => clearTimeout(timer)
+  }, [location.search])
 
   const carregarObra = useCallback(async () => {
     const { data } = await supabase.from('obras').select('*').eq('id', id).single()
@@ -648,10 +660,10 @@ export default function ObraDetalhe() {
         </div>
       )}
 
-      {aba === 'Checklist'   && <AbaChecklist   obraId={id} />}
-      {aba === 'Ocorrencias' && <AbaOcorrencias obraId={id} />}
+      {aba === 'Checklist'   && <AbaChecklist   obraId={id} checklistDestaque={checklistDestaque} />}
+      {aba === 'Ocorrencias' && <AbaOcorrencias obraId={id} ocorrenciaDestaque={ocorrenciaDestaque} />}
       {aba === 'Gastos'      && <AbaGastos      obraId={id} obraInfo={obra} />}
-      {aba === 'Fotos'       && <AbaFotos       obraId={id} />}
+      {aba === 'Fotos'       && <AbaFotos       obraId={id} fotoDestaque={fotoDestaque} />}
       {aba === 'Historico'   && <AbaHistorico   obraId={id} />}
       {aba === 'Chat'        && <AbaChat        obraId={id} />}
       </div>
@@ -1178,7 +1190,7 @@ function AbaAgenda({ obraId }) {
   )
 }
 
-function AbaChecklist({ obraId }) {
+function AbaChecklist({ obraId, checklistDestaque }) {
   const { user } = useStore()
   const [itens, setItens] = useState([])
   const [ambientes, setAmbientes] = useState([])
@@ -1312,8 +1324,10 @@ function AbaChecklist({ obraId }) {
         {loading ? <div style={{ color: '#bbb' }}>Carregando...</div>
           : itens.length === 0 ? <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhum item no checklist.</div>
           : ativo.itens.length === 0 ? <div style={{ textAlign: 'center', padding: '36px 0', color: '#bbb' }}>Nenhum item neste ambiente.</div>
-          : ativo.itens.map(item => (
-            <div key={item.id} onClick={() => toggle(item)} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 0', borderBottom: `1px solid ${THEME.border}`, cursor: 'pointer' }}>
+          : ativo.itens.map(item => {
+            const destaque = checklistDestaque && item.id === checklistDestaque
+            return (
+            <div key={item.id} onClick={() => toggle(item)} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 12px', border: destaque ? `2px solid ${THEME.gold}` : 'none', borderBottom: destaque ? `2px solid ${THEME.gold}` : `1px solid ${THEME.border}`, borderRadius: destaque ? 12 : 0, background: destaque ? '#FFFBF2' : 'transparent', cursor: 'pointer' }}>
               <div style={{ width: 22, height: 22, borderRadius: 6, border: '2px solid ' + (item.concluido ? '#5aab6e' : THEME.border), background: item.concluido ? '#5aab6e' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 {item.concluido && <span style={{ color: '#fff', fontSize: 12, fontWeight: 700 }}>v</span>}
               </div>
@@ -1322,13 +1336,13 @@ function AbaChecklist({ obraId }) {
                 {item.concluido_em && <div style={{ fontSize: 11, color: THEME.muted, marginTop: 3 }}>Concluído em {new Date(item.concluido_em).toLocaleString('pt-BR')}</div>}
               </div>
             </div>
-          ))
+          )})
         }
       </Card>
     </div>
   )
 }
-function AbaOcorrencias({ obraId }) {
+function AbaOcorrencias({ obraId, ocorrenciaDestaque }) {
   const [ocorrencias, setOcorrencias] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -1368,8 +1382,10 @@ function AbaOcorrencias({ obraId }) {
       )}
       {loading ? <div style={{ color: '#bbb' }}>Carregando...</div>
         : ocorrencias.length === 0 ? <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhuma ocorrência registrada.</div>
-        : ocorrencias.map(oc => (
-          <div key={oc.id} style={{ background: '#fff', border: '1px solid var(--color-border)', borderLeft: '4px solid ' + (gravCor[oc.gravidade] || '#ccc'), borderRadius: 10, padding: '16px 18px', marginBottom: 10 }}>
+        : ocorrencias.map(oc => {
+          const destaque = ocorrenciaDestaque && oc.id === ocorrenciaDestaque
+          return (
+          <div key={oc.id} style={{ background: destaque ? '#FFFBF2' : '#fff', border: destaque ? `2px solid ${THEME.gold}` : '1px solid var(--color-border)', borderLeft: '4px solid ' + (gravCor[oc.gravidade] || '#ccc'), borderRadius: 10, padding: '16px 18px', marginBottom: 10, boxShadow: destaque ? '0 12px 30px rgba(184,150,94,.16)' : 'none' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
               <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-ink)' }}>{oc.titulo}</span>
               <span style={{ fontSize: 10, padding: '2px 9px', borderRadius: 20, background: '#f0ece6', color: '#888', marginLeft: 'auto' }}>{oc.categoria}</span>
@@ -1378,7 +1394,7 @@ function AbaOcorrencias({ obraId }) {
             {oc.descricao && <p style={{ margin: 0, fontSize: 13, color: 'var(--color-ink-muted)', lineHeight: 1.5 }}>{oc.descricao}</p>}
             <div style={{ fontSize: 11, color: '#bbb', marginTop: 8 }}>{new Date(oc.created_at).toLocaleDateString('pt-BR')}</div>
           </div>
-        ))
+        )})
       }
     </div>
   )
@@ -1625,7 +1641,7 @@ function AbaChat({ obraId }) {
   )
 }
 
-function AbaFotos({ obraId }) {
+function AbaFotos({ obraId, fotoDestaque }) {
   const { user } = useStore()
   const [fotos, setFotos] = useState([])
   const [ambientes, setAmbientes] = useState([])
@@ -1756,8 +1772,10 @@ function AbaFotos({ obraId }) {
           <div key={grupo.categoria} style={{ marginBottom: 24 }}>
             <div style={{ fontSize: 10, letterSpacing: 2, color: THEME.gold, textTransform: 'uppercase', fontWeight: 700, marginBottom: 10 }}>{grupo.categoria}</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14 }}>
-              {grupo.fotos.map(foto => (
-                <div key={foto.id} style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: 14, overflow: 'hidden' }}>
+              {grupo.fotos.map(foto => {
+                const destaque = fotoDestaque && foto.id === fotoDestaque
+                return (
+                <div key={foto.id} style={{ background: destaque ? '#FFFBF2' : THEME.card, border: destaque ? `2px solid ${THEME.gold}` : `1px solid ${THEME.border}`, borderRadius: 14, overflow: 'hidden', boxShadow: destaque ? '0 14px 34px rgba(184,150,94,.18)' : 'none' }}>
                   <div onClick={() => foto.publicUrl && setPreview(foto.publicUrl)} style={{ cursor: 'zoom-in', height: 170, overflow: 'hidden', background: '#f5f5f5' }}>{foto.publicUrl && <img src={foto.publicUrl} alt={foto.observacao || foto.categoria} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}</div>
                   <div style={{ padding: 12 }}>
                     <div style={{ fontSize: 12, color: THEME.ink, fontWeight: 700, marginBottom: 4 }}>{ambienteNome(foto.ambiente_id)}</div>
@@ -1769,7 +1787,7 @@ function AbaFotos({ obraId }) {
                     </div>
                   </div>
                 </div>
-              ))}
+              )})}
             </div>
           </div>
         ))
