@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 
-const ROLES = ['gestao', 'pos_venda', 'supervisor', 'montador', 'cliente']
-const ROLE_LABEL = { gestao: 'Gestão', pos_venda: 'Pós-venda', supervisor: 'Supervisor', montador: 'Montador', vendedor: 'Pós-venda', cliente: 'Cliente' }
+const ROLES = ['gestao', 'pos_venda', 'vendedor', 'supervisor', 'montador', 'cliente']
+const ROLE_LABEL = { gestao: 'Gestão', pos_venda: 'Pós-venda', vendedor: 'Vendedor', supervisor: 'Supervisor', montador: 'Montador', cliente: 'Cliente' }
 const ROLE_COLOR = { gestao: '#365C7D', pos_venda: '#7A5AA6', vendedor: '#7A5AA6', supervisor: '#3B5F86', montador: '#B8965E', cliente: '#8A8175' }
 const ROLE_DESC = {
   gestao: 'Obras, agenda, equipe e relatórios',
   pos_venda: 'Acompanhamento comercial das obras',
+  vendedor: 'Atendimento comercial e acompanhamento das obras',
   supervisor: 'Obras sob sua responsabilidade',
   montador: 'Tarefas e check-in/check-out',
   cliente: 'Portal do cliente',
@@ -65,6 +66,20 @@ export default function Equipe() {
     setSalvando(false)
   }
 
+  async function enviarResetSenha(profile) {
+    if (!profile?.email) {
+      mostrarToast('Este usuário não possui e-mail cadastrado.', 'erro')
+      return
+    }
+
+    const { error } = await supabase.auth.resetPasswordForEmail(profile.email, {
+      redirectTo: window.location.origin + '/login',
+    })
+
+    if (error) mostrarToast('Não foi possível enviar o link de senha.', 'erro')
+    else mostrarToast(`Link de redefinição enviado para ${profile.email}.`)
+  }
+
   async function toggleAtivo(p) {
     await supabase.from('profiles').update({ ativo: !p.ativo }).eq('id', p.id)
     mostrarToast(`${p.full_name || 'Usuário'} ${p.ativo ? 'desativado' : 'ativado'}.`)
@@ -83,7 +98,8 @@ export default function Equipe() {
     { label: 'Gestão', value: profiles.filter(p => p.role === 'gestao').length },
     { label: 'Supervisores', value: profiles.filter(p => p.role === 'supervisor').length },
     { label: 'Montadores', value: profiles.filter(p => p.role === 'montador').length },
-    { label: 'Pós-venda', value: profiles.filter(p => ['pos_venda', 'vendedor'].includes(p.role)).length },
+    { label: 'Pós-venda', value: profiles.filter(p => p.role === 'pos_venda').length },
+    { label: 'Vendedores', value: profiles.filter(p => p.role === 'vendedor').length },
   ]
 
   function obrasVinculadas(profile) {
@@ -168,21 +184,23 @@ export default function Equipe() {
             return (
               <section key={p.id} className="eq-card" style={{ ...s.card, opacity: ativo ? 1 : 0.62, borderTopColor: cor }}>
                 {isEditando ? (
-                  <EditForm
-                    editando={editando}
-                    setEditando={setEditando}
-                    supervisores={supervisores}
-                    salvando={salvando}
-                    onSalvar={salvarEdicao}
-                    onCancelar={() => setEditando(null)}
-                  />
+                    <EditForm
+                      editando={editando}
+                      setEditando={setEditando}
+                      supervisores={supervisores}
+                      salvando={salvando}
+                      onSalvar={salvarEdicao}
+                      onCancelar={() => setEditando(null)}
+                      onResetSenha={() => enviarResetSenha(editando)}
+                    />
                 ) : (
                   <>
                     <div style={s.cardTop}>
                       <div className="eq-avatar" style={{ ...s.avatar, background: cor + '18', color: cor }}>{initials}</div>
                       <div style={s.personInfo}>
                         <strong style={s.personName}>{p.full_name || 'Sem nome'}</strong>
-                        <span style={s.personMeta}>{p.cargo || p.email || 'Sem cargo informado'}</span>
+                        <span style={s.personMeta}>{p.cargo || ROLE_LABEL[p.role] || 'Sem cargo informado'}</span>
+                        <span style={s.personEmail}>{p.email || 'E-mail não informado'}</span>
                       </div>
                     </div>
                     <div style={s.badgeRow}>
@@ -211,7 +229,7 @@ function Toast({ msg, tipo }) {
   return <div style={{ ...s.toast, background: tipo === 'erro' ? '#fdecea' : 'var(--color-ink)', color: tipo === 'erro' ? '#B84040' : '#fff' }}>{msg}</div>
 }
 
-function EditForm({ editando, setEditando, supervisores, salvando, onSalvar, onCancelar }) {
+function EditForm({ editando, setEditando, supervisores, salvando, onSalvar, onCancelar, onResetSenha }) {
   const set = (k, v) => setEditando(p => ({ ...p, [k]: v }))
   return (
     <div>
@@ -237,6 +255,11 @@ function EditForm({ editando, setEditando, supervisores, salvando, onSalvar, onC
         <input type="checkbox" checked={editando.ativo !== false} onChange={e => set('ativo', e.target.checked)} />
         Usuário ativo
       </label>
+      <div style={s.passwordBox}>
+        <strong>Senha</strong>
+        <span>Por segurança, a senha atual não pode ser visualizada. Envie um link para o usuário criar uma nova senha.</span>
+        <button type="button" style={s.btnEdit} onClick={onResetSenha}>Enviar redefinição de senha</button>
+      </div>
       <div style={s.actions}>
         <button style={s.btnEdit} onClick={onCancelar}>Cancelar</button>
         <button style={{ ...s.btnEdit, background: 'var(--color-gold)', color: '#fff', borderColor: 'var(--color-gold)' }} onClick={onSalvar} disabled={salvando}>
@@ -360,7 +383,7 @@ const s = {
   title: { fontFamily: 'var(--font-serif)', fontSize: 38, fontWeight: 500, color: 'var(--color-ink)', margin: 0, lineHeight: 1.05 },
   sub: { fontSize: 13, color: 'var(--color-ink-muted)', marginTop: 6 },
   btnNew: { background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' },
-  kpiGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 20 },
+  kpiGrid: { display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 12, marginBottom: 20 },
   kpi: { background: '#fff', border: '1px solid var(--color-border)', borderTop: '3px solid var(--color-gold)', borderRadius: 14, padding: '15px 16px', boxShadow: 'var(--shadow)' },
   kpiLabel: { display: 'block', fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: 'var(--color-gold)', fontWeight: 800, marginBottom: 8 },
   kpiValue: { display: 'block', fontSize: 30, lineHeight: 1, color: 'var(--color-ink)' },
@@ -373,6 +396,7 @@ const s = {
   personInfo: { minWidth: 0, flex: 1 },
   personName: { display: 'block', fontSize: 14.5, color: 'var(--color-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   personMeta: { display: 'block', fontSize: 12, color: 'var(--color-ink-muted)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  personEmail: { display: 'block', fontSize: 11.5, color: '#8A8175', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   badgeRow: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 },
   badge: { fontSize: 10, padding: '3px 9px', borderRadius: 999, fontWeight: 800 },
   detailLine: { fontSize: 12, color: 'var(--color-ink-muted)', padding: '6px 0', borderTop: '1px solid var(--color-border)' },
@@ -386,6 +410,7 @@ const s = {
   field: { display: 'flex', flexDirection: 'column', gap: 6, fontSize: 10, letterSpacing: 1.3, textTransform: 'uppercase', color: 'var(--color-ink-muted)', fontWeight: 800 },
   input: { width: '100%', border: '1px solid var(--color-border)', borderRadius: 9, padding: '9px 12px', fontSize: 13, fontFamily: 'inherit', color: 'var(--color-ink)', background: '#FFFEFC', outline: 'none', boxSizing: 'border-box' },
   checkLine: { display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontSize: 13, color: 'var(--color-ink-muted)' },
+  passwordBox: { marginTop: 14, background: '#F9F6F0', border: '1px solid var(--color-border)', borderRadius: 12, padding: 12, display: 'grid', gap: 7, color: 'var(--color-ink-muted)', fontSize: 12 },
   toast: { position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)', padding: '12px 22px', borderRadius: 12, fontSize: 13, fontWeight: 800, borderLeft: '3px solid var(--color-gold)', zIndex: 2000, boxShadow: 'var(--shadow-md)', maxWidth: 'calc(100vw - 24px)' },
   modalBg: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.42)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 },
   modal: { background: '#fff', borderRadius: 16, width: '100%', maxWidth: 620, maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: 'var(--shadow-lg)' },

@@ -75,6 +75,7 @@ const THEME = {
 }
 
 const FOTO_CATEGORIAS = [
+  'Vistoria',
   'Antes da montagem',
   'Durante a montagem',
   'Finalizado',

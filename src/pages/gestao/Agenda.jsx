@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 
-const TIPOS = ['Apresentação','Assistência Técnica','Compromisso','Entrega','Medição','Montagem','Tarefa','Reunião Interna']
+const TIPOS = ['Apresentação','Assistência Técnica','Compromisso','Entrega','Medição','Montagem','Tarefa','Vistoria','Reunião Interna']
 const MESES = ['Janeiro','Fevereiro','Marco','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 const DIAS = ['Dom','Seg','Ter','Qua','Qui','Sex','Sab']
 const TIPO_COR = {
   'Montagem': '#3a7d4f', 'Entrega': '#3a5580', 'Medicao': '#9070c0', 'Medição': '#9070c0',
-  'Assistência Técnica': '#d94a4a', 'Reunião Interna': '#b09a7a',
+  'Assistência Técnica': '#d94a4a', 'Reunião Interna': '#b09a7a', 'Vistoria': '#2D7A4A',
   'Apresentacao': '#4a90d9', 'Compromisso': '#888', 'Tarefa': '#b09a7a',
 }
 
@@ -36,6 +36,7 @@ export default function Agenda() {
   const [profiles, setProfiles] = useState([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)
+  const [editandoId, setEditandoId] = useState(null)
   const [salvando, setSalvando] = useState(false)
   const [filtro, setFiltro] = useState('proximos')
   const hoje = new Date()
@@ -47,6 +48,38 @@ export default function Agenda() {
   })
 
   useEffect(() => { carregar() }, [])
+
+  function formInicial() {
+    return {
+      titulo: '', descricao: '', tipo: 'Compromisso', obra_id: '',
+      responsavel_id: '', data: hoje.toISOString().split('T')[0],
+      data_fim: '', hora_inicio: '08:00', hora_fim: '',
+      reuniao_interna: false,
+    }
+  }
+
+  function abrirNovo() {
+    setEditandoId(null)
+    setForm(formInicial())
+    setModal(true)
+  }
+
+  function abrirEditar(ev) {
+    setEditandoId(ev.id)
+    setForm({
+      titulo: ev.titulo || '',
+      descricao: ev.descricao || '',
+      tipo: ev.tipo || 'Compromisso',
+      obra_id: ev.obra_id || '',
+      responsavel_id: ev.responsavel_id || '',
+      data: ev.data || hoje.toISOString().split('T')[0],
+      data_fim: ev.data_fim || ev.data || '',
+      hora_inicio: ev.hora_inicio ? ev.hora_inicio.slice(0, 5) : '08:00',
+      hora_fim: ev.hora_fim ? ev.hora_fim.slice(0, 5) : '',
+      reuniao_interna: Boolean(ev.reuniao_interna),
+    })
+    setModal(true)
+  }
 
   async function carregar() {
     const [{ data: ev }, { data: ob }, { data: pr }] = await Promise.all([
@@ -63,7 +96,8 @@ export default function Agenda() {
   async function salvar() {
     if (!form.titulo.trim()) return
     setSalvando(true)
-    await supabase.from('agenda').insert([{
+
+    const payload = {
       titulo: form.titulo,
       descricao: form.descricao || null,
       tipo: form.tipo,
@@ -74,12 +108,13 @@ export default function Agenda() {
       hora_inicio: form.hora_inicio,
       hora_fim: form.hora_fim || null,
       reuniao_interna: form.reuniao_interna,
-    }])
-    setForm({
-      titulo: '', descricao: '', tipo: 'Compromisso', obra_id: '',
-      responsavel_id: '', data: hoje.toISOString().split('T')[0],
-      data_fim: '', hora_inicio: '08:00', hora_fim: '', reuniao_interna: false,
-    })
+    }
+
+    if (editandoId) await supabase.from('agenda').update(payload).eq('id', editandoId)
+    else await supabase.from('agenda').insert([payload])
+
+    setForm(formInicial())
+    setEditandoId(null)
     setModal(false)
     await carregar()
     setSalvando(false)
@@ -88,6 +123,10 @@ export default function Agenda() {
   async function excluir(id) {
     if (!window.confirm('Excluir este evento?')) return
     await supabase.from('agenda').delete().eq('id', id)
+    if (editandoId === id) {
+      setModal(false)
+      setEditandoId(null)
+    }
     await carregar()
   }
 
@@ -111,7 +150,7 @@ export default function Agenda() {
         <div style={s.modalBg} onClick={e => e.target === e.currentTarget && setModal(false)}>
           <div style={s.modal}>
             <div style={s.modalHeader}>
-              <h2 style={s.modalTitle}>Novo Evento</h2>
+              <h2 style={s.modalTitle}>{editandoId ? 'Detalhe do compromisso' : 'Novo Evento'}</h2>
               <button style={s.btnClose} onClick={() => setModal(false)}>X</button>
             </div>
             <div style={s.modalBody}>
@@ -129,7 +168,7 @@ export default function Agenda() {
                 <div>
                   <L>Responsável</L>
                   <Sel value={form.responsavel_id} onChange={v => setForm(p => ({ ...p, responsavel_id: v }))}>
-                    <option value="">Sem responsavel</option>
+                    <option value="">Sem responsável</option>
                     {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
                   </Sel>
                 </div>
@@ -167,10 +206,16 @@ export default function Agenda() {
               </div>
             </div>
             <div style={s.modalFooter}>
-              <button style={s.btnCancel} onClick={() => setModal(false)}>Cancelar</button>
-              <button style={s.btnSave} onClick={salvar} disabled={salvando || !form.titulo.trim()}>
-                {salvando ? 'Salvando...' : 'Criar Evento'}
-              </button>
+          {editandoId && form.obra_id && (
+            <button style={s.btnCancel} onClick={() => navigate('/obras/' + form.obra_id)}>Abrir obra</button>
+          )}
+          {editandoId && (
+            <button style={{ ...s.btnCancel, color: '#B84040', borderColor: '#F0C8C8' }} onClick={() => excluir(editandoId)}>Excluir</button>
+          )}
+          <button style={s.btnCancel} onClick={() => { setModal(false); setEditandoId(null) }}>Cancelar</button>
+          <button style={s.btnSave} onClick={salvar} disabled={salvando || !form.titulo.trim()}>
+            {salvando ? 'Salvando...' : editandoId ? 'Salvar alterações' : 'Criar Evento'}
+          </button>
             </div>
           </div>
         </div>
@@ -182,7 +227,7 @@ export default function Agenda() {
           <h1 style={s.title}>Central de Agenda</h1>
           <p style={s.sub}>Montagens, entregas, assistências e compromissos operacionais</p>
         </div>
-        <button className="ag-new" style={s.btnNew} onClick={() => setModal(true)}>+ Novo Evento</button>
+        <button className="ag-new" style={s.btnNew} onClick={abrirNovo}>+ Novo Evento</button>
       </div>
 
       <div className="ag-kpis" style={s.kpiGrid}>
@@ -237,7 +282,7 @@ export default function Agenda() {
             {filtro === 'proximos' ? 'Agende vistorias, montagens e compromissos' : ''}
           </div>
           {filtro === 'proximos' && (
-            <button style={s.btnNew} onClick={() => setModal(true)}>+ Criar Primeiro Evento</button>
+            <button style={s.btnNew} onClick={abrirNovo}>+ Criar Primeiro Evento</button>
           )}
         </div>
       ) : (
@@ -248,7 +293,7 @@ export default function Agenda() {
             const isHoje = ev.data === hoje_str
             const status = statusEvento(ev, hoje_str)
             return (
-              <div key={ev.id} className="ag-card" onClick={() => ev.obra_id && navigate('/obras/' + ev.obra_id)} style={{ ...s.card, borderLeft: '4px solid ' + cor, opacity: filtro === 'passados' ? 0.7 : 1, cursor: ev.obra_id ? 'pointer' : 'default' }}>
+              <div key={ev.id} className="ag-card" onClick={() => abrirEditar(ev)} style={{ ...s.card, borderLeft: '4px solid ' + cor, opacity: filtro === 'passados' ? 0.7 : 1, cursor: 'pointer' }}>
                 <div className="ag-datebox" style={{ ...s.datebox, borderColor: isHoje ? cor : 'var(--color-border)', background: isHoje ? cor + '10' : '#fafaf8' }}>
                   <div style={{ fontSize: 22, fontWeight: 700, color: isHoje ? cor : 'var(--color-ink)', fontFamily: 'var(--font-serif)', lineHeight: 1 }}>{d.getDate()}</div>
                   <div style={{ fontSize: 9, color: cor, letterSpacing: 1, fontWeight: 600 }}>{MESES[d.getMonth()].slice(0, 3).toUpperCase()}</div>

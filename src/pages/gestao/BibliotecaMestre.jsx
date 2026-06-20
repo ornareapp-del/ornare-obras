@@ -17,6 +17,23 @@ const AMBIENTES = ['Cozinha', 'Closet', 'Lavabo', 'Gourmet', 'Living', 'Suíte M
 const CRITICIDADES = ['baixa', 'media', 'alta', 'critica']
 const RESPONSAVEIS = ['gestao', 'pos_venda', 'supervisor', 'montador']
 
+const MODELOS_CAMPO_ORNARE = [
+  { fase: 'Pré-Montagem', ambiente: 'Geral', responsavel: 'supervisor', criticidade: 'alta', ordem: 10, exige_foto: true, exige_observacao: true, descricao: 'Validar se a obra está apta para receber a montagem.' },
+  { fase: 'Pré-Montagem', ambiente: 'Geral', responsavel: 'supervisor', criticidade: 'alta', ordem: 20, exige_foto: true, descricao: 'Registrar fotos de vistoria dos acessos, elevadores, áreas de carga e ambiente de trabalho.' },
+  { fase: 'Pré-Montagem', ambiente: 'Geral', responsavel: 'supervisor', criticidade: 'media', ordem: 30, descricao: 'Confirmar disponibilidade de energia, limpeza, liberação de acesso e condições civis mínimas.' },
+  { fase: 'Pré-Montagem', ambiente: 'Geral', responsavel: 'supervisor', criticidade: 'media', ordem: 40, descricao: 'Conferir se as orientações do projeto foram repassadas à equipe responsável.' },
+  { fase: 'Montagem', ambiente: 'Geral', responsavel: 'montador', criticidade: 'alta', ordem: 50, exige_foto: true, descricao: 'Conferir volumes recebidos e registrar evidências da chegada dos materiais.' },
+  { fase: 'Montagem', ambiente: 'Geral', responsavel: 'montador', criticidade: 'alta', ordem: 60, exige_foto: true, descricao: 'Registrar avarias, divergências ou não conformidades antes do início da execução.' },
+  { fase: 'Montagem', ambiente: 'Geral', responsavel: 'montador', criticidade: 'media', ordem: 70, descricao: 'Seguir a sequência de montagem definida por ambiente e projeto executivo.' },
+  { fase: 'Montagem', ambiente: 'Geral', responsavel: 'montador', criticidade: 'alta', ordem: 80, exige_foto: true, descricao: 'Registrar fotos intermediárias de fixação, alinhamento, prumo e ajustes estruturais.' },
+  { fase: 'Montagem', ambiente: 'Geral', responsavel: 'montador', criticidade: 'media', ordem: 90, descricao: 'Testar ferragens, amortecedores, aberturas, regulagens e funcionamento dos módulos.' },
+  { fase: 'Pós-Montagem', ambiente: 'Geral', responsavel: 'supervisor', criticidade: 'alta', ordem: 100, exige_foto: true, exige_observacao: true, descricao: 'Validar acabamento final, limpeza fina e pendências técnicas residuais.' },
+  { fase: 'Pós-Montagem', ambiente: 'Geral', responsavel: 'supervisor', criticidade: 'alta', ordem: 110, exige_foto: true, descricao: 'Registrar fotos finais panorâmicas de cada ambiente concluído.' },
+  { fase: 'Pós-Montagem', ambiente: 'Geral', responsavel: 'supervisor', criticidade: 'media', ordem: 120, descricao: 'Notificar encerramento de campo e preparar orientações de entrega ao cliente.' },
+  { fase: 'Assistência Técnica', ambiente: 'Geral', responsavel: 'supervisor', criticidade: 'alta', ordem: 130, exige_foto: true, exige_observacao: true, descricao: 'Registrar pendência técnica, causa provável, responsável e ação corretiva recomendada.' },
+  { fase: 'Garantia', ambiente: 'Geral', responsavel: 'pos_venda', criticidade: 'media', ordem: 140, descricao: 'Acompanhar retorno do cliente e registrar decisão, prazo e status da solução.' },
+]
+
 function normalizar(valor) {
   return String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 }
@@ -53,6 +70,32 @@ function montarRow(form) {
     obrigatorio: form.obrigatorio,
     ativo: form.ativo,
     gera_automaticamente: true,
+  }
+}
+
+function montarRowImportacao(modelo) {
+  return {
+    descricao: modelo.descricao,
+    fase: modelo.fase,
+    categoria_ambiente: modelo.ambiente || 'Geral',
+    ordem: modelo.ordem,
+    criticidade: modelo.criticidade || 'media',
+    perfil_responsavel: modelo.responsavel || 'montador',
+    obrigatorio: true,
+    ativo: true,
+    gera_automaticamente: true,
+    exige_foto: Boolean(modelo.exige_foto),
+    exige_observacao: Boolean(modelo.exige_observacao),
+    exige_validacao_supervisor: modelo.responsavel === 'montador',
+    visivel_cliente: false,
+  }
+}
+
+function montarRowImportacaoBasico(modelo) {
+  return {
+    descricao: modelo.descricao,
+    categoria_ambiente: modelo.ambiente || 'Geral',
+    ordem: modelo.ordem,
   }
 }
 
@@ -143,6 +186,36 @@ export default function BibliotecaMestre() {
     setSalvando(false)
   }
 
+  async function importarModelosCampo() {
+    setSalvando(true)
+    setErro('')
+
+    const existentes = new Set(itens.map(item => normalizar(`${item.descricao}|${item.fase || ''}|${valorAmbiente(item)}`)))
+    const novos = MODELOS_CAMPO_ORNARE.filter(modelo => !existentes.has(normalizar(`${modelo.descricao}|${modelo.fase}|${modelo.ambiente || 'Geral'}`)))
+
+    if (novos.length === 0) {
+      mostrarToast('Biblioteca de campo já está importada.')
+      setSalvando(false)
+      return
+    }
+
+    const { error } = await supabase.from('checklist_padrao').insert(novos.map(montarRowImportacao))
+
+    if (error) {
+      const { error: fallbackError } = await supabase.from('checklist_padrao').insert(novos.map(montarRowImportacaoBasico))
+      if (fallbackError) setErro(fallbackError.message || error.message)
+      else {
+        mostrarToast(`${novos.length} modelos de campo importados com campos compatíveis.`)
+        await carregar()
+      }
+    } else {
+      mostrarToast(`${novos.length} modelos de campo importados.`)
+      await carregar()
+    }
+
+    setSalvando(false)
+  }
+
   async function alternarAtivo(item) {
     if (!('ativo' in item)) {
       setErro('A coluna ativo não está disponível no checklist_padrao atual.')
@@ -172,6 +245,9 @@ export default function BibliotecaMestre() {
           <h1>Modelos de checklist operacional</h1>
           <p>Itens padrão por fase, ambiente e responsável para gerar checklists de obra sem retrabalho manual.</p>
         </div>
+        <button className="bm-import" onClick={importarModelosCampo} disabled={salvando}>
+          Importar checklist de campo
+        </button>
       </header>
 
       {erro && <div className="bm-alert">{erro}</div>}
@@ -298,6 +374,8 @@ const css = `
 .bm-header span{display:block;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:${THEME.gold};font-weight:900;margin-bottom:8px}
 .bm-header h1{font-family:var(--font-serif);font-size:42px;line-height:1.05;font-weight:500;margin:0;color:${THEME.ink}}
 .bm-header p{font-size:14px;color:${THEME.muted};margin:10px 0 0;max-width:760px;line-height:1.55}
+.bm-import{border:0;background:${THEME.ink};color:#fff;border-radius:12px;padding:12px 18px;font-family:inherit;font-size:13px;font-weight:900;cursor:pointer;white-space:nowrap}
+.bm-import:disabled{opacity:.55;cursor:not-allowed}
 .bm-alert{border:1px solid #F0C8C8;background:#FFF7F7;color:${THEME.danger};border-radius:12px;padding:11px 14px;font-size:13px;font-weight:700;margin-bottom:14px}
 .bm-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:1200;background:${THEME.ink};color:#fff;border-left:3px solid ${THEME.gold};border-radius:13px;padding:12px 18px;font-size:13px;font-weight:800;box-shadow:0 14px 34px rgba(29,28,25,.18)}
 .bm-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
