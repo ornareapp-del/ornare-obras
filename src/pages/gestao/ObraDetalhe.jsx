@@ -949,29 +949,207 @@ function AbaAgenda({ obraId }) {
   const [agenda, setAgenda] = useState([])
   const [checklistVistoria, setChecklistVistoria] = useState([])
   const [fotosVistoria, setFotosVistoria] = useState([])
+  const [fotosDia, setFotosDia] = useState([])
+  const [ocorrenciasDia, setOcorrenciasDia] = useState([])
+  const [checkinsDia, setCheckinsDia] = useState([])
+  const [historicoDia, setHistoricoDia] = useState([])
+  const [mesCalendario, setMesCalendario] = useState(() => {
+    const hoje = new Date()
+    return new Date(hoje.getFullYear(), hoje.getMonth(), 1)
+  })
+  const [diaSelecionado, setDiaSelecionado] = useState('')
   const [loading, setLoading] = useState(true)
   const normalizarAgenda = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 
   async function carregar() {
-    const [{ data }, { data: checklist }, { data: fotos }] = await Promise.all([
+    const [
+      { data },
+      { data: checklist },
+      { data: fotos },
+      { data: ocorrencias },
+      { data: checkins },
+      { data: historico },
+    ] = await Promise.all([
       supabase.from('agenda').select('*').eq('obra_id', obraId).order('data', { ascending: true }),
       supabase.from('checklist_items').select('id, agenda_id, concluido').eq('obra_id', obraId).not('agenda_id', 'is', null),
-      supabase.from('fotos').select('id, agenda_id, categoria').eq('obra_id', obraId).not('agenda_id', 'is', null),
+      supabase.from('fotos').select('id, agenda_id, categoria, created_at, observacao').eq('obra_id', obraId).order('created_at', { ascending: false }),
+      supabase.from('ocorrencias').select('id, titulo, status, gravidade, created_at').eq('obra_id', obraId).order('created_at', { ascending: false }),
+      supabase.from('checkins').select('id, user_id, entrada, saida, created_at').eq('obra_id', obraId).order('created_at', { ascending: false }),
+      supabase.from('historico_obra').select('id, acao, descricao, created_at').eq('obra_id', obraId).order('created_at', { ascending: false }),
     ])
     setAgenda(data || [])
     setChecklistVistoria(checklist || [])
-    setFotosVistoria(fotos || [])
+    setFotosVistoria((fotos || []).filter(f => f.agenda_id))
+    setFotosDia(fotos || [])
+    setOcorrenciasDia(ocorrencias || [])
+    setCheckinsDia(checkins || [])
+    setHistoricoDia(historico || [])
     setLoading(false)
   }
 
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
   useEffect(() => { carregar() }, [])
 
+  function isoLocal(date) {
+    const ano = date.getFullYear()
+    const mes = String(date.getMonth() + 1).padStart(2, '0')
+    const dia = String(date.getDate()).padStart(2, '0')
+    return `${ano}-${mes}-${dia}`
+  }
+
+  function dataItem(value) {
+    if (!value) return ''
+    const data = new Date(value)
+    if (Number.isNaN(data.getTime())) return String(value).slice(0, 10)
+    return isoLocal(data)
+  }
+
+  function tituloMes(date) {
+    return date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+  }
+
+  function mudarMes(delta) {
+    setMesCalendario(prev => new Date(prev.getFullYear(), prev.getMonth() + delta, 1))
+    setDiaSelecionado('')
+  }
+
+  function diasCalendario() {
+    const inicioMes = new Date(mesCalendario.getFullYear(), mesCalendario.getMonth(), 1)
+    const fimMes = new Date(mesCalendario.getFullYear(), mesCalendario.getMonth() + 1, 0)
+    const inicio = new Date(inicioMes)
+    inicio.setDate(inicio.getDate() - inicio.getDay())
+    const total = Math.ceil((fimMes.getDate() + inicioMes.getDay()) / 7) * 7
+    return Array.from({ length: total }, (_, index) => {
+      const dia = new Date(inicio)
+      dia.setDate(inicio.getDate() + index)
+      return {
+        data: dia,
+        key: isoLocal(dia),
+        noMes: dia.getMonth() === mesCalendario.getMonth(),
+      }
+    })
+  }
+
+  function eventosDoDia(key) {
+    return [
+      ...agenda.filter(item => item.data === key).map(item => ({
+        id: `agenda-${item.id}`,
+        tipo: item.tipo || 'Agenda',
+        titulo: item.titulo || 'Compromisso',
+        detalhe: [item.hora_inicio, item.status].filter(Boolean).join(' · '),
+        cor: THEME.gold,
+      })),
+      ...fotosDia.filter(item => dataItem(item.created_at) === key).map(item => ({
+        id: `foto-${item.id}`,
+        tipo: 'Foto',
+        titulo: item.categoria || 'Foto enviada',
+        detalhe: item.observacao || 'Registro fotográfico da obra',
+        cor: '#365C7D',
+      })),
+      ...ocorrenciasDia.filter(item => dataItem(item.created_at) === key).map(item => ({
+        id: `ocorrencia-${item.id}`,
+        tipo: 'Ocorrência',
+        titulo: item.titulo || 'Ocorrência registrada',
+        detalhe: [item.gravidade, item.status].filter(Boolean).join(' · '),
+        cor: '#C0392B',
+      })),
+      ...checkinsDia.filter(item => dataItem(item.entrada || item.created_at) === key).map(item => ({
+        id: `checkin-${item.id}`,
+        tipo: 'Check-in',
+        titulo: item.saida ? 'Entrada e saída registradas' : 'Entrada registrada',
+        detalhe: item.entrada ? new Date(item.entrada).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '',
+        cor: '#2D7A4A',
+      })),
+      ...historicoDia.filter(item => dataItem(item.created_at) === key).map(item => ({
+        id: `historico-${item.id}`,
+        tipo: 'Histórico',
+        titulo: item.acao || 'Atualização da obra',
+        detalhe: item.descricao || '',
+        cor: THEME.muted,
+      })),
+    ]
+  }
+
   if (loading) return <div style={{ color: THEME.muted }}>Carregando...</div>
-  if (agenda.length === 0) return <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhum compromisso na agenda.</div>
+  const dias = diasCalendario()
+  const selecionados = diaSelecionado ? eventosDoDia(diaSelecionado) : []
 
   return (
-    <div style={{ display: 'grid', gap: 10 }}>
+    <div style={{ display: 'grid', gap: 14 }}>
+      <div style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: 14, padding: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
+          <div>
+            <div style={{ fontSize: 10, letterSpacing: 2, color: THEME.gold, textTransform: 'uppercase', fontWeight: 800 }}>Calendário interno da obra</div>
+            <div style={{ fontSize: 20, color: THEME.ink, fontWeight: 800, textTransform: 'capitalize', marginTop: 4 }}>{tituloMes(mesCalendario)}</div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" onClick={() => mudarMes(-1)} style={{ border: `1px solid ${THEME.border}`, background: '#fff', borderRadius: 999, padding: '8px 12px', cursor: 'pointer', fontWeight: 800 }}>Anterior</button>
+            <button type="button" onClick={() => mudarMes(1)} style={{ border: `1px solid ${THEME.border}`, background: '#fff', borderRadius: 999, padding: '8px 12px', cursor: 'pointer', fontWeight: 800 }}>Próximo</button>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 6, marginBottom: 6 }}>
+          {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(dia => (
+            <div key={dia} style={{ fontSize: 10, color: THEME.muted, fontWeight: 900, textAlign: 'center' }}>{dia}</div>
+          ))}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 6 }}>
+          {dias.map(dia => {
+            const eventos = eventosDoDia(dia.key)
+            const ativo = diaSelecionado === dia.key
+            return (
+              <button
+                type="button"
+                key={dia.key}
+                onClick={() => setDiaSelecionado(dia.key)}
+                style={{
+                  minHeight: 52,
+                  border: `1px solid ${ativo ? THEME.gold : eventos.length ? '#D8C8AF' : THEME.border}`,
+                  background: ativo ? THEME.softGold : dia.noMes ? '#FFFEFC' : '#F8F5EF',
+                  color: dia.noMes ? THEME.ink : THEME.muted,
+                  borderRadius: 12,
+                  cursor: 'pointer',
+                  display: 'grid',
+                  placeItems: 'center',
+                  position: 'relative',
+                  fontWeight: 900,
+                  opacity: dia.noMes ? 1 : 0.55,
+                }}
+              >
+                <span>{dia.data.getDate()}</span>
+                {eventos.length > 0 && (
+                  <span style={{ position: 'absolute', bottom: 7, display: 'flex', gap: 3 }}>
+                    {eventos.slice(0, 3).map(evento => <i key={evento.id} style={{ width: 5, height: 5, borderRadius: 999, background: evento.cor }} />)}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+
+        {diaSelecionado && (
+          <div style={{ marginTop: 14, border: `1px solid ${THEME.border}`, borderRadius: 12, padding: 14, background: '#FFFEFC' }}>
+            <div style={{ fontSize: 12, color: THEME.gold, fontWeight: 900, marginBottom: 10 }}>
+              {new Date(`${diaSelecionado}T00:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}
+            </div>
+            {selecionados.length === 0 ? (
+              <div style={{ fontSize: 13, color: THEME.muted }}>Nenhum registro encontrado neste dia.</div>
+            ) : (
+              <div style={{ display: 'grid', gap: 8 }}>
+                {selecionados.map(evento => (
+                  <div key={evento.id} style={{ borderLeft: `4px solid ${evento.cor}`, padding: '8px 10px', borderRadius: 8, background: '#fff' }}>
+                    <div style={{ fontSize: 10, color: evento.cor, letterSpacing: 1.4, textTransform: 'uppercase', fontWeight: 900 }}>{evento.tipo}</div>
+                    <div style={{ fontSize: 13.5, color: THEME.ink, fontWeight: 800, marginTop: 3 }}>{evento.titulo}</div>
+                    {evento.detalhe && <div style={{ fontSize: 12.5, color: THEME.muted, marginTop: 3 }}>{evento.detalhe}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {agenda.length === 0 && <div style={{ textAlign: 'center', padding: '34px 0', color: '#bbb' }}>Nenhum compromisso na agenda.</div>}
       {agenda.map(item => (
         <div key={item.id} style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: 12, padding: '14px 16px', display: 'flex', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
           <div style={{ minWidth: 92 }}>

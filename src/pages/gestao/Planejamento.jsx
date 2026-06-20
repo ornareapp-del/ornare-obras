@@ -26,6 +26,18 @@ const FASE_CORES = {
   preobra: '#6D675E',
 }
 
+const COMPROMISSO_CORES = {
+  vistoria: '#2D7A4A',
+  montagem: '#B8965E',
+  assistencia: '#C0392B',
+  medicao: '#7A5AA6',
+  entrega: '#365C7D',
+  reuniao: '#8A8175',
+  interno: '#1D1C19',
+}
+
+const FERIADOS_FIXOS = ['01-01', '04-21', '05-01', '09-07', '10-12', '11-02', '11-15', '12-25']
+
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
 const DIAS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab', 'Dom']
 const TIPOS_COMPROMISSO = ['Montagem', 'Assistência Técnica', 'Vistoria', 'Medição', 'Entrega', 'Reunião']
@@ -37,6 +49,25 @@ function norm(value) {
 function corFase(fase) {
   const key = norm(fase).replace(/[^a-z0-9]/g, '')
   return FASE_CORES[key] || THEME.gold
+}
+
+function corCompromisso(tipo) {
+  const texto = norm(tipo)
+  if (texto.includes('vistoria')) return COMPROMISSO_CORES.vistoria
+  if (texto.includes('montagem')) return COMPROMISSO_CORES.montagem
+  if (texto.includes('assist')) return COMPROMISSO_CORES.assistencia
+  if (texto.includes('medicao')) return COMPROMISSO_CORES.medicao
+  if (texto.includes('entrega')) return COMPROMISSO_CORES.entrega
+  if (texto.includes('reuniao')) return COMPROMISSO_CORES.reuniao
+  if (texto.includes('intern')) return COMPROMISSO_CORES.interno
+  return THEME.gold
+}
+
+function isDiaNaoUtil(date) {
+  if (!date) return false
+  const dia = date.getDay()
+  const chave = `${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  return dia === 0 || dia === 6 || FERIADOS_FIXOS.includes(chave)
 }
 
 function safeArray(result) {
@@ -177,7 +208,7 @@ export default function Planejamento() {
         montadores,
         inicio,
         fim,
-        faseCor: corFase(a.tipo),
+        faseCor: corCompromisso(a.tipo || a.titulo),
         compromissoTipo: a.tipo || a.titulo || 'Compromisso',
       }
     })
@@ -197,6 +228,7 @@ export default function Planejamento() {
         data: atual,
         key: isoDate(atual),
         noMes: atual.getMonth() === mesAtual.getMonth(),
+        naoUtil: isDiaNaoUtil(atual),
         obras: [...agendaDia, ...obrasCronograma],
       })
     }
@@ -305,11 +337,17 @@ export default function Planejamento() {
       data_fim: isoDate(data),
       observacao: '',
       anexos: [],
+      permitir_nao_util: false,
     })
   }
 
   async function salvarCompromisso() {
     if (!modalCompromisso?.tipo || !modalCompromisso?.data) return
+    const dataInicio = dateOnly(modalCompromisso.data)
+    if (isDiaNaoUtil(dataInicio) && !modalCompromisso.permitir_nao_util) {
+      const confirmar = window.confirm('Você está adicionando trabalho em um dia não útil. Deseja confirmar?')
+      if (!confirmar) return
+    }
     setSalvando(true)
     setErro('')
 
@@ -535,8 +573,9 @@ function Calendario({ dias, mesAtual, abrirObra, abrirModalDia }) {
       </div>
       <div className="pl-calendar">
         {dias.map(dia => (
-          <div key={dia.key} className={dia.noMes ? 'pl-day' : 'pl-day outside'} onClick={() => abrirModalDia(dia.data)}>
+          <div key={dia.key} className={`${dia.noMes ? 'pl-day' : 'pl-day outside'}${dia.naoUtil ? ' non-workday' : ''}`} onClick={() => abrirModalDia(dia.data)}>
             <div className="pl-day-num">{dia.data.getDate()}</div>
+            {dia.naoUtil && <div className="pl-day-kind">não útil</div>}
             <div className="pl-day-items">
               {dia.obras.slice(0, 4).map(item => (
                 <button key={`${dia.key}-${item.origem}-${item.id}`} onClick={e => { e.stopPropagation(); abrirObra(item.obra_id) }}>
@@ -556,6 +595,7 @@ function Calendario({ dias, mesAtual, abrirObra, abrirModalDia }) {
 
 function CompromissoModal({ form, setForm, obras, supervisores, montadores, vinculos, salvando, onClose, onSave }) {
   const obraSelecionada = obras.find(o => o.id === form.obra_id)
+  const dataNaoUtil = isDiaNaoUtil(dateOnly(form.data))
   const montadoresDaObra = form.obra_id
     ? montadores.filter(m => vinculos.some(v => v.obra_id === form.obra_id && v.montador_id === m.id))
     : montadores
@@ -631,6 +671,13 @@ function CompromissoModal({ form, setForm, obras, supervisores, montadores, vinc
             <span>Observação</span>
             <textarea rows={4} value={form.observacao} onChange={e => set('observacao', e.target.value)} placeholder="Detalhes para equipe, restrições de acesso, materiais, horários..." />
           </label>
+
+          {dataNaoUtil && (
+            <label className="pl-non-workday-warning">
+              <input type="checkbox" checked={Boolean(form.permitir_nao_util)} onChange={e => set('permitir_nao_util', e.target.checked)} />
+              <span>Permitir trabalho neste sábado, domingo ou feriado.</span>
+            </label>
+          )}
         </div>
 
         <div className="pl-modal-foot">
@@ -787,7 +834,9 @@ const css = `
 .pl-day{min-height:132px;border:1px solid ${THEME.border};background:#FFFEFC;border-radius:13px;padding:9px;min-width:0;cursor:pointer;transition:border-color .15s,box-shadow .15s}
 .pl-day:hover{border-color:${THEME.gold};box-shadow:0 10px 24px rgba(29,28,25,.06)}
 .pl-day.outside{opacity:.45;background:#F9F6F0}
+.pl-day.non-workday{background:#F7F1EA;border-color:#DFCDB4}
 .pl-day-num{font-size:12px;font-weight:900;color:${THEME.gold};margin-bottom:7px}
+.pl-day-kind{display:inline-flex;border-radius:999px;background:#fff;color:${THEME.muted};font-size:9px;font-weight:900;padding:2px 6px;margin:-2px 0 7px;text-transform:uppercase;letter-spacing:.8px}
 .pl-day-items{display:flex;flex-direction:column;gap:6px}
 .pl-day-items button{border:0;background:#F6F1E8;border-left:3px solid ${THEME.gold};border-radius:9px;padding:7px 8px;text-align:left;cursor:pointer;font-family:inherit;min-width:0}
 .pl-day-items strong{display:block;font-size:11.5px;color:${THEME.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -826,6 +875,8 @@ const css = `
 .pl-form-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .pl-form-grid label,.pl-observacao{display:flex;flex-direction:column;gap:6px;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:${THEME.muted};font-weight:900}
 .pl-form-grid input,.pl-form-grid select,.pl-observacao textarea{width:100%;box-sizing:border-box;border:1px solid ${THEME.border};background:#FFFEFC;border-radius:10px;padding:10px 11px;font-family:inherit;font-size:13px;color:${THEME.ink};outline:none}
+.pl-non-workday-warning{margin-top:12px;display:flex!important;flex-direction:row!important;align-items:center;gap:9px;border:1px solid #E8CDA7;background:#FFF8EC;border-radius:12px;padding:11px 12px;color:${THEME.warn}!important;letter-spacing:0!important;text-transform:none!important;font-size:12.5px!important}
+.pl-non-workday-warning input{width:auto!important}
 .pl-montadores{margin:16px 0;border:1px solid ${THEME.border};background:#FFFEFC;border-radius:14px;padding:14px}
 .pl-montadores>span{display:block;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:${THEME.gold};font-weight:900;margin-bottom:9px}
 .pl-montadores small{display:block;font-size:12px;color:${THEME.muted}}

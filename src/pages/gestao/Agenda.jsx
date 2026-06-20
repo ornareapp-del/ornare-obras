@@ -11,6 +11,16 @@ const TIPO_COR = {
   'Apresentacao': '#4a90d9', 'Compromisso': '#888', 'Tarefa': '#b09a7a',
 }
 
+const TIPO_CORES = [
+  { termos: ['vistoria'], cor: '#2D7A4A' },
+  { termos: ['montagem'], cor: '#B8965E' },
+  { termos: ['assistencia', 'tecnica'], cor: '#C0392B' },
+  { termos: ['medicao'], cor: '#7A5AA6' },
+  { termos: ['entrega'], cor: '#365C7D' },
+  { termos: ['reuniao'], cor: '#8A8175' },
+  { termos: ['intern'], cor: '#1D1C19' },
+]
+
 const VISTORIA_CHECKLIST = [
   'Conferir acesso à obra, elevador, carga e descarga.',
   'Validar se os ambientes estão limpos, liberados e desimpedidos.',
@@ -22,6 +32,21 @@ const VISTORIA_CHECKLIST = [
 
 function norm(value) {
   return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+}
+
+function corTipo(value) {
+  const texto = norm(value)
+  return TIPO_CORES.find(item => item.termos.some(termo => texto.includes(termo)))?.cor || TIPO_COR[value] || '#888'
+}
+
+function normalizarTitulo(value) {
+  const siglas = new Set(['SC', 'SP', 'RJ', 'PR', 'RS', 'MG', 'CPF', 'CNPJ', 'LTDA', 'S/A', 'KM'])
+  return String(value || '').trim().split(/\s+/).map(parte => {
+    const limpa = parte.replace(/[^\p{L}\p{N}/.-]/gu, '')
+    if (siglas.has(limpa.toUpperCase())) return parte.toUpperCase()
+    if (parte.length <= 2 && parte === parte.toUpperCase()) return parte
+    return parte.charAt(0).toLocaleUpperCase('pt-BR') + parte.slice(1).toLocaleLowerCase('pt-BR')
+  }).join(' ')
 }
 
 function statusEvento(ev, hojeStr) {
@@ -51,6 +76,7 @@ export default function Agenda() {
   const [acaoStatus, setAcaoStatus] = useState('')
   const [vistoriaStats, setVistoriaStats] = useState({ checklist: 0, fotos: 0 })
   const [erroModal, setErroModal] = useState('')
+  const [toast, setToast] = useState('')
   const hoje = new Date()
   const [form, setForm] = useState({
     titulo: '', descricao: '', tipo: 'Compromisso', obra_id: '',
@@ -154,7 +180,7 @@ export default function Agenda() {
     setErroModal('')
 
     const payload = {
-      titulo: form.titulo,
+      titulo: normalizarTitulo(form.titulo),
       observacao: form.descricao || null,
       tipo: form.tipo,
       obra_id: form.reuniao_interna ? null : (form.obra_id || null),
@@ -181,11 +207,13 @@ export default function Agenda() {
 
     await carregar()
     if (result.data) preencherForm(result.data)
-    setAcaoStatus(editandoId ? 'Alterações salvas.' : 'Compromisso criado.')
-    if (!editandoId && result.data?.id) {
-      setEditandoId(result.data.id)
-      await carregarVistoriaStats(result.data.id)
-    }
+    setToast(editandoId ? 'Alterações salvas com sucesso.' : 'Compromisso criado com sucesso.')
+    window.setTimeout(() => setToast(''), 3200)
+    setModal(false)
+    setEditandoId(null)
+    setAcaoStatus('')
+    setVistoriaStats({ checklist: 0, fotos: 0 })
+    setForm(formInicial())
     setSalvando(false)
   }
 
@@ -291,6 +319,7 @@ export default function Agenda() {
   return (
     <div className="ow-page" style={s.page}>
       <style>{css}</style>
+      {toast && <div style={s.toast}>{toast}</div>}
 
       {modal && (
         <div style={s.modalBg} onClick={e => e.target === e.currentTarget && setModal(false)}>
@@ -491,7 +520,7 @@ export default function Agenda() {
         <div>
           {lista.map(ev => {
             const d = new Date(ev.data + 'T00:00:00')
-            const cor = TIPO_COR[ev.tipo] || '#888'
+            const cor = corTipo(ev.tipo || ev.titulo)
             const isHoje = ev.data === hoje_str
             const status = statusEvento(ev, hoje_str)
             return (
@@ -566,6 +595,7 @@ const css = `
 
 const s = {
   page: { padding: '32px 40px', maxWidth: 900, margin: '0 auto' },
+  toast: { position: 'fixed', left: '50%', bottom: 24, transform: 'translateX(-50%)', zIndex: 1300, background: 'var(--color-ink)', color: '#fff', borderLeft: '3px solid var(--color-gold)', borderRadius: 13, padding: '12px 18px', fontSize: 13, fontWeight: 800, boxShadow: '0 14px 34px rgba(29,28,25,.18)' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 },
   breadcrumb: { fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6 },
   title: { fontFamily: 'var(--font-serif)', fontSize: 36, fontWeight: 500, color: 'var(--color-ink)', margin: 0 },
