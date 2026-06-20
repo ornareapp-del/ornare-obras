@@ -266,12 +266,50 @@ export default function MontadorDashboard() {
     navigate('/login', { replace: true })
   }
 
+  function compromissoAtual() {
+    const agora = new Date()
+    const hoje = agora.toISOString().split('T')[0]
+    const operacionais = agenda
+      .filter(item => item.data === hoje)
+      .filter(item => ['vistoria', 'montagem', 'assist', 'medicao', 'entrega'].some(termo => norm(item.tipo || item.titulo).includes(termo)))
+      .sort((a, b) => `${a.hora_inicio || ''}`.localeCompare(`${b.hora_inicio || ''}`))
+    return operacionais[0] || agenda.find(item => item.data === hoje) || null
+  }
+
+  async function criarNotificacoesOperacionais({ tipo, titulo, descricao, entidadeTipo, entidadeId, agendaId, prioridade = 'normal' }) {
+    if (!obraAtiva || !user) return
+    const destinatarios = new Set([obraAtiva.supervisor_id, obraAtiva.comercial_id].filter(Boolean))
+    const { data: gestores } = await supabase
+      .from('profiles')
+      .select('id')
+      .in('role', ['gestao', 'pos_venda', 'vendedor'])
+
+    ;(gestores || []).forEach(p => p.id && destinatarios.add(p.id))
+    destinatarios.delete(user.id)
+
+    const registros = [...destinatarios].map(usuario_id => ({
+      usuario_id,
+      obra_id: obraAtiva.id,
+      tipo,
+      titulo,
+      descricao,
+      prioridade,
+      status: 'nao_lida',
+      rota: agendaId ? `/agenda?compromisso=${agendaId}` : `/obras/${obraAtiva.id}`,
+      entidade_tipo: entidadeTipo,
+      entidade_id: entidadeId || agendaId || obraAtiva.id,
+    }))
+
+    if (registros.length) await supabase.from('notificacoes').insert(registros)
+  }
+
   async function fazerCheckin() {
     if (!obraAtiva || !user) return
     setCheckando(true)
 
     let lat = null
     let lng = null
+    let localizacaoAutorizada = false
 
     try {
       const pos = await new Promise((resolve, reject) =>
@@ -279,17 +317,23 @@ export default function MontadorDashboard() {
       )
       lat = pos.coords.latitude
       lng = pos.coords.longitude
+      localizacaoAutorizada = true
     } catch {
       // O check-in continua mesmo se a localização não estiver disponível.
     }
 
-    const { error } = await supabase.from('checkins').insert([{
+    const compromisso = compromissoAtual()
+    const { data, error } = await supabase.from('checkins').insert([{
       user_id: user.id,
       obra_id: obraAtiva.id,
+      agenda_id: compromisso?.id || null,
       entrada: new Date().toISOString(),
+      localizacao_autorizada: localizacaoAutorizada,
+      entrada_latitude: lat,
+      entrada_longitude: lng,
       latitude: lat,
       longitude: lng,
-    }])
+    }]).select('*').single()
     if (error) {
       mostrarSucesso('Nao foi possivel registrar o check-in.')
       setCheckando(false)
@@ -299,6 +343,15 @@ export default function MontadorDashboard() {
     const mensagem = lat ? 'Check-in registrado com localização.' : 'Check-in registrado.'
     setServicoFeedback(mensagem)
     mostrarSucesso(mensagem)
+    await criarNotificacoesOperacionais({
+      tipo: 'checkin',
+      titulo: 'Montador fez check-in',
+      descricao: `${profile?.full_name || 'Montador'} iniciou serviço em ${obraAtiva.nome || 'obra'}.`,
+      entidadeTipo: 'checkin',
+      entidadeId: data?.id,
+      agendaId: compromisso?.id,
+      prioridade: 'normal',
+    })
     await carregarDadosObra()
     setCheckando(false)
   }
@@ -307,12 +360,36 @@ export default function MontadorDashboard() {
     setCheckando(true)
     const ultimo = checkins.find(c => !c.saida)
     if (ultimo) {
-      const { error } = await supabase.from('checkins').update({ saida: new Date().toISOString() }).eq('id', ultimo.id)
+      let lat = null
+      let lng = null
+      try {
+        const pos = await new Promise((resolve, reject) =>
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 8000 })
+        )
+        lat = pos.coords.latitude
+        lng = pos.coords.longitude
+      } catch {
+        // Check-out continua mesmo sem localizacao.
+      }
+      const { error } = await supabase.from('checkins').update({
+        saida: new Date().toISOString(),
+        saida_latitude: lat,
+        saida_longitude: lng,
+      }).eq('id', ultimo.id)
       if (error) {
         mostrarSucesso('Não foi possível registrar o check-out.')
         setCheckando(false)
         return
       }
+      await criarNotificacoesOperacionais({
+        tipo: 'checkout',
+        titulo: 'Montador fez check-out',
+        descricao: `${profile?.full_name || 'Montador'} finalizou serviço em ${obraAtiva.nome || 'obra'}.`,
+        entidadeTipo: 'checkin',
+        entidadeId: ultimo.id,
+        agendaId: ultimo.agenda_id,
+        prioridade: 'normal',
+      })
     }
     setServicoFeedback('Check-out registrado.')
     mostrarSucesso('Check-out registrado.')
@@ -333,6 +410,17 @@ export default function MontadorDashboard() {
       concluido_por: concluindo ? user.id : null,
       concluido_em: concluindo ? new Date().toISOString() : null,
     }).eq('id', item.id)
+    if (concluindo) {
+      await criarNotificacoesOperacionais({
+        tipo: 'checklist',
+        titulo: 'Item de checklist concluído',
+        descricao: item.descricao || 'Checklist atualizado pelo montador.',
+        entidadeTipo: 'checklist_items',
+        entidadeId: item.id,
+        agendaId: item.agenda_id,
+        prioridade: 'normal',
+      })
+    }
     await carregarDadosObra()
   }
 
@@ -353,7 +441,7 @@ export default function MontadorDashboard() {
       const { error: uploadError } = await supabase.storage.from('fotos-obras').upload(path, file)
       if (uploadError) throw uploadError
 
-      const { error: insertError } = await supabase.from('fotos').insert([{
+      const { data: fotoCriada, error: insertError } = await supabase.from('fotos').insert([{
         obra_id: obraAtiva.id,
         enviada_por: user.id,
         categoria: formFoto.categoria,
@@ -365,9 +453,18 @@ export default function MontadorDashboard() {
         visibilidade: 'interna',
         observacao: formFoto.observacao || file.name,
         storage_path: path,
-      }])
+      }]).select('id, agenda_id, categoria').single()
       if (insertError) throw insertError
 
+      await criarNotificacoesOperacionais({
+        tipo: 'foto',
+        titulo: 'Foto aguardando aprovação',
+        descricao: `${profile?.full_name || 'Montador'} enviou foto de ${fotoCriada?.categoria || formFoto.categoria}.`,
+        entidadeTipo: 'fotos',
+        entidadeId: fotoCriada?.id,
+        agendaId: fotoCriada?.agenda_id || formFoto.agenda_id,
+        prioridade: formFoto.categoria === 'Não conformidade' ? 'alta' : 'normal',
+      })
       setFormFoto({ categoria: '', ambiente_id: '', agenda_id: '', observacao: '' })
       mostrarSucesso('Foto enviada.')
       await carregarDadosObra()
@@ -383,7 +480,7 @@ export default function MontadorDashboard() {
     if (!problema.trim() || !obraAtiva || !user) return
     setSalvandoProblema(true)
 
-    await supabase.from('ocorrencias').insert([{
+    const { data: ocorrenciaCriada } = await supabase.from('ocorrencias').insert([{
       obra_id: obraAtiva.id,
       criado_por: user.id,
       tipo: 'Problema técnico',
@@ -391,7 +488,17 @@ export default function MontadorDashboard() {
       descricao: problema.trim(),
       gravidade: 'media',
       status: 'Aberta',
-    }])
+    }]).select('id, titulo').single()
+
+    await criarNotificacoesOperacionais({
+      tipo: 'ocorrencia',
+      titulo: 'Ocorrência criada',
+      descricao: ocorrenciaCriada?.titulo || 'Problema reportado pelo montador.',
+      entidadeTipo: 'ocorrencias',
+      entidadeId: ocorrenciaCriada?.id,
+      agendaId: modalProblema?.agenda_id,
+      prioridade: 'alta',
+    })
 
     setModalProblema(null)
     setProblema('')

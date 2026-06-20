@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 
 const TIPOS = ['Apresentação','Assistência Técnica','Compromisso','Entrega','Medição','Montagem','Tarefa','Vistoria','Reunião Interna']
@@ -65,6 +65,7 @@ function statusEvento(ev, hojeStr) {
 
 export default function Agenda() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [eventos, setEventos] = useState([])
   const [obras, setObras] = useState([])
   const [profiles, setProfiles] = useState([])
@@ -91,6 +92,24 @@ export default function Agenda() {
   })
 
   useEffect(() => { carregar() }, [])
+
+  useEffect(() => {
+    const id = new URLSearchParams(location.search).get('compromisso')
+    if (!id) return
+
+    async function abrirPorRota() {
+      const { data } = await supabase
+        .from('agenda')
+        .select('*')
+        .eq('id', id)
+        .single()
+
+      if (data) abrirEditar(data)
+    }
+
+    abrirPorRota()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search])
 
   function formInicial() {
     return {
@@ -137,7 +156,7 @@ export default function Agenda() {
     setAcaoStatus('')
     setErroModal('')
     carregarVistoriaStats(ev.id)
-    carregarCheckinsCompromisso(ev.obra_id, ev.data)
+    carregarCheckinsCompromisso(ev.obra_id, ev.data, ev.id)
     setModal(true)
 
     const { data, error } = await supabase
@@ -153,7 +172,7 @@ export default function Agenda() {
 
     if (data) {
       preencherForm(data)
-      carregarCheckinsCompromisso(data.obra_id, data.data)
+      carregarCheckinsCompromisso(data.obra_id, data.data, data.id)
     }
   }
 
@@ -169,18 +188,32 @@ export default function Agenda() {
     setVistoriaStats({ checklist: checklistCount || 0, fotos: fotosCount || 0 })
   }
 
-  async function carregarCheckinsCompromisso(obraId, dataCompromisso) {
+  async function carregarCheckinsCompromisso(obraId, dataCompromisso, agendaId = editandoId) {
     if (!obraId || !dataCompromisso) {
       setCheckinsCompromisso([])
       return
     }
     setCheckinsLoading(true)
+    if (agendaId) {
+      const { data, error } = await supabase
+        .from('checkins')
+        .select('id, user_id, obra_id, agenda_id, entrada, saida, latitude, longitude, entrada_latitude, entrada_longitude, saida_latitude, saida_longitude, created_at, profiles(full_name)')
+        .eq('agenda_id', agendaId)
+        .order('entrada', { ascending: false })
+
+      if (!error && data?.length) {
+        setCheckinsCompromisso(data)
+        setCheckinsLoading(false)
+        return
+      }
+    }
+
     const inicio = new Date(`${dataCompromisso}T00:00:00`)
     const fim = new Date(inicio)
     fim.setDate(fim.getDate() + 1)
     const { data, error } = await supabase
       .from('checkins')
-      .select('id, user_id, obra_id, entrada, saida, latitude, longitude, created_at, profiles(full_name)')
+      .select('id, user_id, obra_id, agenda_id, entrada, saida, latitude, longitude, entrada_latitude, entrada_longitude, saida_latitude, saida_longitude, created_at, profiles(full_name)')
       .eq('obra_id', obraId)
       .gte('entrada', inicio.toISOString())
       .lt('entrada', fim.toISOString())
@@ -473,7 +506,9 @@ export default function Agenda() {
                   ) : (
                     <div style={s.campoList}>
                       {checkinsCompromisso.map(registro => {
-                        const temLocal = registro.latitude && registro.longitude
+                        const latitude = registro.entrada_latitude || registro.latitude
+                        const longitude = registro.entrada_longitude || registro.longitude
+                        const temLocal = latitude && longitude
                         return (
                           <div key={registro.id} style={s.campoItem}>
                             <div style={s.campoPerson}>{registro.profiles?.full_name || 'Profissional'}</div>
@@ -483,7 +518,7 @@ export default function Agenda() {
                               <span style={s.campoInfo}>
                                 <strong style={s.campoInfoLabel}>Localização</strong>
                                 {temLocal ? (
-                                  <a href={`https://www.google.com/maps?q=${registro.latitude},${registro.longitude}`} target="_blank" rel="noreferrer" style={s.localLink}>
+                                  <a href={`https://www.google.com/maps?q=${latitude},${longitude}`} target="_blank" rel="noreferrer" style={s.localLink}>
                                     Abrir mapa
                                   </a>
                                 ) : 'Não autorizada'}
