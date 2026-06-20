@@ -220,15 +220,18 @@ export default function Planejamento() {
     const calFim = endOfCalendar(mesAtual)
     for (const d = new Date(calInicio); d <= calFim; d.setDate(d.getDate() + 1)) {
       const atual = new Date(d)
-      const obrasCronograma = registros
-        .filter(r => r.inicio && r.fim && atual >= r.inicio && atual <= r.fim)
-        .map(r => ({ ...r, origem: 'cronograma', compromissoTipo: r.fase || 'Cronograma' }))
+      const naoUtil = isDiaNaoUtil(atual)
+      const obrasCronograma = naoUtil
+        ? []
+        : registros
+          .filter(r => r.inicio && r.fim && atual >= r.inicio && atual <= r.fim)
+          .map(r => ({ ...r, origem: 'cronograma', compromissoTipo: r.fase || 'Cronograma' }))
       const agendaDia = compromissosAgenda.filter(r => r.inicio && r.fim && atual >= r.inicio && atual <= r.fim)
       dias.push({
         data: atual,
         key: isoDate(atual),
         noMes: atual.getMonth() === mesAtual.getMonth(),
-        naoUtil: isDiaNaoUtil(atual),
+        naoUtil,
         obras: [...agendaDia, ...obrasCronograma],
       })
     }
@@ -575,7 +578,6 @@ function Calendario({ dias, mesAtual, abrirObra, abrirModalDia }) {
         {dias.map(dia => (
           <div key={dia.key} className={`${dia.noMes ? 'pl-day' : 'pl-day outside'}${dia.naoUtil ? ' non-workday' : ''}`} onClick={() => abrirModalDia(dia.data)}>
             <div className="pl-day-num">{dia.data.getDate()}</div>
-            {dia.naoUtil && <div className="pl-day-kind">não útil</div>}
             <div className="pl-day-items">
               {dia.obras.slice(0, 4).map(item => (
                 <button key={`${dia.key}-${item.origem}-${item.id}`} onClick={e => { e.stopPropagation(); abrirObra(item.obra_id) }}>
@@ -836,7 +838,6 @@ const css = `
 .pl-day.outside{opacity:.45;background:#F9F6F0}
 .pl-day.non-workday{background:#F7F1EA;border-color:#DFCDB4}
 .pl-day-num{font-size:12px;font-weight:900;color:${THEME.gold};margin-bottom:7px}
-.pl-day-kind{display:inline-flex;border-radius:999px;background:#fff;color:${THEME.muted};font-size:9px;font-weight:900;padding:2px 6px;margin:-2px 0 7px;text-transform:uppercase;letter-spacing:.8px}
 .pl-day-items{display:flex;flex-direction:column;gap:6px}
 .pl-day-items button{border:0;background:#F6F1E8;border-left:3px solid ${THEME.gold};border-radius:9px;padding:7px 8px;text-align:left;cursor:pointer;font-family:inherit;min-width:0}
 .pl-day-items strong{display:block;font-size:11.5px;color:${THEME.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
