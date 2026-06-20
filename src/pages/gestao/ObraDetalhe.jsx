@@ -980,7 +980,7 @@ function AbaAgenda({ obraId }) {
           </div>
           <div style={{ flex: 1, minWidth: 180 }}>
             <div style={{ fontSize: 14, color: THEME.ink, fontWeight: 700 }}>{item.titulo || item.tipo || 'Compromisso'}</div>
-            {item.descricao && <div style={{ fontSize: 13, color: THEME.muted, marginTop: 4, lineHeight: 1.5 }}>{item.descricao}</div>}
+            {(item.observacao || item.descricao) && <div style={{ fontSize: 13, color: THEME.muted, marginTop: 4, lineHeight: 1.5 }}>{item.observacao || item.descricao}</div>}
             {normalizarAgenda(item.tipo || item.titulo).includes('vistoria') && (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
                 <span style={{ fontSize: 11, color: THEME.success, background: '#EAF5EE', borderRadius: 999, padding: '5px 9px', fontWeight: 800 }}>{item.status || 'pendente'}</span>

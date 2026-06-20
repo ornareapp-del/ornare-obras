@@ -98,7 +98,7 @@ function enderecoObra(obra) {
 }
 
 function tipoAgenda(item) {
-  const tipo = norm(item.tipo || item.titulo || item.descricao)
+  const tipo = norm(item.tipo || item.titulo || item.observacao || item.descricao)
   if (tipo.includes('vistoria')) return 'Vistoria'
   if (tipo.includes('assist')) return 'Assistência técnica'
   if (tipo.includes('reuniao') || tipo.includes('reuni')) return 'Reunião'
@@ -648,7 +648,7 @@ export default function MontadorDashboard() {
               <strong>{tipoAgenda(vm.proximaAgenda)}</strong>
               <em className={`tone-${vm.proximaAgendaStatus?.tone || 'warn'}`}>{vm.proximaAgendaStatus?.label || 'Pendente'}</em>
             </div>
-            <span>{vm.proximaAgenda.titulo || vm.proximaAgenda.descricao || 'Compromisso da obra'}</span>
+            <span>{vm.proximaAgenda.titulo || vm.proximaAgenda.observacao || vm.proximaAgenda.descricao || 'Compromisso da obra'}</span>
             <small>{dataBR(vm.proximaAgenda.data)}{vm.proximaAgenda.hora_inicio ? ` · ${vm.proximaAgenda.hora_inicio}` : ''}</small>
           </div>
         ) : (

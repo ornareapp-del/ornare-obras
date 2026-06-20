@@ -87,7 +87,7 @@ export default function Agenda() {
   function preencherForm(ev) {
     setForm({
       titulo: ev.titulo || '',
-      descricao: ev.descricao || '',
+      descricao: ev.observacao || ev.descricao || '',
       tipo: ev.tipo || 'Compromisso',
       obra_id: ev.obra_id || '',
       responsavel_id: ev.responsavel_id || '',
@@ -155,7 +155,7 @@ export default function Agenda() {
 
     const payload = {
       titulo: form.titulo,
-      descricao: form.descricao || null,
+      observacao: form.descricao || null,
       tipo: form.tipo,
       obra_id: form.reuniao_interna ? null : (form.obra_id || null),
       responsavel_id: form.responsavel_id || null,
@@ -509,7 +509,7 @@ export default function Agenda() {
                     {ev.reuniao_interna && <span style={{ ...s.tipoBadge, background: '#eef2f8', color: '#3a5580' }}>Reunião Interna</span>}
                     {isHoje && <span style={{ ...s.tipoBadge, background: '#edf7f0', color: '#3a7d4f' }}>Hoje</span>}
                   </div>
-                  {ev.descricao && <div className="ag-card-desc" style={s.cardDesc}>{ev.descricao}</div>}
+                  {(ev.observacao || ev.descricao) && <div className="ag-card-desc" style={s.cardDesc}>{ev.observacao || ev.descricao}</div>}
                   <div className="ag-card-meta" style={s.cardMeta}>
                     {ev.hora_inicio && <span>{ev.hora_inicio.slice(0, 5)}{ev.hora_fim ? ' - ' + ev.hora_fim.slice(0, 5) : ''}</span>}
                     {ev.obras?.nome && <span>Obra: {ev.obras.nome}</span>}
