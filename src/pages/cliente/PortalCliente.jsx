@@ -78,6 +78,12 @@ function isMensagemCliente(item) {
   return false
 }
 
+function tabelaNaoEncontrada(error) {
+  if (!error) return false
+  const msg = `${error.code || ''} ${error.message || ''}`.toLowerCase()
+  return msg.includes('pgrst205') || msg.includes('could not find the table') || msg.includes('schema cache')
+}
+
 export default function PortalCliente() {
   const { id } = useParams()
   const [dados, setDados] = useState({
@@ -138,6 +144,12 @@ export default function PortalCliente() {
       supabase.from('profiles').select('id, full_name, email, role, telefone'),
     ])
 
+    const documentos = await supabase
+      .from('documentos')
+      .select('id, obra_id, nome_arquivo, tipo, url_arquivo, created_at')
+      .eq('obra_id', id)
+      .order('created_at', { ascending: false })
+
     if (obra.error) {
       setErro(obra.error.message)
       setLoading(false)
@@ -146,6 +158,9 @@ export default function PortalCliente() {
 
     const falha = [cronograma, fotos, ambientes, agenda, comunicados, mensagens, mensagensCliente, contatos, profiles].find(r => r.error)
     if (falha?.error) setErro('Não foi possível carregar alguns dados complementares no momento.')
+    if (documentos.error && !tabelaNaoEncontrada(documentos.error)) {
+      setErro('Não foi possível carregar alguns documentos no momento.')
+    }
 
     setDados({
       obra: obra.data,
@@ -158,7 +173,7 @@ export default function PortalCliente() {
       mensagensCliente: safeArray(mensagensCliente),
       contatos: safeArray(contatos),
       profiles: safeArray(profiles),
-      documentos: [],
+      documentos: documentos.error ? [] : safeArray(documentos),
     })
     setLoading(false)
   }
