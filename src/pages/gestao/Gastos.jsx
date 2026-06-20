@@ -4,10 +4,10 @@ import { supabase } from '../../lib/supabase'
 import { useStore } from '../../store/useStore'
 
 const CATEGORIAS = [
-  { value: 'combustivel',  label: 'Combustivel',  emoji: '⛽', cor: '#E8A020' },
-  { value: 'pedagio',      label: 'Pedagio',      emoji: '🛣️', cor: '#9070C0' },
+  { value: 'combustivel',  label: 'Combustível',  emoji: '⛽', cor: '#E8A020' },
+  { value: 'pedagio',      label: 'Pedágio',      emoji: '🛣️', cor: '#9070C0' },
   { value: 'hospedagem',   label: 'Hospedagem',   emoji: '🏨', cor: '#4A90D9' },
-  { value: 'alimentacao',  label: 'Alimentacao',  emoji: '🍽️', cor: '#5AAB6E' },
+  { value: 'alimentacao',  label: 'Alimentação',  emoji: '🍽️', cor: '#5AAB6E' },
   { value: 'frete',        label: 'Frete',        emoji: '🚚', cor: '#D9704A' },
   { value: 'terceiros',    label: 'Terceiros',    emoji: '👷', cor: '#B09A7A' },
   { value: 'ferragens',    label: 'Ferragens',    emoji: '🔧', cor: '#888'    },
@@ -172,7 +172,7 @@ function Modal({ obras, profiles, todosGastos, onClose, onSaved }) {
               <label style={ms.label}>Descrição *</label>
               <input style={ms.input} value={form.descricao}
                 onChange={e => set('descricao', e.target.value)}
-                placeholder="Ex: Combustivel ida a obra..." />
+                placeholder="Ex: combustível ida à obra..." />
             </div>
 
             <div>

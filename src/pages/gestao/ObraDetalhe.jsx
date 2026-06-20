@@ -632,7 +632,7 @@ export default function ObraDetalhe() {
           {showForm && (
             <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, padding: 22, marginBottom: 20 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div style={{ gridColumn: '1/-1' }}><Label>Titulo *</Label><FInput value={nova.titulo} onChange={v => setNova(p => ({ ...p, titulo: v }))} placeholder="Titulo da tarefa" /></div>
+                <div style={{ gridColumn: '1/-1' }}><Label>Título *</Label><FInput value={nova.titulo} onChange={v => setNova(p => ({ ...p, titulo: v }))} placeholder="Título da tarefa" /></div>
                 <div style={{ gridColumn: '1/-1' }}><Label>Descrição</Label><textarea value={nova.descricao} onChange={e => setNova(p => ({ ...p, descricao: e.target.value }))} rows={2} style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1px solid #ddd', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }} /></div>
                 <div><Label>Prioridade</Label><FSelect value={nova.prioridade} onChange={v => setNova(p => ({ ...p, prioridade: v }))}><option value="baixa">Baixa</option><option value="media">Média</option><option value="alta">Alta</option></FSelect></div>
                 <div><Label>Prazo</Label><FInput type="date" value={nova.prazo} onChange={v => setNova(p => ({ ...p, prazo: v }))} /></div>
@@ -1120,7 +1120,7 @@ function AbaChecklist({ obraId }) {
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13.5, color: item.concluido ? '#aaa' : THEME.ink, textDecoration: item.concluido ? 'line-through' : 'none', fontWeight: 600 }}>{item.descricao}</div>
-                {item.concluido_em && <div style={{ fontSize: 11, color: THEME.muted, marginTop: 3 }}>Concluido em {new Date(item.concluido_em).toLocaleString('pt-BR')}</div>}
+                {item.concluido_em && <div style={{ fontSize: 11, color: THEME.muted, marginTop: 3 }}>Concluído em {new Date(item.concluido_em).toLocaleString('pt-BR')}</div>}
               </div>
             </div>
           ))
@@ -1157,7 +1157,7 @@ function AbaOcorrencias({ obraId }) {
       {showForm && (
         <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, padding: 22, marginBottom: 20 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div style={{ gridColumn: '1/-1' }}><Label>Titulo *</Label><FInput value={nova.titulo} onChange={v => setNova(p => ({ ...p, titulo: v }))} placeholder="Descreva a ocorrencia" /></div>
+            <div style={{ gridColumn: '1/-1' }}><Label>Título *</Label><FInput value={nova.titulo} onChange={v => setNova(p => ({ ...p, titulo: v }))} placeholder="Descreva a ocorrência" /></div>
             <div style={{ gridColumn: '1/-1' }}><Label>Detalhes</Label><textarea value={nova.descricao} onChange={e => setNova(p => ({ ...p, descricao: e.target.value }))} rows={3} style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1px solid #ddd', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }} /></div>
             <div><Label>Categoria</Label><FSelect value={nova.categoria} onChange={v => setNova(p => ({ ...p, categoria: v }))}><option value="geral">Geral</option><option value="atraso">Atraso</option><option value="dano">Dano</option><option value="retrabalho">Retrabalho</option><option value="acesso">Acesso</option><option value="material">Material faltante</option></FSelect></div>
             <div><Label>Gravidade</Label><FSelect value={nova.gravidade} onChange={v => setNova(p => ({ ...p, gravidade: v }))}><option value="baixa">Baixa</option><option value="media">Media</option><option value="alta">Alta</option></FSelect></div>
@@ -1168,7 +1168,7 @@ function AbaOcorrencias({ obraId }) {
         </div>
       )}
       {loading ? <div style={{ color: '#bbb' }}>Carregando...</div>
-        : ocorrencias.length === 0 ? <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhuma ocorrencia registrada.</div>
+        : ocorrencias.length === 0 ? <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhuma ocorrência registrada.</div>
         : ocorrencias.map(oc => (
           <div key={oc.id} style={{ background: '#fff', border: '1px solid var(--color-border)', borderLeft: '4px solid ' + (gravCor[oc.gravidade] || '#ccc'), borderRadius: 10, padding: '16px 18px', marginBottom: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
@@ -1187,10 +1187,10 @@ function AbaOcorrencias({ obraId }) {
 
 function AbaGastos({ obraId, obraInfo }) {
   const CATS_G = [
-    { value: 'combustivel', label: 'Combustivel', emoji: '⛽', cor: '#E8A020' },
-    { value: 'pedagio',     label: 'Pedagio',     emoji: '🛣️', cor: '#9070C0' },
+    { value: 'combustivel', label: 'Combustível', emoji: '⛽', cor: '#E8A020' },
+    { value: 'pedagio',     label: 'Pedágio',     emoji: '🛣️', cor: '#9070C0' },
     { value: 'hospedagem',  label: 'Hospedagem',  emoji: '🏨', cor: '#4A90D9' },
-    { value: 'alimentacao', label: 'Alimentacao', emoji: '🍽️', cor: '#5AAB6E' },
+    { value: 'alimentacao', label: 'Alimentação', emoji: '🍽️', cor: '#5AAB6E' },
     { value: 'frete',       label: 'Frete',       emoji: '🚚', cor: '#D9704A' },
     { value: 'terceiros',   label: 'Terceiros',   emoji: '👷', cor: '#B09A7A' },
     { value: 'ferragens',   label: 'Ferragens',   emoji: '🔧', cor: '#888'    },
@@ -1297,7 +1297,7 @@ function AbaGastos({ obraId, obraInfo }) {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                 <div style={{ gridColumn: '1/-1' }}>
                   <label style={msG.label}>Descricao *</label>
-                  <input style={msG.input} value={form.descricao} onChange={e => setF('descricao', e.target.value)} placeholder="Ex: Combustivel ida a obra..." />
+                  <input style={msG.input} value={form.descricao} onChange={e => setF('descricao', e.target.value)} placeholder="Ex: combustível ida à obra..." />
                 </div>
                 <div>
                   <label style={msG.label}>Categoria *</label>
@@ -1323,8 +1323,8 @@ function AbaGastos({ obraId, obraInfo }) {
                   </div>
                 )}
                 <div style={{ gridColumn: '1/-1' }}>
-                  <label style={msG.label}>Observacao</label>
-                  <textarea style={{ ...msG.input, height: 64, resize: 'vertical' }} value={form.observacao} onChange={e => setF('observacao', e.target.value)} placeholder="Informacoes adicionais..." />
+                  <label style={msG.label}>Observação</label>
+                  <textarea style={{ ...msG.input, height: 64, resize: 'vertical' }} value={form.observacao} onChange={e => setF('observacao', e.target.value)} placeholder="Informações adicionais..." />
                 </div>
               </div>
             </div>
@@ -1399,7 +1399,7 @@ function AbaChat({ obraId }) {
   const ROLE_COR = { gestao: '#3a5580', supervisor: '#3a7d4f', montador: '#b09a7a', cliente: '#888', vendedor: '#9070c0' }
   return (
     <div>
-      <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 16 }}>Chat da obra — visivel para toda a equipe</div>
+      <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 16 }}>Chat da obra — visível para toda a equipe</div>
       <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, padding: 16, marginBottom: 16, minHeight: 200, maxHeight: 400, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
         {loading ? <div style={{ color: '#bbb', fontSize: 13 }}>Carregando...</div>
           : mensagens.length === 0 ? <div style={{ textAlign: 'center', padding: '40px 0', color: '#bbb', fontSize: 13 }}>Nenhuma mensagem ainda.</div>
@@ -1515,7 +1515,7 @@ function AbaFotos({ obraId }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 18 }}>
         <KpiCard label="Total" value={fotos.length} helper="fotos da obra" />
         <KpiCard label="Aprovadas" value={fotos.filter(f => f.aprovada).length} helper="liberadas" />
-        <KpiCard label="Cliente" value={fotos.filter(f => f.visivel_cliente).length} helper="visiveis ao cliente" />
+        <KpiCard label="Cliente" value={fotos.filter(f => f.visivel_cliente).length} helper="visíveis ao cliente" />
         <KpiCard label="Não conform." value={naoConformidades} helper="registros críticos" />
       </div>
 
@@ -1523,7 +1523,7 @@ function AbaFotos({ obraId }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 12 }}>
           <div><Label>Categoria *</Label><FSelect value={formFoto.categoria} onChange={v => setFormFoto(p => ({ ...p, categoria: v }))}><option value="">Selecione</option>{FOTO_CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}</FSelect></div>
           <div><Label>Ambiente</Label><FSelect value={formFoto.ambiente_id} onChange={v => setFormFoto(p => ({ ...p, ambiente_id: v }))}><option value="">Sem ambiente</option>{ambientes.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}</FSelect></div>
-          <div><Label>Observacao</Label><FInput value={formFoto.observacao} onChange={v => setFormFoto(p => ({ ...p, observacao: v }))} placeholder="Opcional" /></div>
+          <div><Label>Observação</Label><FInput value={formFoto.observacao} onChange={v => setFormFoto(p => ({ ...p, observacao: v }))} placeholder="Opcional" /></div>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
           <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: THEME.muted }}>
@@ -1555,7 +1555,7 @@ function AbaFotos({ obraId }) {
                   <div onClick={() => foto.publicUrl && setPreview(foto.publicUrl)} style={{ cursor: 'zoom-in', height: 170, overflow: 'hidden', background: '#f5f5f5' }}>{foto.publicUrl && <img src={foto.publicUrl} alt={foto.observacao || foto.categoria} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}</div>
                   <div style={{ padding: 12 }}>
                     <div style={{ fontSize: 12, color: THEME.ink, fontWeight: 700, marginBottom: 4 }}>{ambienteNome(foto.ambiente_id)}</div>
-                    <div style={{ fontSize: 11, color: THEME.muted, marginBottom: 8, minHeight: 16 }}>{foto.observacao || 'Sem observacao'}</div>
+                    <div style={{ fontSize: 11, color: THEME.muted, marginBottom: 8, minHeight: 16 }}>{foto.observacao || 'Sem observação'}</div>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                       <button onClick={() => aprovar(foto)} style={{ flex: '1 1 90px', padding: '7px 0', borderRadius: 7, border: 'none', fontSize: 11, cursor: 'pointer', background: foto.aprovada ? '#edf7f0' : '#f5f5f5', color: foto.aprovada ? '#3a7d4f' : '#888', fontWeight: 700 }}>{foto.aprovada ? 'Aprovada' : 'Aprovar'}</button>
                       <button onClick={() => alternarCliente(foto)} style={{ flex: '1 1 90px', padding: '7px 0', borderRadius: 7, border: 'none', fontSize: 11, cursor: 'pointer', background: foto.visivel_cliente ? THEME.softGold : '#f5f5f5', color: foto.visivel_cliente ? THEME.gold : '#888', fontWeight: 700 }}>Cliente</button>
@@ -1585,7 +1585,7 @@ function AbaHistorico({ obraId }) {
   useEffect(() => { carregar() }, [])
 
   if (loading) return <div style={{ color: '#bbb' }}>Carregando...</div>
-  if (historico.length === 0) return <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhum registro no historico.</div>
+  if (historico.length === 0) return <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhum registro no histórico.</div>
   return (
     <div style={{ position: 'relative', paddingLeft: 24 }}>
       <div style={{ position: 'absolute', left: 7, top: 0, bottom: 0, width: 2, background: 'var(--color-border)' }} />
@@ -1674,7 +1674,7 @@ function AbaCliente({ obraId }) {
       </div>
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase' }}>Contatos visiveis ao cliente</div>
+          <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase' }}>Contatos visíveis ao cliente</div>
           <button onClick={() => setShowConForm(!showConForm)} style={{ background: 'var(--color-ink)', color: '#fff', border: 'none', borderRadius: 7, padding: '7px 14px', fontSize: 12, cursor: 'pointer' }}>{showConForm ? 'Cancelar' : '+ Contato'}</button>
         </div>
         {showConForm && (
