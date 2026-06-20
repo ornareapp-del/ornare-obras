@@ -9,18 +9,18 @@ const THEME = {
   border: '#E7E0D5',
   ink: '#1D1C19',
   muted: '#6D675E',
-  gold: '#B8965E',
-  danger: '#B94A48',
-  success: '#2F7D55',
-  warn: '#B8872E',
+  gold: '#C9A96E',
+  danger: '#C0392B',
+  success: '#2D7A4A',
+  warn: '#E07B39',
 }
 
 const STATUS = {
-  producao: ['Em producao', 'Em produção'],
+  producao: ['Em produção', 'Em producao'],
   montagem: ['Em montagem', 'Montagem agendada'],
   aguardandoCliente: ['Aguardando cliente'],
-  aguardandoProducao: ['Aguardando inicio', 'Em medicao', 'Em medição', 'Medicao agendada', 'Medição agendada', 'Projeto em conferencia', 'Projeto em conferência'],
-  concluidas: ['Concluida', 'Concluída'],
+  aguardandoProducao: ['Aguardando início', 'Aguardando inicio', 'Em medição', 'Em medicao', 'Medição agendada', 'Medicao agendada', 'Projeto em conferência', 'Projeto em conferencia'],
+  concluidas: ['Concluída', 'Concluida'],
   travadas: ['Pausada', 'Cancelada'],
   producaoFinalizada: ['Pronta para entrega'],
   aguardandoAgendamento: ['Aguardando montagem'],
@@ -61,8 +61,27 @@ function statusBadge(status) {
   return { bg: '#F5F1EA', color: THEME.muted, label: status || '-' }
 }
 
+function limparNome(nome) {
+  if (!nome) return ''
+  const roles = ['Montador', 'Supervisor', 'Gestao', 'Gestão', 'Vendedor', 'Cliente', 'Pos_venda', 'Pós-venda']
+  const partes = String(nome).trim().split(/\s+/)
+  if (roles.includes(partes[partes.length - 1])) {
+    return partes.slice(0, -1).join(' ')
+  }
+  return String(nome).trim()
+}
+
+function activityColor(tipo) {
+  const t = normalizar(tipo)
+  if (t.includes('foto')) return '#9E9E9E'
+  if (t.includes('gasto')) return '#E07B39'
+  if (t.includes('ocorrencia')) return '#C0392B'
+  return THEME.gold
+}
+
 export default function DashboardGestao() {
   const navigate = useNavigate()
+  const [fluxoAberto, setFluxoAberto] = useState(false)
   const [dados, setDados] = useState({
     obras: [],
     agenda: [],
@@ -176,7 +195,7 @@ export default function DashboardGestao() {
       const ultimaFoto = fotos[0]?.created_at ? new Date(fotos[0].created_at) : null
       const semFotoRecente = !ultimaFoto || (agoraMs - ultimaFoto.getTime()) / 86400000 > 7
       const previsao = obra.data_previsao ? new Date(obra.data_previsao + 'T00:00:00') : null
-      if ((ocorrPorObra.get(obra.id) || []).length > 0) motivos.push('ocorrencia aberta')
+      if ((ocorrPorObra.get(obra.id) || []).length > 0) motivos.push('ocorrência aberta')
       if (itens.some(i => !i.concluido)) motivos.push('checklist pendente')
       if (semFotoRecente) motivos.push('sem fotos recentes')
       if (previsao && previsao < hoje) motivos.push('atrasada')
@@ -194,16 +213,17 @@ export default function DashboardGestao() {
 
     const obrasPorSupervisor = dados.profiles
       .filter(p => ['gestao', 'supervisor'].includes(p.role))
-      .map(p => ({ nome: p.full_name || p.email || 'Supervisor', total: dados.obras.filter(o => o.supervisor_id === p.id).length }))
+      .map(p => ({ nome: limparNome(p.full_name || p.email || 'Supervisor'), total: dados.obras.filter(o => o.supervisor_id === p.id).length }))
       .filter(p => p.total > 0)
       .sort((a, b) => b.total - a.total)
       .slice(0, 5)
 
     const atividade = [
       ...dados.fotos.slice(0, 8).map(f => ({ tipo: 'Foto', texto: f.categoria || 'Nova foto enviada', sub: f.obras?.nome || obraNome(dados.obras, f.obra_id), ts: f.created_at })),
-      ...dados.checklist.filter(i => i.concluido && i.concluido_em).slice(0, 8).map(i => ({ tipo: 'Checklist', texto: i.descricao || 'Item concluido', sub: obraNome(dados.obras, i.obra_id), ts: i.concluido_em })),
-      ...dados.checkins.slice(0, 8).map(c => ({ tipo: 'Equipe', texto: `${c.profiles?.full_name || 'Equipe'} fez ${c.saida ? 'check-out' : 'check-in'}`, sub: c.obras?.nome || '', ts: c.created_at })),
-      ...dados.gastos.slice(0, 8).map(g => ({ tipo: 'Gasto', texto: g.descricao || 'Gasto lancado', sub: `${g.obras?.nome || obraNome(dados.obras, g.obra_id)} - ${moeda(g.valor)}`, ts: g.created_at })),
+      ...dados.ocorrencias.slice(0, 8).map(o => ({ tipo: 'Ocorrência', texto: o.titulo || o.descricao || 'Ocorrência registrada', sub: obraNome(dados.obras, o.obra_id), ts: o.created_at })),
+      ...dados.checklist.filter(i => i.concluido && i.concluido_em).slice(0, 8).map(i => ({ tipo: 'Checklist', texto: i.descricao || 'Item concluído', sub: obraNome(dados.obras, i.obra_id), ts: i.concluido_em })),
+      ...dados.checkins.slice(0, 8).map(c => ({ tipo: 'Equipe', texto: `${limparNome(c.profiles?.full_name) || 'Equipe'} fez ${c.saida ? 'check-out' : 'check-in'}`, sub: c.obras?.nome || '', ts: c.created_at })),
+      ...dados.gastos.slice(0, 8).map(g => ({ tipo: 'Gasto', texto: g.descricao || 'Gasto lançado', sub: `${g.obras?.nome || obraNome(dados.obras, g.obra_id)} - ${moeda(g.valor)}`, ts: g.created_at })),
     ].sort((a, b) => new Date(b.ts) - new Date(a.ts)).slice(0, 10)
 
     return {
@@ -261,10 +281,10 @@ export default function DashboardGestao() {
   const kpis = [
     { label: 'Em Produção', value: vm.operacao.producao, sub: 'fábrica e preparação', tone: THEME.gold },
     { label: 'Em Montagem', value: vm.operacao.montagem, sub: 'campo ativo', tone: '#1E3A5F' },
-    { label: 'Aguard. Cliente', value: vm.operacao.aguardandoCliente, sub: 'dependencia externa', tone: THEME.warn },
+    { label: 'Aguard. Cliente', value: vm.operacao.aguardandoCliente, sub: 'dependência externa', tone: THEME.warn },
     { label: 'Aguard. Produção', value: vm.operacao.aguardandoProducao, sub: 'pré-operação', tone: '#6B5B43' },
     { label: 'Concluídas', value: vm.operacao.concluidas, sub: 'entregues', tone: THEME.success },
-    { label: 'Travadas', value: vm.operacao.travadas, sub: 'acao imediata', tone: THEME.danger },
+    { label: 'Travadas', value: vm.operacao.travadas, sub: 'ação imediata', tone: THEME.danger },
   ]
 
   return (
@@ -305,15 +325,19 @@ export default function DashboardGestao() {
         </div>
       </section>
 
+      <section className="dg-kpis" aria-label="Indicadores operacionais">
+        {kpis.map(k => <Kpi key={k.label} {...k} loading={loading} />)}
+      </section>
+
       <section className="dg-priority-board">
         <Card title="Exigem atenção agora" action="Abrir obras" onAction={() => navigate('/obras')}>
           {vm.atencao.length === 0 ? <Empty text="Nenhuma pendência crítica." /> : vm.atencao.slice(0, 4).map(item => (
-            <button className="dg-priority-row" key={item.obra.id} onClick={() => navigate(`/obras/${item.obra.id}`)}>
-              <i style={{ background: item.motivos.includes('atrasada') ? THEME.danger : THEME.warn }} />
+            <button className="dg-attention dg-attention-priority" key={item.obra.id} onClick={() => navigate(`/obras/${item.obra.id}`)}>
               <div>
                 <strong>{item.obra.nome}</strong>
-                <span>{item.motivos.slice(0, 2).join(' · ')}</span>
+                <span>{item.obra.cliente_nome || item.obra.cidade || 'Sem cliente informado'}</span>
               </div>
+              <div className="dg-tags">{item.motivos.slice(0, 3).map(m => <span key={m}>{m}</span>)}</div>
             </button>
           ))}
         </Card>
@@ -354,12 +378,8 @@ export default function DashboardGestao() {
         </Card>
       </section>
 
-      <section className="dg-kpis" aria-label="Indicadores operacionais">
-        {kpis.map(k => <Kpi key={k.label} {...k} loading={loading} />)}
-      </section>
-
       <section className="dg-grid-3">
-        <Card title="Saude operacional" action="Ver obras" onAction={() => navigate('/obras')}>
+        <Card title="Saúde operacional" action="Ver obras" onAction={() => navigate('/obras')}>
           <div className="dg-health">
             <Health label="Atrasadas" value={vm.saude.atrasadas} color={THEME.danger} />
             <Health label="Em risco" value={vm.saude.risco} color={THEME.warn} />
@@ -367,10 +387,10 @@ export default function DashboardGestao() {
           </div>
         </Card>
 
-        <Card title="Proximos 7 dias" action="Agenda" onAction={() => navigate('/agenda')}>
+        <Card title="Próximos 7 dias" action="Agenda" onAction={() => navigate('/agenda')}>
           <MiniAgenda label="Montagens" itens={vm.agenda7.montagens} />
           <MiniAgenda label="Vistorias" itens={vm.agenda7.vistorias} />
-          <MiniAgenda label="Assist. tecnicas" itens={vm.agenda7.assistencias} />
+          <MiniAgenda label="Assist. técnicas" itens={vm.agenda7.assistencias} />
         </Card>
 
         <Card title="Equipe">
@@ -388,31 +408,27 @@ export default function DashboardGestao() {
 
       <section className="dg-main">
         <div className="dg-stack">
-          <Card title="Fluxo Ornare" action="Obras" onAction={() => navigate('/obras')}>
-            <div className="dg-flow">
-              {vm.fluxo.map((f, i) => (
-                <div className="dg-flow-step" key={f.label}>
-                  <div className="dg-flow-num">{loading ? '-' : f.value}</div>
-                  <div className="dg-flow-label">{f.label}</div>
-                  {i < vm.fluxo.length - 1 && <div className="dg-flow-line" />}
-                </div>
-              ))}
-            </div>
+          <Card title="Fluxo Ornare" action={fluxoAberto ? 'Ocultar fluxo' : 'Ver fluxo completo'} onAction={() => setFluxoAberto(v => !v)}>
+            {fluxoAberto ? (
+              <div className="dg-flow">
+                {vm.fluxo.map((f, i) => (
+                  <div className="dg-flow-step" key={f.label}>
+                    <div className="dg-flow-num">{loading ? '-' : f.value}</div>
+                    <div className="dg-flow-label">{f.label}</div>
+                    {i < vm.fluxo.length - 1 && <div className="dg-flow-line" />}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="dg-flow-summary">
+                {vm.fluxo.slice(0, 3).map(f => (
+                  <span key={f.label}><strong>{loading ? '-' : f.value}</strong>{f.label}</span>
+                ))}
+              </div>
+            )}
           </Card>
 
-          <Card title="Obras que precisam atencao" action="Abrir obras" onAction={() => navigate('/obras')}>
-            {vm.atencao.length === 0 ? <Empty text="Nenhuma obra critica neste momento." /> : vm.atencao.map(item => (
-              <button className="dg-attention" key={item.obra.id} onClick={() => navigate(`/obras/${item.obra.id}`)}>
-                <div>
-                  <strong>{item.obra.nome}</strong>
-                  <span>{item.obra.cliente_nome || item.obra.cidade || 'Sem cliente informado'}</span>
-                </div>
-                <div className="dg-tags">{item.motivos.slice(0, 3).map(m => <span key={m}>{m}</span>)}</div>
-              </button>
-            ))}
-          </Card>
-
-          <Card title="Operacao em andamento" action="Ver todas" onAction={() => navigate('/obras')}>
+          <Card title="Operação em andamento" action="Ver todas" onAction={() => navigate('/obras')}>
             {vm.obrasOperacionais.length === 0 ? <Empty text="Sem obras operacionais." /> : vm.obrasOperacionais.map(obra => {
               const st = statusBadge(obra.status)
               const temOc = (vm.ocorrPorObra.get(obra.id) || []).length > 0
@@ -422,7 +438,10 @@ export default function DashboardGestao() {
                     <strong>{obra.nome}</strong>
                     <span>{[obra.cliente_nome, obra.cidade, obra.data_previsao ? `Prev. ${dataBR(obra.data_previsao)}` : null].filter(Boolean).join(' · ')}</span>
                   </div>
-                  <div className="dg-progress"><i style={{ width: `${obra.progresso || 0}%`, background: temOc ? THEME.danger : THEME.gold }} /></div>
+                  <div className="dg-progress-wrap">
+                    <div className="dg-progress"><i style={{ width: `${obra.progresso || 0}%`, background: temOc ? THEME.danger : THEME.gold }} /></div>
+                    <b>{obra.progresso || 0}%</b>
+                  </div>
                   <span className="dg-badge" style={{ background: st.bg, color: st.color }}>{st.label}</span>
                 </button>
               )
@@ -442,7 +461,7 @@ export default function DashboardGestao() {
 
           <Card title="Financeiro operacional" action="Gastos" onAction={() => navigate('/gastos')}>
             <div className="dg-money">{moeda(vm.financeiro.totalMes)}</div>
-            <div className="dg-muted">{vm.financeiro.gastosMes.length} lancamentos no mes</div>
+            <div className="dg-muted">{vm.financeiro.gastosMes.length} lançamento{vm.financeiro.gastosMes.length === 1 ? '' : 's'} no mês</div>
             <div className="dg-mini-list spaced">
               {vm.financeiro.topObras.map(o => <Line key={o.obraId} title={o.nome} meta={moeda(o.total)} />)}
             </div>
@@ -454,7 +473,7 @@ export default function DashboardGestao() {
           <Card title="Atividade recente">
             {vm.atividade.length === 0 ? <Empty text="Nenhuma atividade recente." /> : vm.atividade.map((a, i) => (
               <div className="dg-activity" key={`${a.tipo}-${i}`}>
-                <span>{a.tipo}</span>
+                <span style={{ color: activityColor(a.tipo) }}>{a.tipo}</span>
                 <div><strong>{a.texto}</strong><small>{a.sub}</small></div>
                 <em>{tempoRelativo(a.ts)}</em>
               </div>
@@ -570,14 +589,20 @@ const css = `
 .dg-flow-num{font-size:28px;font-weight:800;color:${THEME.ink};line-height:1}
 .dg-flow-label{font-size:11px;color:${THEME.muted};margin-top:8px;font-weight:700}
 .dg-flow-line{position:absolute;right:-10px;top:50%;width:10px;height:1px;background:${THEME.border}}
+.dg-flow-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.dg-flow-summary span{border:1px solid ${THEME.border};background:#FFFEFC;border-radius:13px;padding:13px;font-size:11px;color:${THEME.muted};font-weight:800}
+.dg-flow-summary strong{display:block;font-size:24px;line-height:1;color:${THEME.ink};margin-bottom:7px}
 .dg-attention,.dg-work-row{width:100%;border:0;background:transparent;border-bottom:1px solid ${THEME.border};padding:12px 0;display:flex;gap:12px;align-items:center;text-align:left;cursor:pointer;font-family:inherit}
+.dg-attention-priority{align-items:flex-start}
 .dg-attention strong,.dg-work-row strong{display:block;font-size:13.5px;color:${THEME.ink};margin-bottom:3px}
 .dg-attention span,.dg-work-row span,.dg-muted{font-size:12px;color:${THEME.muted}}
 .dg-attention strong,.dg-attention span,.dg-work-main strong,.dg-work-main span{overflow:hidden;text-overflow:ellipsis}
 .dg-tags{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .dg-tags span{background:#F7EFE4;color:${THEME.warn};border-radius:999px;padding:4px 8px;font-size:10px;font-weight:800}
 .dg-work-main{flex:1;min-width:0}
-.dg-progress{width:72px;height:5px;background:${THEME.border};border-radius:999px;overflow:hidden;flex-shrink:0}
+.dg-progress-wrap{width:118px;display:flex;align-items:center;gap:8px;flex-shrink:0}
+.dg-progress-wrap b{font-size:11px;color:${THEME.muted};font-weight:900;min-width:30px;text-align:right}
+.dg-progress{width:100%;height:6px;background:#E8E4DE;border-radius:999px;overflow:hidden;flex-shrink:0}
 .dg-progress i{display:block;height:100%;border-radius:999px}
 .dg-badge{font-size:10px;font-weight:800;border-radius:999px;padding:5px 8px;white-space:nowrap}
 .dg-metric-line,.dg-line{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid ${THEME.border};align-items:center}
@@ -597,4 +622,5 @@ const css = `
 @media (max-width:1100px){.dg-priority-board{grid-template-columns:1fr 1fr}.dg-agenda-mobile{display:block}}
 @media (min-width:761px){.dg-agenda-mobile{display:none}}
 @media (max-width:760px){.dg-page{padding:22px 14px calc(112px + env(safe-area-inset-bottom));display:flex;flex-direction:column}.dg-header{display:block;margin-bottom:12px;order:0}.dg-eyebrow{font-size:9px;letter-spacing:2px;margin-bottom:4px}.dg-header h1{font-size:28px;line-height:1.02}.dg-header p{font-size:12.5px;line-height:1.45}.dg-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;justify-content:flex-start;margin-top:10px}.dg-actions button{width:100%;padding:10px 9px;font-size:12px}.dg-mobile-home{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;order:1;margin:0 auto 12px;max-width:1380px;width:100%}.dg-mobile-home>button{border:1px solid ${THEME.border};background:#fff;border-radius:15px;padding:11px 9px;text-align:left;font-family:inherit;box-shadow:0 10px 26px rgba(29,28,25,.04)}.dg-mobile-home>button.warn{border-color:#ECD7B5;background:#FFF8EC}.dg-mobile-home>button.critical{border-color:#F1C8C8;background:#FFF5F5}.dg-mobile-home strong{display:block;font-size:24px;line-height:1;color:${THEME.ink}}.dg-mobile-home span{display:block;font-size:10.5px;color:${THEME.muted};font-weight:900;margin-top:5px}.dg-mobile-quick{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.dg-mobile-quick button{border:1px solid ${THEME.border};background:#fff;color:${THEME.ink};border-radius:13px;padding:10px 8px;font-size:12px;font-weight:900}.dg-priority-board{grid-template-columns:1fr;gap:10px;margin-bottom:12px;order:2}.dg-priority-board>*:nth-child(n+2){display:none}.dg-priority-row{padding:11px 0}.dg-agenda-mobile{order:3}.dg-main{order:4}.dg-kpis{order:5;display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px}.dg-kpis>*{flex:0 0 auto;min-width:auto;max-width:none}.dg-kpi{display:flex;align-items:center;gap:7px;border-radius:999px;padding:7px 10px;min-width:auto;max-width:none;border-top:1px solid rgba(184,150,94,.22)}.dg-kpi span{white-space:nowrap;font-size:10.5px;line-height:1;letter-spacing:0;margin:0}.dg-kpi strong{font-size:15px}.dg-kpi small{display:none}.dg-grid-3,.dg-main{gap:12px}.dg-grid-3{display:none}.dg-card{padding:15px 13px;border-radius:15px}.dg-card-head h2{font-size:19px}.dg-health{grid-template-columns:1fr 1fr 1fr}.dg-flow{display:none}.dg-card:has(.dg-flow){display:none}.dg-attention,.dg-work-row{align-items:flex-start;flex-direction:column}.dg-attention strong,.dg-attention span,.dg-work-main strong,.dg-work-main span{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;white-space:normal}.dg-tags{margin-left:0;justify-content:flex-start}.dg-tags span:nth-child(n+3){display:none}.dg-progress{width:100%}.dg-activity{grid-template-columns:62px 1fr}.dg-activity em{display:none}}
+@media (max-width:760px){.dg-kpis{order:2}.dg-priority-board{order:3}.dg-agenda-mobile{order:4}.dg-main{order:5}.dg-card:has(.dg-flow){display:block}.dg-flow{display:grid;grid-template-columns:1fr 1fr}.dg-flow-summary{grid-template-columns:1fr}.dg-progress-wrap{width:100%}.dg-progress-wrap b{text-align:left}.dg-work-row{gap:9px}}
 `
