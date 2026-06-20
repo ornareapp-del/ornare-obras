@@ -50,6 +50,7 @@ export default function Agenda() {
   const [filtro, setFiltro] = useState('proximos')
   const [acaoStatus, setAcaoStatus] = useState('')
   const [vistoriaStats, setVistoriaStats] = useState({ checklist: 0, fotos: 0 })
+  const [erroModal, setErroModal] = useState('')
   const hoje = new Date()
   const [form, setForm] = useState({
     titulo: '', descricao: '', tipo: 'Compromisso', obra_id: '',
@@ -83,8 +84,7 @@ export default function Agenda() {
     setModal(true)
   }
 
-  function abrirEditar(ev) {
-    setEditandoId(ev.id)
+  function preencherForm(ev) {
     setForm({
       titulo: ev.titulo || '',
       descricao: ev.descricao || '',
@@ -100,9 +100,28 @@ export default function Agenda() {
       visivel_montador: ev.visivel_montador !== false,
       visivel_cliente: Boolean(ev.visivel_cliente),
     })
+  }
+
+  async function abrirEditar(ev) {
+    setEditandoId(ev.id)
+    preencherForm(ev)
     setAcaoStatus('')
+    setErroModal('')
     carregarVistoriaStats(ev.id)
     setModal(true)
+
+    const { data, error } = await supabase
+      .from('agenda')
+      .select('*')
+      .eq('id', ev.id)
+      .single()
+
+    if (error) {
+      setErroModal('Não foi possível carregar a versão mais recente deste compromisso.')
+      return
+    }
+
+    if (data) preencherForm(data)
   }
 
   async function carregarVistoriaStats(agendaId = editandoId) {
@@ -132,6 +151,7 @@ export default function Agenda() {
   async function salvar() {
     if (!form.titulo.trim()) return
     setSalvando(true)
+    setErroModal('')
 
     const payload = {
       titulo: form.titulo,
@@ -149,15 +169,23 @@ export default function Agenda() {
       visivel_cliente: Boolean(form.visivel_cliente),
     }
 
-    if (editandoId) await supabase.from('agenda').update(payload).eq('id', editandoId)
-    else await supabase.from('agenda').insert([payload])
+    const result = editandoId
+      ? await supabase.from('agenda').update(payload).eq('id', editandoId).select('*').single()
+      : await supabase.from('agenda').insert([payload]).select('*').single()
 
-    setForm(formInicial())
-    setEditandoId(null)
-    setAcaoStatus('')
-    setVistoriaStats({ checklist: 0, fotos: 0 })
-    setModal(false)
+    if (result.error) {
+      setErroModal('Não foi possível salvar este compromisso: ' + result.error.message)
+      setSalvando(false)
+      return
+    }
+
     await carregar()
+    if (result.data) preencherForm(result.data)
+    setAcaoStatus(editandoId ? 'Alterações salvas.' : 'Compromisso criado.')
+    if (!editandoId && result.data?.id) {
+      setEditandoId(result.data.id)
+      await carregarVistoriaStats(result.data.id)
+    }
     setSalvando(false)
   }
 
@@ -362,6 +390,20 @@ export default function Agenda() {
                     {form.obra_id && <button type="button" style={s.vistoriaButton} onClick={() => navigate('/obras/' + form.obra_id)}>Abrir obra</button>}
                   </div>
                   {acaoStatus && <div style={s.vistoriaMessage}>{acaoStatus}</div>}
+                </div>
+              )}
+              {(erroModal || (!norm(form.tipo).includes('vistoria') && acaoStatus)) && (
+                <div style={{
+                  marginTop: 14,
+                  border: `1px solid ${erroModal ? '#F0C8C8' : 'var(--color-border)'}`,
+                  background: erroModal ? '#FFF7F7' : '#FFFEFC',
+                  color: erroModal ? '#B84040' : 'var(--color-ink-muted)',
+                  borderRadius: 10,
+                  padding: '10px 12px',
+                  fontSize: 12,
+                  fontWeight: 800,
+                }}>
+                  {erroModal || acaoStatus}
                 </div>
               )}
             </div>
