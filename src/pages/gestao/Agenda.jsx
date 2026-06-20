@@ -78,6 +78,7 @@ export default function Agenda() {
   const [vistoriaStats, setVistoriaStats] = useState({ checklist: 0, fotos: 0 })
   const [checkinsCompromisso, setCheckinsCompromisso] = useState([])
   const [checkinsLoading, setCheckinsLoading] = useState(false)
+  const [campoSalvando, setCampoSalvando] = useState(false)
   const [erroModal, setErroModal] = useState('')
   const [toast, setToast] = useState('')
   const hoje = new Date()
@@ -226,6 +227,113 @@ export default function Agenda() {
   function horaCurta(value) {
     if (!value) return '-'
     return new Date(value).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  }
+
+  function obterLocalizacao() {
+    return new Promise(resolve => {
+      if (!navigator.geolocation) {
+        resolve({ autorizado: false })
+        return
+      }
+      navigator.geolocation.getCurrentPosition(
+        pos => resolve({
+          autorizado: true,
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+        }),
+        () => resolve({ autorizado: false }),
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 },
+      )
+    })
+  }
+
+  async function registrarCheckinCompromisso() {
+    if (!editandoId || !form.obra_id) return
+    setCampoSalvando(true)
+    setAcaoStatus('Registrando check-in...')
+
+    const { data: authData } = await supabase.auth.getUser()
+    const userId = authData?.user?.id
+    if (!userId) {
+      setAcaoStatus('Não foi possível identificar o usuário logado.')
+      setCampoSalvando(false)
+      return
+    }
+
+    const local = await obterLocalizacao()
+    const payload = {
+      obra_id: form.obra_id,
+      agenda_id: editandoId,
+      user_id: userId,
+      entrada: new Date().toISOString(),
+      localizacao_autorizada: Boolean(local.autorizado),
+      latitude: local.latitude || null,
+      longitude: local.longitude || null,
+      entrada_latitude: local.latitude || null,
+      entrada_longitude: local.longitude || null,
+    }
+
+    const { error } = await supabase.from('checkins').insert([payload])
+    if (error) {
+      setAcaoStatus('Não foi possível registrar o check-in: ' + error.message)
+      setCampoSalvando(false)
+      return
+    }
+
+    await supabase.from('agenda').update({ status: 'em andamento' }).eq('id', editandoId)
+    setForm(p => ({ ...p, status: 'em andamento' }))
+    await criarNotificacaoCompromisso({
+      agendaId: editandoId,
+      obraId: form.obra_id,
+      responsavelId: form.responsavel_id,
+      tipo: 'checkin_compromisso',
+      titulo: 'Check-in realizado',
+      descricao: form.titulo || 'Compromisso iniciado.',
+      prioridade: 'alta',
+    })
+    await carregarCheckinsCompromisso(form.obra_id, form.data, editandoId)
+    await carregar()
+    setAcaoStatus(local.autorizado ? 'Check-in registrado com localização.' : 'Check-in registrado sem localização.')
+    setCampoSalvando(false)
+  }
+
+  async function registrarCheckoutCompromisso() {
+    const aberto = checkinsCompromisso.find(c => c.entrada && !c.saida)
+    if (!aberto || !editandoId) return
+    setCampoSalvando(true)
+    setAcaoStatus('Registrando check-out...')
+
+    const local = await obterLocalizacao()
+    const { error } = await supabase
+      .from('checkins')
+      .update({
+        saida: new Date().toISOString(),
+        saida_latitude: local.latitude || null,
+        saida_longitude: local.longitude || null,
+      })
+      .eq('id', aberto.id)
+
+    if (error) {
+      setAcaoStatus('Não foi possível registrar o check-out: ' + error.message)
+      setCampoSalvando(false)
+      return
+    }
+
+    await supabase.from('agenda').update({ status: 'realizada' }).eq('id', editandoId)
+    setForm(p => ({ ...p, status: 'realizada' }))
+    await criarNotificacaoCompromisso({
+      agendaId: editandoId,
+      obraId: form.obra_id,
+      responsavelId: form.responsavel_id,
+      tipo: 'checkout_compromisso',
+      titulo: 'Check-out realizado',
+      descricao: form.titulo || 'Compromisso finalizado.',
+      prioridade: 'normal',
+    })
+    await carregarCheckinsCompromisso(form.obra_id, form.data, editandoId)
+    await carregar()
+    setAcaoStatus(local.autorizado ? 'Check-out registrado com localização.' : 'Check-out registrado sem localização.')
+    setCampoSalvando(false)
   }
 
   async function carregar() {
@@ -544,6 +652,19 @@ export default function Agenda() {
                     </span>
                   </div>
 
+                  <div style={s.campoActions}>
+                    {checkinsCompromisso.some(c => c.entrada && !c.saida) ? (
+                      <button type="button" style={{ ...s.campoAction, background: '#B84040' }} onClick={registrarCheckoutCompromisso} disabled={campoSalvando}>
+                        {campoSalvando ? 'Registrando...' : 'Fazer check-out'}
+                      </button>
+                    ) : (
+                      <button type="button" style={s.campoAction} onClick={registrarCheckinCompromisso} disabled={campoSalvando}>
+                        {campoSalvando ? 'Registrando...' : 'Fazer check-in'}
+                      </button>
+                    )}
+                    <span style={s.campoHint}>A localização será salva quando autorizada pelo navegador.</span>
+                  </div>
+
                   {checkinsLoading ? (
                     <div style={s.campoEmpty}>Carregando registros...</div>
                   ) : checkinsCompromisso.length === 0 ? (
@@ -803,6 +924,9 @@ const s = {
   vistoriaMessage: { marginTop: 12, borderRadius: 10, background: '#fff', border: '1px solid var(--color-border)', padding: '9px 11px', fontSize: 12, color: 'var(--color-ink-muted)', fontWeight: 700 },
   campoBox: { marginTop: 14, border: '1px solid #DDE7DD', background: '#FBFEFC', borderRadius: 14, padding: 16 },
   campoStatus: { borderRadius: 999, background: '#EAF5EE', color: '#2D7A4A', padding: '6px 11px', fontSize: 11, fontWeight: 900, whiteSpace: 'nowrap' },
+  campoActions: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 },
+  campoAction: { background: '#2D7A4A', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 13px', fontSize: 12, fontWeight: 900, cursor: 'pointer', fontFamily: 'inherit' },
+  campoHint: { fontSize: 11.5, color: 'var(--color-ink-muted)', fontWeight: 700 },
   campoEmpty: { border: '1px dashed var(--color-border)', background: '#fff', borderRadius: 12, padding: 14, color: 'var(--color-ink-muted)', fontSize: 12.5, fontWeight: 700 },
   campoList: { display: 'grid', gap: 9 },
   campoItem: { border: '1px solid var(--color-border)', background: '#fff', borderRadius: 12, padding: 12 },

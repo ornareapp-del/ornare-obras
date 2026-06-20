@@ -334,6 +334,11 @@ export default function DashboardSupervisor() {
         andamento: ocorrenciasAbertas.filter(o => norm(o.status).includes('andamento')).length,
         criticas: ocorrenciasCriticas.length,
       },
+      aprovacoes: {
+        fotosPendentes,
+        fotosNaoConformidade,
+        vistoriasPendentes: dados.agenda.filter(a => norm(a.tipo || a.titulo).includes('vistoria') && !['realizada', 'concluida', 'concluída'].includes(norm(a.status))),
+      },
       obras: obrasDetalhadas,
       acoes: acoes.slice(0, 10),
       statusResumo,
@@ -479,6 +484,49 @@ export default function DashboardSupervisor() {
               </div>
             </button>
           ))}
+        </Card>
+      </section>
+
+      <section className="ds-approval-panel">
+        <Card title="Aprovações pendentes">
+          <div className="ds-approval-grid">
+            <button onClick={() => vm.aprovacoes.fotosPendentes[0]?.obra_id && navigate(`/obras/${vm.aprovacoes.fotosPendentes[0].obra_id}?aba=Fotos&foto=${vm.aprovacoes.fotosPendentes[0].id}`)}>
+              <strong>{loading ? '-' : vm.aprovacoes.fotosPendentes.length}</strong>
+              <span>Fotos para validar</span>
+            </button>
+            <button onClick={() => vm.aprovacoes.fotosNaoConformidade[0]?.obra_id && navigate(`/obras/${vm.aprovacoes.fotosNaoConformidade[0].obra_id}?aba=Fotos&foto=${vm.aprovacoes.fotosNaoConformidade[0].id}`)}>
+              <strong>{loading ? '-' : vm.aprovacoes.fotosNaoConformidade.length}</strong>
+              <span>Não conformidades</span>
+            </button>
+            <button onClick={() => vm.aprovacoes.vistoriasPendentes[0]?.id && navigate(`/agenda?compromisso=${vm.aprovacoes.vistoriasPendentes[0].id}`)}>
+              <strong>{loading ? '-' : vm.aprovacoes.vistoriasPendentes.length}</strong>
+              <span>Vistorias pendentes</span>
+            </button>
+          </div>
+          {vm.aprovacoes.fotosPendentes.length === 0 && vm.aprovacoes.vistoriasPendentes.length === 0 ? (
+            <Empty text="Nada aguardando validação agora." />
+          ) : (
+            <div className="ds-approval-list">
+              {vm.aprovacoes.fotosPendentes.slice(0, 3).map(foto => (
+                <button key={foto.id} onClick={() => navigate(`/obras/${foto.obra_id}?aba=Fotos&foto=${foto.id}`)}>
+                  <i />
+                  <div>
+                    <strong>{foto.categoria || 'Foto enviada'}</strong>
+                    <span>{vm.obraPorId.get(foto.obra_id)?.nome || 'Obra'}</span>
+                  </div>
+                </button>
+              ))}
+              {vm.aprovacoes.vistoriasPendentes.slice(0, 2).map(item => (
+                <button key={item.id} onClick={() => navigate(`/agenda?compromisso=${item.id}`)}>
+                  <i className="blue" />
+                  <div>
+                    <strong>{item.titulo || 'Vistoria pendente'}</strong>
+                    <span>{vm.obraPorId.get(item.obra_id)?.nome || 'Obra'} - {dataBR(item.data)}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </Card>
       </section>
 
@@ -697,6 +745,17 @@ const css = `
 .ds-collapsed-note{width:100%;border-style:dashed;color:${THEME.muted};border-radius:14px;padding:18px;background:#FFFEFC}
 .ds-priorities{max-width:1380px;margin:0 auto 16px}
 .ds-status-flow{max-width:1380px;margin:0 auto 16px}
+.ds-approval-panel{max-width:1380px;margin:0 auto 16px}
+.ds-approval-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.ds-approval-grid button{border:1px solid ${THEME.border};background:#FFFEFC;border-radius:14px;padding:13px;text-align:left;font-family:inherit;cursor:pointer}
+.ds-approval-grid strong{display:block;font-size:26px;line-height:1;color:${THEME.ink}}
+.ds-approval-grid span{display:block;font-size:11.5px;color:${THEME.muted};font-weight:900;margin-top:7px}
+.ds-approval-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px}
+.ds-approval-list button{border:1px solid ${THEME.border};background:#fff;border-radius:13px;padding:11px;display:flex;gap:10px;text-align:left;font-family:inherit;cursor:pointer}
+.ds-approval-list i{width:9px;height:9px;border-radius:99px;background:${THEME.warn};margin-top:5px;flex-shrink:0}
+.ds-approval-list i.blue{background:#2563EB}
+.ds-approval-list strong{display:block;font-size:13px;color:${THEME.ink};line-height:1.25}
+.ds-approval-list span{display:block;font-size:11.5px;color:${THEME.muted};margin-top:3px}
 .ds-mobile-ops{display:none}
 .ds-priority-row{width:100%;border:0;border-left:4px solid transparent;background:transparent;border-bottom:1px solid ${THEME.border};padding:12px 12px;display:flex;gap:11px;align-items:flex-start;text-align:left;cursor:pointer;font-family:inherit;border-radius:12px;margin-bottom:6px}
 .ds-priority-row:last-child{border-bottom:0}

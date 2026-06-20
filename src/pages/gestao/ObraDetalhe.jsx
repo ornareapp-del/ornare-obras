@@ -86,7 +86,7 @@ const FOTO_CATEGORIAS = [
   'Geral',
 ]
 
-const FASES_BIBLIOTECA = ['Pré-Montagem', 'Montagem', 'Pós-Montagem', 'Assistência Técnica', 'Garantia']
+const FASES_BIBLIOTECA = ['Pré-Montagem', 'Montagem', 'Pós-Montagem', 'Supervisor', 'Entrega', 'Pós-Venda', 'Assistência Técnica', 'Garantia']
 
 function fotoUrl(foto) {
   if (foto.url) return foto.url
@@ -535,6 +535,9 @@ export default function ObraDetalhe() {
             <ResumoAtalho titulo="Gastos" valor={`R$ ${resumo.gastos.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`} detalhe="total" onClick={() => setAba('Gastos')} />
             <ResumoAtalho titulo="Ocorrências" valor={resumo.ocorrencias} detalhe="registros" onClick={() => setAba('Ocorrencias')} />
           </div>
+          <div style={{ gridColumn: '1/-1' }}>
+            <CalendarioObra obraId={id} compacto={compacto} />
+          </div>
           <Card titulo="Cliente">
             <Info label="Nome"     value={obra.cliente_nome}     />
             <Info label="E-mail"   value={obra.cliente_email}    />
@@ -668,6 +671,206 @@ export default function ObraDetalhe() {
       {aba === 'Chat'        && <AbaChat        obraId={id} />}
       </div>
     </div>
+  )
+}
+
+function isoLocal(date) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+function dataDeEvento(valor) {
+  if (!valor) return ''
+  return String(valor).slice(0, 10)
+}
+
+function CalendarioObra({ obraId, compacto }) {
+  const hoje = new Date()
+  const [mes, setMes] = useState(new Date(hoje.getFullYear(), hoje.getMonth(), 1))
+  const [eventos, setEventos] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [diaSelecionado, setDiaSelecionado] = useState(isoLocal(hoje))
+
+  const inicioMes = new Date(mes.getFullYear(), mes.getMonth(), 1)
+  const fimMes = new Date(mes.getFullYear(), mes.getMonth() + 1, 0)
+  const inicioBusca = isoLocal(new Date(mes.getFullYear(), mes.getMonth(), 1))
+  const fimBusca = isoLocal(new Date(mes.getFullYear(), mes.getMonth() + 1, 0))
+
+  useEffect(() => {
+    let ativo = true
+
+    async function carregarCalendario() {
+      setLoading(true)
+      const [
+        { data: agenda },
+        { data: fotos },
+        { data: ocorrencias },
+        { data: checkins },
+        { data: historico },
+        { data: checklist },
+      ] = await Promise.all([
+        supabase.from('agenda').select('id, titulo, tipo, data, hora_inicio, status').eq('obra_id', obraId).gte('data', inicioBusca).lte('data', fimBusca),
+        supabase.from('fotos').select('id, categoria, observacao, created_at').eq('obra_id', obraId).gte('created_at', `${inicioBusca}T00:00:00`).lte('created_at', `${fimBusca}T23:59:59`),
+        supabase.from('ocorrencias').select('id, titulo, descricao, status, created_at').eq('obra_id', obraId).gte('created_at', `${inicioBusca}T00:00:00`).lte('created_at', `${fimBusca}T23:59:59`),
+        supabase.from('checkins').select('id, entrada, saida').eq('obra_id', obraId).gte('entrada', `${inicioBusca}T00:00:00`).lte('entrada', `${fimBusca}T23:59:59`),
+        supabase.from('historico_obra').select('id, descricao, acao, created_at').eq('obra_id', obraId).gte('created_at', `${inicioBusca}T00:00:00`).lte('created_at', `${fimBusca}T23:59:59`),
+        supabase.from('checklist_items').select('id, descricao, concluido_em').eq('obra_id', obraId).gte('concluido_em', `${inicioBusca}T00:00:00`).lte('concluido_em', `${fimBusca}T23:59:59`),
+      ])
+
+      if (!ativo) return
+
+      const linhas = [
+        ...(agenda || []).map(item => ({
+          id: `agenda-${item.id}`,
+          data: dataDeEvento(item.data),
+          tipo: item.tipo || 'Agenda',
+          titulo: item.titulo || item.tipo || 'Compromisso',
+          detalhe: [item.hora_inicio, item.status].filter(Boolean).join(' · '),
+          cor: '#2E6F95',
+        })),
+        ...(fotos || []).map(item => ({
+          id: `foto-${item.id}`,
+          data: dataDeEvento(item.created_at),
+          tipo: 'Foto',
+          titulo: item.categoria || 'Foto da obra',
+          detalhe: item.observacao || 'Registro fotográfico',
+          cor: '#8A7D6B',
+        })),
+        ...(ocorrencias || []).map(item => ({
+          id: `ocorrencia-${item.id}`,
+          data: dataDeEvento(item.created_at),
+          tipo: 'Ocorrência',
+          titulo: item.titulo || item.descricao || 'Ocorrência registrada',
+          detalhe: item.status || '',
+          cor: '#B94A48',
+        })),
+        ...(checkins || []).map(item => ({
+          id: `checkin-${item.id}`,
+          data: dataDeEvento(item.entrada),
+          tipo: 'Check-in',
+          titulo: item.saida ? 'Entrada e saída registradas' : 'Entrada registrada',
+          detalhe: item.entrada ? new Date(item.entrada).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '',
+          cor: '#2D7A4A',
+        })),
+        ...(historico || []).map(item => ({
+          id: `historico-${item.id}`,
+          data: dataDeEvento(item.created_at),
+          tipo: 'Histórico',
+          titulo: item.descricao || item.acao || 'Atualização da obra',
+          detalhe: '',
+          cor: THEME.gold,
+        })),
+        ...(checklist || []).filter(item => item.concluido_em).map(item => ({
+          id: `checklist-${item.id}`,
+          data: dataDeEvento(item.concluido_em),
+          tipo: 'Checklist',
+          titulo: item.descricao || 'Item concluído',
+          detalhe: 'Concluído',
+          cor: '#2D7A4A',
+        })),
+      ].filter(item => item.data)
+
+      setEventos(linhas)
+      setLoading(false)
+    }
+
+    carregarCalendario()
+    return () => { ativo = false }
+  }, [obraId, inicioBusca, fimBusca])
+
+  const eventosPorDia = eventos.reduce((acc, evento) => {
+    acc[evento.data] = acc[evento.data] || []
+    acc[evento.data].push(evento)
+    return acc
+  }, {})
+
+  const offset = (inicioMes.getDay() + 6) % 7
+  const dias = []
+  for (let i = 0; i < offset; i += 1) dias.push(null)
+  for (let dia = 1; dia <= fimMes.getDate(); dia += 1) {
+    dias.push(new Date(mes.getFullYear(), mes.getMonth(), dia))
+  }
+
+  const itensDia = eventosPorDia[diaSelecionado] || []
+  const mesLabel = mes.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+
+  function mudarMes(delta) {
+    const novo = new Date(mes.getFullYear(), mes.getMonth() + delta, 1)
+    setMes(novo)
+    setDiaSelecionado(isoLocal(novo))
+  }
+
+  return (
+    <Card titulo="Calendário interno da obra">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ fontSize: 18, color: THEME.ink, fontWeight: 800, textTransform: 'capitalize' }}>{mesLabel}</div>
+          <div style={{ fontSize: 12, color: THEME.muted, marginTop: 3 }}>Eventos, fotos, check-ins, ocorrências e atualizações por dia.</div>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => mudarMes(-1)} style={acaoBtn(false)}>Anterior</button>
+          <button onClick={() => mudarMes(1)} style={acaoBtn(false)}>Próximo</button>
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: compacto ? 5 : 8 }}>
+        {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map(dia => (
+          <div key={dia} style={{ fontSize: 10, color: THEME.muted, fontWeight: 900, textAlign: 'center', padding: '4px 0' }}>{dia}</div>
+        ))}
+        {dias.map((dia, index) => {
+          if (!dia) return <div key={`blank-${index}`} />
+          const iso = isoLocal(dia)
+          const marcadores = eventosPorDia[iso] || []
+          const selecionado = iso === diaSelecionado
+          const fimSemana = dia.getDay() === 0 || dia.getDay() === 6
+          return (
+            <button
+              key={iso}
+              onClick={() => setDiaSelecionado(iso)}
+              style={{
+                minHeight: compacto ? 46 : 66,
+                borderRadius: 12,
+                border: selecionado ? `2px solid ${THEME.gold}` : `1px solid ${THEME.border}`,
+                background: selecionado ? '#FFFBF2' : fimSemana ? '#FAF6EF' : '#FFFEFC',
+                color: THEME.ink,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                padding: compacto ? 5 : 8,
+                textAlign: 'left',
+              }}
+            >
+              <span style={{ display: 'block', fontSize: 12, fontWeight: 900, color: selecionado ? THEME.gold : THEME.muted }}>{dia.getDate()}</span>
+              <span style={{ display: 'flex', gap: 3, marginTop: 8, flexWrap: 'wrap' }}>
+                {marcadores.slice(0, 4).map(item => (
+                  <i key={item.id} style={{ width: 7, height: 7, borderRadius: '50%', background: item.cor, display: 'block' }} />
+                ))}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+      <div style={{ marginTop: 14, border: `1px solid ${THEME.border}`, borderRadius: 14, padding: 14, background: '#FFFEFC' }}>
+        <div style={{ fontSize: 12, color: THEME.gold, fontWeight: 900, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 10 }}>
+          {new Date(`${diaSelecionado}T00:00:00`).toLocaleDateString('pt-BR')}
+        </div>
+        {loading ? (
+          <div style={{ fontSize: 13, color: THEME.muted }}>Carregando movimentações...</div>
+        ) : itensDia.length === 0 ? (
+          <div style={{ fontSize: 13, color: THEME.muted }}>Nenhuma movimentação registrada neste dia.</div>
+        ) : (
+          <div style={{ display: 'grid', gap: 8 }}>
+            {itensDia.map(item => (
+              <div key={item.id} style={{ borderLeft: `4px solid ${item.cor}`, padding: '8px 10px', background: '#fff', borderRadius: 10 }}>
+                <div style={{ fontSize: 11, color: item.cor, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 1 }}>{item.tipo}</div>
+                <div style={{ fontSize: 13, color: THEME.ink, fontWeight: 800, marginTop: 3 }}>{item.titulo}</div>
+                {item.detalhe && <div style={{ fontSize: 12, color: THEME.muted, marginTop: 2 }}>{item.detalhe}</div>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </Card>
   )
 }
 
