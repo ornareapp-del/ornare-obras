@@ -66,7 +66,7 @@ export function KpiCard({ label, value, helper, title, titulo, valor, detalhe, t
 export function StatusBadge({ children, tone = 'info', style, className = '' }) {
   const status = toneStyle(tone)
   return (
-    <span className={`ow-status-badge ${className}`} style={{ color: status.color, background: status.bg, ...style }}>
+    <span className={`ow-status-badge ${className}`} style={{ borderRadius: 999, padding: '4px 10px', fontSize: 11, fontWeight: 700, lineHeight: 1, color: status.color, background: status.bg, ...style }}>
       {children || status.label}
     </span>
   )

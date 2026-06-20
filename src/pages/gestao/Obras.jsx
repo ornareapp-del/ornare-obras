@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { progressBarStyle, progressFillStyle, statusBadgeBaseStyle } from '../../utils/ui'
 
 const ST = {
   'Em produção':       { label: 'Em produção',       bg: '#edf7f0', color: '#2D7A4A', dot: '#2D7A4A' },
@@ -327,13 +328,13 @@ const s = {
   cardInfo: { flex: 1, minWidth: 0 },
   cardTop: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, flexWrap: 'wrap' },
   cardNome: { fontSize: 15, fontWeight: 600, color: 'var(--color-ink)' },
-  badge: { fontSize: 11, padding: '4px 10px', borderRadius: 999, fontWeight: 700, lineHeight: 1 },
+  badge: statusBadgeBaseStyle,
   cardMeta: { fontSize: 12, color: 'var(--color-ink-muted)' },
   cardDetails: { display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8, fontSize: 11, color: 'var(--color-ink-muted)' },
   progressWrap: { minWidth: 100, textAlign: 'right', flexShrink: 0 },
   progressPct: { fontSize: 11, color: 'var(--color-gold)', marginBottom: 4 },
-  progressBar: { height: 4, background: 'var(--color-border)', borderRadius: 2, width: 100 },
-  progressFill: { height: 4, background: 'var(--color-gold)', borderRadius: 2 },
+  progressBar: { ...progressBarStyle, width: 100 },
+  progressFill: progressFillStyle,
   arrow: { fontSize: 18, color: '#ccc', flexShrink: 0 },
   cardActions: { display: 'flex', gap: 8, padding: '8px 20px 12px', borderTop: '1px solid var(--color-border)' },
   btnAcao: { background: 'none', border: '1px solid var(--color-border)', borderRadius: 6, padding: '5px 14px', fontSize: 12, cursor: 'pointer', color: 'var(--color-ink-muted)', fontFamily: 'inherit' },

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { EmptyState, KpiCard as DesignKpiCard, PremiumCard } from '../../components/DesignSystem'
+import { limparNome } from '../../utils/ui'
 
 const THEME = {
   bg: '#F6F3EE',
@@ -59,16 +60,6 @@ function statusBadge(status) {
   if (inStatus({ status }, STATUS.travadas)) return { bg: '#FDECEA', color: '#9E2F2F', label: status || '-' }
   if (inStatus({ status }, STATUS.concluidas)) return { bg: '#E8F5E9', color: '#2E7D32', label: status || '-' }
   return { bg: '#F5F1EA', color: THEME.muted, label: status || '-' }
-}
-
-function limparNome(nome) {
-  if (!nome) return ''
-  const roles = ['Montador', 'Supervisor', 'Gestao', 'Gestão', 'Vendedor', 'Cliente', 'Pos_venda', 'Pós-venda']
-  const partes = String(nome).trim().split(/\s+/)
-  if (roles.includes(partes[partes.length - 1])) {
-    return partes.slice(0, -1).join(' ')
-  }
-  return String(nome).trim()
 }
 
 function activityColor(tipo) {

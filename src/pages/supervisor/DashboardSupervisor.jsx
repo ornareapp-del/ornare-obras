@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { EmptyState, PremiumCard } from '../../components/DesignSystem'
 import { supabase } from '../../lib/supabase'
 import { useStore } from '../../store/useStore'
+import { limparNome } from '../../utils/ui'
 
 const THEME = {
   bg: '#F5F0EB',
@@ -35,14 +36,6 @@ const dataBR = value => value ? new Date(`${value}T00:00:00`).toLocaleDateString
 const isConcluido = status => ['concluida', 'concluido', 'finalizada', 'finalizado'].includes(norm(status))
 
 const obraStatus = status => STATUS_OBRA[status] || { bg: '#F5F1EA', color: THEME.muted, label: status || '-' }
-
-function limparNome(nome) {
-  if (!nome) return ''
-  const roles = ['Montador', 'Supervisor', 'Gestao', 'Gestão', 'Vendedor', 'Cliente', 'Pos_venda', 'Pós-venda']
-  const partes = String(nome).trim().split(/\s+/)
-  if (roles.includes(partes[partes.length - 1])) return partes.slice(0, -1).join(' ')
-  return String(nome).trim()
-}
 
 const agendaTipo = item => {
   const tipo = norm(item.tipo || item.titulo || item.descricao)

@@ -1,10 +1,11 @@
-﻿import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useStore } from '../../store/useStore'
 import { tarefasService } from '../../services/tarefasService'
 import { aplicarBibliotecaChecklist } from '../../services/checklistService'
 import { exportarRelatorioObra } from '../../services/pdfService'
+import { progressBarStyle, progressFillStyle, statusBadgeBaseStyle } from '../../utils/ui'
 
 const ST = {
   'Em montagem':         { label: 'Em montagem',        bg: '#edf7f0', color: '#3a7d4f' },
@@ -143,31 +144,24 @@ export default function ObraDetalhe() {
 
   const [compacto, setCompacto] = useState(false)
 
-  useEffect(() => { carregarObra(); carregarProfiles(); carregarResumo() }, [id])
-  useEffect(() => { if (aba === 'Tarefas') carregarTarefas() }, [aba, id])
-  useEffect(() => {
-    function check() { setCompacto(window.innerWidth < 760) }
-    check()
-    window.addEventListener('resize', check)
-    return () => window.removeEventListener('resize', check)
-  }, [])
-
-  async function carregarObra() {
+  const carregarObra = useCallback(async () => {
     const { data } = await supabase.from('obras').select('*').eq('id', id).single()
     setObra(data); setFormObra(data || {}); setLoading(false)
-  }
-  async function carregarProfiles() {
+  }, [id])
+
+  const carregarProfiles = useCallback(async () => {
     const { data } = await supabase.from('profiles').select('id, full_name, email, role')
     setProfiles(data || [])
-  }
-  async function carregarTarefas() {
+  }, [])
+
+  const carregarTarefas = useCallback(async () => {
     const data = await tarefasService.listarPorObra(id)
     setTarefas(data || [])
     const p = await tarefasService.calcularProgresso(id)
     setProgresso(p)
-  }
+  }, [id])
 
-  async function carregarResumo() {
+  const carregarResumo = useCallback(async () => {
     const [{ data: gs }, { data: ts }, { data: ag }, { data: fotos }, { data: ocorrencias }, { data: equipe }, { data: checklist }] = await Promise.all([
       supabase.from('gastos').select('valor').eq('obra_id', id),
       supabase.from('tarefas').select('id, status').eq('obra_id', id),
@@ -189,13 +183,23 @@ export default function ObraDetalhe() {
       equipe: (equipe || []).length,
       checklistPendentes,
     })
-  }
+  }, [id])
 
   function mostrarToast(msg, tipo = 'ok') {
     setToast({ msg, tipo })
-    setTimeout(() => setToast({ msg: '', tipo: 'ok' }), 3200)
+    window.setTimeout(() => setToast({ msg: '', tipo: 'ok' }), 3200)
   }
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { carregarObra(); carregarProfiles(); carregarResumo() }, [carregarObra, carregarProfiles, carregarResumo])
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { if (aba === 'Tarefas') carregarTarefas() }, [aba, carregarTarefas])
+  useEffect(() => {
+    function check() { setCompacto(window.innerWidth < 760) }
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
   async function salvarTarefa() {
     if (!nova.titulo.trim()) return
     setSalvando(true)
@@ -304,7 +308,7 @@ export default function ObraDetalhe() {
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: compacto ? 'stretch' : 'flex-end', gap: 12 }}>
-            <span style={{ alignSelf: compacto ? 'flex-start' : 'flex-end', padding: '7px 14px', borderRadius: 999, background: st.bg, color: st.color, fontSize: 12, fontWeight: 700 }}>{st.label}</span>
+            <span style={{ ...statusBadgeBaseStyle, alignSelf: compacto ? 'flex-start' : 'flex-end', background: st.bg, color: st.color, fontSize: 12, padding: '7px 14px' }}>{st.label}</span>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: compacto ? 'flex-start' : 'flex-end' }}>
               <button onClick={() => { setAba('Tarefas'); carregarTarefas() }} style={acaoBtn(false)}>Tarefas</button>
               <button onClick={() => setAba('Fotos')} style={acaoBtn(false)}>Fotos</button>
@@ -615,8 +619,8 @@ export default function ObraDetalhe() {
                 <span>{tarefas.filter(t => t.status === 'concluida').length} de {tarefas.length} concluídas</span>
                 <span style={{ color: 'var(--color-gold)', fontWeight: 600 }}>{progresso}%</span>
               </div>
-              <div style={{ height: 4, background: 'var(--color-border)', borderRadius: 2 }}>
-                <div style={{ height: 4, background: 'var(--color-gold)', borderRadius: 2, width: progresso + '%', transition: 'width 0.4s' }} />
+              <div style={progressBarStyle}>
+                <div style={{ ...progressFillStyle, width: progresso + '%', transition: 'width 0.4s' }} />
               </div>
             </div>
           )}
@@ -1131,6 +1135,7 @@ function AbaOcorrencias({ obraId }) {
   const [showForm, setShowForm] = useState(false)
   const [salvando, setSalvando] = useState(false)
   const [nova, setNova] = useState({ titulo: '', descricao: '', categoria: 'geral', gravidade: 'baixa' })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { carregar() }, [])
   async function carregar() {
     const { data } = await supabase.from('ocorrencias').select('*, responsavel:profiles!ocorrencias_responsavel_id_fkey(full_name)').eq('obra_id', obraId).order('created_at', { ascending: false })
@@ -1219,6 +1224,7 @@ function AbaGastos({ obraId, obraInfo }) {
   const [salvando,    setSalvando]    = useState(false)
   const [erro,        setErro]        = useState('')
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { carregar() }, [])
 
   async function carregar() {
@@ -1378,6 +1384,7 @@ function AbaChat({ obraId }) {
   const [texto, setTexto] = useState('')
   const [loading, setLoading] = useState(true)
   const [enviando, setEnviando] = useState(false)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { carregar() }, [])
   async function carregar() {
     const { data } = await supabase.from('mensagens_obra').select('*, autor:profiles(full_name, role)').eq('obra_id', obraId).order('created_at', { ascending: true })
@@ -1607,6 +1614,7 @@ function AbaCliente({ obraId }) {
   const [salvando, setSalvando] = useState(false)
   const [novoCom, setNovoCom] = useState({ titulo: '', mensagem: '' })
   const [novoCon, setNovoCon] = useState({ nome: '', cargo: '', telefone: '' })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { carregar() }, [])
   async function carregar() {
     const [{ data: c }, { data: ct }] = await Promise.all([
@@ -1701,6 +1709,7 @@ function AbaEquipeObra({ obraId }) {
   const [adicionando, setAdicionando] = useState(false)
   const [selecionado, setSelecionado] = useState('')
   const [mensagem, setMensagem] = useState(null)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { carregar() }, [])
   function avisar(tipo, texto) {
     setMensagem({ tipo, texto })
