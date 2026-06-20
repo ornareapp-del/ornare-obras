@@ -27,6 +27,15 @@ const FOTO_CATEGORIAS = [
   'Geral',
 ]
 
+const VISTORIA_CHECKLIST = [
+  'Conferir acesso à obra, elevador, carga e descarga.',
+  'Conferir pontos elétricos, hidráulicos e interferências aparentes.',
+  'Confirmar se a obra está apta para montagem.',
+  'Registrar fotos de vistoria por ambiente.',
+  'Sinalizar pendências que podem impedir início.',
+  'Validar se ambientes estão limpos e desimpedidos.',
+]
+
 const PRIORIDADE = {
   baixa: { label: 'Baixa', color: '#8A8175' },
   media: { label: 'Média', color: THEME.warn },
@@ -125,17 +134,25 @@ export default function MontadorDashboard() {
   const [uploading, setUploading] = useState(false)
   const [salvandoProblema, setSalvandoProblema] = useState(false)
   const [modalProblema, setModalProblema] = useState(null)
+  const [tarefaAberta, setTarefaAberta] = useState(null)
+  const [observacaoTarefa, setObservacaoTarefa] = useState('')
+  const [calendarioAberto, setCalendarioAberto] = useState(false)
+  const [mesCalendario, setMesCalendario] = useState(new Date())
+  const [diaCalendario, setDiaCalendario] = useState('')
   const [problema, setProblema] = useState('')
   const [sucesso, setSucesso] = useState('')
   const [servicoFeedback, setServicoFeedback] = useState('')
   const [preview, setPreview] = useState(null)
   const [formFoto, setFormFoto] = useState({ categoria: '', ambiente_id: '', agenda_id: '', observacao: '' })
+  const [ambienteAberto, setAmbienteAberto] = useState('')
+  const [itemAcao, setItemAcao] = useState('')
 
   const tarefasRef = useRef(null)
   const checklistRef = useRef(null)
   const fotosRef = useRef(null)
   const ocorrenciasRef = useRef(null)
   const perfilRef = useRef(null)
+  const longPressRef = useRef(null)
 
   function mostrarSucesso(msg) {
     setSucesso(msg)
@@ -403,19 +420,95 @@ export default function MontadorDashboard() {
     setCheckando(false)
   }
 
-  async function mudarStatus(id, status) {
-    await supabase.from('tarefas').update({ status }).eq('id', id)
+  function abrirTarefa(tarefa) {
+    setTarefaAberta(tarefa)
+    setObservacaoTarefa(tarefa?.observacao || '')
+  }
+
+  async function gerarChecklistVistoriaTarefa(tarefa) {
+    if (!tarefa?.obra_id || !norm(tarefa.tipo || tarefa.titulo).includes('vistoria')) return
+    const { data: existentes, error: consultaError } = await supabase
+      .from('checklist_items')
+      .select('id')
+      .eq('obra_id', tarefa.obra_id)
+      .ilike('descricao', '%vistoria%')
+      .limit(1)
+
+    if (consultaError) {
+      console.error('Erro ao consultar checklist de vistoria:', consultaError)
+      return
+    }
+
+    if ((existentes || []).length > 0) return
+
+    const rows = VISTORIA_CHECKLIST.map((descricao, index) => ({
+      obra_id: tarefa.obra_id,
+      ambiente_id: null,
+      descricao,
+      concluido: false,
+      fase: 'Pré-Montagem',
+      responsavel_perfil: 'montador',
+      responsavel_id: user?.id || null,
+      status: 'pendente',
+      criticidade: index === 3 ? 'alta' : 'media',
+      exige_foto: index === 3,
+    }))
+
+    const { error } = await supabase.from('checklist_items').insert(rows)
+    if (error) console.error('Erro ao criar checklist de vistoria:', error)
+  }
+
+  async function mudarStatus(id, status, tarefaBase = null) {
+    const tarefa = tarefaBase || tarefas.find(t => t.id === id)
+    const { error } = await supabase.from('tarefas').update({ status }).eq('id', id)
+    if (error) {
+      console.error('Erro ao atualizar tarefa:', error)
+      mostrarSucesso('Não foi possível atualizar a tarefa.')
+      return
+    }
+    if (status === 'em_andamento') await gerarChecklistVistoriaTarefa(tarefa)
+    if (tarefaAberta?.id === id) setTarefaAberta(p => p ? { ...p, status } : p)
+    await carregarDadosObra()
+  }
+
+  async function salvarObservacaoTarefa() {
+    if (!tarefaAberta?.id) return
+    const { error } = await supabase.from('tarefas').update({ observacao: observacaoTarefa }).eq('id', tarefaAberta.id)
+    if (error) {
+      console.error('Erro ao salvar observação da tarefa:', error)
+      mostrarSucesso('Não foi possível salvar a observação.')
+      return
+    }
+    mostrarSucesso('Observação salva.')
+    setTarefaAberta(p => p ? { ...p, observacao: observacaoTarefa } : p)
+    await carregarDadosObra()
+  }
+
+  async function confirmarPresencaAgenda(item) {
+    if (!item?.id) return
+    const { error } = await supabase.from('agenda').update({ confirmado_cliente: true }).eq('id', item.id)
+    if (error) {
+      console.error('Erro ao confirmar presenca na agenda:', error)
+      mostrarSucesso('Não foi possível confirmar presença.')
+      return
+    }
+    mostrarSucesso('Presença confirmada.')
     await carregarDadosObra()
   }
 
   async function toggleChecklist(item) {
     if (!user) return
     const concluindo = !item.concluido
-    await supabase.from('checklist_items').update({
+    const { error } = await supabase.from('checklist_items').update({
       concluido: concluindo,
       concluido_por: concluindo ? user.id : null,
       concluido_em: concluindo ? new Date().toISOString() : null,
     }).eq('id', item.id)
+    if (error) {
+      console.error('Erro ao salvar checklist:', { error, item })
+      mostrarSucesso('Não foi possível salvar o checklist.')
+      return
+    }
     if (concluindo) {
       await criarNotificacoesOperacionais({
         tipo: 'checklist',
@@ -428,6 +521,29 @@ export default function MontadorDashboard() {
       })
     }
     await carregarDadosObra()
+  }
+
+  async function excluirChecklistItem(item) {
+    if (!item?.id) return
+    if (!window.confirm('Excluir este item do checklist?')) return
+    const { error } = await supabase.from('checklist_items').delete().eq('id', item.id)
+    if (error) {
+      console.error('Erro ao excluir checklist:', { error, item })
+      mostrarSucesso('Não foi possível excluir o item.')
+      return
+    }
+    setItemAcao('')
+    mostrarSucesso('Item excluído.')
+    await carregarDadosObra()
+  }
+
+  function iniciarLongPress(itemId) {
+    window.clearTimeout(longPressRef.current)
+    longPressRef.current = window.setTimeout(() => setItemAcao(itemId), 700)
+  }
+
+  function cancelarLongPress() {
+    window.clearTimeout(longPressRef.current)
   }
 
   async function handleUpload(e) {
@@ -524,6 +640,7 @@ export default function MontadorDashboard() {
     amanha.setDate(hoje.getDate() + 1)
 
     const tarefasAbertas = tarefas.filter(t => !isConcluido(t.status))
+    const tarefasConcluidasHoje = tarefas.filter(t => isConcluido(t.status) && mesmoDia(t.updated_at || t.concluido_em || t.created_at, hoje))
     const checklistPendentes = checklist.filter(i => !i.concluido)
     const checklistConcluidos = checklist.filter(i => i.concluido)
     const ocorrenciasAbertas = ocorrencias.filter(o => isAberta(o.status))
@@ -535,11 +652,9 @@ export default function MontadorDashboard() {
     const agendaFutura = agenda
       .filter(item => item.data && new Date(`${item.data}T00:00:00`) >= hoje)
       .sort((a, b) => `${a.data || ''}${a.hora_inicio || ''}`.localeCompare(`${b.data || ''}${b.hora_inicio || ''}`))
-    const agendaPassada = agenda
-      .filter(item => item.data && new Date(`${item.data}T00:00:00`) < hoje)
-      .sort((a, b) => `${b.data || ''}${b.hora_inicio || ''}`.localeCompare(`${a.data || ''}${a.hora_inicio || ''}`))
-    const proximaAgenda = agendaFutura[0] || agendaPassada[0] || null
+    const proximaAgenda = agendaFutura[0] || null
     const proximaAgendaStatus = proximaAgenda ? statusAgenda(proximaAgenda) : null
+    const preMontagemAgenda = agendaFutura.find(item => norm(item.tipo || item.titulo || item.observacao).includes('pre-montagem') || norm(item.tipo || item.titulo || item.observacao).includes('pre montagem'))
 
     const emServico = checkins.some(c => !c.saida)
     const ultimoCheckin = checkins[0] || null
@@ -586,12 +701,14 @@ export default function MontadorDashboard() {
 
     return {
       tarefasAbertas,
+      tarefasConcluidasHoje,
       checklistPendentes,
       checklistConcluidos,
       ocorrenciasAbertas,
       fotosHoje,
       proximaAgenda,
       proximaAgendaStatus,
+      preMontagemAgenda,
       emServico,
       ultimoCheckin,
       registroHoje,
@@ -606,6 +723,32 @@ export default function MontadorDashboard() {
 
   const ambienteNome = ambienteId => ambientes.find(a => a.id === ambienteId)?.nome || 'Sem ambiente'
   const vistoriasAgenda = agenda.filter(item => norm(item.tipo || item.titulo).includes('vistoria'))
+  const calendarioAno = mesCalendario.getFullYear()
+  const calendarioMes = mesCalendario.getMonth()
+  const primeiroDiaCalendario = new Date(calendarioAno, calendarioMes, 1)
+  const inicioGradeCalendario = new Date(primeiroDiaCalendario)
+  inicioGradeCalendario.setDate(1 - primeiroDiaCalendario.getDay())
+  const eventosPorDia = agenda.reduce((acc, item) => {
+    if (!item.data) return acc
+    acc[item.data] = [...(acc[item.data] || []), item]
+    return acc
+  }, {})
+  const diasCalendario = Array.from({ length: 42 }, (_, index) => {
+    const data = new Date(inicioGradeCalendario)
+    data.setDate(inicioGradeCalendario.getDate() + index)
+    const key = data.toISOString().split('T')[0]
+    return {
+      key,
+      dia: data.getDate(),
+      noMes: data.getMonth() === calendarioMes,
+      eventos: eventosPorDia[key] || [],
+    }
+  })
+
+  function mudarMesCalendario(delta) {
+    setMesCalendario(data => new Date(data.getFullYear(), data.getMonth() + delta, 1))
+    setDiaCalendario('')
+  }
 
   if (loading) {
     return (
@@ -658,6 +801,78 @@ export default function MontadorDashboard() {
               <button className="danger" onClick={salvarProblema} disabled={salvandoProblema}>
                 {salvandoProblema ? 'Salvando...' : 'Registrar'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tarefaAberta && (
+        <div className="md-modal-bg" onClick={e => e.target === e.currentTarget && setTarefaAberta(null)}>
+          <div className="md-modal">
+            <h2>{tarefaAberta.titulo || 'Tarefa'}</h2>
+            <p>{tarefaAberta.descricao || tarefaAberta.tipo || 'Detalhe operacional da tarefa.'}</p>
+            <div className="md-task-detail-status">
+              <span>{tarefaAberta.status || 'pendente'}</span>
+              {tarefaAberta.prazo && <small>Previsto para {dataBR(tarefaAberta.prazo)}</small>}
+            </div>
+            <div className="md-modal-actions split">
+              {norm(tarefaAberta.status) === 'pendente' && (
+                <button className="gold" onClick={() => mudarStatus(tarefaAberta.id, 'em_andamento', tarefaAberta)}>Iniciar tarefa</button>
+              )}
+              {norm(tarefaAberta.status) === 'em_andamento' && (
+                <button className="success" onClick={() => mudarStatus(tarefaAberta.id, 'concluida', tarefaAberta)}>Concluir tarefa</button>
+              )}
+            </div>
+            {norm(tarefaAberta.tipo || tarefaAberta.titulo).includes('vistoria') && (
+              <div className="md-task-checklist-preview">
+                <strong>Checklist de vistoria</strong>
+                {VISTORIA_CHECKLIST.map(item => <span key={item}>• {item}</span>)}
+              </div>
+            )}
+            <div className="md-task-photo-actions">
+              <button onClick={() => { setFormFoto(p => ({ ...p, categoria: 'Vistoria' })); setTarefaAberta(null); window.setTimeout(() => scrollTo(fotosRef), 80) }}>Tirar/enviar foto</button>
+            </div>
+            <textarea value={observacaoTarefa} onChange={e => setObservacaoTarefa(e.target.value)} placeholder="Observação da tarefa..." rows={4} />
+            <div className="md-modal-actions">
+              <button onClick={() => setTarefaAberta(null)}>Fechar</button>
+              <button className="gold" onClick={salvarObservacaoTarefa}>Salvar observação</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {calendarioAberto && (
+        <div className="md-modal-bg" onClick={e => e.target === e.currentTarget && setCalendarioAberto(false)}>
+          <div className="md-modal calendar">
+            <div className="md-calendar-head">
+              <button onClick={() => mudarMesCalendario(-1)}>‹</button>
+              <h2>{mesCalendario.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</h2>
+              <button onClick={() => mudarMesCalendario(1)}>›</button>
+            </div>
+            <div className="md-calendar-week">
+              {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(dia => <span key={dia}>{dia}</span>)}
+            </div>
+            <div className="md-calendar-grid">
+              {diasCalendario.map(dia => (
+                <button key={dia.key} className={`${dia.noMes ? '' : 'muted'} ${dia.eventos.length ? 'busy' : ''}`} onClick={() => setDiaCalendario(dia.key)}>
+                  <span>{dia.dia}</span>
+                  {dia.eventos.length > 0 && <i />}
+                </button>
+              ))}
+            </div>
+            <div className="md-calendar-day">
+              <strong>{diaCalendario ? dataBR(diaCalendario) : 'Selecione um dia'}</strong>
+              {diaCalendario && (eventosPorDia[diaCalendario] || []).length === 0 && <p>Nenhum compromisso neste dia.</p>}
+              {diaCalendario && (eventosPorDia[diaCalendario] || []).map(item => (
+                <div key={item.id} className="md-calendar-event">
+                  <span>{tipoAgenda(item)}</span>
+                  <strong>{item.titulo || obraAtiva.nome}</strong>
+                  <small>{item.hora_inicio || 'Horário não informado'}</small>
+                </div>
+              ))}
+            </div>
+            <div className="md-modal-actions">
+              <button onClick={() => setCalendarioAberto(false)}>Fechar</button>
             </div>
           </div>
         </div>
@@ -730,12 +945,12 @@ export default function MontadorDashboard() {
         )}
       </section>
 
+      {vm.registroHoje && (
       <section className="md-today-card">
         <div className="md-card-head compact">
           <h2>Registro de hoje</h2>
         </div>
-        {vm.registroHoje ? (
-          <div className="md-today-row">
+        <div className="md-today-row">
             <div>
               <strong>Entrada</strong>
               <span>{horaBR(vm.registroHoje.entrada || vm.registroHoje.created_at)}</span>
@@ -745,16 +960,24 @@ export default function MontadorDashboard() {
               <span>{vm.registroHoje.saida ? horaBR(vm.registroHoje.saida) : 'Em serviço'}</span>
             </div>
             <p>{obraAtiva.nome || 'Obra ativa'} · {localizacaoCheckin(vm.registroHoje)}</p>
-          </div>
-        ) : (
-          <div className="md-today-empty">Nenhum registro hoje.</div>
-        )}
+        </div>
       </section>
+      )}
 
       <section className="md-card">
         <div className="md-card-head">
           <h2>Próxima agenda</h2>
         </div>
+        {vm.preMontagemAgenda && (
+          <div className="md-next highlight">
+            <div className="md-next-head">
+              <strong>Montagem a confirmar</strong>
+              <em className="tone-warn">A confirmar</em>
+            </div>
+            <span>Previsão: {dataBR(vm.preMontagemAgenda.data)}</span>
+            <button className="md-confirm-btn" onClick={() => confirmarPresencaAgenda(vm.preMontagemAgenda)}>Confirmar presença</button>
+          </div>
+        )}
         {vm.proximaAgenda ? (
           <div className="md-next">
             <div className="md-next-head">
@@ -765,7 +988,7 @@ export default function MontadorDashboard() {
             <small>{dataBR(vm.proximaAgenda.data)}{vm.proximaAgenda.hora_inicio ? ` · ${vm.proximaAgenda.hora_inicio}` : ''}</small>
           </div>
         ) : (
-          <Empty text="Nenhum compromisso futuro para esta obra." />
+          <div className="md-empty-compact">Nenhum compromisso próximo</div>
         )}
       </section>
 
@@ -796,6 +1019,7 @@ export default function MontadorDashboard() {
         <button onClick={() => setModalProblema('Ocorrência geral')}>Relatar problema</button>
         <button onClick={() => scrollTo(checklistRef)}>Abrir checklist</button>
         <button onClick={() => scrollTo(tarefasRef)}>Ver tarefas</button>
+        <button onClick={() => setCalendarioAberto(true)}>Meu calendário</button>
       </section>
 
       <section className="md-summary">
@@ -815,28 +1039,32 @@ export default function MontadorDashboard() {
         {vm.tarefasAbertas.length === 0 ? <Empty text="Nenhuma tarefa pendente." /> : vm.tarefasAbertas.map(tarefa => {
           const pr = PRIORIDADE[norm(tarefa.prioridade)] || { label: tarefa.prioridade || '', color: '#A79F93' }
           return (
-            <article className="md-task" key={tarefa.id} style={{ borderLeftColor: pr.color }}>
+            <article className="md-task" key={tarefa.id} style={{ borderLeftColor: pr.color }} onClick={() => abrirTarefa(tarefa)}>
               <div className="md-task-head">
                 <strong>{tarefa.titulo || 'Tarefa sem título'}</strong>
-                {pr.label && <span style={{ color: pr.color }}>{pr.label}</span>}
+                <span style={{ color: pr.color }}>{tarefa.status || pr.label || 'pendente'}</span>
               </div>
-              {tarefa.descricao && <p>{tarefa.descricao}</p>}
-              {tarefa.prazo && <small>Prazo: {dataBR(tarefa.prazo)}</small>}
-              <div className="md-status-row">
-                {['pendente', 'em_andamento', 'concluida'].map(status => (
-                  <button key={status} className={tarefa.status === status ? 'active' : ''} onClick={() => mudarStatus(tarefa.id, status)}>
-                    {status === 'pendente' ? 'Pendente' : status === 'em_andamento' ? 'Em andamento' : 'Concluir'}
-                  </button>
-                ))}
-              </div>
-              <div className="md-two-actions">
-                <button onClick={() => setModalProblema(tarefa)}>Relatar problema</button>
-                <button className="ok" onClick={() => mudarStatus(tarefa.id, 'concluida')}>Concluir</button>
-              </div>
+              <p>{tarefa.tipo || tarefa.descricao || 'Atividade operacional'}</p>
+              {tarefa.prazo && <small>Previsto: {dataBR(tarefa.prazo)}</small>}
             </article>
           )
         })}
       </section>
+
+      {vm.tarefasConcluidasHoje.length > 0 && (
+        <section className="md-card compact-card">
+          <div className="md-card-head">
+            <h2>Concluídas hoje</h2>
+            <span>{vm.tarefasConcluidasHoje.length}</span>
+          </div>
+          {vm.tarefasConcluidasHoje.map(tarefa => (
+            <button key={tarefa.id} className="md-done-task" onClick={() => abrirTarefa(tarefa)}>
+              <strong>{tarefa.titulo || 'Tarefa concluída'}</strong>
+              <span>✓</span>
+            </button>
+          ))}
+        </section>
+      )}
 
       <section className="md-card" ref={checklistRef}>
         <div className="md-card-head">
@@ -847,22 +1075,25 @@ export default function MontadorDashboard() {
         {checklist.length === 0 ? <Empty text="Nenhum item de checklist nesta obra." /> : vm.checklistGrupos.map(grupo => {
           const feitos = grupo.itens.filter(i => i.concluido).length
           const pct = grupo.itens.length ? Math.round((feitos / grupo.itens.length) * 100) : 0
+          const aberto = ambienteAberto === grupo.id
+          const tone = pct === 100 ? 'done' : pct > 0 ? 'progress' : 'empty'
           return (
-            <article className="md-env" key={grupo.id}>
-              <div className="md-env-head">
+            <article className={`md-env ${tone}`} key={grupo.id}>
+              <button className="md-env-head" onClick={() => setAmbienteAberto(aberto ? '' : grupo.id)}>
                 <div>
                   <strong>{grupo.nome}</strong>
                   <small>{feitos} de {grupo.itens.length} itens</small>
                 </div>
-                <span>{pct}%</span>
-              </div>
+                <span>{pct === 100 ? '✓' : pct + '%'}</span>
+              </button>
               <div className="md-progress soft"><i style={{ width: `${pct}%` }} /></div>
-              {grupo.itens.length === 0 ? <Empty text="Nenhum item neste ambiente." /> : grupo.itens.map(item => (
-                <button className={item.concluido ? 'md-check-item done' : 'md-check-item'} key={item.id} onClick={() => toggleChecklist(item)}>
+              {aberto && (grupo.itens.length === 0 ? <Empty text="Nenhum item neste ambiente." /> : grupo.itens.map(item => (
+                <div className={item.concluido ? 'md-check-item done' : 'md-check-item'} key={item.id} onClick={() => toggleChecklist(item)} onMouseDown={() => iniciarLongPress(item.id)} onMouseUp={cancelarLongPress} onMouseLeave={cancelarLongPress} onTouchStart={() => iniciarLongPress(item.id)} onTouchEnd={cancelarLongPress}>
                   <i>{item.concluido ? '✓' : ''}</i>
                   <span>{item.descricao}</span>
-                </button>
-              ))}
+                  {itemAcao === item.id && <button className="md-check-delete" onClick={e => { e.stopPropagation(); excluirChecklistItem(item) }}>Excluir</button>}
+                </div>
+              )))}
             </article>
           )
         })}
@@ -1041,6 +1272,9 @@ const css = `
 .md-next em.tone-danger{background:#FFF1F1;color:${THEME.danger}}
 .md-next span{display:block;font-size:13px;color:${THEME.muted};line-height:1.4}
 .md-next small{display:block;font-size:12px;color:${THEME.gold};font-weight:800;margin-top:8px}
+.md-next.highlight{border:1px solid rgba(184,150,94,.45);background:#FFFAF0;border-radius:15px;padding:13px;margin-bottom:10px;box-shadow:0 10px 24px rgba(184,150,94,.12)}
+.md-confirm-btn{border:0;background:${THEME.gold};color:#fff;border-radius:12px;padding:11px 13px;font-size:12px;font-weight:900;margin-top:10px;cursor:pointer;width:100%}
+.md-empty-compact{background:#F3F0EA;border:1px solid ${THEME.border};border-radius:14px;padding:13px;color:${THEME.muted};font-size:13px;text-align:center;font-weight:800}
 .md-quick{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px}
 .md-quick button{border:1px solid ${THEME.border};background:#fff;color:${THEME.ink};border-radius:14px;padding:14px 10px;font-size:13px;font-weight:900;cursor:pointer}
 .md-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
@@ -1050,6 +1284,7 @@ const css = `
 .md-metric.danger strong{color:${THEME.danger}}
 .md-metric span{display:block;font-size:10.5px;color:${THEME.muted};margin-top:5px}
 .md-task{border:1px solid ${THEME.border};border-left:4px solid ${THEME.gold};border-radius:15px;padding:14px;margin-bottom:10px;background:#FFFEFC}
+.md-task{cursor:pointer}
 .md-task-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
 .md-task-head strong{font-size:14px;color:${THEME.ink}}
 .md-task-head span{font-size:10px;letter-spacing:.8px;text-transform:uppercase;font-weight:900}
@@ -1060,17 +1295,25 @@ const css = `
 .md-status-row button.active{background:${THEME.ink};color:#fff}
 .md-two-actions button{background:#FFF4E5;color:${THEME.warn}}
 .md-two-actions button.ok{background:#EAF5EE;color:${THEME.success}}
+.compact-card{padding-top:13px;padding-bottom:13px}
+.md-done-task{width:100%;border:1px solid #C8E1D0;background:#F7FCF8;border-radius:12px;padding:11px 12px;display:flex;align-items:center;justify-content:space-between;margin-top:8px;font-family:inherit;cursor:pointer}
+.md-done-task strong{font-size:13px;color:${THEME.ink}}
+.md-done-task span{color:${THEME.success};font-weight:900}
 .md-env{border:1px solid ${THEME.border};border-radius:15px;padding:13px;margin-top:12px;background:#FFFEFC}
-.md-env-head{display:flex;justify-content:space-between;gap:10px}
+.md-env.progress{border-color:${THEME.gold}}
+.md-env.done{border-color:${THEME.success};background:#F7FCF8}
+.md-env-head{width:100%;border:0;background:transparent;padding:0;display:flex;justify-content:space-between;gap:10px;text-align:left;font-family:inherit;cursor:pointer}
 .md-env-head strong{font-size:14px;color:${THEME.ink}}
 .md-env-head small{display:block;font-size:11px;color:${THEME.muted};margin-top:3px}
 .md-env-head span{font-size:12px;color:${THEME.gold};font-weight:900}
+.md-env.done .md-env-head span{color:${THEME.success}}
 .md-check-item{width:100%;border:1px solid ${THEME.border};background:#fff;border-radius:13px;padding:13px;display:flex;align-items:center;gap:11px;text-align:left;margin-top:8px;font-family:inherit;cursor:pointer}
 .md-check-item.done{background:#F4FBF6;border-color:#C8E1D0}
 .md-check-item i{width:23px;height:23px;border-radius:7px;border:2px solid ${THEME.border};display:flex;align-items:center;justify-content:center;font-style:normal;font-size:13px;font-weight:900;flex-shrink:0}
 .md-check-item.done i{background:${THEME.success};border-color:${THEME.success};color:#fff}
 .md-check-item span{font-size:14px;color:${THEME.ink};line-height:1.35}
 .md-check-item.done span{color:#9A938A;text-decoration:line-through}
+.md-check-delete{margin-left:auto;border:0;background:#FFF1F1;color:${THEME.danger};border-radius:10px;padding:8px 9px;font-size:11px;font-weight:900;cursor:pointer}
 .md-upload{display:flex;flex-direction:column;gap:9px;margin-bottom:14px}
 .md-file{display:block;background:${THEME.ink};color:#fff;border-radius:14px;padding:15px;text-align:center;font-size:14px;font-weight:900;cursor:pointer}
 .md-file.disabled{opacity:.52}
@@ -1098,12 +1341,40 @@ const css = `
 .md-toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:${THEME.ink};color:#fff;border-left:3px solid ${THEME.gold};border-radius:13px;padding:12px 18px;font-size:13px;font-weight:800;z-index:1000;white-space:nowrap;max-width:calc(100vw - 28px);box-sizing:border-box}
 .md-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:800;display:flex;align-items:flex-end;justify-content:center;padding:14px}
 .md-modal{width:100%;max-width:500px;background:#fff;border-radius:18px;padding:20px;box-sizing:border-box}
+.md-modal.calendar{max-height:88vh;overflow:auto}
 .md-modal h2{font-family:var(--font-serif);font-size:22px;font-weight:500;margin:0 0 5px;color:${THEME.ink}}
 .md-modal p{font-size:13px;color:${THEME.muted};margin:0 0 14px}
 .md-modal textarea{width:100%;box-sizing:border-box;border:1px solid ${THEME.border};border-radius:13px;padding:12px;font-family:inherit;font-size:14px;resize:none;color:${THEME.ink}}
 .md-modal-actions{display:flex;gap:9px;justify-content:flex-end;margin-top:12px}
+.md-modal-actions.split{justify-content:stretch}
 .md-modal-actions button{border:1px solid ${THEME.border};background:#fff;border-radius:12px;padding:11px 14px;font-weight:800;color:${THEME.muted};cursor:pointer}
 .md-modal-actions button.danger{border-color:${THEME.danger};background:${THEME.danger};color:#fff}
+.md-modal-actions button.gold{border-color:${THEME.gold};background:${THEME.gold};color:#fff;flex:1}
+.md-modal-actions button.success{border-color:${THEME.success};background:${THEME.success};color:#fff;flex:1}
+.md-task-detail-status{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid ${THEME.border};background:#FFFEFC;border-radius:13px;padding:11px 12px;margin-bottom:12px}
+.md-task-detail-status span{font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:${THEME.gold};font-weight:900}
+.md-task-detail-status small{font-size:12px;color:${THEME.muted};font-weight:800}
+.md-task-checklist-preview{border:1px solid ${THEME.border};background:#FFFEFC;border-radius:13px;padding:12px;margin-top:12px}
+.md-task-checklist-preview strong{display:block;font-size:13px;color:${THEME.ink};margin-bottom:8px}
+.md-task-checklist-preview span{display:block;font-size:12px;color:${THEME.muted};line-height:1.45;margin-top:5px}
+.md-task-photo-actions button{width:100%;border:0;background:${THEME.ink};color:#fff;border-radius:13px;padding:12px;margin:12px 0;font-weight:900;cursor:pointer}
+.md-calendar-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+.md-calendar-head h2{text-transform:capitalize;text-align:center;margin:0!important}
+.md-calendar-head button{width:38px;height:38px;border:1px solid ${THEME.border};background:#fff;border-radius:12px;font-size:24px;line-height:1;cursor:pointer;color:${THEME.ink}}
+.md-calendar-week{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:6px}
+.md-calendar-week span{text-align:center;font-size:10px;font-weight:900;color:${THEME.muted}}
+.md-calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.md-calendar-grid button{height:42px;border:1px solid ${THEME.border};background:#FFFEFC;border-radius:11px;position:relative;font-weight:900;color:${THEME.ink};cursor:pointer}
+.md-calendar-grid button.muted{opacity:.35}
+.md-calendar-grid button.busy{border-color:${THEME.gold};background:#FFF8EA;color:${THEME.gold}}
+.md-calendar-grid button i{position:absolute;left:50%;bottom:6px;transform:translateX(-50%);width:5px;height:5px;border-radius:999px;background:${THEME.gold}}
+.md-calendar-day{border:1px solid ${THEME.border};background:#FFFEFC;border-radius:14px;padding:12px;margin-top:14px}
+.md-calendar-day>strong{font-size:13px;color:${THEME.ink}}
+.md-calendar-day p{font-size:12px;color:${THEME.muted};margin:8px 0 0}
+.md-calendar-event{border-top:1px solid ${THEME.border};padding-top:9px;margin-top:9px}
+.md-calendar-event span{display:block;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:${THEME.gold};font-weight:900}
+.md-calendar-event strong{display:block;font-size:13px;color:${THEME.ink};margin-top:3px}
+.md-calendar-event small{display:block;font-size:11px;color:${THEME.muted};margin-top:3px}
 .md-preview{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:900;display:flex;align-items:center;justify-content:center;padding:12px;cursor:pointer}
 .md-preview img{max-width:100%;max-height:92vh;border-radius:12px;object-fit:contain}
 .md-bottom-nav{position:fixed;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:700;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;background:rgba(255,254,252,.96);border:1px solid ${THEME.border};border-radius:18px;padding:7px;box-shadow:0 18px 42px rgba(29,28,25,.18);backdrop-filter:blur(18px);max-width:500px;margin:0 auto}

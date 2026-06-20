@@ -231,13 +231,40 @@ export default function Agenda() {
   async function carregar() {
     const [{ data: ev }, { data: ob }, { data: pr }] = await Promise.all([
       supabase.from('agenda').select('*, obras(nome), responsavel:profiles!agenda_responsavel_id_fkey(full_name)').order('data').order('hora_inicio'),
-      supabase.from('obras').select('id, nome').order('nome'),
+      supabase.from('obras').select('id, nome, supervisor_id, comercial_id').order('nome'),
       supabase.from('profiles').select('id, full_name, role').order('full_name'),
     ])
     setEventos(ev || [])
     setObras(ob || [])
     setProfiles(pr || [])
     setLoading(false)
+  }
+
+  async function criarNotificacaoCompromisso({ agendaId, obraId, responsavelId, tipo, titulo, descricao, prioridade = 'normal' }) {
+    if (!agendaId) return
+    const obra = obras.find(o => o.id === obraId)
+    const destinatarios = new Set([responsavelId, obra?.supervisor_id, obra?.comercial_id].filter(Boolean))
+    profiles
+      .filter(p => ['gestao', 'pos_venda', 'vendedor'].includes(p.role))
+      .forEach(p => p.id && destinatarios.add(p.id))
+
+    const { data: authData } = await supabase.auth.getUser()
+    if (authData?.user?.id) destinatarios.delete(authData.user.id)
+
+    const registros = [...destinatarios].map(usuario_id => ({
+      usuario_id,
+      obra_id: obraId || null,
+      tipo,
+      titulo,
+      descricao,
+      prioridade,
+      status: 'nao_lida',
+      rota: `/agenda?compromisso=${agendaId}`,
+      entidade_tipo: 'agenda',
+      entidade_id: agendaId,
+    }))
+
+    if (registros.length) await supabase.from('notificacoes').insert(registros)
   }
 
   async function salvar() {
@@ -273,6 +300,15 @@ export default function Agenda() {
 
     await carregar()
     if (result.data) preencherForm(result.data)
+    await criarNotificacaoCompromisso({
+      agendaId: result.data?.id,
+      obraId: result.data?.obra_id,
+      responsavelId: result.data?.responsavel_id,
+      tipo: editandoId ? 'compromisso_alterado' : 'compromisso_criado',
+      titulo: editandoId ? 'Compromisso alterado' : 'Novo compromisso',
+      descricao: result.data?.titulo || 'Compromisso operacional atualizado.',
+      prioridade: result.data?.status === 'pendente' ? 'normal' : 'alta',
+    })
     setToast(editandoId ? 'Alterações salvas com sucesso.' : 'Compromisso criado com sucesso.')
     window.setTimeout(() => setToast(''), 3200)
     setModal(false)
@@ -303,6 +339,15 @@ export default function Agenda() {
     }
     setForm(p => ({ ...p, status }))
     setAcaoStatus('Status atualizado.')
+    await criarNotificacaoCompromisso({
+      agendaId: editandoId,
+      obraId: form.obra_id,
+      responsavelId: form.responsavel_id,
+      tipo: 'compromisso_status',
+      titulo: status === 'realizada' || status === 'concluida' ? 'Compromisso finalizado' : 'Status do compromisso alterado',
+      descricao: `${form.titulo || 'Compromisso'}: ${status}.`,
+      prioridade: status === 'realizada' || status === 'concluida' ? 'normal' : 'alta',
+    })
     await carregar()
   }
 

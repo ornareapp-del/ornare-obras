@@ -59,6 +59,7 @@ export default function Layout() {
   }
 
   const pendentes = notificacoes.filter(item => item.status !== 'lida')
+  const temPendencias = pendentes.length > 0
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--color-bg, #F5F2EE)' }}>
@@ -84,38 +85,59 @@ export default function Layout() {
             <button
               onClick={() => setNotificacoesAbertas(v => !v)}
               style={{
-                width: 42,
-                height: 42,
+                width: temPendencias ? 48 : 42,
+                height: temPendencias ? 48 : 42,
                 borderRadius: 999,
-                border: '1px solid rgba(184,150,94,.35)',
-                background: '#fff',
-                color: '#1D1C19',
-                boxShadow: '0 12px 32px rgba(29,28,25,.12)',
+                border: temPendencias ? '2px solid #FFFFFF' : '1px solid rgba(184,150,94,.35)',
+                background: temPendencias ? 'linear-gradient(135deg, #E07B39 0%, #C0392B 100%)' : '#fff',
+                color: temPendencias ? '#fff' : '#1D1C19',
+                boxShadow: temPendencias ? '0 0 0 5px rgba(192,57,43,.14), 0 16px 38px rgba(192,57,43,.34)' : '0 12px 32px rgba(29,28,25,.12)',
                 cursor: 'pointer',
                 position: 'relative',
                 display: 'grid',
                 placeItems: 'center',
+                transition: 'all .22s ease',
               }}
               title="Notificações"
             >
-              <IconBell />
-              {pendentes.length > 0 && (
+              <IconBell active={temPendencias} />
+              {temPendencias && (
                 <span style={{
                   position: 'absolute',
-                  top: -3,
-                  right: -3,
-                  minWidth: 18,
-                  height: 18,
+                  top: -7,
+                  right: -7,
+                  minWidth: 22,
+                  height: 22,
                   borderRadius: 999,
                   background: '#C0392B',
                   color: '#fff',
+                  fontSize: 10.5,
+                  fontWeight: 900,
+                  display: 'grid',
+                  placeItems: 'center',
+                  border: '3px solid #fff',
+                  boxShadow: '0 6px 14px rgba(192,57,43,.35)',
+                }}>
+                  {pendentes.length > 9 ? '9+' : pendentes.length}
+                </span>
+              )}
+              {temPendencias && (
+                <span style={{
+                  position: 'absolute',
+                  bottom: -3,
+                  right: 2,
+                  width: 14,
+                  height: 14,
+                  borderRadius: 999,
+                  background: '#fff',
+                  color: '#C0392B',
                   fontSize: 10,
                   fontWeight: 900,
                   display: 'grid',
                   placeItems: 'center',
-                  border: '2px solid #fff',
+                  lineHeight: 1,
                 }}>
-                  {pendentes.length > 9 ? '9+' : pendentes.length}
+                  !
                 </span>
               )}
             </button>
@@ -217,9 +239,9 @@ function IconMenu() {
   )
 }
 
-function IconBell() {
+function IconBell({ active = false }) {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#B8965E" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={active ? '#FFFFFF' : '#B8965E'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
       <path d="M13.73 21a2 2 0 0 1-3.46 0" />
     </svg>
