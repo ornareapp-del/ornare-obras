@@ -117,7 +117,7 @@ export default function Agenda() {
             <div style={s.modalBody}>
               <div style={s.grid}>
                 <div style={s.full}>
-                  <L>Titulo *</L>
+                  <L>Título *</L>
                   <I value={form.titulo} onChange={v => setForm(p => ({ ...p, titulo: v }))} placeholder="Nome do evento" />
                 </div>
                 <div>
@@ -134,7 +134,7 @@ export default function Agenda() {
                   </Sel>
                 </div>
                 <div>
-                  <L>Data inicio *</L>
+                  <L>Data início *</L>
                   <I type="date" value={form.data} onChange={v => setForm(p => ({ ...p, data: v }))} />
                 </div>
                 <div>
@@ -142,7 +142,7 @@ export default function Agenda() {
                   <I type="date" value={form.data_fim} onChange={v => setForm(p => ({ ...p, data_fim: v }))} />
                 </div>
                 <div>
-                  <L>Hora inicio</L>
+                  <L>Hora início</L>
                   <I type="time" value={form.hora_inicio} onChange={v => setForm(p => ({ ...p, hora_inicio: v }))} />
                 </div>
                 <div>

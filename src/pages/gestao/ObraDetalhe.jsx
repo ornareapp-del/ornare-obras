@@ -370,13 +370,13 @@ export default function ObraDetalhe() {
               <CampoEdit label="Progresso (%)">
                 <FInput type="number" min="0" max="100" value={formObra.progresso || 0} onChange={v => setFormObra(p => ({ ...p, progresso: v }))} />
               </CampoEdit>
-              <CampoEdit label="Numero do contrato">
+              <CampoEdit label="Número do contrato">
                 <FInput value={formObra.numero_contrato || ''} onChange={v => setFormObra(p => ({ ...p, numero_contrato: v }))} placeholder="Ex: 078/2026" />
               </CampoEdit>
               <CampoEdit label="Pedido Ornare">
                 <FInput value={formObra.pedido_ornare || ''} onChange={v => setFormObra(p => ({ ...p, pedido_ornare: v }))} placeholder="Ex: PED-2026-001" />
               </CampoEdit>
-              <CampoEdit label="Data de inicio">
+              <CampoEdit label="Data de início">
                 <FInput type="date" value={formObra.data_inicio || ''} onChange={v => setFormObra(p => ({ ...p, data_inicio: v }))} />
               </CampoEdit>
               <CampoEdit label="Previsão de término">
@@ -873,11 +873,11 @@ function AbaCronograma({ obraId, profiles, compacto }) {
           <div><Label>Tipo de montagem</Label><FInput value={form.tipo_montagem || ''} onChange={v => setCampo('tipo_montagem', v)} /></div>
           <div><Label>Prioridade</Label><FSelect value={form.prioridade || 'media'} onChange={v => setCampo('prioridade', v)}>{PRIORIDADES_CRONOGRAMA.map(p => <option key={p} value={p}>{p}</option>)}</FSelect></div>
           <div><Label>Risco</Label><FSelect value={form.risco || 'medio'} onChange={v => setCampo('risco', v)}>{RISCOS_CRONOGRAMA.map(r => <option key={r} value={r}>{r}</option>)}</FSelect></div>
-          <div><Label>Percentual concluido</Label><FInput type="number" min="0" max="100" value={form.percentual_concluido ?? 0} onChange={v => setCampo('percentual_concluido', v)} /></div>
+          <div><Label>Percentual concluído</Label><FInput type="number" min="0" max="100" value={form.percentual_concluido ?? 0} onChange={v => setCampo('percentual_concluido', v)} /></div>
           <div><Label>Dias previstos</Label><FInput type="number" min="0" value={form.dias_previstos || ''} onChange={v => setCampo('dias_previstos', v)} /></div>
-          <div><Label>Data inicio prevista</Label><FInput type="date" value={form.data_inicio_prevista || ''} onChange={v => setCampo('data_inicio_prevista', v)} /></div>
+          <div><Label>Data início prevista</Label><FInput type="date" value={form.data_inicio_prevista || ''} onChange={v => setCampo('data_inicio_prevista', v)} /></div>
           <div><Label>Data fim prevista</Label><FInput type="date" value={form.data_fim_prevista || ''} onChange={v => setCampo('data_fim_prevista', v)} /></div>
-          <div><Label>Data inicio real</Label><FInput type="date" value={form.data_inicio_real || ''} onChange={v => setCampo('data_inicio_real', v)} /></div>
+          <div><Label>Data início real</Label><FInput type="date" value={form.data_inicio_real || ''} onChange={v => setCampo('data_inicio_real', v)} /></div>
           <div><Label>Data fim real</Label><FInput type="date" value={form.data_fim_real || ''} onChange={v => setCampo('data_fim_real', v)} /></div>
           <div><Label>Responsável</Label><FSelect value={form.responsavel_id || ''} onChange={v => setCampo('responsavel_id', v)}><option value="">Sem responsável</option>{responsaveis.map(p => <option key={p.id} value={p.id}>{p.full_name || p.email}</option>)}</FSelect></div>
           <div><Label>Supervisor</Label><FSelect value={form.supervisor_id || ''} onChange={v => setCampo('supervisor_id', v)}><option value="">Sem supervisor</option>{supervisores.map(p => <option key={p.id} value={p.id}>{p.full_name || p.email}</option>)}</FSelect></div>
@@ -902,17 +902,17 @@ function AbaCronograma({ obraId, profiles, compacto }) {
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: THEME.ink, fontWeight: 700 }}>
               <input type="checkbox" checked={Boolean(form.visivel_cliente)} onChange={e => setCampo('visivel_cliente', e.target.checked)} />
-              Visivel ao cliente
+              Visível ao cliente
             </label>
             <div><Label>Motivo da trava</Label><textarea value={form.motivo_trava || ''} onChange={e => setCampo('motivo_trava', e.target.value)} rows={3} style={textareaStyle} /></div>
           </div>
         </Card>
       </div>
 
-      <Card titulo="Alertas e acao recomendada">
+      <Card titulo="Alertas e ação recomendada">
         <div style={{ display: 'grid', gap: 12 }}>
           <div><Label>Alertas / observações</Label><textarea value={form.alertas_observacoes || ''} onChange={e => setCampo('alertas_observacoes', e.target.value)} rows={3} style={textareaStyle} /></div>
-          <div><Label>Acao recomendada</Label><textarea value={form.acao_recomendada || ''} onChange={e => setCampo('acao_recomendada', e.target.value)} rows={3} style={textareaStyle} /></div>
+          <div><Label>Ação recomendada</Label><textarea value={form.acao_recomendada || ''} onChange={e => setCampo('acao_recomendada', e.target.value)} rows={3} style={textareaStyle} /></div>
         </div>
       </Card>
 
@@ -1296,7 +1296,7 @@ function AbaGastos({ obraId, obraInfo }) {
               )}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                 <div style={{ gridColumn: '1/-1' }}>
-                  <label style={msG.label}>Descricao *</label>
+                  <label style={msG.label}>Descrição *</label>
                   <input style={msG.input} value={form.descricao} onChange={e => setF('descricao', e.target.value)} placeholder="Ex: combustível ida à obra..." />
                 </div>
                 <div>
@@ -1653,7 +1653,7 @@ function AbaCliente({ obraId }) {
         </div>
         {showComForm && (
           <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: 18, marginBottom: 14 }}>
-            <div style={{ marginBottom: 10 }}><Label>Titulo</Label><FInput value={novoCom.titulo} onChange={v => setNovoCom(p => ({ ...p, titulo: v }))} placeholder="Titulo do comunicado" /></div>
+            <div style={{ marginBottom: 10 }}><Label>Título</Label><FInput value={novoCom.titulo} onChange={v => setNovoCom(p => ({ ...p, titulo: v }))} placeholder="Título do comunicado" /></div>
             <div style={{ marginBottom: 12 }}><Label>Mensagem</Label><textarea value={novoCom.mensagem} onChange={e => setNovoCom(p => ({ ...p, mensagem: e.target.value }))} rows={3} style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1px solid #ddd', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }} /></div>
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}><button onClick={salvarComunicado} disabled={salvando} style={{ background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 7, padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{salvando ? 'Salvando...' : 'Publicar'}</button></div>
           </div>
