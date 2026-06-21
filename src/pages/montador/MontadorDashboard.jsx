@@ -346,6 +346,7 @@ export default function MontadorDashboard() {
     if (entidadeTipo === 'fotos') rota = `/obras/${obraAtiva.id}?aba=Fotos&foto=${entidadeId || ''}`
     else if (entidadeTipo === 'ocorrencias') rota = `/obras/${obraAtiva.id}?aba=Ocorrencias&ocorrencia=${entidadeId || ''}`
     else if (entidadeTipo === 'checklist_items') rota = `/obras/${obraAtiva.id}?aba=Checklist&checklist=${entidadeId || ''}`
+    else if (entidadeTipo === 'tarefas') rota = `/tarefas?tarefa=${entidadeId || ''}`
     else if (agendaId) rota = `/agenda?compromisso=${agendaId}`
 
     const registros = [...destinatarios].map(usuario_id => ({
@@ -361,7 +362,10 @@ export default function MontadorDashboard() {
       entidade_id: entidadeId || agendaId || obraAtiva.id,
     }))
 
-    if (registros.length) await supabase.from('notificacoes').insert(registros)
+    if (registros.length) {
+      const { error } = await supabase.from('notificacoes').insert(registros)
+      if (error) console.error('Erro ao criar notificações operacionais:', error)
+    }
   }
 
   async function fazerCheckin() {
@@ -544,6 +548,16 @@ export default function MontadorDashboard() {
       return
     }
     if (status === 'em_andamento') await gerarChecklistVistoriaTarefa(tarefa)
+    if (status === 'em_andamento' || status === 'concluida') {
+      await criarNotificacoesOperacionais({
+        tipo: status === 'concluida' ? 'tarefa_concluida' : 'tarefa_iniciada',
+        titulo: status === 'concluida' ? 'Tarefa concluída' : 'Tarefa iniciada',
+        descricao: `${profile?.full_name || 'Montador'} ${status === 'concluida' ? 'concluiu' : 'iniciou'} ${tarefa?.titulo || tarefa?.descricao || 'uma tarefa operacional'}.`,
+        entidadeTipo: 'tarefas',
+        entidadeId: id,
+        prioridade: status === 'concluida' ? 'normal' : 'media',
+      })
+    }
     if (tarefaAberta?.id === id) setTarefaAberta(p => p ? { ...p, status } : p)
     await carregarDadosObra()
   }

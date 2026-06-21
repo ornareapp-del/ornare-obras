@@ -149,6 +149,8 @@ export default function ObraDetalhe() {
   const fotoDestaque = paramsUrl.get('foto')
   const ocorrenciaDestaque = paramsUrl.get('ocorrencia')
   const checklistDestaque = paramsUrl.get('checklist')
+  const gastoDestaque = paramsUrl.get('gasto')
+  const cronogramaDestaque = paramsUrl.get('cronograma')
 
   useEffect(() => {
     const abaUrl = new URLSearchParams(location.search).get('aba')
@@ -605,7 +607,7 @@ export default function ObraDetalhe() {
         </div>
       )}
 
-      {aba === 'Cronograma' && <AbaCronograma obraId={id} profiles={profiles} compacto={compacto} />}
+      {aba === 'Cronograma' && <AbaCronograma obraId={id} profiles={profiles} compacto={compacto} cronogramaDestaque={cronogramaDestaque} />}
 
       {aba === 'Equipe' && (
         <div style={{ display: 'grid', gridTemplateColumns: compacto ? '1fr' : '1fr 1fr', gap: 16 }}>
@@ -665,7 +667,7 @@ export default function ObraDetalhe() {
 
       {aba === 'Checklist'   && <AbaChecklist   obraId={id} checklistDestaque={checklistDestaque} />}
       {aba === 'Ocorrencias' && <AbaOcorrencias obraId={id} ocorrenciaDestaque={ocorrenciaDestaque} />}
-      {aba === 'Gastos'      && <AbaGastos      obraId={id} obraInfo={obra} />}
+      {aba === 'Gastos'      && <AbaGastos      obraId={id} obraInfo={obra} gastoDestaque={gastoDestaque} />}
       {aba === 'Fotos'       && <AbaFotos       obraId={id} fotoDestaque={fotoDestaque} />}
       {aba === 'Historico'   && <AbaHistorico   obraId={id} />}
       {aba === 'Chat'        && <AbaChat        obraId={id} />}
@@ -907,7 +909,7 @@ function ResumoAtalho({ titulo, valor, detalhe, onClick }) {
   )
 }
 
-function AbaCronograma({ obraId, profiles, compacto }) {
+function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque }) {
   const [cronograma, setCronograma] = useState(null)
   const [form, setForm] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -1040,9 +1042,15 @@ function AbaCronograma({ obraId, profiles, compacto }) {
   const posVenda = responsaveis.filter(p => ['gestao', 'pos_venda', 'vendedor'].includes(p.role))
   const faseAtual = form.fase || 'Pré-Montagem'
   const porcentagem = Math.max(0, Math.min(100, Number(form.percentual_concluido) || 0))
+  const destaqueCronograma = Boolean(cronogramaDestaque && cronograma?.id === cronogramaDestaque)
 
   return (
     <div style={{ display: 'grid', gap: 16 }}>
+      {destaqueCronograma && (
+        <div style={{ border: `1px solid ${THEME.gold}`, background: '#FFFBF0', color: THEME.ink, borderRadius: 12, padding: '12px 14px', fontSize: 13, fontWeight: 800 }}>
+          Cronograma aberto pela central de ações.
+        </div>
+      )}
       {mensagem && (
         <div style={{
           border: '1px solid ' + (mensagem.tipo === 'erro' ? '#f1c6c6' : '#c8e1d0'),
@@ -1603,7 +1611,7 @@ function AbaOcorrencias({ obraId, ocorrenciaDestaque }) {
   )
 }
 
-function AbaGastos({ obraId, obraInfo }) {
+function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
   const CATS_G = [
     { value: 'combustivel', label: 'Combustível', emoji: '⛽', cor: '#E8A020' },
     { value: 'pedagio',     label: 'Pedágio',     emoji: '🛣️', cor: '#9070C0' },
@@ -1779,8 +1787,10 @@ function AbaGastos({ obraId, obraInfo }) {
         </div>
         {loading ? <div style={{ color: '#bbb' }}>Carregando...</div>
           : gastos.length === 0 ? <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhum gasto registrado.</div>
-          : gastos.map(g => (
-            <div key={g.id} onClick={() => abrirEditar(g)} style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 18px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer' }}>
+          : gastos.map(g => {
+            const destaque = gastoDestaque && g.id === gastoDestaque
+            return (
+            <div id={`gasto-${g.id}`} key={g.id} onClick={() => abrirEditar(g)} style={{ background: destaque ? '#FFFBF0' : '#fff', border: destaque ? `2px solid ${THEME.gold}` : '1px solid var(--color-border)', borderRadius: 10, padding: '14px 18px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', boxShadow: destaque ? '0 16px 34px rgba(184,150,94,0.22)' : 'none' }}>
               <div style={{ width: 10, height: 10, borderRadius: '50%', background: CAT_G[g.categoria]?.cor || '#ccc', flexShrink: 0 }} />
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--color-ink)' }}>{g.descricao}</div>
@@ -1790,7 +1800,8 @@ function AbaGastos({ obraId, obraInfo }) {
               <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-ink)' }}>R$ {parseFloat(g.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
               <span style={{ fontSize: 12, color: '#aaa' }}>✏️</span>
             </div>
-          ))
+            )
+          })
         }
       </div>
     </>

@@ -370,28 +370,41 @@ export default function DashboardGestao() {
       <section className="dg-approval-panel">
         <Card title="Aprovações pendentes" action="Fotos" onAction={() => navigate('/obras')}>
           <div className="dg-approval-grid">
-            <button onClick={() => vm.aprovacoes.fotosPendentes[0]?.obra_id && navigate(`/obras/${vm.aprovacoes.fotosPendentes[0].obra_id}?aba=Fotos&foto=${vm.aprovacoes.fotosPendentes[0].id}`)}>
+            <button className={vm.aprovacoes.fotosPendentes.length ? 'warn' : ''} onClick={() => vm.aprovacoes.fotosPendentes[0]?.obra_id && navigate(`/obras/${vm.aprovacoes.fotosPendentes[0].obra_id}?aba=Fotos&foto=${vm.aprovacoes.fotosPendentes[0].id}`)}>
               <strong>{loading ? '-' : vm.aprovacoes.fotosPendentes.length}</strong>
               <span>Fotos para aprovar</span>
             </button>
-            <button onClick={() => vm.aprovacoes.fotosCliente[0]?.obra_id && navigate(`/obras/${vm.aprovacoes.fotosCliente[0].obra_id}?aba=Fotos&foto=${vm.aprovacoes.fotosCliente[0].id}`)}>
+            <button className={vm.aprovacoes.fotosCliente.length ? 'hot' : ''} onClick={() => vm.aprovacoes.fotosCliente[0]?.obra_id && navigate(`/obras/${vm.aprovacoes.fotosCliente[0].obra_id}?aba=Fotos&foto=${vm.aprovacoes.fotosCliente[0].id}`)}>
               <strong>{loading ? '-' : vm.aprovacoes.fotosCliente.length}</strong>
               <span>Cliente aguardando</span>
             </button>
-            <button onClick={() => vm.aprovacoes.vistoriasPendentes[0]?.id && navigate(`/agenda?compromisso=${vm.aprovacoes.vistoriasPendentes[0].id}`)}>
+            <button className={vm.aprovacoes.naoConformidades.length ? 'danger' : ''} onClick={() => vm.aprovacoes.naoConformidades[0]?.obra_id && navigate(`/obras/${vm.aprovacoes.naoConformidades[0].obra_id}?aba=Fotos&foto=${vm.aprovacoes.naoConformidades[0].id}`)}>
+              <strong>{loading ? '-' : vm.aprovacoes.naoConformidades.length}</strong>
+              <span>Não conformidades</span>
+            </button>
+            <button className={vm.aprovacoes.vistoriasPendentes.length ? 'info' : ''} onClick={() => vm.aprovacoes.vistoriasPendentes[0]?.id && navigate(`/agenda?compromisso=${vm.aprovacoes.vistoriasPendentes[0].id}`)}>
               <strong>{loading ? '-' : vm.aprovacoes.vistoriasPendentes.length}</strong>
               <span>Vistorias pendentes</span>
             </button>
           </div>
-          {vm.aprovacoes.fotosPendentes.length === 0 && vm.aprovacoes.vistoriasPendentes.length === 0 ? (
+          {vm.aprovacoes.fotosPendentes.length === 0 && vm.aprovacoes.fotosCliente.length === 0 && vm.aprovacoes.naoConformidades.length === 0 && vm.aprovacoes.vistoriasPendentes.length === 0 ? (
             <Empty text="Nada aguardando aprovação agora." />
           ) : (
             <div className="dg-approval-list">
-              {vm.aprovacoes.fotosPendentes.slice(0, 3).map(foto => (
-                <button key={foto.id} onClick={() => navigate(`/obras/${foto.obra_id}?aba=Fotos&foto=${foto.id}`)}>
+              {vm.aprovacoes.naoConformidades.slice(0, 2).map(foto => (
+                <button className="danger" key={foto.id} onClick={() => navigate(`/obras/${foto.obra_id}?aba=Fotos&foto=${foto.id}`)}>
                   <i />
                   <div>
-                    <strong>{foto.categoria || 'Foto enviada'}</strong>
+                    <strong>Não conformidade</strong>
+                    <span>{foto.obras?.nome || obraNome(dados.obras, foto.obra_id)}</span>
+                  </div>
+                </button>
+              ))}
+              {vm.aprovacoes.fotosPendentes.slice(0, 3).map(foto => (
+                <button className={foto.visivel_cliente ? 'hot' : ''} key={foto.id} onClick={() => navigate(`/obras/${foto.obra_id}?aba=Fotos&foto=${foto.id}`)}>
+                  <i />
+                  <div>
+                    <strong>{foto.visivel_cliente ? 'Foto liberada ao cliente' : (foto.categoria || 'Foto enviada')}</strong>
                     <span>{foto.obras?.nome || obraNome(dados.obras, foto.obra_id)}</span>
                   </div>
                 </button>
@@ -596,14 +609,21 @@ const css = `
 .dg-priority-board{max-width:1380px;margin:0 auto 16px;display:grid;grid-template-columns:1.25fr 1fr 1fr 1fr;gap:12px}
 .dg-agenda-mobile{max-width:1380px;margin:0 auto 16px}
 .dg-approval-panel{max-width:1380px;margin:0 auto 16px}
-.dg-approval-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.dg-approval-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}
 .dg-approval-grid button{border:1px solid ${THEME.border};background:#FFFEFC;border-radius:14px;padding:13px;text-align:left;font-family:inherit;cursor:pointer}
+.dg-approval-grid button.warn{border-color:#F2C46D;background:#FFFBF0}
+.dg-approval-grid button.hot{border-color:#E07B39;background:#FFF8F0}
+.dg-approval-grid button.danger{border-color:${THEME.danger};background:#FFF5F5}
+.dg-approval-grid button.info{border-color:#2563EB;background:#F5F8FF}
 .dg-approval-grid strong{display:block;font-size:26px;line-height:1;color:${THEME.ink}}
 .dg-approval-grid span{display:block;font-size:11.5px;color:${THEME.muted};font-weight:900;margin-top:7px}
 .dg-approval-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px}
 .dg-approval-list button{border:1px solid ${THEME.border};background:#fff;border-radius:13px;padding:11px;display:flex;gap:10px;text-align:left;font-family:inherit;cursor:pointer}
 .dg-approval-list i{width:9px;height:9px;border-radius:99px;background:${THEME.warn};margin-top:5px;flex-shrink:0}
 .dg-approval-list i.blue{background:#2563EB}
+.dg-approval-list button.hot{border-color:#E07B39;background:#FFF8F0}
+.dg-approval-list button.danger{border-color:${THEME.danger};background:#FFF5F5}
+.dg-approval-list button.danger i{background:${THEME.danger}}
 .dg-approval-list strong{display:block;font-size:13px;color:${THEME.ink};line-height:1.25}
 .dg-approval-list span{display:block;font-size:11.5px;color:${THEME.muted};margin-top:3px}
 .dg-priority-row{width:100%;border:0;background:transparent;border-bottom:1px solid ${THEME.border};padding:11px 0;display:flex;gap:10px;align-items:flex-start;text-align:left;cursor:pointer;font-family:inherit}

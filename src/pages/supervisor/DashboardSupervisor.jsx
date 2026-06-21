@@ -490,23 +490,32 @@ export default function DashboardSupervisor() {
       <section className="ds-approval-panel">
         <Card title="Aprovações pendentes">
           <div className="ds-approval-grid">
-            <button onClick={() => vm.aprovacoes.fotosPendentes[0]?.obra_id && navigate(`/obras/${vm.aprovacoes.fotosPendentes[0].obra_id}?aba=Fotos&foto=${vm.aprovacoes.fotosPendentes[0].id}`)}>
+            <button className={vm.aprovacoes.fotosPendentes.length ? 'warn' : ''} onClick={() => vm.aprovacoes.fotosPendentes[0]?.obra_id && navigate(`/obras/${vm.aprovacoes.fotosPendentes[0].obra_id}?aba=Fotos&foto=${vm.aprovacoes.fotosPendentes[0].id}`)}>
               <strong>{loading ? '-' : vm.aprovacoes.fotosPendentes.length}</strong>
               <span>Fotos para validar</span>
             </button>
-            <button onClick={() => vm.aprovacoes.fotosNaoConformidade[0]?.obra_id && navigate(`/obras/${vm.aprovacoes.fotosNaoConformidade[0].obra_id}?aba=Fotos&foto=${vm.aprovacoes.fotosNaoConformidade[0].id}`)}>
+            <button className={vm.aprovacoes.fotosNaoConformidade.length ? 'danger' : ''} onClick={() => vm.aprovacoes.fotosNaoConformidade[0]?.obra_id && navigate(`/obras/${vm.aprovacoes.fotosNaoConformidade[0].obra_id}?aba=Fotos&foto=${vm.aprovacoes.fotosNaoConformidade[0].id}`)}>
               <strong>{loading ? '-' : vm.aprovacoes.fotosNaoConformidade.length}</strong>
               <span>Não conformidades</span>
             </button>
-            <button onClick={() => vm.aprovacoes.vistoriasPendentes[0]?.id && navigate(`/agenda?compromisso=${vm.aprovacoes.vistoriasPendentes[0].id}`)}>
+            <button className={vm.aprovacoes.vistoriasPendentes.length ? 'info' : ''} onClick={() => vm.aprovacoes.vistoriasPendentes[0]?.id && navigate(`/agenda?compromisso=${vm.aprovacoes.vistoriasPendentes[0].id}`)}>
               <strong>{loading ? '-' : vm.aprovacoes.vistoriasPendentes.length}</strong>
               <span>Vistorias pendentes</span>
             </button>
           </div>
-          {vm.aprovacoes.fotosPendentes.length === 0 && vm.aprovacoes.vistoriasPendentes.length === 0 ? (
+          {vm.aprovacoes.fotosPendentes.length === 0 && vm.aprovacoes.fotosNaoConformidade.length === 0 && vm.aprovacoes.vistoriasPendentes.length === 0 ? (
             <Empty text="Nada aguardando validação agora." />
           ) : (
             <div className="ds-approval-list">
+              {vm.aprovacoes.fotosNaoConformidade.slice(0, 2).map(foto => (
+                <button className="danger" key={foto.id} onClick={() => navigate(`/obras/${foto.obra_id}?aba=Fotos&foto=${foto.id}`)}>
+                  <i />
+                  <div>
+                    <strong>Não conformidade</strong>
+                    <span>{vm.obraPorId.get(foto.obra_id)?.nome || 'Obra'}</span>
+                  </div>
+                </button>
+              ))}
               {vm.aprovacoes.fotosPendentes.slice(0, 3).map(foto => (
                 <button key={foto.id} onClick={() => navigate(`/obras/${foto.obra_id}?aba=Fotos&foto=${foto.id}`)}>
                   <i />
@@ -748,12 +757,17 @@ const css = `
 .ds-approval-panel{max-width:1380px;margin:0 auto 16px}
 .ds-approval-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px}
 .ds-approval-grid button{border:1px solid ${THEME.border};background:#FFFEFC;border-radius:14px;padding:13px;text-align:left;font-family:inherit;cursor:pointer}
+.ds-approval-grid button.warn{border-color:#F2C46D;background:#FFFBF0}
+.ds-approval-grid button.danger{border-color:${THEME.danger};background:#FFF5F5}
+.ds-approval-grid button.info{border-color:#2563EB;background:#F5F8FF}
 .ds-approval-grid strong{display:block;font-size:26px;line-height:1;color:${THEME.ink}}
 .ds-approval-grid span{display:block;font-size:11.5px;color:${THEME.muted};font-weight:900;margin-top:7px}
 .ds-approval-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px}
 .ds-approval-list button{border:1px solid ${THEME.border};background:#fff;border-radius:13px;padding:11px;display:flex;gap:10px;text-align:left;font-family:inherit;cursor:pointer}
 .ds-approval-list i{width:9px;height:9px;border-radius:99px;background:${THEME.warn};margin-top:5px;flex-shrink:0}
 .ds-approval-list i.blue{background:#2563EB}
+.ds-approval-list button.danger{border-color:${THEME.danger};background:#FFF5F5}
+.ds-approval-list button.danger i{background:${THEME.danger}}
 .ds-approval-list strong{display:block;font-size:13px;color:${THEME.ink};line-height:1.25}
 .ds-approval-list span{display:block;font-size:11.5px;color:${THEME.muted};margin-top:3px}
 .ds-mobile-ops{display:none}
