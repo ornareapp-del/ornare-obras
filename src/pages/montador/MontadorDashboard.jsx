@@ -59,9 +59,37 @@ const PRIORIDADE = {
 const safeArray = result => result?.data || []
 const norm = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 const VISTORIA_CHECKLIST_NORMALIZADO = new Set(VISTORIA_CHECKLIST.map(norm))
-const MONTAGEM_CHECKLIST_NORMALIZADO = new Set(MONTAGEM_CHECKLIST.map(norm))
 const isConcluido = status => ['concluida', 'concluido', 'finalizada', 'finalizado'].includes(norm(status))
 const isAberta = status => !isConcluido(status) && !['fechada', 'resolvida', 'cancelada'].includes(norm(status))
+
+function isChecklistVistoriaCampo(item) {
+  const texto = norm(item?.descricao)
+  if (!texto) return false
+  return (
+    texto.includes('vistoria') ||
+    texto.includes('elevador') ||
+    texto.includes('carga e descarga') ||
+    texto.includes('pontos eletricos') ||
+    texto.includes('pontos hidraulicos') ||
+    texto.includes('interferencias aparentes') ||
+    texto.includes('apta para montagem') ||
+    texto.includes('apta para receber') ||
+    texto.includes('impedir o inicio') ||
+    texto.includes('ambientes estao limpos') ||
+    texto.includes('limpos liberados') ||
+    VISTORIA_CHECKLIST_NORMALIZADO.has(texto)
+  )
+}
+
+function dataInicioPrevistaObra(obra) {
+  return obra?.data_previsao_inicio || obra?.data_inicio_prevista || obra?.data_inicio || null
+}
+
+function nomeCurtoObra(nome = '') {
+  const partes = String(nome).trim().split(/\s+/).filter(Boolean)
+  if (partes.length <= 2) return partes.join(' ')
+  return `${partes[0]} ${partes[1][0] || ''}.`
+}
 
 function fotoUrl(foto) {
   if (foto.url) return foto.url
@@ -220,13 +248,8 @@ export default function MontadorDashboard() {
   const garantirChecklistMontagem = useCallback(async (obra, itensAtuais = []) => {
     if (!obra?.id || !obraEmMontagem(obra)) return itensAtuais
 
-    const descricoes = new Set(itensAtuais.map(item => norm(item.descricao)))
-    const jaTemMontagem = [...MONTAGEM_CHECKLIST_NORMALIZADO].some(descricao => descricoes.has(descricao))
-
-    if (jaTemMontagem) return itensAtuais
-
     const vistoriaSolta = itensAtuais
-      .filter(item => !item.ambiente_id && !item.concluido && VISTORIA_CHECKLIST_NORMALIZADO.has(norm(item.descricao)))
+      .filter(item => !item.ambiente_id && !item.concluido && isChecklistVistoriaCampo(item))
       .map(item => item.id)
       .filter(Boolean)
 
@@ -235,6 +258,8 @@ export default function MontadorDashboard() {
       if (error) console.error('Erro ao remover checklist de vistoria do fluxo de montagem:', error)
     }
 
+    const itensBase = itensAtuais.filter(item => !vistoriaSolta.includes(item.id))
+    const descricoes = new Set(itensBase.map(item => norm(item.descricao)))
     const rows = MONTAGEM_CHECKLIST
       .filter(descricao => !descricoes.has(norm(descricao)))
       .map((descricao, index) => ({
@@ -786,6 +811,11 @@ export default function MontadorDashboard() {
     ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
+  function selecionarObraPorId(obraId) {
+    const obra = obras.find(item => item.id === obraId)
+    if (obra) setObraAtiva(obra)
+  }
+
   const vm = useMemo(() => {
     const hoje = new Date()
     hoje.setHours(0, 0, 0, 0)
@@ -806,7 +836,28 @@ export default function MontadorDashboard() {
       .filter(item => item.data && new Date(`${item.data}T00:00:00`) >= hoje)
       .sort((a, b) => `${a.data || ''}${a.hora_inicio || ''}`.localeCompare(`${b.data || ''}${b.hora_inicio || ''}`))
     const proximaAgenda = agendaFutura[0] || null
-    const proximasDatas = agendaFutura.slice(0, 3)
+    const agendaGeralFutura = agendaCalendario
+      .filter(item => item.data && new Date(`${item.data}T00:00:00`) >= hoje)
+      .map(item => ({
+        ...item,
+        origem: 'agenda',
+        obra_nome: item.obras?.nome || obras.find(obra => obra.id === item.obra_id)?.nome || 'Obra',
+      }))
+    const iniciosPrevistos = obras
+      .map(obra => ({
+        id: `inicio-${obra.id}`,
+        obra_id: obra.id,
+        obra_nome: obra.nome || 'Obra',
+        data: dataInicioPrevistaObra(obra),
+        hora_inicio: '',
+        tipo: 'Início previsto',
+        titulo: 'Início previsto',
+        origem: 'inicio_previsto',
+      }))
+      .filter(item => item.data && new Date(`${item.data}T00:00:00`) >= hoje)
+    const proximasDatas = [...agendaGeralFutura, ...iniciosPrevistos]
+      .sort((a, b) => `${a.data || ''}${a.hora_inicio || ''}`.localeCompare(`${b.data || ''}${b.hora_inicio || ''}`))
+      .slice(0, 5)
     const proximaAgendaStatus = proximaAgenda ? statusAgenda(proximaAgenda) : null
     const preMontagemAgenda = agendaFutura.find(item => norm(item.tipo || item.titulo || item.observacao).includes('pre-montagem') || norm(item.tipo || item.titulo || item.observacao).includes('pre montagem'))
 
@@ -875,7 +926,7 @@ export default function MontadorDashboard() {
       fotosVistoria,
       historico,
     }
-  }, [agenda, ambientes, checkins, checklist, fotos, ocorrencias, tarefas])
+  }, [agenda, agendaCalendario, ambientes, checkins, checklist, fotos, obras, ocorrencias, tarefas])
 
   const ambienteNome = ambienteId => ambientes.find(a => a.id === ambienteId)?.nome || 'Sem ambiente'
   const vistoriasAgenda = agenda.filter(item => norm(item.tipo || item.titulo).includes('vistoria'))
@@ -982,7 +1033,7 @@ export default function MontadorDashboard() {
             {norm(tarefaAberta.tipo || tarefaAberta.titulo).includes('vistoria') && (
               <div className="md-task-checklist-preview">
                 <strong>Checklist de vistoria</strong>
-                {VISTORIA_CHECKLIST.map(item => <span key={item}>â€¢ {item}</span>)}
+                {VISTORIA_CHECKLIST.map(item => <span key={item}>? {item}</span>)}
               </div>
             )}
             <div className="md-task-photo-actions">
@@ -1001,9 +1052,9 @@ export default function MontadorDashboard() {
         <div className="md-modal-bg" onClick={e => e.target === e.currentTarget && setCalendarioAberto(false)}>
           <div className="md-modal calendar">
             <div className="md-calendar-head">
-              <button onClick={() => mudarMesCalendario(-1)}>â€¹</button>
+              <button onClick={() => mudarMesCalendario(-1)}>?</button>
               <h2>{mesCalendario.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</h2>
-              <button onClick={() => mudarMesCalendario(1)}>â€º</button>
+              <button onClick={() => mudarMesCalendario(1)}>?</button>
             </div>
             <div className="md-calendar-week">
               {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(dia => <span key={dia}>{dia}</span>)}
@@ -1070,7 +1121,9 @@ export default function MontadorDashboard() {
                 </>
               )
             })()}
-            <h2>{obraAtiva.nome || 'Obra sem nome'}</h2>
+            <h2 style={{ color: '#FFFFFF', fontFamily: 'var(--font-sans, system-ui, sans-serif)', fontSize: 20, fontWeight: 900, lineHeight: 1.12, margin: '2px 0 0', letterSpacing: 0 }}>
+              {obraAtiva.nome || 'Obra sem nome'}
+            </h2>
           </div>
           <strong>{obraAtiva.progresso || 0}%</strong>
         </div>
@@ -1108,9 +1161,13 @@ export default function MontadorDashboard() {
         ) : (
           <div className="md-date-list">
             {vm.proximasDatas.map(item => (
-              <button key={item.id} onClick={() => setCalendarioAberto(true)}>
+              <button key={item.id} onClick={() => { selecionarObraPorId(item.obra_id); setCalendarioAberto(true) }}>
                 <strong>{dataCurtaMes(item.data)}</strong>
-                <span>{tipoAgenda(item)}{item.hora_inicio ? ` · ${item.hora_inicio.slice(0, 5)}` : ''}</span>
+                <span>
+                  {item.origem === 'inicio_previsto' ? 'Início previsto' : tipoAgenda(item)}
+                  {item.hora_inicio ? ` · ${item.hora_inicio.slice(0, 5)}` : ''}
+                  {item.obra_nome ? ` · ${nomeCurtoObra(item.obra_nome)}` : ''}
+                </span>
               </button>
             ))}
             {previsao && (
@@ -1125,7 +1182,7 @@ export default function MontadorDashboard() {
 
       <section className={vm.emServico ? 'md-check-card active' : 'md-check-card'}>
         <div className="md-check-info">
-          <span>Hoje â€” {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
+          <span>Hoje - {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
           {obraAguardandoInicio(obraAtiva) ? (
             <>
               <p className="md-check-primary">Obra ainda não iniciada</p>
@@ -1164,7 +1221,7 @@ export default function MontadorDashboard() {
         <div className="md-card-head">
           <h2>Tarefas</h2>
           <span>{vm.tarefasAbertas.length}</span>
-          <button onClick={() => setPainelAtivo(painelAtivo === 'tarefas' ? '' : 'tarefas')}>Ver todas â†’</button>
+          <button onClick={() => setPainelAtivo(painelAtivo === 'tarefas' ? '' : 'tarefas')}>Ver todas</button>
         </div>
         {vm.tarefasAbertas.length === 0 ? <div className="md-empty-compact">Nenhuma tarefa pendente</div> : vm.tarefasAbertas.slice(0, painelAtivo === 'tarefas' ? vm.tarefasAbertas.length : 2).map(tarefa => {
           const pr = PRIORIDADE[norm(tarefa.prioridade)] || { label: tarefa.prioridade || '', color: '#A79F93' }
@@ -1174,7 +1231,7 @@ export default function MontadorDashboard() {
                 <strong>{tarefa.titulo || 'Tarefa sem título'}</strong>
                 <small>{tarefa.tipo || 'Outro'} · {tarefa.status || 'pendente'}</small>
               </div>
-              <span>â†’</span>
+              <span>{'>'}</span>
             </article>
           )
         })}
@@ -1189,7 +1246,7 @@ export default function MontadorDashboard() {
           {vm.tarefasConcluidasHoje.map(tarefa => (
             <button key={tarefa.id} className="md-done-task" onClick={() => abrirTarefa(tarefa)}>
               <strong>{tarefa.titulo || 'Tarefa concluída'}</strong>
-              <span>âœ“</span>
+              <span>OK</span>
             </button>
           ))}
         </section>
@@ -1210,7 +1267,7 @@ export default function MontadorDashboard() {
             const done = grupo.itens.length > 0 && feitos === grupo.itens.length
             return (
               <button key={grupo.id} className={`${ambienteSelecionado === grupo.id ? 'active' : ''} ${done ? 'done' : ''}`} onClick={() => setAmbienteSelecionado(grupo.id)}>
-                {grupo.nome} {done ? 'âœ“' : grupo.itens.length ? `â—${grupo.itens.length}` : ''}
+                {grupo.nome} {done ? 'OK' : grupo.itens.length ? `(${grupo.itens.length})` : ''}
               </button>
             )
           })}
@@ -1231,7 +1288,7 @@ export default function MontadorDashboard() {
           }
           return grupo.itens.map(item => (
             <div className={item.concluido ? 'md-check-item done' : 'md-check-item'} key={item.id} onClick={() => toggleChecklist(item)} onMouseDown={() => item.concluido && iniciarLongPress(item.id)} onMouseUp={cancelarLongPress} onMouseLeave={cancelarLongPress} onTouchStart={() => item.concluido && iniciarLongPress(item.id)} onTouchEnd={cancelarLongPress}>
-              <i>{item.concluido ? 'âœ“' : ''}</i>
+              <i>{item.concluido ? 'OK' : ''}</i>
               <span>{item.descricao}</span>
               {itemAcao === item.id && <button className="md-check-delete" onClick={e => { e.stopPropagation(); excluirChecklistItem(item) }}>Excluir</button>}
             </div>
