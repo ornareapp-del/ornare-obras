@@ -1101,7 +1101,7 @@ export default function MontadorDashboard() {
       <section className="md-card">
         <div className="md-card-head">
           <h2>Próximas datas</h2>
-          <button onClick={() => setCalendarioAberto(true)}>Ver calendário completo â†’</button>
+          <button onClick={() => setCalendarioAberto(true)}>Ver calendário completo →</button>
         </div>
         {vm.proximasDatas.length === 0 ? (
           <div className="md-empty-compact">Nenhuma data programada</div>
@@ -1374,7 +1374,7 @@ const css = `
 .md-obra-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}
 .md-phase-badge{display:inline-flex;align-items:center;border:1px solid ${THEME.gold};border-radius:999px;padding:5px 9px;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;font-weight:900;margin-bottom:6px}
 .md-obra-status{display:block!important;font-size:10px!important;letter-spacing:1.2px;text-transform:uppercase;color:#BDB0A0!important;font-weight:800!important;margin:0 0 7px!important}
-.md-obra-head h2{font-family:var(--font-serif);font-size:22px;line-height:1.12;margin:0;font-weight:500}
+.md-obra-head h2{font-family:var(--font-sans, system-ui, sans-serif);font-size:20px;line-height:1.12;margin:2px 0 0;font-weight:900;color:#FFFFFF!important;letter-spacing:0;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .md-obra-head strong{font-size:26px;color:${THEME.gold};line-height:1}
 .md-obra-card p{font-size:12px;line-height:1.45;color:#D7CABA;margin:10px 0 12px}
 .md-obra-card small{display:block;font-size:11px;color:#BDB0A0;margin-top:10px}
