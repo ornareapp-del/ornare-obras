@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Outlet, useNavigate } from 'react-router-dom'
 import BottomNavigation from './BottomNavigation'
 import Sidebar from './Sidebar'
@@ -60,6 +60,39 @@ export default function Layout() {
 
   const pendentes = notificacoes.filter(item => item.status !== 'lida')
   const temPendencias = pendentes.length > 0
+  const notificacoesOrdenadas = useMemo(() => {
+    const pesoPrioridade = item => item.prioridade === 'alta' ? 0 : item.prioridade === 'media' ? 1 : 2
+    return [...notificacoes].sort((a, b) => {
+      const unreadA = a.status !== 'lida' ? 0 : 1
+      const unreadB = b.status !== 'lida' ? 0 : 1
+      if (unreadA !== unreadB) return unreadA - unreadB
+      const prioridade = pesoPrioridade(a) - pesoPrioridade(b)
+      if (prioridade !== 0) return prioridade
+      return new Date(b.created_at || 0) - new Date(a.created_at || 0)
+    })
+  }, [notificacoes])
+
+  async function marcarTodasComoLidas() {
+    if (pendentes.length === 0) return
+    const ids = pendentes.map(item => item.id).filter(Boolean)
+    const lidaEm = new Date().toISOString()
+    await supabase.from('notificacoes').update({ status: 'lida', lida_em: lidaEm }).in('id', ids)
+    setNotificacoes(lista => lista.map(item => ids.includes(item.id) ? { ...item, status: 'lida', lida_em: lidaEm } : item))
+  }
+
+  function corPrioridade(item) {
+    if (item.prioridade === 'alta') return '#C0392B'
+    if (item.prioridade === 'media') return '#E07B39'
+    if (item.status !== 'lida') return '#B8965E'
+    return '#D8D0C2'
+  }
+
+  function labelPrioridade(item) {
+    if (item.prioridade === 'alta') return 'Ação urgente'
+    if (item.prioridade === 'media') return 'Atenção'
+    if (item.status !== 'lida') return 'Nova'
+    return 'Lida'
+  }
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--color-bg, #F5F2EE)' }}>
@@ -147,45 +180,67 @@ export default function Layout() {
                 position: 'absolute',
                 top: 50,
                 right: 0,
-                width: isMobile ? 'calc(100vw - 28px)' : 360,
-                maxHeight: 460,
+                width: isMobile ? 'calc(100vw - 28px)' : 390,
+                maxHeight: isMobile ? 'calc(100vh - 96px)' : 520,
                 overflowY: 'auto',
                 background: '#fff',
                 border: '1px solid #E7E0D5',
-                borderRadius: 18,
+                borderRadius: 20,
                 boxShadow: '0 24px 80px rgba(29,28,25,.22)',
                 padding: 12,
               }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 4px 10px' }}>
-                  <strong style={{ fontFamily: 'var(--font-serif)', fontSize: 19, color: '#1D1C19' }}>Notificações</strong>
-                  <span style={{ color: '#B8965E', fontSize: 12, fontWeight: 900 }}>{pendentes.length} pendentes</span>
+                <div style={{ padding: '6px 6px 12px', borderBottom: '1px solid #E7E0D5', marginBottom: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                    <div>
+                      <strong style={{ fontFamily: 'var(--font-serif)', fontSize: 21, color: '#1D1C19', display: 'block', lineHeight: 1 }}>Central de ações</strong>
+                      <span style={{ display: 'block', marginTop: 5, color: '#6D675E', fontSize: 12.5, fontWeight: 700 }}>Pendências que precisam de atenção.</span>
+                    </div>
+                    <span style={{ minWidth: 34, height: 34, borderRadius: 999, display: 'grid', placeItems: 'center', background: temPendencias ? '#C0392B' : '#F4EFE7', color: temPendencias ? '#fff' : '#B8965E', fontSize: 13, fontWeight: 900, border: '2px solid #fff', boxShadow: temPendencias ? '0 8px 18px rgba(192,57,43,.22)' : 'none' }}>
+                      {pendentes.length}
+                    </span>
+                  </div>
+                  {pendentes.length > 0 && (
+                    <button
+                      onClick={marcarTodasComoLidas}
+                      style={{ marginTop: 12, width: '100%', border: '1px solid #E7E0D5', background: '#FFFEFC', color: '#6D675E', borderRadius: 12, padding: '9px 10px', fontSize: 12, fontWeight: 900, fontFamily: 'inherit', cursor: 'pointer' }}
+                    >
+                      Marcar todas como lidas
+                    </button>
+                  )}
                 </div>
                 {notificacoes.length === 0 ? (
-                  <div style={{ padding: 22, textAlign: 'center', color: '#6D675E', fontSize: 13 }}>Nenhuma notificação pendente.</div>
+                  <div style={{ padding: 28, textAlign: 'center', color: '#6D675E', fontSize: 13, lineHeight: 1.5 }}>Nenhuma ação pendente agora.</div>
                 ) : (
-                  notificacoes.map(item => (
+                  notificacoesOrdenadas.map(item => (
                     <button
                       key={item.id}
                       onClick={() => abrirNotificacao(item)}
                       style={{
                         width: '100%',
                         border: '1px solid #E7E0D5',
-                        borderLeft: `4px solid ${item.prioridade === 'alta' ? '#C0392B' : item.status !== 'lida' ? '#B8965E' : '#D8D0C2'}`,
+                        borderLeft: `5px solid ${corPrioridade(item)}`,
                         background: item.status !== 'lida' ? '#FFFCF7' : '#fff',
-                        borderRadius: 12,
-                        padding: 12,
-                        marginBottom: 8,
+                        borderRadius: 14,
+                        padding: 13,
+                        marginBottom: 9,
                         textAlign: 'left',
                         cursor: 'pointer',
                         fontFamily: 'inherit',
+                        boxShadow: item.status !== 'lida' ? '0 10px 22px rgba(184,150,94,.08)' : 'none',
                       }}
                     >
-                      <span style={{ display: 'block', color: '#B8965E', fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: 900, marginBottom: 5 }}>{item.tipo}</span>
+                      <span style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', marginBottom: 6 }}>
+                        <span style={{ color: corPrioridade(item), fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: 900 }}>{item.tipo || 'ação'}</span>
+                        <span style={{ borderRadius: 999, background: `${corPrioridade(item)}18`, color: corPrioridade(item), padding: '4px 7px', fontSize: 10, fontWeight: 900, whiteSpace: 'nowrap' }}>{labelPrioridade(item)}</span>
+                      </span>
                       <strong style={{ display: 'block', color: '#1D1C19', fontSize: 13.5, lineHeight: 1.25 }}>{item.titulo}</strong>
                       {item.descricao && <small style={{ display: 'block', color: '#6D675E', fontSize: 12, lineHeight: 1.35, marginTop: 4 }}>{item.descricao}</small>}
-                      <small style={{ display: 'block', color: '#9E9E9E', fontSize: 11, marginTop: 8 }}>
-                        {item.created_at ? new Date(item.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}
-                      </small>
+                      <span style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', marginTop: 10 }}>
+                        <small style={{ display: 'block', color: '#9E9E9E', fontSize: 11 }}>
+                          {item.created_at ? new Date(item.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}
+                        </small>
+                        <small style={{ color: '#B8965E', fontSize: 11, fontWeight: 900 }}>Abrir →</small>
+                      </span>
                     </button>
                   ))
                 )}
