@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useStore } from '../../store/useStore'
@@ -37,6 +37,19 @@ const VISTORIA_CHECKLIST = [
   'Validar se ambientes estão limpos e desimpedidos.',
 ]
 
+const MONTAGEM_CHECKLIST = [
+  'Piso isolado e protegido antes de iniciar a montagem.',
+  'Cantoneiras de proteção instaladas em quinas e passagens.',
+  'Área de trabalho limpa, liberada e sinalizada.',
+  'Módulos conferidos com o projeto antes da instalação.',
+  'Ferragens, acessórios e componentes separados por ambiente.',
+  'Paredes, pontos elétricos e hidráulicos protegidos durante a montagem.',
+  'Nivelamento inicial conferido antes da fixação definitiva.',
+  'Limpeza parcial realizada ao final do dia de trabalho.',
+  'Fotos do andamento registradas durante a montagem.',
+  'Pendências de montagem registradas antes de finalizar o dia.',
+]
+
 const PRIORIDADE = {
   baixa: { label: 'Baixa', color: '#8A8175' },
   media: { label: 'Média', color: THEME.warn },
@@ -45,6 +58,8 @@ const PRIORIDADE = {
 
 const safeArray = result => result?.data || []
 const norm = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+const VISTORIA_CHECKLIST_NORMALIZADO = new Set(VISTORIA_CHECKLIST.map(norm))
+const MONTAGEM_CHECKLIST_NORMALIZADO = new Set(MONTAGEM_CHECKLIST.map(norm))
 const isConcluido = status => ['concluida', 'concluido', 'finalizada', 'finalizado'].includes(norm(status))
 const isAberta = status => !isConcluido(status) && !['fechada', 'resolvida', 'cancelada'].includes(norm(status))
 
@@ -123,9 +138,20 @@ function obraAguardandoInicio(obra) {
   return status.includes('aguardando inicio') || status.includes('aguardando montagem')
 }
 
+function obraEmMontagem(obra) {
+  const status = norm(obra?.status)
+  const fase = norm(obra?.fase || obra?.fase_atual)
+  return status.includes('em montagem') || status.includes('montagem') || fase.includes('montagem')
+}
+
 function faseObraMontador(obra) {
   const fase = faseOrnarePorKey(obra?.fase) || faseOrnarePorKey(obra?.fase_atual) || faseOrnarePorTexto(obra?.fase || obra?.fase_atual || obra?.status)
   const key = fase?.key
+  const status = norm(obra?.status)
+  if (status.includes('conclu')) return { key: 'obra_concluida', label: 'Concluída', bg: '#EAF5EE', color: THEME.success, border: THEME.success }
+  if (status.includes('em montagem')) return { key: 'montagem', label: 'Em montagem', bg: '#EAF5EE', color: THEME.success, border: THEME.success, andamento: true }
+  if (status.includes('aguardando montagem')) return { key, label: 'Aguardando liberação', bg: '#FFF7E8', color: '#9A6A22', border: '#E8A020' }
+  if (status.includes('aguardando inicio') && ['producao', 'executivo', 'vistoria_medida'].includes(key)) return { key, label: 'Em produção', bg: 'rgba(255,255,255,.15)', color: '#FFFFFF', border: 'rgba(255,255,255,.28)', producao: true }
   if (key === 'vistoria_tecnica' || key === 'entrega_moveis') return { key, label: 'Aguardando liberação', bg: '#FFF7E8', color: '#9A6A22', border: '#E8A020' }
   if (key === 'montagem') return { key, label: 'Em montagem', bg: '#EAF5EE', color: THEME.success, border: THEME.success, andamento: true }
   if (key === 'montagem_finalizada') return { key, label: 'Montagem finalizada', bg: '#EEF5FF', color: '#2563EB', border: '#2563EB', solicitarVistoria: true }
@@ -191,6 +217,61 @@ export default function MontadorDashboard() {
     window.setTimeout(() => setSucesso(''), 3200)
   }
 
+  const garantirChecklistMontagem = useCallback(async (obra, itensAtuais = []) => {
+    if (!obra?.id || !obraEmMontagem(obra)) return itensAtuais
+
+    const descricoes = new Set(itensAtuais.map(item => norm(item.descricao)))
+    const jaTemMontagem = [...MONTAGEM_CHECKLIST_NORMALIZADO].some(descricao => descricoes.has(descricao))
+
+    if (jaTemMontagem) return itensAtuais
+
+    const vistoriaSolta = itensAtuais
+      .filter(item => !item.ambiente_id && !item.concluido && VISTORIA_CHECKLIST_NORMALIZADO.has(norm(item.descricao)))
+      .map(item => item.id)
+      .filter(Boolean)
+
+    if (vistoriaSolta.length > 0) {
+      const { error } = await supabase.from('checklist_items').delete().in('id', vistoriaSolta)
+      if (error) console.error('Erro ao remover checklist de vistoria do fluxo de montagem:', error)
+    }
+
+    const rows = MONTAGEM_CHECKLIST
+      .filter(descricao => !descricoes.has(norm(descricao)))
+      .map((descricao, index) => ({
+        obra_id: obra.id,
+        ambiente_id: null,
+        descricao,
+        concluido: false,
+        fase: 'Montagem',
+        responsavel_perfil: 'montador',
+        responsavel_id: user?.id || null,
+        status: 'pendente',
+        criticidade: index <= 1 ? 'alta' : 'media',
+        exige_foto: index === 8,
+      }))
+
+    if (rows.length > 0) {
+      const { error } = await supabase.from('checklist_items').insert(rows)
+      if (error) {
+        console.error('Erro ao criar checklist operacional de montagem:', error)
+        return itensAtuais
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('checklist_items')
+      .select('id, obra_id, ambiente_id, descricao, concluido, concluido_por, concluido_em')
+      .eq('obra_id', obra.id)
+      .order('descricao')
+
+    if (error) {
+      console.error('Erro ao recarregar checklist operacional de montagem:', error)
+      return itensAtuais
+    }
+
+    return data || []
+  }, [user?.id])
+
   async function carregarDadosObra(obra = obraAtiva) {
     if (!obra?.id || !user?.id) return
 
@@ -214,7 +295,7 @@ export default function MontadorDashboard() {
 
     setTarefas(safeArray(tarefasResult))
     setCheckins(safeArray(checkinsResult))
-    setChecklist(safeArray(checklistResult))
+    setChecklist(await garantirChecklistMontagem(obra, safeArray(checklistResult)))
     setAmbientes(safeArray(ambientesResult))
     setFotos(safeArray(fotosResult).map(foto => ({ ...foto, categoria: foto.categoria || 'Geral', publicUrl: fotoUrl(foto) })))
     setOcorrencias(safeArray(ocorrenciasResult))
@@ -301,7 +382,7 @@ export default function MontadorDashboard() {
 
       setTarefas(safeArray(tarefasResult))
       setCheckins(safeArray(checkinsResult))
-      setChecklist(safeArray(checklistResult))
+      setChecklist(await garantirChecklistMontagem(obraAtiva, safeArray(checklistResult)))
       setAmbientes(safeArray(ambientesResult))
       setFotos(safeArray(fotosResult).map(foto => ({ ...foto, categoria: foto.categoria || 'Geral', publicUrl: fotoUrl(foto) })))
       setOcorrencias(safeArray(ocorrenciasResult))
@@ -312,7 +393,7 @@ export default function MontadorDashboard() {
     carregar()
 
     return () => { ativo = false }
-  }, [obraAtiva?.id, user?.id])
+  }, [obraAtiva, garantirChecklistMontagem, user?.id])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -472,45 +553,6 @@ export default function MontadorDashboard() {
     mostrarSucesso('Check-out registrado.')
     await carregarDadosObra()
     setCheckando(false)
-  }
-
-  async function iniciarObra() {
-    if (!obraAtiva?.id) return
-    const agora = new Date().toISOString()
-    const payload = {
-      status: 'Em montagem',
-      data_inicio_real: agora,
-    }
-
-    const { data, error } = await supabase
-      .from('obras')
-      .update(payload)
-      .eq('id', obraAtiva.id)
-      .select('*')
-      .single()
-
-    if (error) {
-      const fallback = await supabase
-        .from('obras')
-        .update({ status: 'Em montagem' })
-        .eq('id', obraAtiva.id)
-        .select('*')
-        .single()
-
-      if (fallback.error) {
-        mostrarSucesso('Não foi possível iniciar a obra.')
-        return
-      }
-
-      setObraAtiva(fallback.data)
-      setObras(lista => lista.map(obra => obra.id === fallback.data.id ? fallback.data : obra))
-      mostrarSucesso('Obra iniciada. Para contar dias reais, aplique a coluna data_inicio_real no Supabase.')
-      return
-    }
-
-    setObraAtiva(data)
-    setObras(lista => lista.map(obra => obra.id === data.id ? data : obra))
-    mostrarSucesso('Obra iniciada. Dia 1 em andamento.')
   }
 
   function abrirTarefa(tarefa) {
@@ -940,7 +982,7 @@ export default function MontadorDashboard() {
             {norm(tarefaAberta.tipo || tarefaAberta.titulo).includes('vistoria') && (
               <div className="md-task-checklist-preview">
                 <strong>Checklist de vistoria</strong>
-                {VISTORIA_CHECKLIST.map(item => <span key={item}>• {item}</span>)}
+                {VISTORIA_CHECKLIST.map(item => <span key={item}>â€¢ {item}</span>)}
               </div>
             )}
             <div className="md-task-photo-actions">
@@ -959,9 +1001,9 @@ export default function MontadorDashboard() {
         <div className="md-modal-bg" onClick={e => e.target === e.currentTarget && setCalendarioAberto(false)}>
           <div className="md-modal calendar">
             <div className="md-calendar-head">
-              <button onClick={() => mudarMesCalendario(-1)}>‹</button>
+              <button onClick={() => mudarMesCalendario(-1)}>â€¹</button>
               <h2>{mesCalendario.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</h2>
-              <button onClick={() => mudarMesCalendario(1)}>›</button>
+              <button onClick={() => mudarMesCalendario(1)}>â€º</button>
             </div>
             <div className="md-calendar-week">
               {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(dia => <span key={dia}>{dia}</span>)}
@@ -1025,7 +1067,6 @@ export default function MontadorDashboard() {
               return (
                 <>
                   <span className="md-phase-badge" style={{ background: faseMontador.bg, color: faseMontador.color, borderColor: faseMontador.border }}>{faseMontador.label}</span>
-                  {obraAtiva.status && <small className="md-obra-status">{obraAtiva.status}</small>}
                 </>
               )
             })()}
@@ -1042,7 +1083,7 @@ export default function MontadorDashboard() {
         {(() => {
           const faseMontador = faseObraMontador(obraAtiva)
           if (obraAguardandoInicio(obraAtiva)) {
-            return <button className="md-start-work" onClick={iniciarObra}>Iniciar obra</button>
+            return <div className="md-work-day muted">Aguardando liberação para montagem</div>
           }
           if (faseMontador.solicitarVistoria) {
             return <button className="md-start-work secondary" onClick={() => setModalProblema({ titulo: 'Solicitar vistoria final', agenda_id: null })}>Solicitar vistoria final</button>
@@ -1060,7 +1101,7 @@ export default function MontadorDashboard() {
       <section className="md-card">
         <div className="md-card-head">
           <h2>Próximas datas</h2>
-          <button onClick={() => setCalendarioAberto(true)}>Ver calendário completo →</button>
+          <button onClick={() => setCalendarioAberto(true)}>Ver calendário completo â†’</button>
         </div>
         {vm.proximasDatas.length === 0 ? (
           <div className="md-empty-compact">Nenhuma data programada</div>
@@ -1084,7 +1125,7 @@ export default function MontadorDashboard() {
 
       <section className={vm.emServico ? 'md-check-card active' : 'md-check-card'}>
         <div className="md-check-info">
-          <span>Hoje — {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
+          <span>Hoje â€” {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
           {obraAguardandoInicio(obraAtiva) ? (
             <>
               <p className="md-check-primary">Obra ainda não iniciada</p>
@@ -1109,7 +1150,7 @@ export default function MontadorDashboard() {
           {servicoFeedback && <div className="md-check-feedback">{servicoFeedback}</div>}
         </div>
         {obraAguardandoInicio(obraAtiva) ? (
-          <button onClick={iniciarObra}>Iniciar obra</button>
+          <button className="disabled" disabled>Aguardando</button>
         ) : vm.emServico ? (
           <button className="checkout" onClick={fazerCheckout} disabled={checkando}>{checkando ? '...' : 'Check-out'}</button>
         ) : (
@@ -1123,7 +1164,7 @@ export default function MontadorDashboard() {
         <div className="md-card-head">
           <h2>Tarefas</h2>
           <span>{vm.tarefasAbertas.length}</span>
-          <button onClick={() => setPainelAtivo(painelAtivo === 'tarefas' ? '' : 'tarefas')}>Ver todas →</button>
+          <button onClick={() => setPainelAtivo(painelAtivo === 'tarefas' ? '' : 'tarefas')}>Ver todas â†’</button>
         </div>
         {vm.tarefasAbertas.length === 0 ? <div className="md-empty-compact">Nenhuma tarefa pendente</div> : vm.tarefasAbertas.slice(0, painelAtivo === 'tarefas' ? vm.tarefasAbertas.length : 2).map(tarefa => {
           const pr = PRIORIDADE[norm(tarefa.prioridade)] || { label: tarefa.prioridade || '', color: '#A79F93' }
@@ -1133,7 +1174,7 @@ export default function MontadorDashboard() {
                 <strong>{tarefa.titulo || 'Tarefa sem título'}</strong>
                 <small>{tarefa.tipo || 'Outro'} · {tarefa.status || 'pendente'}</small>
               </div>
-              <span>→</span>
+              <span>â†’</span>
             </article>
           )
         })}
@@ -1148,7 +1189,7 @@ export default function MontadorDashboard() {
           {vm.tarefasConcluidasHoje.map(tarefa => (
             <button key={tarefa.id} className="md-done-task" onClick={() => abrirTarefa(tarefa)}>
               <strong>{tarefa.titulo || 'Tarefa concluída'}</strong>
-              <span>✓</span>
+              <span>âœ“</span>
             </button>
           ))}
         </section>
@@ -1169,7 +1210,7 @@ export default function MontadorDashboard() {
             const done = grupo.itens.length > 0 && feitos === grupo.itens.length
             return (
               <button key={grupo.id} className={`${ambienteSelecionado === grupo.id ? 'active' : ''} ${done ? 'done' : ''}`} onClick={() => setAmbienteSelecionado(grupo.id)}>
-                {grupo.nome} {done ? '✓' : grupo.itens.length ? `●${grupo.itens.length}` : ''}
+                {grupo.nome} {done ? 'âœ“' : grupo.itens.length ? `â—${grupo.itens.length}` : ''}
               </button>
             )
           })}
@@ -1182,13 +1223,15 @@ export default function MontadorDashboard() {
               <div className="md-add-check">
                 <Empty text="Nenhum item neste ambiente." />
                 <input value={novoChecklist} onChange={e => setNovoChecklist(e.target.value)} placeholder="+ Adicionar item" />
-                <button onClick={() => adicionarChecklistItem(grupo.id)} disabled={criandoChecklist || !novoChecklist.trim()}>{criandoChecklist ? 'Salvando...' : 'Adicionar item'}</button>
+                {novoChecklist.trim() && (
+                  <button onClick={() => adicionarChecklistItem(grupo.id)} disabled={criandoChecklist}>{criandoChecklist ? 'Salvando...' : 'Adicionar item'}</button>
+                )}
               </div>
             )
           }
           return grupo.itens.map(item => (
             <div className={item.concluido ? 'md-check-item done' : 'md-check-item'} key={item.id} onClick={() => toggleChecklist(item)} onMouseDown={() => item.concluido && iniciarLongPress(item.id)} onMouseUp={cancelarLongPress} onMouseLeave={cancelarLongPress} onTouchStart={() => item.concluido && iniciarLongPress(item.id)} onTouchEnd={cancelarLongPress}>
-              <i>{item.concluido ? '✓' : ''}</i>
+              <i>{item.concluido ? 'âœ“' : ''}</i>
               <span>{item.descricao}</span>
               {itemAcao === item.id && <button className="md-check-delete" onClick={e => { e.stopPropagation(); excluirChecklistItem(item) }}>Excluir</button>}
             </div>
@@ -1356,6 +1399,7 @@ const css = `
 .md-check-feedback{display:inline-flex;margin-top:8px;background:#EAF5EE;color:${THEME.success};border:1px solid #C8E1D0;border-radius:999px;padding:6px 9px;font-size:11px;font-weight:900;line-height:1.1}
 .md-check-card button{border:0;background:${THEME.ink};color:#fff;border-radius:14px;padding:15px 18px;min-width:118px;font-size:15px;font-weight:900;cursor:pointer}
 .md-check-card button.checkout{background:${THEME.danger}}
+.md-check-card button.disabled{background:#D8D0C2;color:#7A746B;cursor:default}
 .md-today-card{background:#fff;border:1px solid ${THEME.border};border-radius:18px;padding:14px;margin-bottom:12px;box-shadow:0 10px 26px rgba(29,28,25,.04)}
 .md-card-head.compact{margin-bottom:9px}
 .md-today-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -1429,7 +1473,7 @@ const css = `
 .md-env-chips button.done{border-color:${THEME.success}}
 .md-add-check{border:1px dashed ${THEME.border};border-radius:14px;padding:10px;margin-top:10px;background:#FFFEFC}
 .md-add-check input{width:100%;box-sizing:border-box;border:1px solid ${THEME.border};background:#fff;border-radius:12px;padding:12px;font-size:14px;font-family:inherit;color:${THEME.ink};margin-bottom:8px}
-.md-add-check button{width:100%;border:0;background:${THEME.ink};color:#fff;border-radius:12px;padding:12px;font-size:13px;font-weight:900;font-family:inherit;cursor:pointer}
+.md-add-check button{width:100%;border:1px solid ${THEME.gold};background:#fff;color:${THEME.gold};border-radius:12px;padding:12px;font-size:13px;font-weight:900;font-family:inherit;cursor:pointer}
 .md-add-check button:disabled{opacity:.45;cursor:not-allowed}
 .md-check-item{width:100%;border:1px solid ${THEME.border};background:#fff;border-radius:13px;padding:13px;display:flex;align-items:center;gap:11px;text-align:left;margin-top:8px;font-family:inherit;cursor:pointer}
 .md-check-item.done{background:#F4FBF6;border-color:#C8E1D0}
