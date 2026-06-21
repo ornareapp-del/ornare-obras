@@ -358,6 +358,7 @@ export default function MontadorDashboard() {
     else if (entidadeTipo === 'ocorrencias') rota = `/obras/${obraAtiva.id}?aba=Ocorrencias&ocorrencia=${entidadeId || ''}`
     else if (entidadeTipo === 'checklist_items') rota = `/obras/${obraAtiva.id}?aba=Checklist&checklist=${entidadeId || ''}`
     else if (entidadeTipo === 'tarefas') rota = `/tarefas?tarefa=${entidadeId || ''}`
+    else if (entidadeTipo === 'checkin') rota = agendaId ? `/agenda?compromisso=${agendaId}` : `/obras/${obraAtiva.id}?aba=Agenda`
     else if (agendaId) rota = `/agenda?compromisso=${agendaId}`
 
     const registros = [...destinatarios].map(usuario_id => ({

@@ -140,6 +140,10 @@ export default function Equipe() {
           <strong>{loading ? '-' : profiles.filter(p => p.role === 'montador').length}</strong>
           <span>montadores</span>
         </button>
+        <button type="button" onClick={() => setFiltro('vendedor')}>
+          <strong>{loading ? '-' : profiles.filter(p => p.role === 'vendedor').length}</strong>
+          <span>vendedores</span>
+        </button>
       </div>
 
       <div className="eq-kpis" style={s.kpiGrid}>
@@ -235,6 +239,7 @@ function EditForm({ editando, setEditando, supervisores, salvando, onSalvar, onC
     <div>
       <div style={s.editGrid}>
         <Field label="Nome"><input style={s.input} value={editando.full_name || ''} onChange={e => set('full_name', e.target.value)} /></Field>
+        <Field label="E-mail"><input style={{ ...s.input, background: '#F5F1EA', color: '#8A8175' }} value={editando.email || 'E-mail não informado'} readOnly /></Field>
         <Field label="Cargo"><input style={s.input} value={editando.cargo || ''} onChange={e => set('cargo', e.target.value)} /></Field>
         <Field label="Telefone"><input style={s.input} value={editando.telefone || ''} onChange={e => set('telefone', e.target.value)} /></Field>
         <Field label="Perfil">

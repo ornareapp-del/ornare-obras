@@ -66,8 +66,13 @@ export default function Layout() {
     const entidadeId = notificacao.entidade_id
     const obraId = notificacao.obra_id
 
-    if (tipo.includes('agenda') || tipo.includes('compromisso') || tipo.includes('checkin') || tipo.includes('checkout') || tipo.includes('vistoria')) {
+    if (tipo.includes('agenda') || tipo.includes('compromisso') || tipo.includes('vistoria')) {
       return entidadeId ? `/agenda?compromisso=${entidadeId}` : '/agenda'
+    }
+
+    if (tipo.includes('checkin') || tipo.includes('checkout')) {
+      if (notificacao.rota) return notificacao.rota
+      return obraId ? `/obras/${obraId}?aba=Agenda` : '/agenda'
     }
 
     if (tipo.includes('foto')) {
@@ -157,17 +162,38 @@ export default function Layout() {
       <main className="ow-app-main" style={{ flex: 1, overflowY: 'auto', transition: 'all 0.25s', background: 'var(--color-bg, #F5F2EE)' }}>
 
         {user?.id && (
-          <div style={{ position: 'fixed', top: isMobile ? 14 : 18, right: isMobile ? 14 : 22, zIndex: 36 }}>
+          <div style={{ position: 'fixed', top: isMobile ? 14 : 18, right: isMobile ? 14 : 22, zIndex: 36, display: 'flex', alignItems: 'center', gap: 8 }}>
+            {temPendencias && !isMobile && (
+              <button
+                onClick={() => setNotificacoesAbertas(v => !v)}
+                style={{
+                  border: '1px solid rgba(192,57,43,.18)',
+                  background: '#FFF5F2',
+                  color: '#C0392B',
+                  borderRadius: 999,
+                  padding: '9px 12px',
+                  fontSize: 11,
+                  fontWeight: 900,
+                  letterSpacing: 1,
+                  textTransform: 'uppercase',
+                  boxShadow: '0 12px 28px rgba(192,57,43,.14)',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                {pendentes.length > 9 ? '9+' : pendentes.length} ações pendentes
+              </button>
+            )}
             <button
               onClick={() => setNotificacoesAbertas(v => !v)}
               style={{
-                width: temPendencias ? 48 : 42,
-                height: temPendencias ? 48 : 42,
+                width: temPendencias ? 52 : 42,
+                height: temPendencias ? 52 : 42,
                 borderRadius: 999,
-                border: temPendencias ? '2px solid #FFFFFF' : '1px solid rgba(184,150,94,.35)',
+                border: temPendencias ? '3px solid #FFFFFF' : '1px solid rgba(184,150,94,.35)',
                 background: temPendencias ? 'linear-gradient(135deg, #E07B39 0%, #C0392B 100%)' : '#fff',
                 color: temPendencias ? '#fff' : '#1D1C19',
-                boxShadow: temPendencias ? '0 0 0 5px rgba(192,57,43,.14), 0 16px 38px rgba(192,57,43,.34)' : '0 12px 32px rgba(29,28,25,.12)',
+                boxShadow: temPendencias ? '0 0 0 7px rgba(192,57,43,.14), 0 18px 42px rgba(192,57,43,.36)' : '0 12px 32px rgba(29,28,25,.12)',
                 cursor: 'pointer',
                 position: 'relative',
                 display: 'grid',
@@ -200,18 +226,19 @@ export default function Layout() {
               {temPendencias && (
                 <span style={{
                   position: 'absolute',
-                  bottom: -3,
-                  right: 2,
-                  width: 14,
-                  height: 14,
+                  bottom: -5,
+                  right: -3,
+                  width: 19,
+                  height: 19,
                   borderRadius: 999,
                   background: '#fff',
                   color: '#C0392B',
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: 900,
                   display: 'grid',
                   placeItems: 'center',
                   lineHeight: 1,
+                  border: '2px solid #C0392B',
                 }}>
                   !
                 </span>

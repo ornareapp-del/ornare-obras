@@ -3,12 +3,20 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 
 const TIPOS = ['Apresentação','Assistência Técnica','Compromisso','Entrega','Medição','Montagem','Tarefa','Vistoria','Reunião Interna']
-const MESES = ['Janeiro','Fevereiro','Marco','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
+const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 const DIAS = ['Dom','Seg','Ter','Qua','Qui','Sex','Sab']
 const TIPO_COR = {
-  'Montagem': '#3a7d4f', 'Entrega': '#3a5580', 'Medicao': '#9070c0', 'Medição': '#9070c0',
-  'Assistência Técnica': '#d94a4a', 'Reunião Interna': '#b09a7a', 'Vistoria': '#2D7A4A',
-  'Apresentacao': '#4a90d9', 'Compromisso': '#888', 'Tarefa': '#b09a7a',
+  'Montagem': '#2D7A4A',
+  'Entrega': '#E07B39',
+  'Medicao': '#9070C0',
+  'Medição': '#9070C0',
+  'Assistência Técnica': '#C0392B',
+  'Reunião Interna': '#6D675E',
+  'Vistoria': '#2563EB',
+  'Apresentacao': '#4A90D9',
+  'Apresentação': '#4A90D9',
+  'Compromisso': '#888',
+  'Tarefa': '#B09A7A',
 }
 
 const TIPO_CORES = [
@@ -58,9 +66,26 @@ function statusEvento(ev, hojeStr) {
     if (n.includes('atras')) return { label: 'Atrasada', tone: 'danger' }
     return { label: status, tone: 'warn' }
   }
-  if ((ev.data_fim || ev.data) < hojeStr) return { label: 'Realizada', tone: 'success' }
+  if ((ev.data_fim || ev.data) < hojeStr) return { label: 'Atrasada', tone: 'danger' }
   if (ev.data === hojeStr) return { label: 'Hoje', tone: 'info' }
   return { label: 'Pendente', tone: 'warn' }
+}
+
+function ehFimDeSemana(data) {
+  if (!data) return false
+  const dia = new Date(`${data}T00:00:00`).getDay()
+  return dia === 0 || dia === 6
+}
+
+function intervaloTemDiaNaoUtil(inicio, fim) {
+  if (!inicio) return false
+  const atual = new Date(`${inicio}T00:00:00`)
+  const limite = new Date(`${fim || inicio}T00:00:00`)
+  while (atual <= limite) {
+    if (ehFimDeSemana(atual.toISOString().split('T')[0])) return true
+    atual.setDate(atual.getDate() + 1)
+  }
+  return false
 }
 
 export default function Agenda() {
@@ -377,6 +402,10 @@ export default function Agenda() {
 
   async function salvar() {
     if (!form.titulo.trim()) return
+    if (intervaloTemDiaNaoUtil(form.data, form.data_fim || form.data)) {
+      const confirmado = window.confirm('Este compromisso inclui sábado ou domingo. Deseja confirmar mesmo assim?')
+      if (!confirmado) return
+    }
     setSalvando(true)
     setErroModal('')
 
@@ -534,6 +563,8 @@ export default function Agenda() {
     { label: 'Entregas', value: eventos.filter(e => norm(e.tipo || e.titulo).includes('entrega')).length },
     { label: 'Vistorias', value: eventos.filter(e => norm(e.tipo || e.titulo).includes('vistoria') || norm(e.tipo || e.titulo).includes('medicao')).length },
   ]
+  const corTipoForm = corTipo(form.tipo || form.titulo)
+  const statusForm = statusEvento(form, hoje_str)
 
   return (
     <div className="ow-page" style={s.page}>
@@ -548,6 +579,17 @@ export default function Agenda() {
               <button style={s.btnClose} onClick={() => setModal(false)}>X</button>
             </div>
             <div style={s.modalBody}>
+              <div style={{ ...s.modalSummary, borderLeftColor: corTipoForm }}>
+                <div>
+                  <span style={{ ...s.tipoBadge, background: corTipoForm + '18', color: corTipoForm }}>{form.tipo}</span>
+                  <strong style={s.modalSummaryTitle}>{form.titulo || 'Compromisso sem título'}</strong>
+                  <span style={s.modalSummaryMeta}>
+                    {form.data ? new Date(form.data + 'T00:00:00').toLocaleDateString('pt-BR') : 'Sem data'}
+                    {form.hora_inicio ? ` · ${form.hora_inicio}` : ''}
+                  </span>
+                </div>
+                <span className={`ag-status tone-${statusForm.tone}`}>{statusForm.label}</span>
+              </div>
               <div style={s.grid}>
                 <div style={s.full}>
                   <L>Título *</L>
@@ -799,8 +841,9 @@ export default function Agenda() {
             const cor = corTipo(ev.tipo || ev.titulo)
             const isHoje = ev.data === hoje_str
             const status = statusEvento(ev, hoje_str)
+            const fimSemana = ehFimDeSemana(ev.data)
             return (
-              <div key={ev.id} className="ag-card" onClick={() => abrirEditar(ev)} style={{ ...s.card, borderLeft: '4px solid ' + cor, opacity: filtro === 'passados' ? 0.7 : 1, cursor: 'pointer' }}>
+              <div key={ev.id} className="ag-card" onClick={() => abrirEditar(ev)} style={{ ...s.card, borderLeft: '4px solid ' + cor, background: fimSemana ? '#FFFBF5' : '#fff', opacity: filtro === 'passados' ? 0.7 : 1, cursor: 'pointer' }}>
                 <div className="ag-datebox" style={{ ...s.datebox, borderColor: isHoje ? cor : 'var(--color-border)', background: isHoje ? cor + '10' : '#fafaf8' }}>
                   <div style={{ fontSize: 22, fontWeight: 700, color: isHoje ? cor : 'var(--color-ink)', fontFamily: 'var(--font-serif)', lineHeight: 1 }}>{d.getDate()}</div>
                   <div style={{ fontSize: 9, color: cor, letterSpacing: 1, fontWeight: 600 }}>{MESES[d.getMonth()].slice(0, 3).toUpperCase()}</div>
@@ -808,7 +851,7 @@ export default function Agenda() {
                 </div>
                 <div style={s.cardBody}>
                   <div style={s.cardTop}>
-                    <span style={s.cardTitulo}>{ev.titulo}</span>
+                    <span style={s.cardTitulo}>{normalizarTitulo(ev.titulo)}</span>
                     <span className={`ag-status tone-${status.tone}`}>{status.label}</span>
                     <span style={{ ...s.tipoBadge, background: cor + '18', color: cor }}>{ev.tipo}</span>
                     {ev.reuniao_interna && <span style={{ ...s.tipoBadge, background: '#eef2f8', color: '#3a5580' }}>Reunião Interna</span>}
@@ -904,6 +947,9 @@ const s = {
   modalTitle: { fontFamily: 'var(--font-serif)', fontSize: 24, fontWeight: 500, margin: 0 },
   btnClose: { background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: '#999' },
   modalBody: { overflowY: 'auto', padding: '20px 28px', flex: 1 },
+  modalSummary: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, border: '1px solid var(--color-border)', borderLeft: '4px solid var(--color-gold)', background: '#FFFEFC', borderRadius: 14, padding: '13px 14px', marginBottom: 16 },
+  modalSummaryTitle: { display: 'block', marginTop: 8, fontSize: 15, color: 'var(--color-ink)' },
+  modalSummaryMeta: { display: 'block', marginTop: 4, fontSize: 12, color: 'var(--color-ink-muted)', fontWeight: 700 },
   modalFooter: { display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '16px 28px', borderTop: '1px solid #f0ece6', flexShrink: 0 },
   btnCancel: { background: 'none', border: '1px solid var(--color-border)', borderRadius: 8, padding: '9px 18px', fontSize: 13, cursor: 'pointer', color: '#888' },
   btnSave: { background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer' },

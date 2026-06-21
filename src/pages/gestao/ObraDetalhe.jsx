@@ -93,6 +93,41 @@ function fotoUrl(foto) {
   return supabase.storage.from('fotos-obras').getPublicUrl(foto.storage_path).data.publicUrl
 }
 
+async function criarNotificacoesObra({ obraId, tipo, titulo, descricao, prioridade = 'normal', entidadeTipo, entidadeId, rota, excluirUsuarioId }) {
+  if (!obraId || !titulo) return
+  try {
+    const [{ data: obra }, { data: profiles }] = await Promise.all([
+      supabase.from('obras').select('id, supervisor_id, comercial_id').eq('id', obraId).maybeSingle(),
+      supabase.from('profiles').select('id, role').in('role', ['gestao', 'pos_venda', 'vendedor', 'supervisor']),
+    ])
+    const destinatarios = new Set([obra?.supervisor_id, obra?.comercial_id].filter(Boolean))
+    ;(profiles || []).forEach(profile => {
+      if (profile?.id && ['gestao', 'pos_venda', 'vendedor'].includes(profile.role)) destinatarios.add(profile.id)
+    })
+    if (excluirUsuarioId) destinatarios.delete(excluirUsuarioId)
+
+    const registros = [...destinatarios].map(usuario_id => ({
+      usuario_id,
+      obra_id: obraId,
+      tipo,
+      titulo,
+      descricao,
+      prioridade,
+      status: 'nao_lida',
+      rota,
+      entidade_tipo: entidadeTipo,
+      entidade_id: entidadeId || null,
+    }))
+
+    if (registros.length) {
+      const { error } = await supabase.from('notificacoes').insert(registros)
+      if (error) console.error('Erro ao criar notificações da obra:', error)
+    }
+  } catch (error) {
+    console.error('Erro ao preparar notificações da obra:', error)
+  }
+}
+
 const textareaStyle = {
   width: '100%',
   padding: '11px 13px',
@@ -1029,6 +1064,16 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque }) {
       setCronograma(data)
       setForm(data)
       setMensagem({ tipo: 'sucesso', texto: 'Cronograma atualizado com sucesso.' })
+      await criarNotificacoesObra({
+        obraId,
+        tipo: 'cronograma',
+        titulo: 'Cronograma alterado',
+        descricao: `${faseOrnarePorKey(data.fase)?.label || data.status_operacional || 'Cronograma'} · ${data.percentual_concluido || 0}% concluído`,
+        prioridade: data.travado || data.risco === 'alto' ? 'alta' : 'normal',
+        entidadeTipo: 'cronograma',
+        entidadeId: data.id,
+        rota: `/obras/${obraId}?aba=Cronograma&cronograma=${data.id}`,
+      })
     }
     setSalvando(false)
   }
@@ -1445,6 +1490,19 @@ function AbaChecklist({ obraId, checklistDestaque }) {
       concluido_por: concluindo ? user?.id : null,
       concluido_em: concluindo ? new Date().toISOString() : null,
     }).eq('id', item.id)
+    if (concluindo) {
+      await criarNotificacoesObra({
+        obraId,
+        tipo: 'checklist',
+        titulo: 'Item de checklist concluído',
+        descricao: item.descricao || 'Checklist atualizado na obra.',
+        prioridade: 'normal',
+        entidadeTipo: 'checklist_items',
+        entidadeId: item.id,
+        rota: `/obras/${obraId}?aba=Checklist&checklist=${item.id}`,
+        excluirUsuarioId: user?.id,
+      })
+    }
     await carregar()
   }
   async function aplicarBiblioteca() {
@@ -1555,6 +1613,7 @@ function AbaChecklist({ obraId, checklistDestaque }) {
   )
 }
 function AbaOcorrencias({ obraId, ocorrenciaDestaque }) {
+  const { user } = useStore()
   const [ocorrencias, setOcorrencias] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -1569,7 +1628,18 @@ function AbaOcorrencias({ obraId, ocorrenciaDestaque }) {
   async function salvar() {
     if (!nova.titulo.trim()) return
     setSalvando(true)
-    await supabase.from('ocorrencias').insert([{ ...nova, obra_id: obraId }])
+    const { data: criada } = await supabase.from('ocorrencias').insert([{ ...nova, obra_id: obraId }]).select().single()
+    await criarNotificacoesObra({
+      obraId,
+      tipo: 'ocorrencia',
+      titulo: nova.gravidade === 'alta' ? 'Ocorrência crítica criada' : 'Ocorrência criada',
+      descricao: nova.titulo,
+      prioridade: nova.gravidade === 'alta' ? 'alta' : 'normal',
+      entidadeTipo: 'ocorrencias',
+      entidadeId: criada?.id,
+      rota: `/obras/${obraId}?aba=Ocorrencias${criada?.id ? `&ocorrencia=${criada.id}` : ''}`,
+      excluirUsuarioId: user?.id,
+    })
     setNova({ titulo: '', descricao: '', categoria: 'geral', gravidade: 'baixa' })
     setShowForm(false); await carregar(); setSalvando(false)
   }
@@ -1918,6 +1988,17 @@ function AbaFotos({ obraId, fotoDestaque }) {
       aprovada_gestao: aprovado,
       aprovada_por: aprovado ? user?.id : null,
     }).eq('id', foto.id)
+    await criarNotificacoesObra({
+      obraId,
+      tipo: 'foto',
+      titulo: aprovado ? 'Foto aprovada' : 'Foto voltou para revisão',
+      descricao: [foto.categoria || 'Foto', foto.observacao].filter(Boolean).join(' · '),
+      prioridade: aprovado ? 'normal' : 'media',
+      entidadeTipo: 'fotos',
+      entidadeId: foto.id,
+      rota: `/obras/${obraId}?aba=Fotos&foto=${foto.id}`,
+      excluirUsuarioId: user?.id,
+    })
     await carregar()
   }
   async function alternarCliente(foto) {

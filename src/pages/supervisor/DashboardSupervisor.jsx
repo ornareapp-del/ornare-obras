@@ -95,6 +95,8 @@ export default function DashboardSupervisor() {
     profiles: [],
     checklist: [],
     fotos: [],
+    gastos: [],
+    cronogramas: [],
   })
   const [loading, setLoading] = useState(true)
   const [periodo, setPeriodo] = useState('semana')
@@ -133,6 +135,8 @@ export default function DashboardSupervisor() {
         obraMontadoresResult,
         checklistResult,
         fotosResult,
+        gastosResult,
+        cronogramasResult,
       ] = await Promise.all([
         supabase.from('agenda').select('*').in('obra_id', obraIds).order('data').order('hora_inicio'),
         supabase.from('tarefas').select('*').in('obra_id', obraIds).order('prazo', { ascending: true }),
@@ -140,6 +144,8 @@ export default function DashboardSupervisor() {
         supabase.from('obra_montadores').select('obra_id, montador_id').in('obra_id', obraIds),
         supabase.from('checklist_items').select('id, obra_id, descricao, concluido, concluido_em, ambiente_id').in('obra_id', obraIds),
         supabase.from('fotos').select('*').in('obra_id', obraIds).order('created_at', { ascending: false }),
+        supabase.from('gastos').select('*').in('obra_id', obraIds).order('created_at', { ascending: false }),
+        supabase.from('obra_cronograma').select('id, obra_id, fase, travado, motivo_trava, risco, updated_at').in('obra_id', obraIds),
       ])
 
       if (!ativo) return
@@ -168,6 +174,8 @@ export default function DashboardSupervisor() {
         profiles: safeArray(profilesResult),
         checklist: safeArray(checklistResult),
         fotos: safeArray(fotosResult),
+        gastos: safeArray(gastosResult),
+        cronogramas: safeArray(cronogramasResult),
       })
       setLoading(false)
     }
@@ -385,6 +393,8 @@ export default function DashboardSupervisor() {
         fotosPendentes,
         fotosNaoConformidade,
         vistoriasPendentes: dados.agenda.filter(a => norm(a.tipo || a.titulo).includes('vistoria') && !['realizada', 'concluida', 'concluída'].includes(norm(a.status))),
+        gastosPendentes: dados.gastos.filter(g => norm(g.status).includes('pendente')),
+        cronogramasTravados: dados.cronogramas.filter(c => c.travado || norm(c.risco) === 'alto'),
       },
       obras: obrasDetalhadas,
       acoes: acoes.slice(0, 10),
@@ -549,8 +559,16 @@ export default function DashboardSupervisor() {
               <strong>{loading ? '-' : vm.aprovacoes.vistoriasPendentes.length}</strong>
               <span>Vistorias pendentes</span>
             </button>
+            <button className={vm.aprovacoes.gastosPendentes.length ? 'warn' : ''} onClick={() => vm.aprovacoes.gastosPendentes[0]?.obra_id && navigate(`/obras/${vm.aprovacoes.gastosPendentes[0].obra_id}?aba=Gastos&gasto=${vm.aprovacoes.gastosPendentes[0].id}`)}>
+              <strong>{loading ? '-' : vm.aprovacoes.gastosPendentes.length}</strong>
+              <span>Gastos pendentes</span>
+            </button>
+            <button className={vm.aprovacoes.cronogramasTravados.length ? 'danger' : ''} onClick={() => vm.aprovacoes.cronogramasTravados[0]?.obra_id && navigate(`/obras/${vm.aprovacoes.cronogramasTravados[0].obra_id}?aba=Cronograma&cronograma=${vm.aprovacoes.cronogramasTravados[0].id}`)}>
+              <strong>{loading ? '-' : vm.aprovacoes.cronogramasTravados.length}</strong>
+              <span>Cronogramas travados</span>
+            </button>
           </div>
-          {vm.aprovacoes.fotosPendentes.length === 0 && vm.aprovacoes.fotosNaoConformidade.length === 0 && vm.aprovacoes.vistoriasPendentes.length === 0 ? (
+          {vm.aprovacoes.fotosPendentes.length === 0 && vm.aprovacoes.fotosNaoConformidade.length === 0 && vm.aprovacoes.vistoriasPendentes.length === 0 && vm.aprovacoes.gastosPendentes.length === 0 && vm.aprovacoes.cronogramasTravados.length === 0 ? (
             <Empty text="Nada aguardando validação agora." />
           ) : (
             <div className="ds-approval-list">
@@ -578,6 +596,24 @@ export default function DashboardSupervisor() {
                   <div>
                     <strong>{item.titulo || 'Vistoria pendente'}</strong>
                     <span>{vm.obraPorId.get(item.obra_id)?.nome || 'Obra'} - {dataBR(item.data)}</span>
+                  </div>
+                </button>
+              ))}
+              {vm.aprovacoes.gastosPendentes.slice(0, 2).map(gasto => (
+                <button key={gasto.id} onClick={() => navigate(`/obras/${gasto.obra_id}?aba=Gastos&gasto=${gasto.id}`)}>
+                  <i className="orange" />
+                  <div>
+                    <strong>{gasto.descricao || 'Gasto pendente'}</strong>
+                    <span>{vm.obraPorId.get(gasto.obra_id)?.nome || 'Obra'}</span>
+                  </div>
+                </button>
+              ))}
+              {vm.aprovacoes.cronogramasTravados.slice(0, 2).map(crono => (
+                <button className="danger" key={crono.id} onClick={() => navigate(`/obras/${crono.obra_id}?aba=Cronograma&cronograma=${crono.id}`)}>
+                  <i />
+                  <div>
+                    <strong>Cronograma travado</strong>
+                    <span>{vm.obraPorId.get(crono.obra_id)?.nome || 'Obra'}</span>
                   </div>
                 </button>
               ))}
@@ -802,7 +838,7 @@ const css = `
 .ds-priorities{max-width:1380px;margin:0 auto 16px}
 .ds-status-flow{max-width:1380px;margin:0 auto 16px}
 .ds-approval-panel{max-width:1380px;margin:0 auto 16px}
-.ds-approval-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.ds-approval-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
 .ds-approval-grid button{border:1px solid ${THEME.border};background:#FFFEFC;border-radius:14px;padding:13px;text-align:left;font-family:inherit;cursor:pointer}
 .ds-approval-grid button.warn{border-color:#F2C46D;background:#FFFBF0}
 .ds-approval-grid button.danger{border-color:${THEME.danger};background:#FFF5F5}
@@ -813,6 +849,7 @@ const css = `
 .ds-approval-list button{border:1px solid ${THEME.border};background:#fff;border-radius:13px;padding:11px;display:flex;gap:10px;text-align:left;font-family:inherit;cursor:pointer}
 .ds-approval-list i{width:9px;height:9px;border-radius:99px;background:${THEME.warn};margin-top:5px;flex-shrink:0}
 .ds-approval-list i.blue{background:#2563EB}
+.ds-approval-list i.orange{background:${THEME.warn}}
 .ds-approval-list button.danger{border-color:${THEME.danger};background:#FFF5F5}
 .ds-approval-list button.danger i{background:${THEME.danger}}
 .ds-approval-list strong{display:block;font-size:13px;color:${THEME.ink};line-height:1.25}

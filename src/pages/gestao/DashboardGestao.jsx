@@ -84,6 +84,7 @@ export default function DashboardGestao() {
     profiles: [],
     montadores: [],
     checklist: [],
+    cronogramas: [],
   })
   const [loading, setLoading] = useState(true)
 
@@ -99,6 +100,7 @@ export default function DashboardGestao() {
       { data: profiles },
       { data: montadores },
       { data: checklist },
+      { data: cronogramas },
     ] = await Promise.all([
       supabase.from('obras').select('*').order('created_at', { ascending: false }),
       supabase.from('agenda').select('*, obras(nome)').order('data').order('hora_inicio').limit(80),
@@ -110,6 +112,7 @@ export default function DashboardGestao() {
       supabase.from('profiles').select('id, full_name, email, role'),
       supabase.from('obra_montadores').select('obra_id, montador_id, montador:profiles!obra_montadores_montador_id_fkey(full_name)'),
       supabase.from('checklist_items').select('id, obra_id, descricao, concluido, concluido_em').limit(300),
+      supabase.from('obra_cronograma').select('id, obra_id, fase, travado, motivo_trava, risco, updated_at').limit(300),
     ])
 
     setDados({
@@ -123,6 +126,7 @@ export default function DashboardGestao() {
       profiles: profiles || [],
       montadores: montadores || [],
       checklist: checklist || [],
+      cronogramas: cronogramas || [],
     })
     setLoading(false)
   }
@@ -260,6 +264,8 @@ export default function DashboardGestao() {
         fotosCliente: dados.fotos.filter(f => (f.aprovada === false || f.aprovada_gestao === false) && f.visivel_cliente),
         naoConformidades: dados.fotos.filter(f => normalizar(f.categoria) === 'nao conformidade'),
         vistoriasPendentes: dados.agenda.filter(a => normalizar(a.tipo || a.titulo).includes('vistoria') && !['realizada', 'concluida', 'concluída'].includes(normalizar(a.status))),
+        gastosPendentes: dados.gastos.filter(g => normalizar(g.status).includes('pendente')),
+        cronogramasTravados: dados.cronogramas.filter(c => c.travado || normalizar(c.risco) === 'alto'),
       },
       financeiro: {
         totalMes: gastosMes.reduce((s, g) => s + (parseFloat(g.valor) || 0), 0),
@@ -386,8 +392,16 @@ export default function DashboardGestao() {
               <strong>{loading ? '-' : vm.aprovacoes.vistoriasPendentes.length}</strong>
               <span>Vistorias pendentes</span>
             </button>
+            <button className={vm.aprovacoes.gastosPendentes.length ? 'hot' : ''} onClick={() => vm.aprovacoes.gastosPendentes[0]?.obra_id ? navigate(`/obras/${vm.aprovacoes.gastosPendentes[0].obra_id}?aba=Gastos&gasto=${vm.aprovacoes.gastosPendentes[0].id}`) : navigate('/gastos')}>
+              <strong>{loading ? '-' : vm.aprovacoes.gastosPendentes.length}</strong>
+              <span>Gastos pendentes</span>
+            </button>
+            <button className={vm.aprovacoes.cronogramasTravados.length ? 'danger' : ''} onClick={() => vm.aprovacoes.cronogramasTravados[0]?.obra_id && navigate(`/obras/${vm.aprovacoes.cronogramasTravados[0].obra_id}?aba=Cronograma&cronograma=${vm.aprovacoes.cronogramasTravados[0].id}`)}>
+              <strong>{loading ? '-' : vm.aprovacoes.cronogramasTravados.length}</strong>
+              <span>Cronogramas travados</span>
+            </button>
           </div>
-          {vm.aprovacoes.fotosPendentes.length === 0 && vm.aprovacoes.fotosCliente.length === 0 && vm.aprovacoes.naoConformidades.length === 0 && vm.aprovacoes.vistoriasPendentes.length === 0 ? (
+          {vm.aprovacoes.fotosPendentes.length === 0 && vm.aprovacoes.fotosCliente.length === 0 && vm.aprovacoes.naoConformidades.length === 0 && vm.aprovacoes.vistoriasPendentes.length === 0 && vm.aprovacoes.gastosPendentes.length === 0 && vm.aprovacoes.cronogramasTravados.length === 0 ? (
             <Empty text="Nada aguardando aprovação agora." />
           ) : (
             <div className="dg-approval-list">
@@ -415,6 +429,24 @@ export default function DashboardGestao() {
                   <div>
                     <strong>{item.titulo || 'Vistoria pendente'}</strong>
                     <span>{item.obras?.nome || obraNome(dados.obras, item.obra_id)} - {dataBR(item.data)}</span>
+                  </div>
+                </button>
+              ))}
+              {vm.aprovacoes.gastosPendentes.slice(0, 2).map(gasto => (
+                <button className="hot" key={gasto.id} onClick={() => gasto.obra_id ? navigate(`/obras/${gasto.obra_id}?aba=Gastos&gasto=${gasto.id}`) : navigate('/gastos')}>
+                  <i className="orange" />
+                  <div>
+                    <strong>{gasto.descricao || 'Gasto pendente'}</strong>
+                    <span>{gasto.obras?.nome || obraNome(dados.obras, gasto.obra_id)} - {moeda(gasto.valor)}</span>
+                  </div>
+                </button>
+              ))}
+              {vm.aprovacoes.cronogramasTravados.slice(0, 2).map(crono => (
+                <button className="danger" key={crono.id} onClick={() => navigate(`/obras/${crono.obra_id}?aba=Cronograma&cronograma=${crono.id}`)}>
+                  <i />
+                  <div>
+                    <strong>Cronograma travado</strong>
+                    <span>{obraNome(dados.obras, crono.obra_id)}{crono.motivo_trava ? ` - ${crono.motivo_trava}` : ''}</span>
                   </div>
                 </button>
               ))}
@@ -609,7 +641,7 @@ const css = `
 .dg-priority-board{max-width:1380px;margin:0 auto 16px;display:grid;grid-template-columns:1.25fr 1fr 1fr 1fr;gap:12px}
 .dg-agenda-mobile{max-width:1380px;margin:0 auto 16px}
 .dg-approval-panel{max-width:1380px;margin:0 auto 16px}
-.dg-approval-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.dg-approval-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
 .dg-approval-grid button{border:1px solid ${THEME.border};background:#FFFEFC;border-radius:14px;padding:13px;text-align:left;font-family:inherit;cursor:pointer}
 .dg-approval-grid button.warn{border-color:#F2C46D;background:#FFFBF0}
 .dg-approval-grid button.hot{border-color:#E07B39;background:#FFF8F0}
@@ -621,6 +653,7 @@ const css = `
 .dg-approval-list button{border:1px solid ${THEME.border};background:#fff;border-radius:13px;padding:11px;display:flex;gap:10px;text-align:left;font-family:inherit;cursor:pointer}
 .dg-approval-list i{width:9px;height:9px;border-radius:99px;background:${THEME.warn};margin-top:5px;flex-shrink:0}
 .dg-approval-list i.blue{background:#2563EB}
+.dg-approval-list i.orange{background:${THEME.warn}}
 .dg-approval-list button.hot{border-color:#E07B39;background:#FFF8F0}
 .dg-approval-list button.danger{border-color:${THEME.danger};background:#FFF5F5}
 .dg-approval-list button.danger i{background:${THEME.danger}}
