@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { EmptyState, KpiCard, PageHeader, StatusBadge } from '../../components/DesignSystem'
 
@@ -18,9 +18,11 @@ const PR = {
 
 export default function Tarefas() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [tarefas, setTarefas] = useState([])
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState('todas')
+  const tarefaDestaque = new URLSearchParams(location.search).get('tarefa')
 
   async function carregar() {
     const { data } = await supabase.from('tarefas').select('*, obras(nome), responsavel:profiles(full_name)').order('created_at', { ascending: false })
@@ -31,12 +33,20 @@ export default function Tarefas() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { carregar() }, [])
 
+  useEffect(() => {
+    if (!tarefaDestaque || loading) return
+    const timer = window.setTimeout(() => {
+      document.getElementById(`tarefa-${tarefaDestaque}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 120)
+    return () => window.clearTimeout(timer)
+  }, [tarefaDestaque, loading])
+
   async function mudarStatus(id, status) {
     await supabase.from('tarefas').update({ status }).eq('id', id)
     await carregar()
   }
 
-  const lista = filtro === 'todas' ? tarefas : tarefas.filter(t => t.status === filtro)
+  const lista = tarefaDestaque || filtro === 'todas' ? tarefas : tarefas.filter(t => t.status === filtro)
 
   return (
     <div className="ow-page" style={{ padding: '40px 48px', maxWidth: 1100, margin: '0 auto' }}>
@@ -80,20 +90,22 @@ export default function Tarefas() {
       ) : lista.map(tarefa => {
         const status = ST[tarefa.status] || ST.pendente
         const prioridade = PR[tarefa.prioridade] || PR.media
+        const destaque = tarefaDestaque && tarefa.id === tarefaDestaque
         return (
           <div
+            id={`tarefa-${tarefa.id}`}
             key={tarefa.id}
             style={{
-              background: '#fff',
-              border: '1px solid var(--color-border)',
-              borderLeft: `4px solid ${prioridade.color}`,
+              background: destaque ? '#FFFBF2' : '#fff',
+              border: destaque ? '2px solid var(--color-gold)' : '1px solid var(--color-border)',
+              borderLeft: `4px solid ${destaque ? 'var(--color-gold)' : prioridade.color}`,
               borderRadius: 12,
               padding: '15px 18px',
               marginBottom: 9,
               display: 'flex',
               alignItems: 'flex-start',
               gap: 14,
-              boxShadow: 'var(--shadow)',
+              boxShadow: destaque ? '0 16px 34px rgba(184,150,94,.18)' : 'var(--shadow)',
             }}
           >
             <div style={{ flex: 1, minWidth: 0 }}>

@@ -55,7 +55,50 @@ export default function Layout() {
       setNotificacoes(lista => lista.map(item => item.id === notificacao.id ? { ...item, status: 'lida', lida_em: lidaEm } : item))
     }
     setNotificacoesAbertas(false)
-    if (notificacao.rota) navigate(notificacao.rota)
+    const destino = resolverDestinoNotificacao(notificacao)
+    if (destino) navigate(destino)
+  }
+
+  function resolverDestinoNotificacao(notificacao) {
+    if (notificacao.rota) return notificacao.rota
+
+    const tipo = String(notificacao.entidade_tipo || notificacao.tipo || '').toLowerCase()
+    const entidadeId = notificacao.entidade_id
+    const obraId = notificacao.obra_id
+
+    if (tipo.includes('agenda') || tipo.includes('compromisso') || tipo.includes('checkin') || tipo.includes('checkout') || tipo.includes('vistoria')) {
+      return entidadeId ? `/agenda?compromisso=${entidadeId}` : '/agenda'
+    }
+
+    if (tipo.includes('foto')) {
+      return obraId ? `/obras/${obraId}?aba=Fotos${entidadeId ? `&foto=${entidadeId}` : ''}` : '/obras?filtro=fotos'
+    }
+
+    if (tipo.includes('checklist')) {
+      return obraId ? `/obras/${obraId}?aba=Checklist${entidadeId ? `&checklist=${entidadeId}` : ''}` : '/obras?filtro=checklist'
+    }
+
+    if (tipo.includes('ocorr')) {
+      return obraId ? `/obras/${obraId}?aba=Ocorrencias${entidadeId ? `&ocorrencia=${entidadeId}` : ''}` : '/ocorrencias'
+    }
+
+    if (tipo.includes('cronograma')) {
+      return obraId ? `/obras/${obraId}?aba=Cronograma${entidadeId ? `&cronograma=${entidadeId}` : ''}` : '/planejamento'
+    }
+
+    if (tipo.includes('gasto')) {
+      return obraId ? `/obras/${obraId}?aba=Gastos${entidadeId ? `&gasto=${entidadeId}` : ''}` : '/gastos'
+    }
+
+    if (tipo.includes('tarefa')) {
+      return entidadeId ? `/tarefas?tarefa=${entidadeId}` : '/tarefas'
+    }
+
+    if (tipo.includes('obra')) {
+      return obraId || entidadeId ? `/obras/${obraId || entidadeId}` : '/obras'
+    }
+
+    return obraId ? `/obras/${obraId}` : '/'
   }
 
   const pendentes = notificacoes.filter(item => item.status !== 'lida')
