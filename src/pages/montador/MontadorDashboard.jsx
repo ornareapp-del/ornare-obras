@@ -38,16 +38,30 @@ const VISTORIA_CHECKLIST = [
 ]
 
 const MONTAGEM_CHECKLIST = [
-  'Piso isolado e protegido antes de iniciar a montagem.',
-  'Cantoneiras de proteção instaladas em quinas e passagens.',
-  'Área de trabalho limpa, liberada e sinalizada.',
-  'Módulos conferidos com o projeto antes da instalação.',
-  'Ferragens, acessórios e componentes separados por ambiente.',
-  'Paredes, pontos elétricos e hidráulicos protegidos durante a montagem.',
-  'Nivelamento inicial conferido antes da fixação definitiva.',
-  'Limpeza parcial realizada ao final do dia de trabalho.',
-  'Fotos do andamento registradas durante a montagem.',
-  'Pendências de montagem registradas antes de finalizar o dia.',
+  'Infraestrutura da obra validada e apta para receber o mobiliário.',
+  'Materiais e volumes do romaneio recebidos no local.',
+  'Acesso de carga, descarga e elevador liberado pelo condomínio.',
+  'Energia elétrica estável disponível para uso das ferramentas.',
+  'Área de trabalho limpa, desimpedida e organizada.',
+  'Equipe orientada sobre as particularidades do projeto.',
+  'Checklist de pré-obra consultado antes de iniciar a montagem.',
+  'Conferência quantitativa e qualitativa dos volumes realizada antes da abertura.',
+  'Avarias de transporte ou fábrica registradas de imediato, quando houver.',
+  'Sequência de montagem por ambiente seguida conforme planejamento.',
+  'Fixações estruturais executadas conforme o projeto e boas práticas.',
+  'Níveis, alinhamentos verticais e prumos dos módulos conferidos.',
+  'Acabamentos, vistas, fechamentos e tamponamentos ajustados corretamente.',
+  'Recortes e compatibilizações de pontos elétricos e hidráulicos conferidos.',
+  'Ferragens especiais instaladas conforme caderno executivo.',
+  'Fotos da chegada e descarregamento dos materiais registradas.',
+  'Fotos da desembalagem dos módulos principais registradas.',
+  'Fotos das etapas de fixação e montagem registradas.',
+  'Fotos macro dos acabamentos e junções de cantos registradas.',
+  'Foto grande angular de cada ambiente finalizado registrada.',
+  'Mobiliário limpo e sem riscos, manchas ou danos aparentes.',
+  'Funcionamento de portas, gavetas, dobradiças e amortecimentos testado.',
+  'Pendências técnicas residuais registradas em relatório.',
+  'Supervisor notificado sobre o término dos trabalhos em campo.',
 ]
 
 const PRIORIDADE = {
@@ -85,10 +99,14 @@ function dataInicioPrevistaObra(obra) {
   return obra?.data_previsao_inicio || obra?.data_inicio_prevista || obra?.data_inicio || null
 }
 
-function nomeCurtoObra(nome = '') {
-  const partes = String(nome).trim().split(/\s+/).filter(Boolean)
-  if (partes.length <= 2) return partes.join(' ')
-  return `${partes[0]} ${partes[1][0] || ''}.`
+function dataFimPrevistaObra(obra) {
+  return obra?.data_previsao || obra?.data_previsao_entrega || obra?.data_fim_prevista || obra?.data_previsao_fim || null
+}
+
+function mesAnoBR(data) {
+  const partes = data.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).split(' de ')
+  if (partes.length !== 2) return data.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+  return `${partes[0].charAt(0).toUpperCase()}${partes[0].slice(1)} de ${partes[1]}`
 }
 
 function fotoUrl(foto) {
@@ -154,11 +172,27 @@ function cidadeBairro(obra) {
 }
 
 function tipoAgenda(item) {
+  if (item.origem === 'inicio_previsto') return 'Início previsto'
+  if (item.origem === 'fim_previsto') return 'Previsão de término'
   const tipo = norm(item.tipo || item.titulo || item.observacao || item.descricao)
   if (tipo.includes('vistoria')) return 'Vistoria'
   if (tipo.includes('assist')) return 'Assistência técnica'
+  if (tipo.includes('medicao') || tipo.includes('medi')) return 'Medição'
+  if (tipo.includes('entrega')) return 'Entrega'
   if (tipo.includes('reuniao') || tipo.includes('reuni')) return 'Reunião'
   return 'Montagem'
+}
+
+function corDataOperacional(item) {
+  const tipo = norm(tipoAgenda(item))
+  if (tipo.includes('vistoria')) return { bg: '#EAF3FF', border: '#4A90D9', color: '#1F5D9E' }
+  if (tipo.includes('montagem')) return { bg: '#EAF5EE', border: THEME.success, color: THEME.success }
+  if (tipo.includes('assist')) return { bg: '#FFF5EA', border: '#E07B39', color: '#B95A1F' }
+  if (tipo.includes('medicao')) return { bg: '#F1ECFA', border: '#9070C0', color: '#6D4E9E' }
+  if (tipo.includes('entrega')) return { bg: '#F6F0E6', border: '#B09A7A', color: '#7A6241' }
+  if (tipo.includes('termino')) return { bg: '#F3F1ED', border: THEME.ink, color: THEME.ink }
+  if (tipo.includes('inicio previsto')) return { bg: '#FFF8EA', border: THEME.gold, color: THEME.warn }
+  return { bg: '#F6F3EE', border: THEME.border, color: THEME.muted }
 }
 
 function obraAguardandoInicio(obra) {
@@ -253,11 +287,6 @@ export default function MontadorDashboard() {
       .map(item => item.id)
       .filter(Boolean)
 
-    if (vistoriaSolta.length > 0) {
-      const { error } = await supabase.from('checklist_items').delete().in('id', vistoriaSolta)
-      if (error) console.error('Erro ao remover checklist de vistoria do fluxo de montagem:', error)
-    }
-
     const itensBase = itensAtuais.filter(item => !vistoriaSolta.includes(item.id))
     const descricoes = new Set(itensBase.map(item => norm(item.descricao)))
     const rows = MONTAGEM_CHECKLIST
@@ -279,8 +308,13 @@ export default function MontadorDashboard() {
       const { error } = await supabase.from('checklist_items').insert(rows)
       if (error) {
         console.error('Erro ao criar checklist operacional de montagem:', error)
-        return itensAtuais
+        return itensBase
       }
+    }
+
+    if (vistoriaSolta.length > 0) {
+      const { error } = await supabase.from('checklist_items').delete().in('id', vistoriaSolta)
+      if (error) console.error('Erro ao remover checklist de vistoria do fluxo de montagem:', error)
     }
 
     const { data, error } = await supabase
@@ -291,10 +325,10 @@ export default function MontadorDashboard() {
 
     if (error) {
       console.error('Erro ao recarregar checklist operacional de montagem:', error)
-      return itensAtuais
+      return itensBase
     }
 
-    return data || []
+    return (data || []).filter(item => !(!item.ambiente_id && !item.concluido && isChecklistVistoriaCampo(item)))
   }, [user?.id])
 
   async function carregarDadosObra(obra = obraAtiva) {
@@ -836,8 +870,8 @@ export default function MontadorDashboard() {
       .filter(item => item.data && new Date(`${item.data}T00:00:00`) >= hoje)
       .sort((a, b) => `${a.data || ''}${a.hora_inicio || ''}`.localeCompare(`${b.data || ''}${b.hora_inicio || ''}`))
     const proximaAgenda = agendaFutura[0] || null
-    const agendaGeralFutura = agendaCalendario
-      .filter(item => item.data && new Date(`${item.data}T00:00:00`) >= hoje)
+    const agendaGeral = agendaCalendario
+      .filter(item => item.data)
       .map(item => ({
         ...item,
         origem: 'agenda',
@@ -854,10 +888,25 @@ export default function MontadorDashboard() {
         titulo: 'Início previsto',
         origem: 'inicio_previsto',
       }))
-      .filter(item => item.data && new Date(`${item.data}T00:00:00`) >= hoje)
-    const proximasDatas = [...agendaGeralFutura, ...iniciosPrevistos]
+      .filter(item => item.data)
+    const finsPrevistos = obras
+      .map(obra => ({
+        id: `fim-${obra.id}`,
+        obra_id: obra.id,
+        obra_nome: obra.nome || 'Obra',
+        data: dataFimPrevistaObra(obra),
+        hora_inicio: '',
+        tipo: 'Previsão de término',
+        titulo: 'Previsão de término',
+        origem: 'fim_previsto',
+      }))
+      .filter(item => item.data)
+    const datasOperacionais = [...agendaGeral, ...iniciosPrevistos, ...finsPrevistos]
       .sort((a, b) => `${a.data || ''}${a.hora_inicio || ''}`.localeCompare(`${b.data || ''}${b.hora_inicio || ''}`))
-      .slice(0, 5)
+    const proximasDatas = datasOperacionais
+      .filter(item => item.data && new Date(`${item.data}T00:00:00`) >= hoje)
+      .sort((a, b) => `${a.data || ''}${a.hora_inicio || ''}`.localeCompare(`${b.data || ''}${b.hora_inicio || ''}`))
+      .slice(0, 6)
     const proximaAgendaStatus = proximaAgenda ? statusAgenda(proximaAgenda) : null
     const preMontagemAgenda = agendaFutura.find(item => norm(item.tipo || item.titulo || item.observacao).includes('pre-montagem') || norm(item.tipo || item.titulo || item.observacao).includes('pre montagem'))
 
@@ -914,6 +963,7 @@ export default function MontadorDashboard() {
       fotosHoje,
       proximaAgenda,
       proximasDatas,
+      datasOperacionais,
       proximaAgendaStatus,
       preMontagemAgenda,
       emServico,
@@ -935,7 +985,7 @@ export default function MontadorDashboard() {
   const primeiroDiaCalendario = new Date(calendarioAno, calendarioMes, 1)
   const inicioGradeCalendario = new Date(primeiroDiaCalendario)
   inicioGradeCalendario.setDate(1 - primeiroDiaCalendario.getDay())
-  const eventosPorDia = agendaCalendario.reduce((acc, item) => {
+  const eventosPorDia = (vm.datasOperacionais || []).reduce((acc, item) => {
     if (!item.data) return acc
     acc[item.data] = [...(acc[item.data] || []), item]
     return acc
@@ -1033,7 +1083,7 @@ export default function MontadorDashboard() {
             {norm(tarefaAberta.tipo || tarefaAberta.titulo).includes('vistoria') && (
               <div className="md-task-checklist-preview">
                 <strong>Checklist de vistoria</strong>
-                {VISTORIA_CHECKLIST.map(item => <span key={item}>? {item}</span>)}
+                {VISTORIA_CHECKLIST.map(item => <span key={item}>- {item}</span>)}
               </div>
             )}
             <div className="md-task-photo-actions">
@@ -1052,9 +1102,9 @@ export default function MontadorDashboard() {
         <div className="md-modal-bg" onClick={e => e.target === e.currentTarget && setCalendarioAberto(false)}>
           <div className="md-modal calendar">
             <div className="md-calendar-head">
-              <button onClick={() => mudarMesCalendario(-1)}>?</button>
-              <h2>{mesCalendario.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</h2>
-              <button onClick={() => mudarMesCalendario(1)}>?</button>
+              <button onClick={() => mudarMesCalendario(-1)}>{'<'}</button>
+              <h2>{mesAnoBR(mesCalendario)}</h2>
+              <button onClick={() => mudarMesCalendario(1)}>{'>'}</button>
             </div>
             <div className="md-calendar-week">
               {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(dia => <span key={dia}>{dia}</span>)}
@@ -1071,10 +1121,10 @@ export default function MontadorDashboard() {
               <strong>{diaCalendario ? dataBR(diaCalendario) : 'Selecione um dia'}</strong>
               {diaCalendario && (eventosPorDia[diaCalendario] || []).length === 0 && <p>Nenhum compromisso neste dia.</p>}
               {diaCalendario && (eventosPorDia[diaCalendario] || []).map(item => (
-                <div key={item.id} className="md-calendar-event">
+                <div key={item.id} className="md-calendar-event" style={{ borderLeftColor: corDataOperacional(item).border }}>
                   <span>{tipoAgenda(item)}</span>
-                  <strong>{item.titulo || item.obras?.nome || obraAtiva.nome}</strong>
-                  <small>{item.hora_inicio || 'Horário não informado'}</small>
+                  <strong>{item.obra_nome || item.titulo || item.obras?.nome || obraAtiva.nome}</strong>
+                  <small>{item.hora_inicio ? item.hora_inicio.slice(0, 5) : 'Data operacional'}</small>
                 </div>
               ))}
             </div>
@@ -1154,28 +1204,25 @@ export default function MontadorDashboard() {
       <section className="md-card">
         <div className="md-card-head">
           <h2>Próximas datas</h2>
-          <button onClick={() => setCalendarioAberto(true)}>Ver calendário completo →</button>
+          <button onClick={() => setCalendarioAberto(true)}>Ver calendário completo {'>'}</button>
         </div>
         {vm.proximasDatas.length === 0 ? (
           <div className="md-empty-compact">Nenhuma data programada</div>
         ) : (
           <div className="md-date-list">
-            {vm.proximasDatas.map(item => (
-              <button key={item.id} onClick={() => { selecionarObraPorId(item.obra_id); setCalendarioAberto(true) }}>
-                <strong>{dataCurtaMes(item.data)}</strong>
+            {vm.proximasDatas.map(item => {
+              const cor = corDataOperacional(item)
+              return (
+              <button key={item.id} onClick={() => { selecionarObraPorId(item.obra_id); setDiaCalendario(item.data); setMesCalendario(new Date(`${item.data}T00:00:00`)); setCalendarioAberto(true) }}>
+                <strong style={{ color: cor.color }}>{dataCurtaMes(item.data)}</strong>
                 <span>
-                  {item.origem === 'inicio_previsto' ? 'Início previsto' : tipoAgenda(item)}
-                  {item.hora_inicio ? ` · ${item.hora_inicio.slice(0, 5)}` : ''}
-                  {item.obra_nome ? ` · ${nomeCurtoObra(item.obra_nome)}` : ''}
+                  <i style={{ background: cor.bg, borderColor: cor.border, color: cor.color }}>{tipoAgenda(item)}</i>
+                  <b>{item.obra_nome || 'Obra'}</b>
+                  {item.hora_inicio ? <small>{item.hora_inicio.slice(0, 5)}</small> : null}
                 </span>
               </button>
-            ))}
-            {previsao && (
-              <button onClick={() => setCalendarioAberto(true)}>
-                <strong>{dataCurtaMes(previsao)}</strong>
-                <span>Previsão de término</span>
-              </button>
-            )}
+              )
+            })}
           </div>
         )}
       </section>
@@ -1484,9 +1531,12 @@ const css = `
 .md-next.highlight{border:1px solid rgba(184,150,94,.45);background:#FFFAF0;border-radius:15px;padding:13px;margin-bottom:10px;box-shadow:0 10px 24px rgba(184,150,94,.12)}
 .md-confirm-btn{border:0;background:${THEME.gold};color:#fff;border-radius:12px;padding:11px 13px;font-size:12px;font-weight:900;margin-top:10px;cursor:pointer;width:100%}
 .md-date-list{display:grid;gap:8px}
-.md-date-list button{width:100%;border:1px solid ${THEME.border};background:#FFFEFC;border-radius:14px;padding:11px 12px;display:flex;align-items:center;gap:10px;font-family:inherit;text-align:left;cursor:pointer}
-.md-date-list strong{font-size:13px;color:${THEME.gold};min-width:54px;text-transform:lowercase}
-.md-date-list span{font-size:13px;color:${THEME.ink};font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.md-date-list button{width:100%;border:1px solid ${THEME.border};background:#FFFEFC;border-radius:14px;padding:10px 11px;display:grid;grid-template-columns:58px 1fr;align-items:center;gap:10px;font-family:inherit;text-align:left;cursor:pointer}
+.md-date-list strong{font-size:13px;color:${THEME.gold};text-transform:lowercase;line-height:1.15}
+.md-date-list span{min-width:0;display:flex;align-items:center;gap:7px;font-size:13px;color:${THEME.ink};font-weight:800;overflow:hidden}
+.md-date-list span i{font-style:normal;border:1px solid ${THEME.border};border-radius:999px;padding:5px 8px;font-size:10px;line-height:1;font-weight:900;white-space:nowrap;flex-shrink:0}
+.md-date-list span b{font-size:13px;color:${THEME.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.md-date-list span small{font-size:12px;color:${THEME.muted};font-weight:900;flex-shrink:0}
 .md-empty-compact{background:#F3F0EA;border:1px solid ${THEME.border};border-radius:14px;padding:13px;color:${THEME.muted};font-size:13px;text-align:center;font-weight:800}
 .md-quick{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px}
 .md-quick button{border:1px solid ${THEME.border};background:#fff;color:${THEME.ink};border-radius:14px;padding:14px 10px;font-size:13px;font-weight:900;cursor:pointer}
@@ -1584,7 +1634,7 @@ const css = `
 .md-task-checklist-preview span{display:block;font-size:12px;color:${THEME.muted};line-height:1.45;margin-top:5px}
 .md-task-photo-actions button{width:100%;border:0;background:${THEME.ink};color:#fff;border-radius:13px;padding:12px;margin:12px 0;font-weight:900;cursor:pointer}
 .md-calendar-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
-.md-calendar-head h2{text-transform:capitalize;text-align:center;margin:0!important}
+.md-calendar-head h2{text-align:center;margin:0!important}
 .md-calendar-head button{width:38px;height:38px;border:1px solid ${THEME.border};background:#fff;border-radius:12px;font-size:24px;line-height:1;cursor:pointer;color:${THEME.ink}}
 .md-calendar-week{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:6px}
 .md-calendar-week span{text-align:center;font-size:10px;font-weight:900;color:${THEME.muted}}
@@ -1596,7 +1646,7 @@ const css = `
 .md-calendar-day{border:1px solid ${THEME.border};background:#FFFEFC;border-radius:14px;padding:12px;margin-top:14px}
 .md-calendar-day>strong{font-size:13px;color:${THEME.ink}}
 .md-calendar-day p{font-size:12px;color:${THEME.muted};margin:8px 0 0}
-.md-calendar-event{border-top:1px solid ${THEME.border};padding-top:9px;margin-top:9px}
+.md-calendar-event{border-top:1px solid ${THEME.border};border-left:4px solid ${THEME.gold};padding:9px 0 0 10px;margin-top:9px}
 .md-calendar-event span{display:block;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:${THEME.gold};font-weight:900}
 .md-calendar-event strong{display:block;font-size:13px;color:${THEME.ink};margin-top:3px}
 .md-calendar-event small{display:block;font-size:11px;color:${THEME.muted};margin-top:3px}
