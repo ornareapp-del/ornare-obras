@@ -151,15 +151,18 @@ export default function PortalCliente() {
       .order('created_at', { ascending: false })
 
     if (obra.error) {
-      setErro(obra.error.message)
+      console.error('Erro ao carregar obra no portal cliente:', obra.error)
+      setErro('Não foi possível abrir esta obra no momento.')
       setLoading(false)
       return
     }
 
     const falha = [cronograma, fotos, ambientes, agenda, comunicados, mensagens, mensagensCliente, contatos, profiles].find(r => r.error)
-    if (falha?.error) setErro('Não foi possível carregar alguns dados complementares no momento.')
+    if (falha?.error) {
+      console.error('Erro em dados complementares do portal cliente:', falha.error)
+    }
     if (documentos.error && !tabelaNaoEncontrada(documentos.error)) {
-      setErro('Não foi possível carregar alguns documentos no momento.')
+      console.error('Erro ao carregar documentos do portal cliente:', documentos.error)
     }
 
     setDados({
@@ -271,7 +274,8 @@ export default function PortalCliente() {
 
     setEnviandoMensagem(false)
     if (error) {
-      setMensagemStatus(`Não foi possível enviar: ${error.message}`)
+      console.error('Erro ao enviar mensagem do cliente:', error)
+      setMensagemStatus('Não foi possível enviar agora. Tente novamente em instantes.')
       return
     }
 
@@ -284,7 +288,8 @@ export default function PortalCliente() {
     setAgendaStatus('')
     const { error } = await supabase.from('agenda').update({ confirmado_cliente: true }).eq('id', item.id)
     if (error) {
-      setAgendaStatus(`Não foi possível confirmar presença: ${error.message}`)
+      console.error('Erro ao confirmar presença do cliente:', error)
+      setAgendaStatus('Não foi possível confirmar presença agora. Tente novamente em instantes.')
       return
     }
     setAgendaStatus('Presença confirmada.')
@@ -303,7 +308,8 @@ export default function PortalCliente() {
       tipo: 'reagendamento',
     })
     if (error) {
-      setAgendaStatus(`Não foi possível solicitar reagendamento: ${error.message}`)
+      console.error('Erro ao solicitar reagendamento pelo cliente:', error)
+      setAgendaStatus('Não foi possível enviar a solicitação agora. Tente novamente em instantes.')
       return
     }
     setModalReagendamento(null)
