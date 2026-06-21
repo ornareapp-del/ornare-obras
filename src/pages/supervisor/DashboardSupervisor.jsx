@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { EmptyState, PremiumCard } from '../../components/DesignSystem'
+import { faseOrnarePorKey, faseOrnarePorTexto } from '../../constants/fasesOrnare'
 import { supabase } from '../../lib/supabase'
 import { useStore } from '../../store/useStore'
 import { limparNome } from '../../utils/ui'
@@ -64,6 +65,20 @@ function saudeObra(obra, hoje) {
 
 function safeArray(result) {
   return result?.data || []
+}
+
+function diasDesde(value) {
+  if (!value) return 0
+  const data = new Date(value)
+  if (Number.isNaN(data.getTime())) return 0
+  return Math.max(0, Math.floor((new Date().setHours(0, 0, 0, 0) - data.setHours(0, 0, 0, 0)) / 86400000))
+}
+
+function faseKeyObra(obra) {
+  const fase = faseOrnarePorKey(obra?.fase)
+    || faseOrnarePorKey(obra?.fase_atual)
+    || faseOrnarePorTexto(obra?.fase || obra?.fase_atual || obra?.status)
+  return fase?.key || null
 }
 
 export default function DashboardSupervisor() {
@@ -271,6 +286,38 @@ export default function DashboardSupervisor() {
           detalhe: ultima ? `Última foto em ${ultima.toLocaleDateString('pt-BR')}` : 'Nenhuma foto registrada',
           obraId: obra.id,
           cor: THEME.blue,
+        })
+      }
+    })
+
+    dados.obras.forEach(obra => {
+      const fase = faseKeyObra(obra)
+      const diasNaFase = diasDesde(obra.updated_at || obra.created_at || obra.data_inicio || hoje)
+      if (fase === 'vistoria_tecnica' && diasNaFase > 3) {
+        acoes.push({
+          tipo: 'Vistoria técnica',
+          titulo: obra.nome || 'Obra',
+          detalhe: `Vistoria técnica pendente há ${diasNaFase} dias`,
+          obraId: obra.id,
+          cor: THEME.warn,
+        })
+      }
+      if (fase === 'entrega_moveis' && !obra.data_inicio_prevista && !obra.data_previsao_inicio) {
+        acoes.push({
+          tipo: 'Entrega',
+          titulo: obra.nome || 'Obra',
+          detalhe: 'Entrega não programada',
+          obraId: obra.id,
+          cor: THEME.blue,
+        })
+      }
+      if (fase === 'montagem_finalizada' && diasNaFase > 2) {
+        acoes.push({
+          tipo: 'Vistoria final',
+          titulo: obra.nome || 'Obra',
+          detalhe: 'Vistoria final não agendada',
+          obraId: obra.id,
+          cor: THEME.danger,
         })
       }
     })

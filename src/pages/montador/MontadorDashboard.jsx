@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useStore } from '../../store/useStore'
+import { faseOrnarePorKey, faseOrnarePorTexto } from '../../constants/fasesOrnare'
 
 const THEME = {
   bg: '#F6F3EE',
@@ -120,6 +121,16 @@ function tipoAgenda(item) {
 function obraAguardandoInicio(obra) {
   const status = norm(obra?.status)
   return status.includes('aguardando inicio') || status.includes('aguardando montagem')
+}
+
+function faseObraMontador(obra) {
+  const fase = faseOrnarePorKey(obra?.fase) || faseOrnarePorKey(obra?.fase_atual) || faseOrnarePorTexto(obra?.fase || obra?.fase_atual || obra?.status)
+  const key = fase?.key
+  if (key === 'vistoria_tecnica' || key === 'entrega_moveis') return { key, label: 'Aguardando liberação', bg: '#FFF7E8', color: '#9A6A22', border: '#E8A020' }
+  if (key === 'montagem') return { key, label: 'Em montagem', bg: '#EAF5EE', color: THEME.success, border: THEME.success, andamento: true }
+  if (key === 'montagem_finalizada') return { key, label: 'Montagem finalizada', bg: '#EEF5FF', color: '#2563EB', border: '#2563EB', solicitarVistoria: true }
+  if (key === 'vistoria_final') return { key, label: 'Vistoria final pendente', bg: '#FFF8EC', color: THEME.gold, border: THEME.gold }
+  return { key: key || 'aguardando', label: 'Aguardando início', bg: '#F3F1ED', color: '#8A8175', border: '#9E9E9E' }
 }
 
 function diasEmAndamento(obra) {
@@ -1008,7 +1019,15 @@ export default function MontadorDashboard() {
       <section className="md-obra-card">
         <div className="md-obra-head">
           <div>
-            <span>{obraAtiva.status || 'Status não informado'}</span>
+            {(() => {
+              const faseMontador = faseObraMontador(obraAtiva)
+              return (
+                <>
+                  <span className="md-phase-badge" style={{ background: faseMontador.bg, color: faseMontador.color, borderColor: faseMontador.border }}>{faseMontador.label}</span>
+                  {obraAtiva.status && <small className="md-obra-status">{obraAtiva.status}</small>}
+                </>
+              )
+            })()}
             <h2>{obraAtiva.nome || 'Obra sem nome'}</h2>
           </div>
           <strong>{obraAtiva.progresso || 0}%</strong>
@@ -1019,11 +1038,22 @@ export default function MontadorDashboard() {
           <small>Início previsto: {obraAtiva.data_previsao_inicio ? dataBR(obraAtiva.data_previsao_inicio) : dataBR(obraAtiva.data_inicio)}</small>
           <small>Previsão de término: {previsao ? dataBR(previsao) : 'não informada'}</small>
         </div>
-        {obraAguardandoInicio(obraAtiva) ? (
-          <button className="md-start-work" onClick={iniciarObra}>Iniciar obra</button>
-        ) : (
-          <div className="md-work-day">Em andamento · Dia {diasEmAndamento(obraAtiva) || 1}</div>
-        )}
+        {(() => {
+          const faseMontador = faseObraMontador(obraAtiva)
+          if (obraAguardandoInicio(obraAtiva)) {
+            return <button className="md-start-work" onClick={iniciarObra}>Iniciar obra</button>
+          }
+          if (faseMontador.solicitarVistoria) {
+            return <button className="md-start-work secondary" onClick={() => setModalProblema({ titulo: 'Solicitar vistoria final', agenda_id: null })}>Solicitar vistoria final</button>
+          }
+          if (faseMontador.key === 'vistoria_final') {
+            return <div className="md-work-day gold">Vistoria final pendente</div>
+          }
+          if (faseMontador.andamento || norm(obraAtiva.status).includes('montagem')) {
+            return <div className="md-work-day">Em andamento · Dia {diasEmAndamento(obraAtiva) || 1}</div>
+          }
+          return <div className="md-work-day muted">{faseMontador.label}</div>
+        })()}
       </section>
 
       <section className="md-card">
@@ -1298,14 +1328,18 @@ const css = `
 .md-field select,.md-upload select,.md-upload input{width:100%;box-sizing:border-box;border:1px solid ${THEME.border};background:#fff;border-radius:12px;padding:12px 13px;font-family:inherit;font-size:14px;color:${THEME.ink}}
 .md-obra-card{background:${THEME.ink};color:#fff;border-radius:18px;padding:18px;margin-bottom:12px;box-shadow:0 16px 34px rgba(29,28,25,.12)}
 .md-obra-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}
-.md-obra-head span{display:inline-block;font-size:10px;letter-spacing:1.4px;text-transform:uppercase;color:${THEME.gold};font-weight:800;margin-bottom:7px}
+.md-phase-badge{display:inline-flex;align-items:center;border:1px solid ${THEME.gold};border-radius:999px;padding:5px 9px;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;font-weight:900;margin-bottom:6px}
+.md-obra-status{display:block!important;font-size:10px!important;letter-spacing:1.2px;text-transform:uppercase;color:#BDB0A0!important;font-weight:800!important;margin:0 0 7px!important}
 .md-obra-head h2{font-family:var(--font-serif);font-size:22px;line-height:1.12;margin:0;font-weight:500}
 .md-obra-head strong{font-size:26px;color:${THEME.gold};line-height:1}
 .md-obra-card p{font-size:12px;line-height:1.45;color:#D7CABA;margin:10px 0 12px}
 .md-obra-card small{display:block;font-size:11px;color:#BDB0A0;margin-top:10px}
 .md-obra-dates{display:grid;gap:4px;margin-top:12px}
 .md-start-work{width:100%;border:0;background:${THEME.gold};color:#fff;border-radius:13px;padding:13px 14px;font-size:14px;font-weight:900;margin-top:14px;cursor:pointer}
+.md-start-work.secondary{background:#EEF5FF;color:#2563EB;border:1px solid rgba(37,99,235,.22)}
 .md-work-day{margin-top:14px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.08);border-radius:13px;padding:11px 12px;color:#fff;font-size:13px;font-weight:900;text-align:center}
+.md-work-day.gold{border-color:rgba(201,169,110,.32);background:rgba(201,169,110,.12);color:#F5D79D}
+.md-work-day.muted{color:#D7CABA}
 .md-progress{height:7px;background:rgba(255,255,255,.16);border-radius:999px;overflow:hidden}
 .md-progress i{display:block;height:100%;background:${THEME.gold};border-radius:999px}
 .md-progress.soft{background:${THEME.border};margin:10px 0 14px}

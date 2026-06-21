@@ -6,6 +6,7 @@ import { tarefasService } from '../../services/tarefasService'
 import { aplicarBibliotecaChecklist } from '../../services/checklistService'
 import { exportarRelatorioObra } from '../../services/pdfService'
 import { progressBarStyle, progressFillStyle, statusBadgeBaseStyle } from '../../utils/ui'
+import { FASES_ORNARE, faseOrnarePorKey, faseOrnarePorTexto, indiceFaseOrnare } from '../../constants/fasesOrnare'
 
 const ST = {
   'Em montagem':         { label: 'Em montagem',        bg: '#edf7f0', color: '#3a7d4f' },
@@ -43,8 +44,6 @@ const STATUS_LIST = [
   'Em produção','Pronta para entrega','Aguardando montagem','Montagem agendada',
   'Em montagem','Pausada','Vistoria final','Concluída','Cancelada',
 ]
-const FASES_CRONOGRAMA = ['Pré-Obra', 'Produção', 'Pré-Montagem', 'Montagem', 'Entrega', 'Pós-Venda']
-const FASES_CRONOGRAMA_FORM = [...FASES_CRONOGRAMA, 'Assistência Técnica', 'Garantia']
 const APROVACOES_CRONOGRAMA = ['pendente', 'aprovado', 'reprovado', 'nao_se_aplica']
 const PRIORIDADES_CRONOGRAMA = ['baixa', 'media', 'alta']
 const RISCOS_CRONOGRAMA = ['baixo', 'medio', 'alto']
@@ -954,7 +953,7 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque }) {
 
     const inicial = {
       obra_id: obraId,
-      fase: 'Pré-Montagem',
+      fase: 'vistoria_medida',
       etapa_atual: 'Aguardando planejamento',
       status_operacional: 'Aguardando planejamento',
       percentual_concluido: 0,
@@ -994,9 +993,9 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque }) {
     setMensagem(null)
 
     const payload = {
-      fase: form.fase || null,
+      fase: (faseOrnarePorKey(form.fase) || faseOrnarePorTexto(form.fase))?.key || form.fase || null,
       etapa_atual: form.etapa_atual || null,
-      status_operacional: form.status_operacional || null,
+      status_operacional: (faseOrnarePorKey(form.fase) || faseOrnarePorTexto(form.fase))?.label || form.status_operacional || null,
       tipo_montagem: form.tipo_montagem || null,
       data_inicio_prevista: form.data_inicio_prevista || null,
       data_fim_prevista: form.data_fim_prevista || null,
@@ -1040,7 +1039,9 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque }) {
   const responsaveis = profiles || []
   const supervisores = responsaveis.filter(p => ['gestao', 'supervisor'].includes(p.role))
   const posVenda = responsaveis.filter(p => ['gestao', 'pos_venda', 'vendedor'].includes(p.role))
-  const faseAtual = form.fase || 'Pré-Montagem'
+  const faseAtualObj = faseOrnarePorKey(form.fase) || faseOrnarePorTexto(form.fase) || FASES_ORNARE[0]
+  const faseAtual = faseAtualObj.key
+  const faseAtualIndex = Math.max(0, indiceFaseOrnare(faseAtual))
   const porcentagem = Math.max(0, Math.min(100, Number(form.percentual_concluido) || 0))
   const destaqueCronograma = Boolean(cronogramaDestaque && cronograma?.id === cronogramaDestaque)
 
@@ -1066,23 +1067,24 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque }) {
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: compacto ? '1fr 1fr' : 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
-        <KpiCard label="Fase" value={faseAtual} helper="etapa operacional" />
-        <KpiCard label="Status" value={form.status_operacional || '-'} helper="situacao atual" />
+        <KpiCard label="Fase" value={faseAtualObj.label} helper={faseAtualObj.descricao} />
+        <KpiCard label="Etapa" value={form.etapa_atual || '-'} helper="detalhe interno" />
         <KpiCard label="Prioridade" value={form.prioridade || '-'} helper={`risco ${form.risco || '-'}`} />
         <KpiCard label="Percentual" value={`${porcentagem}%`} helper="concluido" />
       </div>
 
       <Card titulo="Linha do tempo operacional">
-        <div style={{ display: 'grid', gridTemplateColumns: compacto ? '1fr' : `repeat(${FASES_CRONOGRAMA.length}, minmax(0, 1fr))`, gap: 10 }}>
-          {FASES_CRONOGRAMA.map((fase, index) => {
-            const ativa = fase === faseAtual
-            const concluida = FASES_CRONOGRAMA.indexOf(faseAtual) > index
+        <div style={{ display: compacto ? 'flex' : 'grid', gridTemplateColumns: compacto ? undefined : `repeat(${FASES_ORNARE.length}, minmax(0, 1fr))`, gap: 10, overflowX: compacto ? 'auto' : 'visible', paddingBottom: compacto ? 6 : 0 }}>
+          {FASES_ORNARE.map((fase, index) => {
+            const ativa = fase.key === faseAtual
+            const concluida = faseAtualIndex > index
             return (
-              <div key={fase} style={{ border: `1px solid ${ativa ? THEME.gold : THEME.border}`, background: ativa ? THEME.softGold : concluida ? '#F4FBF6' : '#FFFEFC', borderRadius: 12, padding: '12px 10px', minHeight: 74 }}>
-                <div style={{ width: 22, height: 22, borderRadius: 999, background: ativa ? THEME.gold : concluida ? '#2D7A4A' : THEME.border, color: ativa || concluida ? '#fff' : THEME.muted, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, marginBottom: 9 }}>
-                  {concluida ? 'v' : index + 1}
+              <div key={fase.key} style={{ flex: compacto ? '0 0 120px' : undefined, border: `1px solid ${ativa ? THEME.gold : THEME.border}`, borderTop: ativa ? `4px solid ${fase.cor}` : `1px solid ${concluida ? '#B8DCC4' : THEME.border}`, background: ativa ? `${fase.cor}18` : concluida ? '#F4FBF6' : '#FFFEFC', borderRadius: 12, padding: '12px 10px', minHeight: 92 }}>
+                <div style={{ width: 24, height: 24, borderRadius: 999, background: ativa ? fase.cor : concluida ? '#2D7A4A' : THEME.border, color: ativa || concluida ? '#fff' : THEME.muted, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 900, marginBottom: 9 }}>
+                  {concluida ? '✓' : fase.id}
                 </div>
-                <div style={{ fontSize: 12, color: ativa ? THEME.ink : THEME.muted, fontWeight: ativa ? 800 : 700 }}>{fase}</div>
+                <div style={{ fontSize: 12, color: ativa ? THEME.ink : THEME.muted, fontWeight: ativa ? 900 : 700, lineHeight: 1.25 }}>{fase.label}</div>
+                <div style={{ fontSize: 10.5, color: THEME.muted, lineHeight: 1.25, marginTop: 5 }}>{fase.descricao}</div>
               </div>
             )
           })}
@@ -1091,8 +1093,7 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque }) {
 
       <Card titulo="Dados do cronograma">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12 }}>
-          <div><Label>Fase</Label><FSelect value={form.fase || ''} onChange={v => setCampo('fase', v)}>{FASES_CRONOGRAMA_FORM.map(f => <option key={f} value={f}>{f}</option>)}</FSelect></div>
-          <div><Label>Status operacional</Label><FInput value={form.status_operacional || ''} onChange={v => setCampo('status_operacional', v)} /></div>
+          <div><Label>Fase / status operacional</Label><FSelect value={faseAtual} onChange={v => setCampo('fase', v)}>{FASES_ORNARE.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}</FSelect></div>
           <div><Label>Etapa atual</Label><FInput value={form.etapa_atual || ''} onChange={v => setCampo('etapa_atual', v)} /></div>
           <div><Label>Tipo de montagem</Label><FInput value={form.tipo_montagem || ''} onChange={v => setCampo('tipo_montagem', v)} /></div>
           <div><Label>Prioridade</Label><FSelect value={form.prioridade || 'media'} onChange={v => setCampo('prioridade', v)}>{PRIORIDADES_CRONOGRAMA.map(p => <option key={p} value={p}>{p}</option>)}</FSelect></div>

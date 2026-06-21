@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import bgImage from '../../assets/ornare-milao-40-anos.jpg'
+import { FASES_ORNARE, faseOrnarePorKey, faseOrnarePorTexto, indiceFaseOrnare } from '../../constants/fasesOrnare'
 
 const THEME = {
   ink: '#1A1A1A',
@@ -35,7 +36,13 @@ const MOBILE_NAV = [
   { id: 'docs', label: 'Docs', icon: '▤' },
 ]
 
-const PHASES = ['Pedido', 'Projeto aprovado', 'Em produção', 'Pronto para montagem', 'Montagem', 'Entregue']
+const MARCOS_CLIENTE = [
+  { label: 'Pedido confirmado', fases: ['vistoria_medida', 'executivo'] },
+  { label: 'Em produção', fases: ['producao'] },
+  { label: 'Pronto para montagem', fases: ['vistoria_tecnica', 'entrega_moveis'] },
+  { label: 'Em montagem', fases: ['montagem', 'montagem_finalizada'] },
+  { label: 'Entregue', fases: ['vistoria_final', 'obra_concluida'] },
+]
 
 function safeArray(result) {
   return result?.data || []
@@ -192,8 +199,12 @@ export default function PortalCliente() {
     const supervisor = profilesPorId.get(cronograma.supervisor_id || obra.supervisor_id)
     const posVenda = profilesPorId.get(cronograma.comercial_id || obra.comercial_id)
     const progresso = Math.max(0, Math.min(100, Number(cronograma.percentual_concluido ?? obra.progresso ?? 0)))
-    const faseAtual = cronograma.visivel_cliente === false ? (obra.fase_atual || obra.status || '-') : (obra.fase_atual || cronograma.fase || obra.status || '-')
-    const proximaEtapa = cronograma.visivel_cliente === false ? 'Acompanhamento pela equipe Ornare' : (cronograma.acao_recomendada || cronograma.etapa_atual || 'Acompanhamento pela equipe Ornare')
+    const faseInterna = cronograma.fase || obra.fase_atual || obra.status || ''
+    const faseAtualObj = faseOrnarePorKey(faseInterna) || faseOrnarePorTexto(faseInterna) || FASES_ORNARE[0]
+    const faseIndex = Math.max(0, indiceFaseOrnare(faseAtualObj.key))
+    const proximaFaseObj = FASES_ORNARE[Math.min(faseIndex + 1, FASES_ORNARE.length - 1)]
+    const faseAtual = faseAtualObj.label_cliente
+    const proximaEtapa = proximaFaseObj?.key === faseAtualObj.key ? 'Obra entregue' : proximaFaseObj.label_cliente
     const fotos = dados.fotos.filter(f => {
       const porAmbiente = !filtrosFoto.ambiente || f.ambiente_id === filtrosFoto.ambiente
       const porCategoria = !filtrosFoto.categoria || f.categoria === filtrosFoto.categoria
@@ -215,6 +226,8 @@ export default function PortalCliente() {
       posVenda,
       progresso,
       faseAtual,
+      faseAtualKey: faseAtualObj.key,
+      faseAtualIndex: faseIndex,
       proximaEtapa,
       previsao: dataBR(cronograma.data_fim_prevista || obra.data_previsao),
       ultimaAtualizacao: dataBR(atualizacoes[0]),
@@ -472,7 +485,7 @@ function HomeObra({ vm }) {
           <Metric label="Última atualização" value={vm.ultimaAtualizacao} />
         </div>
       </Card>
-      <Timeline faseAtual={vm.faseAtual} />
+      <Timeline faseAtualKey={vm.faseAtualKey} />
       <Card title="Documentos">
         {vm.documentos.length === 0 ? (
           <Empty icon="document" title="Nenhum documento disponível ainda." />
@@ -494,7 +507,7 @@ function Cronograma({ vm }) {
         <Detail label="Próximas etapas" value={vm.proximaEtapa} />
         <Detail label="Previsão de entrega" value={vm.previsao} />
       </Card>
-      <Timeline faseAtual={vm.faseAtual} />
+      <Timeline faseAtualKey={vm.faseAtualKey} />
     </div>
   )
 }
@@ -631,15 +644,14 @@ function Detail({ label, value }) {
   return <div className="pc-detail"><span>{label}</span><strong>{value}</strong></div>
 }
 
-function Timeline({ faseAtual }) {
-  const atual = normalizar(faseAtual)
-  const etapaAtual = Math.max(0, PHASES.findIndex(fase => atual.includes(normalizar(fase)) || normalizar(fase).includes(atual)))
+function Timeline({ faseAtualKey }) {
+  const etapaAtual = Math.max(0, MARCOS_CLIENTE.findIndex(marco => marco.fases.includes(faseAtualKey)))
   return (
     <div className="pc-timeline">
-      {PHASES.map((fase, index) => (
-        <div key={fase} className={index < etapaAtual ? 'done' : index === etapaAtual ? 'active' : 'future'}>
+      {MARCOS_CLIENTE.map((marco, index) => (
+        <div key={marco.label} className={index < etapaAtual ? 'done' : index === etapaAtual ? 'active' : 'future'}>
           <i>{index < etapaAtual ? '✓' : index + 1}</i>
-          <span>{fase}</span>
+          <span>{marco.label}</span>
         </div>
       ))}
     </div>
