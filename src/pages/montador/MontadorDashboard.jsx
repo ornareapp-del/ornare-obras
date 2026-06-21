@@ -57,6 +57,11 @@ function dataBR(value) {
   return value ? new Date(`${value}T00:00:00`).toLocaleDateString('pt-BR') : '-'
 }
 
+function dataCurtaMes(value) {
+  if (!value) return '-'
+  return new Date(`${value}T00:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '')
+}
+
 function horaBR(value) {
   return value ? new Date(value).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '-'
 }
@@ -99,11 +104,9 @@ function statusAgenda(item) {
   return { label: 'Pendente', tone: 'warn' }
 }
 
-function enderecoObra(obra) {
-  if (!obra) return ''
-  const rua = [obra.rua, obra.numero, obra.complemento].filter(Boolean).join(', ')
-  const cidade = [obra.bairro, obra.cidade, obra.uf].filter(Boolean).join(' - ')
-  return [rua || obra.endereco, cidade].filter(Boolean).join(' · ')
+function cidadeBairro(obra) {
+  if (!obra) return 'Local não informado'
+  return [obra.cidade, obra.bairro || obra.uf].filter(Boolean).join(' · ') || obra.cidade || obra.uf || 'Local não informado'
 }
 
 function tipoAgenda(item) {
@@ -112,6 +115,20 @@ function tipoAgenda(item) {
   if (tipo.includes('assist')) return 'Assistência técnica'
   if (tipo.includes('reuniao') || tipo.includes('reuni')) return 'Reunião'
   return 'Montagem'
+}
+
+function obraAguardandoInicio(obra) {
+  const status = norm(obra?.status)
+  return status.includes('aguardando inicio') || status.includes('aguardando montagem')
+}
+
+function diasEmAndamento(obra) {
+  const inicio = obra?.data_inicio_real || obra?.data_inicio
+  if (!inicio) return null
+  const dataInicio = new Date(`${String(inicio).slice(0, 10)}T00:00:00`)
+  const hoje = new Date()
+  hoje.setHours(0, 0, 0, 0)
+  return Math.max(1, Math.floor((hoje - dataInicio) / (1000 * 60 * 60 * 24)) + 1)
 }
 
 export default function MontadorDashboard() {
@@ -127,6 +144,7 @@ export default function MontadorDashboard() {
   const [fotos, setFotos] = useState([])
   const [ocorrencias, setOcorrencias] = useState([])
   const [agenda, setAgenda] = useState([])
+  const [agendaCalendario, setAgendaCalendario] = useState([])
 
   const [loading, setLoading] = useState(true)
   const [loadingObra, setLoadingObra] = useState(false)
@@ -144,8 +162,11 @@ export default function MontadorDashboard() {
   const [servicoFeedback, setServicoFeedback] = useState('')
   const [preview, setPreview] = useState(null)
   const [formFoto, setFormFoto] = useState({ categoria: '', ambiente_id: '', agenda_id: '', observacao: '' })
-  const [ambienteAberto, setAmbienteAberto] = useState('')
+  const [ambienteSelecionado, setAmbienteSelecionado] = useState('geral')
   const [itemAcao, setItemAcao] = useState('')
+  const [novoChecklist, setNovoChecklist] = useState('')
+  const [criandoChecklist, setCriandoChecklist] = useState(false)
+  const [painelAtivo, setPainelAtivo] = useState('')
 
   const tarefasRef = useRef(null)
   const checklistRef = useRef(null)
@@ -217,10 +238,18 @@ export default function MontadorDashboard() {
         .in('id', obraIds)
         .order('created_at', { ascending: false })
 
+      const agendaTodasResult = await supabase
+        .from('agenda')
+        .select('*, obras(nome)')
+        .in('obra_id', obraIds)
+        .order('data')
+        .order('hora_inicio')
+
       if (!ativo) return
 
       const lista = safeArray(obrasResult)
       setObras(lista)
+      setAgendaCalendario(safeArray(agendaTodasResult))
       setObraAtiva(atual => {
         const anterior = lista.find(o => o.id === atual?.id)
         return anterior || lista.find(o => ['em montagem', 'em andamento', 'montagem agendada'].includes(norm(o.status))) || lista[0] || null
@@ -273,6 +302,15 @@ export default function MontadorDashboard() {
 
     return () => { ativo = false }
   }, [obraAtiva?.id, user?.id])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setAmbienteSelecionado('geral')
+      setNovoChecklist('')
+      setItemAcao('')
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [obraAtiva?.id])
 
   async function logout() {
     await supabase.auth.signOut()
@@ -420,6 +458,45 @@ export default function MontadorDashboard() {
     setCheckando(false)
   }
 
+  async function iniciarObra() {
+    if (!obraAtiva?.id) return
+    const agora = new Date().toISOString()
+    const payload = {
+      status: 'Em montagem',
+      data_inicio_real: agora,
+    }
+
+    const { data, error } = await supabase
+      .from('obras')
+      .update(payload)
+      .eq('id', obraAtiva.id)
+      .select('*')
+      .single()
+
+    if (error) {
+      const fallback = await supabase
+        .from('obras')
+        .update({ status: 'Em montagem' })
+        .eq('id', obraAtiva.id)
+        .select('*')
+        .single()
+
+      if (fallback.error) {
+        mostrarSucesso('Não foi possível iniciar a obra.')
+        return
+      }
+
+      setObraAtiva(fallback.data)
+      setObras(lista => lista.map(obra => obra.id === fallback.data.id ? fallback.data : obra))
+      mostrarSucesso('Obra iniciada. Para contar dias reais, aplique a coluna data_inicio_real no Supabase.')
+      return
+    }
+
+    setObraAtiva(data)
+    setObras(lista => lista.map(obra => obra.id === data.id ? data : obra))
+    mostrarSucesso('Obra iniciada. Dia 1 em andamento.')
+  }
+
   function abrirTarefa(tarefa) {
     setTarefaAberta(tarefa)
     setObservacaoTarefa(tarefa?.observacao || '')
@@ -484,18 +561,6 @@ export default function MontadorDashboard() {
     await carregarDadosObra()
   }
 
-  async function confirmarPresencaAgenda(item) {
-    if (!item?.id) return
-    const { error } = await supabase.from('agenda').update({ confirmado_cliente: true }).eq('id', item.id)
-    if (error) {
-      console.error('Erro ao confirmar presenca na agenda:', error)
-      mostrarSucesso('Não foi possível confirmar presença.')
-      return
-    }
-    mostrarSucesso('Presença confirmada.')
-    await carregarDadosObra()
-  }
-
   async function toggleChecklist(item) {
     if (!user) return
     const concluindo = !item.concluido
@@ -535,6 +600,26 @@ export default function MontadorDashboard() {
     setItemAcao('')
     mostrarSucesso('Item excluído.')
     await carregarDadosObra()
+  }
+
+  async function adicionarChecklistItem(ambienteId) {
+    if (!obraAtiva?.id || !novoChecklist.trim()) return
+    setCriandoChecklist(true)
+    const { error } = await supabase.from('checklist_items').insert([{
+      obra_id: obraAtiva.id,
+      ambiente_id: ambienteId === 'geral' ? null : ambienteId,
+      descricao: novoChecklist.trim(),
+      concluido: false,
+    }])
+    if (error) {
+      console.error('Erro ao adicionar checklist:', error)
+      mostrarSucesso('Não foi possível adicionar o item.')
+    } else {
+      setNovoChecklist('')
+      mostrarSucesso('Item adicionado ao checklist.')
+      await carregarDadosObra()
+    }
+    setCriandoChecklist(false)
   }
 
   function iniciarLongPress(itemId) {
@@ -653,24 +738,26 @@ export default function MontadorDashboard() {
       .filter(item => item.data && new Date(`${item.data}T00:00:00`) >= hoje)
       .sort((a, b) => `${a.data || ''}${a.hora_inicio || ''}`.localeCompare(`${b.data || ''}${b.hora_inicio || ''}`))
     const proximaAgenda = agendaFutura[0] || null
+    const proximasDatas = agendaFutura.slice(0, 3)
     const proximaAgendaStatus = proximaAgenda ? statusAgenda(proximaAgenda) : null
     const preMontagemAgenda = agendaFutura.find(item => norm(item.tipo || item.titulo || item.observacao).includes('pre-montagem') || norm(item.tipo || item.titulo || item.observacao).includes('pre montagem'))
 
-    const emServico = checkins.some(c => !c.saida)
-    const ultimoCheckin = checkins[0] || null
     const registrosHoje = checkins.filter(c => mesmoDia(c.entrada || c.created_at, hoje))
+    const registroAbertoHoje = registrosHoje.find(c => !c.saida) || null
+    const emServico = Boolean(registroAbertoHoje)
+    const ultimoCheckin = registroAbertoHoje || registrosHoje[0] || checkins[0] || null
     const registroHoje = registrosHoje.find(c => !c.saida) || registrosHoje[0] || null
     const ultimoServico = checkins.find(c => c.saida) || ultimoCheckin
     const pctChecklist = checklist.length ? Math.round((checklistConcluidos.length / checklist.length) * 100) : 0
 
     const checklistGrupos = [
+      { id: 'geral', nome: 'Geral', itens: checklist.filter(item => !item.ambiente_id) },
       ...ambientes.map(ambiente => ({
         id: ambiente.id,
         nome: ambiente.nome || 'Ambiente',
         itens: checklist.filter(item => item.ambiente_id === ambiente.id),
       })),
-      { id: 'geral', nome: 'Geral', itens: checklist.filter(item => !item.ambiente_id) },
-    ].filter(grupo => grupo.id !== 'geral' || grupo.itens.length > 0 || ambientes.length === 0)
+    ]
 
     const fotosGrupos = FOTO_CATEGORIAS.map(categoria => ({
       categoria,
@@ -707,6 +794,7 @@ export default function MontadorDashboard() {
       ocorrenciasAbertas,
       fotosHoje,
       proximaAgenda,
+      proximasDatas,
       proximaAgendaStatus,
       preMontagemAgenda,
       emServico,
@@ -728,7 +816,7 @@ export default function MontadorDashboard() {
   const primeiroDiaCalendario = new Date(calendarioAno, calendarioMes, 1)
   const inicioGradeCalendario = new Date(primeiroDiaCalendario)
   inicioGradeCalendario.setDate(1 - primeiroDiaCalendario.getDay())
-  const eventosPorDia = agenda.reduce((acc, item) => {
+  const eventosPorDia = agendaCalendario.reduce((acc, item) => {
     if (!item.data) return acc
     acc[item.data] = [...(acc[item.data] || []), item]
     return acc
@@ -866,7 +954,7 @@ export default function MontadorDashboard() {
               {diaCalendario && (eventosPorDia[diaCalendario] || []).map(item => (
                 <div key={item.id} className="md-calendar-event">
                   <span>{tipoAgenda(item)}</span>
-                  <strong>{item.titulo || obraAtiva.nome}</strong>
+                  <strong>{item.titulo || item.obras?.nome || obraAtiva.nome}</strong>
                   <small>{item.hora_inicio || 'Horário não informado'}</small>
                 </div>
               ))}
@@ -911,122 +999,77 @@ export default function MontadorDashboard() {
           </div>
           <strong>{obraAtiva.progresso || 0}%</strong>
         </div>
-        <p>{[obraAtiva.cliente_nome, enderecoObra(obraAtiva)].filter(Boolean).join(' · ') || 'Endereço não informado'}</p>
+        <p>{cidadeBairro(obraAtiva)}</p>
         <div className="md-progress"><i style={{ width: `${obraAtiva.progresso || 0}%` }} /></div>
-        <small>Previsão: {previsao ? dataBR(previsao) : 'não informada'}</small>
+        <div className="md-obra-dates">
+          <small>Início previsto: {obraAtiva.data_previsao_inicio ? dataBR(obraAtiva.data_previsao_inicio) : dataBR(obraAtiva.data_inicio)}</small>
+          <small>Previsão de término: {previsao ? dataBR(previsao) : 'não informada'}</small>
+        </div>
+        {obraAguardandoInicio(obraAtiva) ? (
+          <button className="md-start-work" onClick={iniciarObra}>Iniciar obra</button>
+        ) : (
+          <div className="md-work-day">Em andamento · Dia {diasEmAndamento(obraAtiva) || 1}</div>
+        )}
+      </section>
+
+      <section className="md-card">
+        <div className="md-card-head">
+          <h2>Próximas datas</h2>
+          <button onClick={() => setCalendarioAberto(true)}>Ver calendário completo →</button>
+        </div>
+        {vm.proximasDatas.length === 0 ? (
+          <div className="md-empty-compact">Nenhuma data programada</div>
+        ) : (
+          <div className="md-date-list">
+            {vm.proximasDatas.map(item => (
+              <button key={item.id} onClick={() => setCalendarioAberto(true)}>
+                <strong>{dataCurtaMes(item.data)}</strong>
+                <span>{tipoAgenda(item)}{item.hora_inicio ? ` · ${item.hora_inicio.slice(0, 5)}` : ''}</span>
+              </button>
+            ))}
+            {previsao && (
+              <button onClick={() => setCalendarioAberto(true)}>
+                <strong>{dataCurtaMes(previsao)}</strong>
+                <span>Previsão de término</span>
+              </button>
+            )}
+          </div>
+        )}
       </section>
 
       <section className={vm.emServico ? 'md-check-card active' : 'md-check-card'}>
         <div className="md-check-info">
-          <span>{vm.emServico ? 'Em serviço' : 'Fora de serviço'}</span>
-          <p>
-            {vm.ultimoCheckin ? `${vm.emServico ? 'Entrada' : 'Último registro'} às ${horaBR(vm.ultimoCheckin.entrada || vm.ultimoCheckin.created_at)}` : 'Nenhum registro hoje'}
-            {vm.ultimoCheckin?.latitude ? ' · localização registrada' : ''}
-          </p>
-          <p className="md-check-primary">
-            {vm.emServico && vm.ultimoCheckin
-              ? `Entrada registrada às ${horaBR(vm.ultimoCheckin.entrada || vm.ultimoCheckin.created_at)}`
-              : vm.ultimoServico?.saida
-                ? `Último serviço: ${horaBR(vm.ultimoServico.entrada || vm.ultimoServico.created_at)} às ${horaBR(vm.ultimoServico.saida)}`
-                : 'Nenhum registro hoje'}
-          </p>
-          {vm.ultimoCheckin && <small>{localizacaoCheckin(vm.ultimoCheckin)}</small>}
-          <small>Obra: {obraAtiva.nome || 'Obra ativa'}</small>
-          {(servicoFeedback || vm.emServico) && (
-            <div className="md-check-feedback">
-              {servicoFeedback || 'Check-in registrado com localização.'}
-            </div>
+          <span>Hoje — {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
+          {obraAguardandoInicio(obraAtiva) ? (
+            <>
+              <p className="md-check-primary">Obra ainda não iniciada</p>
+              <small>Inicie a obra antes de registrar presença em campo.</small>
+            </>
+          ) : vm.emServico && vm.ultimoCheckin ? (
+            <>
+              <p className="md-check-primary">Em serviço desde {horaBR(vm.ultimoCheckin.entrada || vm.ultimoCheckin.created_at)}</p>
+              <small>{localizacaoCheckin(vm.ultimoCheckin)}</small>
+            </>
+          ) : vm.registroHoje?.saida ? (
+            <>
+              <p className="md-check-primary done">Trabalhou hoje: {horaBR(vm.registroHoje.entrada || vm.registroHoje.created_at)} às {horaBR(vm.registroHoje.saida)}</p>
+              <small>{localizacaoCheckin(vm.registroHoje)}</small>
+            </>
+          ) : (
+            <>
+              <p className="md-check-primary">Fora de serviço · Sem registro hoje</p>
+              <small>Obra: {obraAtiva.nome || 'Obra ativa'}</small>
+            </>
           )}
+          {servicoFeedback && <div className="md-check-feedback">{servicoFeedback}</div>}
         </div>
-        {vm.emServico ? (
+        {obraAguardandoInicio(obraAtiva) ? (
+          <button onClick={iniciarObra}>Iniciar obra</button>
+        ) : vm.emServico ? (
           <button className="checkout" onClick={fazerCheckout} disabled={checkando}>{checkando ? '...' : 'Check-out'}</button>
         ) : (
           <button onClick={fazerCheckin} disabled={checkando}>{checkando ? '...' : 'Check-in'}</button>
         )}
-      </section>
-
-      {vm.registroHoje && (
-      <section className="md-today-card">
-        <div className="md-card-head compact">
-          <h2>Registro de hoje</h2>
-        </div>
-        <div className="md-today-row">
-            <div>
-              <strong>Entrada</strong>
-              <span>{horaBR(vm.registroHoje.entrada || vm.registroHoje.created_at)}</span>
-            </div>
-            <div>
-              <strong>Saída</strong>
-              <span>{vm.registroHoje.saida ? horaBR(vm.registroHoje.saida) : 'Em serviço'}</span>
-            </div>
-            <p>{obraAtiva.nome || 'Obra ativa'} · {localizacaoCheckin(vm.registroHoje)}</p>
-        </div>
-      </section>
-      )}
-
-      <section className="md-card">
-        <div className="md-card-head">
-          <h2>Próxima agenda</h2>
-        </div>
-        {vm.preMontagemAgenda && (
-          <div className="md-next highlight">
-            <div className="md-next-head">
-              <strong>Montagem a confirmar</strong>
-              <em className="tone-warn">A confirmar</em>
-            </div>
-            <span>Previsão: {dataBR(vm.preMontagemAgenda.data)}</span>
-            <button className="md-confirm-btn" onClick={() => confirmarPresencaAgenda(vm.preMontagemAgenda)}>Confirmar presença</button>
-          </div>
-        )}
-        {vm.proximaAgenda ? (
-          <div className="md-next">
-            <div className="md-next-head">
-              <strong>{tipoAgenda(vm.proximaAgenda)}</strong>
-              <em className={`tone-${vm.proximaAgendaStatus?.tone || 'warn'}`}>{vm.proximaAgendaStatus?.label || 'Pendente'}</em>
-            </div>
-            <span>{vm.proximaAgenda.titulo || vm.proximaAgenda.observacao || vm.proximaAgenda.descricao || 'Compromisso da obra'}</span>
-            <small>{dataBR(vm.proximaAgenda.data)}{vm.proximaAgenda.hora_inicio ? ` · ${vm.proximaAgenda.hora_inicio}` : ''}</small>
-          </div>
-        ) : (
-          <div className="md-empty-compact">Nenhum compromisso próximo</div>
-        )}
-      </section>
-
-      <section className="md-card">
-        <div className="md-card-head">
-          <h2>Fotos de vistoria</h2>
-          <span>{vm.fotosVistoria.length}</span>
-        </div>
-        {vm.fotosVistoria.length === 0 ? (
-          <Empty text="Nenhuma foto de vistoria vinculada ainda." />
-        ) : (
-          <>
-            <p className="md-card-note">Referência visual para conferir acessos, ambientes e pontos de atenção antes da montagem.</p>
-            <div className="md-photo-grid compact">
-              {vm.fotosVistoria.slice(0, 6).map(foto => (
-                <button key={foto.id} className="md-photo" onClick={() => foto.publicUrl && setPreview(foto.publicUrl)}>
-                  {foto.publicUrl && <img src={foto.publicUrl} alt={foto.observacao || 'Foto de vistoria'} />}
-                  <span>{ambienteNome(foto.ambiente_id)}</span>
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-      </section>
-
-      <section className="md-quick">
-        <button onClick={() => scrollTo(fotosRef)}>Enviar foto</button>
-        <button onClick={() => setModalProblema('Ocorrência geral')}>Relatar problema</button>
-        <button onClick={() => scrollTo(checklistRef)}>Abrir checklist</button>
-        <button onClick={() => scrollTo(tarefasRef)}>Ver tarefas</button>
-        <button onClick={() => setCalendarioAberto(true)}>Meu calendário</button>
-      </section>
-
-      <section className="md-summary">
-        <Metric label="Tarefas" value={vm.tarefasAbertas.length} />
-        <Metric label="Checklist" value={vm.checklistPendentes.length} />
-        <Metric label="Fotos hoje" value={vm.fotosHoje.length} />
-        <Metric label="Ocorrências" value={vm.ocorrenciasAbertas.length} danger={vm.ocorrenciasAbertas.length > 0} />
       </section>
 
       {loadingObra && <div className="md-loading-inline">Atualizando dados da obra...</div>}
@@ -1035,17 +1078,17 @@ export default function MontadorDashboard() {
         <div className="md-card-head">
           <h2>Tarefas</h2>
           <span>{vm.tarefasAbertas.length}</span>
+          <button onClick={() => setPainelAtivo(painelAtivo === 'tarefas' ? '' : 'tarefas')}>Ver todas →</button>
         </div>
-        {vm.tarefasAbertas.length === 0 ? <Empty text="Nenhuma tarefa pendente." /> : vm.tarefasAbertas.map(tarefa => {
+        {vm.tarefasAbertas.length === 0 ? <div className="md-empty-compact">Nenhuma tarefa pendente</div> : vm.tarefasAbertas.slice(0, painelAtivo === 'tarefas' ? vm.tarefasAbertas.length : 2).map(tarefa => {
           const pr = PRIORIDADE[norm(tarefa.prioridade)] || { label: tarefa.prioridade || '', color: '#A79F93' }
           return (
-            <article className="md-task" key={tarefa.id} style={{ borderLeftColor: pr.color }} onClick={() => abrirTarefa(tarefa)}>
-              <div className="md-task-head">
+            <article className="md-task compact" key={tarefa.id} style={{ borderLeftColor: pr.color }} onClick={() => abrirTarefa(tarefa)}>
+              <div>
                 <strong>{tarefa.titulo || 'Tarefa sem título'}</strong>
-                <span style={{ color: pr.color }}>{tarefa.status || pr.label || 'pendente'}</span>
+                <small>{tarefa.tipo || 'Outro'} · {tarefa.status || 'pendente'}</small>
               </div>
-              <p>{tarefa.tipo || tarefa.descricao || 'Atividade operacional'}</p>
-              {tarefa.prazo && <small>Previsto: {dataBR(tarefa.prazo)}</small>}
+              <span>→</span>
             </article>
           )
         })}
@@ -1068,37 +1111,52 @@ export default function MontadorDashboard() {
 
       <section className="md-card" ref={checklistRef}>
         <div className="md-card-head">
-          <h2>Checklist por ambiente</h2>
+          <div>
+            <h2>Checklist · Selecione o ambiente</h2>
+            <small className="md-card-sub">{vm.checklistConcluidos.length} de {checklist.length} itens</small>
+          </div>
           <span>{vm.pctChecklist}%</span>
         </div>
         <div className="md-progress soft"><i style={{ width: `${vm.pctChecklist}%` }} /></div>
-        {checklist.length === 0 ? <Empty text="Nenhum item de checklist nesta obra." /> : vm.checklistGrupos.map(grupo => {
-          const feitos = grupo.itens.filter(i => i.concluido).length
-          const pct = grupo.itens.length ? Math.round((feitos / grupo.itens.length) * 100) : 0
-          const aberto = ambienteAberto === grupo.id
-          const tone = pct === 100 ? 'done' : pct > 0 ? 'progress' : 'empty'
-          return (
-            <article className={`md-env ${tone}`} key={grupo.id}>
-              <button className="md-env-head" onClick={() => setAmbienteAberto(aberto ? '' : grupo.id)}>
-                <div>
-                  <strong>{grupo.nome}</strong>
-                  <small>{feitos} de {grupo.itens.length} itens</small>
-                </div>
-                <span>{pct === 100 ? '✓' : pct + '%'}</span>
+        <div className="md-env-chips">
+          {vm.checklistGrupos.map(grupo => {
+            const feitos = grupo.itens.filter(i => i.concluido).length
+            const done = grupo.itens.length > 0 && feitos === grupo.itens.length
+            return (
+              <button key={grupo.id} className={`${ambienteSelecionado === grupo.id ? 'active' : ''} ${done ? 'done' : ''}`} onClick={() => setAmbienteSelecionado(grupo.id)}>
+                {grupo.nome} {done ? '✓' : grupo.itens.length ? `●${grupo.itens.length}` : ''}
               </button>
-              <div className="md-progress soft"><i style={{ width: `${pct}%` }} /></div>
-              {aberto && (grupo.itens.length === 0 ? <Empty text="Nenhum item neste ambiente." /> : grupo.itens.map(item => (
-                <div className={item.concluido ? 'md-check-item done' : 'md-check-item'} key={item.id} onClick={() => toggleChecklist(item)} onMouseDown={() => iniciarLongPress(item.id)} onMouseUp={cancelarLongPress} onMouseLeave={cancelarLongPress} onTouchStart={() => iniciarLongPress(item.id)} onTouchEnd={cancelarLongPress}>
-                  <i>{item.concluido ? '✓' : ''}</i>
-                  <span>{item.descricao}</span>
-                  {itemAcao === item.id && <button className="md-check-delete" onClick={e => { e.stopPropagation(); excluirChecklistItem(item) }}>Excluir</button>}
-                </div>
-              )))}
-            </article>
-          )
-        })}
+            )
+          })}
+        </div>
+        {(() => {
+          const grupo = vm.checklistGrupos.find(item => item.id === ambienteSelecionado) || vm.checklistGrupos[0]
+          if (!grupo) return <Empty text="Nenhum item de checklist nesta obra." />
+          if (grupo.itens.length === 0) {
+            return (
+              <div className="md-add-check">
+                <Empty text="Nenhum item neste ambiente." />
+                <input value={novoChecklist} onChange={e => setNovoChecklist(e.target.value)} placeholder="+ Adicionar item" />
+                <button onClick={() => adicionarChecklistItem(grupo.id)} disabled={criandoChecklist || !novoChecklist.trim()}>{criandoChecklist ? 'Salvando...' : 'Adicionar item'}</button>
+              </div>
+            )
+          }
+          return grupo.itens.map(item => (
+            <div className={item.concluido ? 'md-check-item done' : 'md-check-item'} key={item.id} onClick={() => toggleChecklist(item)} onMouseDown={() => item.concluido && iniciarLongPress(item.id)} onMouseUp={cancelarLongPress} onMouseLeave={cancelarLongPress} onTouchStart={() => item.concluido && iniciarLongPress(item.id)} onTouchEnd={cancelarLongPress}>
+              <i>{item.concluido ? '✓' : ''}</i>
+              <span>{item.descricao}</span>
+              {itemAcao === item.id && <button className="md-check-delete" onClick={e => { e.stopPropagation(); excluirChecklistItem(item) }}>Excluir</button>}
+            </div>
+          ))
+        })()}
       </section>
 
+      <section className="md-quick">
+        <button onClick={() => { setPainelAtivo(painelAtivo === 'fotos' ? '' : 'fotos'); window.setTimeout(() => scrollTo(fotosRef), 80) }}>Enviar foto</button>
+        <button onClick={() => setModalProblema('Ocorrência geral')}>Relatar problema</button>
+      </section>
+
+      {painelAtivo === 'fotos' && (
       <section className="md-card" ref={fotosRef}>
         <div className="md-card-head">
           <h2>Fotos da obra</h2>
@@ -1139,7 +1197,9 @@ export default function MontadorDashboard() {
           </div>
         ))}
       </section>
+      )}
 
+      {vm.ocorrenciasAbertas.length > 0 && (
       <section className="md-card" ref={ocorrenciasRef}>
         <div className="md-card-head">
           <h2>Ocorrências</h2>
@@ -1153,7 +1213,9 @@ export default function MontadorDashboard() {
           </article>
         ))}
       </section>
+      )}
 
+      {vm.historico.length > 0 && (
       <section className="md-card">
         <div className="md-card-head">
           <h2>Histórico simples</h2>
@@ -1164,27 +1226,19 @@ export default function MontadorDashboard() {
             <div>
               <strong>{item.tipo}</strong>
               <span>{item.detalhe}</span>
-            </div>
           </div>
-        ))}
+        </div>
+      ))}
       </section>
+      )}
 
       <nav className="md-bottom-nav" aria-label="Navegação do montador">
         <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}><IconHome />Hoje</button>
         <button onClick={() => scrollTo(checklistRef)}><IconCheck />Checklist</button>
-        <button onClick={() => scrollTo(fotosRef)}><IconCamera />Fotos</button>
+        <button onClick={() => { setPainelAtivo('fotos'); window.setTimeout(() => scrollTo(fotosRef), 80) }}><IconCamera />Fotos</button>
         <button onClick={() => scrollTo(ocorrenciasRef)}><IconAlert />Ocorrências</button>
         <button onClick={() => scrollTo(perfilRef)}><IconUser />Perfil</button>
       </nav>
-    </div>
-  )
-}
-
-function Metric({ label, value, danger }) {
-  return (
-    <div className={danger ? 'md-metric danger' : 'md-metric'}>
-      <strong>{value}</strong>
-      <span>{label}</span>
     </div>
   )
 }
@@ -1235,6 +1289,9 @@ const css = `
 .md-obra-head strong{font-size:26px;color:${THEME.gold};line-height:1}
 .md-obra-card p{font-size:12px;line-height:1.45;color:#D7CABA;margin:10px 0 12px}
 .md-obra-card small{display:block;font-size:11px;color:#BDB0A0;margin-top:10px}
+.md-obra-dates{display:grid;gap:4px;margin-top:12px}
+.md-start-work{width:100%;border:0;background:${THEME.gold};color:#fff;border-radius:13px;padding:13px 14px;font-size:14px;font-weight:900;margin-top:14px;cursor:pointer}
+.md-work-day{margin-top:14px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.08);border-radius:13px;padding:11px 12px;color:#fff;font-size:13px;font-weight:900;text-align:center}
 .md-progress{height:7px;background:rgba(255,255,255,.16);border-radius:999px;overflow:hidden}
 .md-progress i{display:block;height:100%;background:${THEME.gold};border-radius:999px}
 .md-progress.soft{background:${THEME.border};margin:10px 0 14px}
@@ -1245,6 +1302,7 @@ const css = `
 .md-check-info{min-width:0}
 .md-check-info>p:not(.md-check-primary){display:none}
 .md-check-primary{font-size:12px!important;color:${THEME.ink}!important;font-weight:800!important;margin-bottom:5px!important}
+.md-check-primary.done{color:${THEME.success}!important}
 .md-check-info small{display:block;font-size:11px;color:${THEME.muted};line-height:1.35;margin-top:3px}
 .md-check-feedback{display:inline-flex;margin-top:8px;background:#EAF5EE;color:${THEME.success};border:1px solid #C8E1D0;border-radius:999px;padding:6px 9px;font-size:11px;font-weight:900;line-height:1.1}
 .md-check-card button{border:0;background:${THEME.ink};color:#fff;border-radius:14px;padding:15px 18px;min-width:118px;font-size:15px;font-weight:900;cursor:pointer}
@@ -1262,6 +1320,7 @@ const css = `
 .md-card-head h2{font-size:15px;margin:0;font-weight:900;color:${THEME.ink}}
 .md-card-head span{font-size:12px;color:${THEME.gold};font-weight:900}
 .md-card-head button{border:0;background:transparent;color:${THEME.gold};font-size:12px;font-weight:900;cursor:pointer}
+.md-card-sub{display:block;font-size:11px;color:${THEME.muted};font-weight:800;margin-top:3px}
 .md-card-note{margin:-3px 0 12px;color:${THEME.muted};font-size:12.5px;line-height:1.45}
 .md-next-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:5px}
 .md-next strong{display:block;font-size:16px;color:${THEME.ink};margin-bottom:0}
@@ -1274,6 +1333,10 @@ const css = `
 .md-next small{display:block;font-size:12px;color:${THEME.gold};font-weight:800;margin-top:8px}
 .md-next.highlight{border:1px solid rgba(184,150,94,.45);background:#FFFAF0;border-radius:15px;padding:13px;margin-bottom:10px;box-shadow:0 10px 24px rgba(184,150,94,.12)}
 .md-confirm-btn{border:0;background:${THEME.gold};color:#fff;border-radius:12px;padding:11px 13px;font-size:12px;font-weight:900;margin-top:10px;cursor:pointer;width:100%}
+.md-date-list{display:grid;gap:8px}
+.md-date-list button{width:100%;border:1px solid ${THEME.border};background:#FFFEFC;border-radius:14px;padding:11px 12px;display:flex;align-items:center;gap:10px;font-family:inherit;text-align:left;cursor:pointer}
+.md-date-list strong{font-size:13px;color:${THEME.gold};min-width:54px;text-transform:lowercase}
+.md-date-list span{font-size:13px;color:${THEME.ink};font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .md-empty-compact{background:#F3F0EA;border:1px solid ${THEME.border};border-radius:14px;padding:13px;color:${THEME.muted};font-size:13px;text-align:center;font-weight:800}
 .md-quick{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px}
 .md-quick button{border:1px solid ${THEME.border};background:#fff;color:${THEME.ink};border-radius:14px;padding:14px 10px;font-size:13px;font-weight:900;cursor:pointer}
@@ -1285,6 +1348,10 @@ const css = `
 .md-metric span{display:block;font-size:10.5px;color:${THEME.muted};margin-top:5px}
 .md-task{border:1px solid ${THEME.border};border-left:4px solid ${THEME.gold};border-radius:15px;padding:14px;margin-bottom:10px;background:#FFFEFC}
 .md-task{cursor:pointer}
+.md-task.compact{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px}
+.md-task.compact strong{display:block;font-size:13.5px;color:${THEME.ink};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:250px}
+.md-task.compact small{display:block;font-size:11px;color:${THEME.muted};font-weight:800;margin-top:4px}
+.md-task.compact>span{font-size:18px;color:${THEME.gold};font-weight:900}
 .md-task-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
 .md-task-head strong{font-size:14px;color:${THEME.ink}}
 .md-task-head span{font-size:10px;letter-spacing:.8px;text-transform:uppercase;font-weight:900}
@@ -1307,6 +1374,14 @@ const css = `
 .md-env-head small{display:block;font-size:11px;color:${THEME.muted};margin-top:3px}
 .md-env-head span{font-size:12px;color:${THEME.gold};font-weight:900}
 .md-env.done .md-env-head span{color:${THEME.success}}
+.md-env-chips{display:flex;gap:8px;overflow-x:auto;padding:2px 0 12px;margin-bottom:2px}
+.md-env-chips button{border:1px solid ${THEME.border};background:#fff;color:${THEME.ink};border-radius:999px;padding:9px 12px;font-size:12px;font-weight:900;font-family:inherit;white-space:nowrap;cursor:pointer}
+.md-env-chips button.active{border-color:${THEME.gold};background:${THEME.gold};color:#fff}
+.md-env-chips button.done{border-color:${THEME.success}}
+.md-add-check{border:1px dashed ${THEME.border};border-radius:14px;padding:10px;margin-top:10px;background:#FFFEFC}
+.md-add-check input{width:100%;box-sizing:border-box;border:1px solid ${THEME.border};background:#fff;border-radius:12px;padding:12px;font-size:14px;font-family:inherit;color:${THEME.ink};margin-bottom:8px}
+.md-add-check button{width:100%;border:0;background:${THEME.ink};color:#fff;border-radius:12px;padding:12px;font-size:13px;font-weight:900;font-family:inherit;cursor:pointer}
+.md-add-check button:disabled{opacity:.45;cursor:not-allowed}
 .md-check-item{width:100%;border:1px solid ${THEME.border};background:#fff;border-radius:13px;padding:13px;display:flex;align-items:center;gap:11px;text-align:left;margin-top:8px;font-family:inherit;cursor:pointer}
 .md-check-item.done{background:#F4FBF6;border-color:#C8E1D0}
 .md-check-item i{width:23px;height:23px;border-radius:7px;border:2px solid ${THEME.border};display:flex;align-items:center;justify-content:center;font-style:normal;font-size:13px;font-weight:900;flex-shrink:0}
