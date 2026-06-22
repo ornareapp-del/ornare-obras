@@ -17,8 +17,37 @@ const FASES = FASES_CHECKLIST_ORNARE
 const AMBIENTES = AMBIENTES_CHECKLIST_ORNARE
 const CRITICIDADES = CRITICIDADES_CHECKLIST_ORNARE
 const RESPONSAVEIS = RESPONSAVEIS_CHECKLIST_ORNARE
+const CRITICIDADE_LABEL = { baixa: 'Baixa', media: 'Média', alta: 'Alta', critica: 'Crítica' }
+const RESPONSAVEL_LABEL = { gestao: 'Gestão', pos_venda: 'Pós-venda', supervisor: 'Supervisor', montador: 'Montador' }
+
 function normalizar(valor) {
   return String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+}
+
+function labelCriticidade(valor) {
+  return CRITICIDADE_LABEL[normalizar(valor)] || valor || 'Média'
+}
+
+function labelResponsavel(valor) {
+  return RESPONSAVEL_LABEL[normalizar(valor)] || valor || ''
+}
+
+function descricaoComAcentos(texto) {
+  const bruto = String(texto || '')
+  const mapa = {
+    'Foto antes da obra - ambiente completo': 'Foto antes da obra - ambiente completo',
+    'Isolamento de piso': 'Isolamento de piso',
+    'Isolamento de portas': 'Isolamento de portas',
+    'Identificacao dos ambientes': 'Identificação dos ambientes',
+    'Conferencia das pecas recebidas': 'Conferência das peças recebidas',
+    'Conferencia de avarias': 'Conferência de avarias',
+    'Protecao de piso instalada': 'Proteção de piso instalada',
+    'Cantoneiras de protecao instaladas': 'Cantoneiras de proteção instaladas',
+    'Ambiente limpo e desimpedido': 'Ambiente limpo e desimpedido',
+    'Fotos de vistoria por ambiente': 'Fotos de vistoria por ambiente',
+    'Pendencias registradas': 'Pendências registradas',
+  }
+  return mapa[bruto] || bruto
 }
 
 function valorAmbiente(item) {
@@ -295,13 +324,13 @@ export default function BibliotecaMestre() {
             <label>
               <span>Criticidade</span>
               <select value={form.criticidade} onChange={e => setCampo('criticidade', e.target.value)}>
-                {CRITICIDADES.map(c => <option key={c} value={c}>{c}</option>)}
+                {CRITICIDADES.map(c => <option key={c} value={c}>{labelCriticidade(c)}</option>)}
               </select>
             </label>
             <label>
               <span>Responsável</span>
               <select value={form.responsavel} onChange={e => setCampo('responsavel', e.target.value)}>
-                {RESPONSAVEIS.map(r => <option key={r} value={r}>{r}</option>)}
+                {RESPONSAVEIS.map(r => <option key={r} value={r}>{labelResponsavel(r)}</option>)}
               </select>
             </label>
           </div>
@@ -347,11 +376,11 @@ export default function BibliotecaMestre() {
                     <div className="bm-item-top">
                       <Badge>{item.fase || 'Sem fase'}</Badge>
                       <Badge muted>{valorAmbiente(item)}</Badge>
-                      {item.criticidade && <Badge danger={['alta', 'critica'].includes(normalizar(item.criticidade))}>{item.criticidade}</Badge>}
+                      {item.criticidade && <Badge danger={['alta', 'critica'].includes(normalizar(item.criticidade))}>{labelCriticidade(item.criticidade)}</Badge>}
                     </div>
-                    <strong>{item.descricao}</strong>
+                    <strong>{descricaoComAcentos(item.descricao)}</strong>
                     <small>
-                      Ordem {item.ordem || '-'} - Responsável {item.perfil_responsavel || item.responsavel || '-'} - {valorAtivo(item) ? 'Ativo' : 'Inativo'}
+                      Ordem {item.ordem || '-'}{labelResponsavel(item.perfil_responsavel || item.responsavel) ? ` - Responsável: ${labelResponsavel(item.perfil_responsavel || item.responsavel)}` : ''} - {valorAtivo(item) ? 'Ativo' : 'Inativo'}
                     </small>
                   </div>
                   <button onClick={() => alternarAtivo(item)}>{valorAtivo(item) ? 'Desativar' : 'Ativar'}</button>
