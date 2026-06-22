@@ -11,8 +11,8 @@ const ITEMS = {
   supervisor: [
     { label: 'Início', to: '/supervisor', icon: IconHome },
     { label: 'Agenda', to: '/agenda', icon: IconCalendar },
-    { label: 'Obras', to: '/obras', icon: IconBuilding, matchObras: true },
-    { label: 'Fotos', to: '/obras', icon: IconCamera },
+    { label: 'Obras', to: '/obras', icon: IconBuilding, matchObras: true, ignoreSearch: 'filtro=fotos' },
+    { label: 'Fotos', to: '/obras?filtro=fotos', icon: IconCamera, matchSearch: 'filtro=fotos' },
   ],
   pos_venda: [
     { label: 'Início', to: '/obras', icon: IconHome },
@@ -37,9 +37,14 @@ export default function BottomNavigation({ onMore }) {
     <nav className="ow-bottom-nav" aria-label="Navegação principal mobile">
       {items.map(item => {
         const Icon = item.icon
+        const [path] = item.to.split('?')
+        const ignored = item.ignoreSearch ? location.search.includes(item.ignoreSearch) : false
+        const hasSearch = item.matchSearch ? location.search.includes(item.matchSearch) : false
         const active = item.matchObras
-          ? location.pathname === '/obras' || location.pathname.startsWith('/obras/')
-          : location.pathname === item.to
+          ? (location.pathname === '/obras' || location.pathname.startsWith('/obras/')) && !ignored
+          : item.matchSearch
+            ? location.pathname === path && hasSearch
+            : location.pathname === path
         return (
           <button key={`${item.label}-${item.to}`} className={active ? 'active' : ''} onClick={() => navigate(item.to)}>
             <Icon />

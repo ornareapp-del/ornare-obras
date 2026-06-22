@@ -1515,7 +1515,13 @@ function AbaChecklist({ obraId, checklistDestaque }) {
     if (error) {
       setMensagemBiblioteca('Erro ao aplicar biblioteca: ' + error.message)
     } else {
-      setMensagemBiblioteca(`${count} itens aplicados. ${skipped} itens já existiam e foram ignorados.`)
+      setMensagemBiblioteca(
+        count > 0
+          ? `${count} itens aplicados. ${skipped} itens já existiam e foram ignorados.`
+          : skipped > 0
+            ? `Nenhum item novo aplicado. ${skipped} itens já existiam nesta obra.`
+            : 'Nenhum modelo encontrado para os filtros selecionados.',
+      )
       await carregar()
     }
     setAplicando(false)

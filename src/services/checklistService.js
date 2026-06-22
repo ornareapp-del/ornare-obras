@@ -1,3 +1,4 @@
+import { MODELOS_CAMPO_ORNARE } from '../constants/checklistOrnare'
 import { supabase } from '../lib/supabase'
 
 function normalizar(valor) {
@@ -9,6 +10,63 @@ function normalizar(valor) {
     .toLowerCase()
 }
 
+function montarModeloPadrao(modelo) {
+  return {
+    descricao: modelo.descricao,
+    fase: modelo.fase,
+    categoria_ambiente: modelo.ambiente || 'Geral',
+    ordem: modelo.ordem,
+    criticidade: modelo.criticidade || 'media',
+    perfil_responsavel: modelo.responsavel || 'montador',
+    obrigatorio: true,
+    ativo: true,
+    gera_automaticamente: true,
+    exige_foto: Boolean(modelo.exige_foto),
+    exige_observacao: Boolean(modelo.exige_observacao),
+    exige_validacao_supervisor: modelo.responsavel === 'montador',
+    visivel_cliente: false,
+  }
+}
+
+function montarModeloPadraoBasico(modelo) {
+  return {
+    descricao: modelo.descricao,
+    fase: modelo.fase,
+    categoria_ambiente: modelo.ambiente || 'Geral',
+    ordem: modelo.ordem,
+  }
+}
+
+async function buscarModelosPadrao() {
+  return supabase
+    .from('checklist_padrao')
+    .select('*')
+    .order('ordem', { ascending: true })
+}
+
+async function garantirBibliotecaPadrao(modelosAtuais = []) {
+  if (modelosAtuais?.length) return { modelos: modelosAtuais, error: null }
+
+  const { data: modelosExistentes, error: erroBusca } = await buscarModelosPadrao()
+  if (erroBusca) return { modelos: [], error: erroBusca }
+  if (modelosExistentes?.length) return { modelos: modelosExistentes, error: null }
+
+  const { error: erroInsert } = await supabase
+    .from('checklist_padrao')
+    .insert(MODELOS_CAMPO_ORNARE.map(montarModeloPadrao))
+
+  if (erroInsert) {
+    const { error: erroFallback } = await supabase
+      .from('checklist_padrao')
+      .insert(MODELOS_CAMPO_ORNARE.map(montarModeloPadraoBasico))
+
+    if (erroFallback) return { modelos: [], error: erroFallback }
+  }
+
+  const { data: modelosCriados, error: erroRecarregar } = await buscarModelosPadrao()
+  return { modelos: modelosCriados || [], error: erroRecarregar }
+}
+
 /**
  * Copia todos os itens do checklist_padrao para checklist_items de uma obra.
  * Deve ser chamado logo apos a criacao da obra.
@@ -17,20 +75,20 @@ function normalizar(valor) {
  * @returns {Promise<{ count: number, error: any }>}
  */
 export async function copiarChecklistPadrao(obraId) {
-  const [{ data: itens, error: errBusca }, { data: ambientes }] = await Promise.all([
-    supabase
-      .from('checklist_padrao')
-      .select('descricao, ordem, categoria_ambiente')
-      .order('ordem', { ascending: true }),
+  const [{ data: itensIniciais, error: errBusca }, { data: ambientes }] = await Promise.all([
+    buscarModelosPadrao(),
     supabase
       .from('obra_ambientes')
       .select('id, nome')
       .eq('obra_id', obraId),
   ])
 
-  if (errBusca || !itens || itens.length === 0) {
+  if (errBusca) {
     return { count: 0, error: errBusca }
   }
+
+  const { modelos: itens, error: erroBiblioteca } = await garantirBibliotecaPadrao(itensIniciais || [])
+  if (erroBiblioteca || !itens.length) return { count: 0, error: erroBiblioteca }
 
   const ambientesNormalizados = (ambientes || []).map(a => ({ ...a, nomeNormalizado: normalizar(a.nome) }))
   const rows = []
@@ -104,11 +162,8 @@ function destinoAmbientes(item, ambientesNormalizados) {
  * @returns {Promise<{ count: number, skipped: number, error: any }>}
  */
 export async function aplicarBibliotecaChecklist(obraId, filtros = {}) {
-  const [{ data: modelos, error: errModelos }, { data: ambientes }, { data: existentes }] = await Promise.all([
-    supabase
-      .from('checklist_padrao')
-      .select('*')
-      .order('ordem', { ascending: true }),
+  const [{ data: modelosIniciais, error: errModelos }, { data: ambientes }, { data: existentes }] = await Promise.all([
+    buscarModelosPadrao(),
     supabase
       .from('obra_ambientes')
       .select('id, nome')
@@ -120,6 +175,9 @@ export async function aplicarBibliotecaChecklist(obraId, filtros = {}) {
   ])
 
   if (errModelos) return { count: 0, skipped: 0, error: errModelos }
+
+  const { modelos, error: erroBiblioteca } = await garantirBibliotecaPadrao(modelosIniciais || [])
+  if (erroBiblioteca) return { count: 0, skipped: 0, error: erroBiblioteca }
 
   const faseFiltro = normalizar(filtros.fase)
   const ambienteFiltro = normalizar(filtros.ambiente)

@@ -178,12 +178,8 @@ export default function Agenda() {
 
   async function abrirEditar(ev) {
     setEditandoId(ev.id)
-    preencherForm(ev)
-    setAcaoStatus('')
+    setAcaoStatus('Carregando compromisso salvo...')
     setErroModal('')
-    carregarVistoriaStats(ev.id)
-    carregarCheckinsCompromisso(ev.obra_id, ev.data, ev.id)
-    setModal(true)
 
     const { data, error } = await supabase
       .from('agenda')
@@ -192,14 +188,20 @@ export default function Agenda() {
       .single()
 
     if (error) {
+      preencherForm(ev)
       setErroModal('Não foi possível carregar a versão mais recente deste compromisso.')
+      setModal(true)
+      carregarVistoriaStats(ev.id)
+      carregarCheckinsCompromisso(ev.obra_id, ev.data, ev.id)
       return
     }
 
-    if (data) {
-      preencherForm(data)
-      carregarCheckinsCompromisso(data.obra_id, data.data, data.id)
-    }
+    const compromisso = data || ev
+    preencherForm(compromisso)
+    setAcaoStatus('')
+    setModal(true)
+    carregarVistoriaStats(compromisso.id)
+    carregarCheckinsCompromisso(compromisso.obra_id, compromisso.data, compromisso.id)
   }
 
   async function carregarVistoriaStats(agendaId = editandoId) {
@@ -435,8 +437,16 @@ export default function Agenda() {
       return
     }
 
+    if (result.data) {
+      setEventos(prev => {
+        const existe = prev.some(item => item.id === result.data.id)
+        return existe
+          ? prev.map(item => item.id === result.data.id ? { ...item, ...result.data } : item)
+          : [...prev, result.data]
+      })
+      preencherForm(result.data)
+    }
     await carregar()
-    if (result.data) preencherForm(result.data)
     await criarNotificacaoCompromisso({
       agendaId: result.data?.id,
       obraId: result.data?.obra_id,

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { KpiCard as DesignKpiCard, StatusBadge } from '../../components/DesignSystem'
 import { supabase } from '../../lib/supabase'
@@ -61,6 +61,15 @@ function corCompromisso(tipo) {
   if (texto.includes('reuniao')) return COMPROMISSO_CORES.reuniao
   if (texto.includes('intern')) return COMPROMISSO_CORES.interno
   return THEME.gold
+}
+
+function tomCompromisso(tipo) {
+  const cor = corCompromisso(tipo)
+  return {
+    cor,
+    bg: `${cor}14`,
+    border: cor,
+  }
 }
 
 function isDiaNaoUtil(date) {
@@ -209,6 +218,7 @@ export default function Planejamento() {
         inicio,
         fim,
         faseCor: corCompromisso(a.tipo || a.titulo),
+        tom: tomCompromisso(a.tipo || a.titulo),
         compromissoTipo: a.tipo || a.titulo || 'Compromisso',
       }
     })
@@ -225,7 +235,7 @@ export default function Planejamento() {
         ? []
         : registros
           .filter(r => r.inicio && r.fim && atual >= r.inicio && atual <= r.fim)
-          .map(r => ({ ...r, origem: 'cronograma', compromissoTipo: r.fase || 'Cronograma' }))
+          .map(r => ({ ...r, origem: 'cronograma', compromissoTipo: r.fase || 'Cronograma', tom: { cor: r.faseCor, bg: `${r.faseCor}10`, border: r.faseCor } }))
       const agendaDia = compromissosAgenda.filter(r => r.inicio && r.fim && atual >= r.inicio && atual <= r.fim)
       dias.push({
         data: atual,
@@ -544,10 +554,11 @@ function MobileOperacional({ grupos, abrirObra }) {
             <div className="pl-mobile-empty">Sem compromissos programados.</div>
           ) : grupo.itens.slice(0, 8).map(item => {
             const status = statusOperacionalMobile(item)
+            const tom = item.tom || tomCompromisso(item.tipoOperacional || item.compromissoTipo || item.fase)
             return (
-            <button className="pl-mobile-item" key={`${grupo.titulo}-${item.origem || 'cronograma'}-${item.id}`} onClick={() => abrirObra(item.obra_id)}>
+            <button className="pl-mobile-item" key={`${grupo.titulo}-${item.origem || 'cronograma'}-${item.id}`} onClick={() => abrirObra(item.obra_id)} style={{ borderLeftColor: tom.border }}>
               <div>
-                <span>{item.tipoOperacional}</span>
+                <span style={{ color: tom.cor }}>{item.tipoOperacional}</span>
                 <strong>{item.obra?.nome || 'Obra'}</strong>
                 <small>{dataBR(item.data || item.data_inicio_prevista)}{item.hora_inicio ? ` · ${String(item.hora_inicio).slice(0, 5)}` : ''}</small>
               </div>
@@ -571,6 +582,18 @@ function Calendario({ dias, mesAtual, abrirObra, abrirModalDia }) {
         <h2>Calendário mensal</h2>
         <span>{MESES[mesAtual.getMonth()]} {mesAtual.getFullYear()}</span>
       </div>
+      <div className="pl-calendar-legend" aria-label="Legenda de tipos de compromisso">
+        {[
+          ['Vistoria', COMPROMISSO_CORES.vistoria],
+          ['Montagem', COMPROMISSO_CORES.montagem],
+          ['Assistência', COMPROMISSO_CORES.assistencia],
+          ['Medição', COMPROMISSO_CORES.medicao],
+          ['Entrega', COMPROMISSO_CORES.entrega],
+          ['Reunião', COMPROMISSO_CORES.reuniao],
+        ].map(([label, color]) => (
+          <span key={label}><i style={{ background: color }} />{label}</span>
+        ))}
+      </div>
       <div className="pl-weekdays">
         {DIAS.map(d => <div key={d}>{d}</div>)}
       </div>
@@ -583,11 +606,13 @@ function Calendario({ dias, mesAtual, abrirObra, abrirModalDia }) {
                 <button
                   key={`${dia.key}-${item.origem}-${item.id}`}
                   onClick={e => { e.stopPropagation(); abrirObra(item.obra_id) }}
-                  style={{ borderLeftColor: item.faseCor, background: `${item.faseCor}12` }}
+                  className={item.origem === 'agenda' ? 'agenda-item' : 'cronograma-item'}
+                  style={{ borderLeftColor: item.tom?.border || item.faseCor, background: item.tom?.bg || `${item.faseCor}12` }}
                 >
                   <strong>{item.obra.nome || 'Obra'}</strong>
                   <span>{item.montadores[0] ? nomePessoa(item.montadores[0]) : nomePessoa(item.supervisor)}</span>
-                  <em style={{ color: item.faseCor }}>{item.compromissoTipo}</em>
+                  <em style={{ color: item.tom?.cor || item.faseCor }}>{item.compromissoTipo}</em>
+                  <small>{item.origem === 'agenda' ? 'Agenda' : 'Cronograma'}</small>
                 </button>
               ))}
               {dia.obras.length > 4 && <small>+{dia.obras.length - 4} obras</small>}
@@ -834,16 +859,22 @@ const css = `
 .pl-card-head{display:flex;justify-content:space-between;gap:14px;align-items:center;margin-bottom:15px}
 .pl-card-head h2{font-size:15px;margin:0;font-weight:900;color:${THEME.ink}}
 .pl-card-head span{font-size:12px;color:${THEME.gold};font-weight:900}
+.pl-calendar-legend{display:flex;gap:8px;flex-wrap:wrap;margin:-4px 0 12px}
+.pl-calendar-legend span{display:inline-flex;align-items:center;gap:6px;border:1px solid ${THEME.border};background:#FFFEFC;border-radius:999px;padding:6px 9px;font-size:10.5px;color:${THEME.muted};font-weight:900}
+.pl-calendar-legend i{width:8px;height:8px;border-radius:999px;display:inline-block}
 .pl-weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:8px}
 .pl-weekdays div{font-size:11px;color:${THEME.muted};font-weight:900;text-align:center}
 .pl-calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
 .pl-day{min-height:132px;border:1px solid ${THEME.border};background:#FFFEFC;border-radius:13px;padding:9px;min-width:0;cursor:pointer;transition:border-color .15s,box-shadow .15s}
 .pl-day:hover{border-color:${THEME.gold};box-shadow:0 10px 24px rgba(29,28,25,.06)}
 .pl-day.outside{opacity:.45;background:#F9F6F0}
-.pl-day.non-workday{background:#F7F1EA;border-color:#DFCDB4}
+.pl-day.non-workday{background:#F4EBDD;border-color:#D9C5A8}
+.pl-day.non-workday .pl-day-num{color:#A36F22}
 .pl-day-num{font-size:12px;font-weight:900;color:${THEME.gold};margin-bottom:7px}
 .pl-day-items{display:flex;flex-direction:column;gap:6px}
-.pl-day-items button{border:0;background:#F6F1E8;border-left:3px solid ${THEME.gold};border-radius:9px;padding:7px 8px;text-align:left;cursor:pointer;font-family:inherit;min-width:0}
+.pl-day-items button{border:1px solid rgba(231,224,213,.8);background:#F6F1E8;border-left:4px solid ${THEME.gold};border-radius:9px;padding:7px 8px;text-align:left;cursor:pointer;font-family:inherit;min-width:0;box-shadow:0 4px 12px rgba(29,28,25,.035)}
+.pl-day-items button.agenda-item{border-style:solid}
+.pl-day-items button.cronograma-item{border-style:dashed}
 .pl-day-items strong{display:block;font-size:11.5px;color:${THEME.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pl-day-items span,.pl-day-items small{display:block;font-size:10.5px;color:${THEME.muted};margin-top:2px}
 .pl-day-items em{display:inline-flex;margin-top:5px;border-radius:999px;background:#fff;color:${THEME.gold};font-style:normal;font-size:9.5px;font-weight:900;padding:2px 6px}
@@ -892,5 +923,5 @@ const css = `
 .pl-modal-foot button{border:1px solid ${THEME.border};background:#fff;color:${THEME.muted};border-radius:10px;padding:10px 15px;font-size:13px;font-weight:800;cursor:pointer}
 .pl-modal-foot button.primary{background:${THEME.gold};border-color:${THEME.gold};color:#fff}
 @media (max-width:1100px){.pl-kpis{grid-template-columns:repeat(3,1fr)}.pl-attention-list{grid-template-columns:1fr 1fr}.pl-filters{grid-template-columns:repeat(2,1fr)}.pl-calendar{grid-template-columns:repeat(2,1fr)}.pl-weekdays{display:none}.pl-day{min-height:auto}.pl-day.outside{display:none}.pl-form-grid{grid-template-columns:1fr 1fr}}
-@media (max-width:760px){.pl-page{padding:22px 14px calc(112px + env(safe-area-inset-bottom))}.pl-header{display:block;margin-bottom:12px}.pl-eyebrow{font-size:9px;letter-spacing:2px;margin-bottom:4px}.pl-header h1{font-size:28px;line-height:1.02}.pl-header p{font-size:12.5px;line-height:1.45}.pl-month-nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;justify-content:flex-start;margin-top:10px}.pl-month-nav strong{grid-column:1/-1;order:-1;text-align:left;min-width:0;font-size:16px}.pl-month-nav button{width:100%;padding:10px 9px;font-size:12px}.pl-mobile-actions{display:grid;grid-template-columns:1.35fr 1fr 1fr;gap:8px;margin:0 auto 12px;max-width:1480px}.pl-mobile-actions button{border:1px solid ${THEME.border};background:#fff;color:${THEME.ink};border-radius:13px;padding:10px 8px;font-size:12px;font-weight:900;font-family:inherit}.pl-mobile-actions button.primary{background:${THEME.gold};border-color:${THEME.gold};color:#fff}.pl-kpis{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px}.pl-kpis>*{flex:0 0 auto;min-width:auto;max-width:none}.pl-kpi{display:flex;align-items:center;gap:7px;border-radius:999px;padding:7px 10px;min-width:auto;max-width:none;border-top:1px solid rgba(184,150,94,.22)}.pl-kpi span{white-space:nowrap;font-size:10.5px;line-height:1;letter-spacing:0;margin:0}.pl-kpi strong{font-size:15px}.pl-attention{padding:15px 13px;border-radius:15px}.pl-attention-list{grid-template-columns:1fr}.pl-mobile-operational{display:grid;gap:10px;margin:0 auto 12px;max-width:1480px}.pl-mobile-group{background:#fff;border:1px solid ${THEME.border};border-radius:16px;padding:13px;box-shadow:0 14px 34px rgba(29,28,25,.045)}.pl-mobile-group-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.pl-mobile-group-head h2{font-size:19px;margin:0}.pl-mobile-group-head span{color:${THEME.gold};font-size:13px;font-weight:900}.pl-mobile-item{width:100%;border:1px solid ${THEME.border};background:#FFFEFC;border-radius:13px;padding:12px;margin-top:8px;display:flex;justify-content:space-between;gap:12px;text-align:left;font-family:inherit}.pl-mobile-item span{display:block;font-size:10px;letter-spacing:1.4px;text-transform:uppercase;color:${THEME.gold};font-weight:900;margin-bottom:4px}.pl-mobile-item strong{display:block;font-size:14px;color:${THEME.ink};line-height:1.25}.pl-mobile-item small,.pl-mobile-item em{display:block;font-size:11.5px;color:${THEME.muted};line-height:1.35;font-style:normal}.pl-mobile-side{display:flex;flex-direction:column;align-items:flex-end;gap:6px;min-width:92px}.pl-mobile-side b{border-radius:999px;padding:5px 8px;font-size:10.5px;line-height:1;font-weight:900;white-space:nowrap}.pl-mobile-side b.tone-success{background:#EAF5EE;color:#2D7A4A}.pl-mobile-side b.tone-info{background:#EEF5FB;color:#1E5A8A}.pl-mobile-side b.tone-warn{background:#FFF4E5;color:${THEME.warn}}.pl-mobile-item em{text-align:right;max-width:120px}.pl-mobile-empty{border:0;border-radius:0;padding:3px 0 2px;text-align:left;color:${THEME.muted};font-size:12.5px}.pl-tabs,.pl-card:has(.pl-calendar){display:none}.pl-card{padding:15px 13px;border-radius:15px}.pl-card-head h2{font-size:20px}.pl-calendar{grid-template-columns:1fr;gap:10px}.pl-day{min-height:78px;padding:11px 12px}.pl-day.outside{display:none}.pl-day-items button{padding:9px 10px}.pl-day-items strong{white-space:normal}.pl-filters{grid-template-columns:1fr}.pl-gantt-head,.pl-gantt-row{grid-template-columns:190px repeat(var(--cols),100px)}.pl-modal-bg{align-items:flex-end;padding:8px}.pl-modal{max-height:94vh;border-radius:18px 18px 0 0}.pl-modal-head{padding:20px 18px 0}.pl-modal-body{padding:18px}.pl-modal-foot{padding:14px 18px}.pl-form-grid{grid-template-columns:1fr}}
+@media (max-width:760px){.pl-page{padding:22px 14px calc(112px + env(safe-area-inset-bottom))}.pl-header{display:block;margin-bottom:12px}.pl-eyebrow{font-size:9px;letter-spacing:2px;margin-bottom:4px}.pl-header h1{font-size:28px;line-height:1.02}.pl-header p{font-size:12.5px;line-height:1.45}.pl-month-nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;justify-content:flex-start;margin-top:10px}.pl-month-nav strong{grid-column:1/-1;order:-1;text-align:left;min-width:0;font-size:16px}.pl-month-nav button{width:100%;padding:10px 9px;font-size:12px}.pl-mobile-actions{display:grid;grid-template-columns:1.35fr 1fr 1fr;gap:8px;margin:0 auto 12px;max-width:1480px}.pl-mobile-actions button{border:1px solid ${THEME.border};background:#fff;color:${THEME.ink};border-radius:13px;padding:10px 8px;font-size:12px;font-weight:900;font-family:inherit}.pl-mobile-actions button.primary{background:${THEME.gold};border-color:${THEME.gold};color:#fff}.pl-kpis{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px}.pl-kpis>*{flex:0 0 auto;min-width:auto;max-width:none}.pl-kpi{display:flex;align-items:center;gap:7px;border-radius:999px;padding:7px 10px;min-width:auto;max-width:none;border-top:1px solid rgba(184,150,94,.22)}.pl-kpi span{white-space:nowrap;font-size:10.5px;line-height:1;letter-spacing:0;margin:0}.pl-kpi strong{font-size:15px}.pl-attention{padding:15px 13px;border-radius:15px}.pl-attention-list{grid-template-columns:1fr}.pl-mobile-operational{display:grid;gap:10px;margin:0 auto 12px;max-width:1480px}.pl-mobile-group{background:#fff;border:1px solid ${THEME.border};border-radius:16px;padding:13px;box-shadow:0 14px 34px rgba(29,28,25,.045)}.pl-mobile-group-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.pl-mobile-group-head h2{font-size:19px;margin:0}.pl-mobile-group-head span{color:${THEME.gold};font-size:13px;font-weight:900}.pl-mobile-item{width:100%;border:1px solid ${THEME.border};border-left:4px solid ${THEME.gold};background:#FFFEFC;border-radius:13px;padding:12px;margin-top:8px;display:flex;justify-content:space-between;gap:12px;text-align:left;font-family:inherit}.pl-mobile-item span{display:block;font-size:10px;letter-spacing:1.4px;text-transform:uppercase;color:${THEME.gold};font-weight:900;margin-bottom:4px}.pl-mobile-item strong{display:block;font-size:14px;color:${THEME.ink};line-height:1.25}.pl-mobile-item small,.pl-mobile-item em{display:block;font-size:11.5px;color:${THEME.muted};line-height:1.35;font-style:normal}.pl-mobile-side{display:flex;flex-direction:column;align-items:flex-end;gap:6px;min-width:92px}.pl-mobile-side b{border-radius:999px;padding:5px 8px;font-size:10.5px;line-height:1;font-weight:900;white-space:nowrap}.pl-mobile-side b.tone-success{background:#EAF5EE;color:#2D7A4A}.pl-mobile-side b.tone-info{background:#EEF5FB;color:#1E5A8A}.pl-mobile-side b.tone-warn{background:#FFF4E5;color:${THEME.warn}}.pl-mobile-item em{text-align:right;max-width:120px}.pl-mobile-empty{border:0;border-radius:0;padding:3px 0 2px;text-align:left;color:${THEME.muted};font-size:12.5px}.pl-tabs,.pl-card:has(.pl-calendar){display:none}.pl-card{padding:15px 13px;border-radius:15px}.pl-card-head h2{font-size:20px}.pl-calendar{grid-template-columns:1fr;gap:10px}.pl-day{min-height:78px;padding:11px 12px}.pl-day.outside{display:none}.pl-day-items button{padding:9px 10px}.pl-day-items strong{white-space:normal}.pl-filters{grid-template-columns:1fr}.pl-gantt-head,.pl-gantt-row{grid-template-columns:190px repeat(var(--cols),100px)}.pl-modal-bg{align-items:flex-end;padding:8px}.pl-modal{max-height:94vh;border-radius:18px 18px 0 0}.pl-modal-head{padding:20px 18px 0}.pl-modal-body{padding:18px}.pl-modal-foot{padding:14px 18px}.pl-form-grid{grid-template-columns:1fr}}
 `

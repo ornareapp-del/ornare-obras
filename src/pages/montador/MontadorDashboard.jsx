@@ -1,7 +1,8 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useStore } from '../../store/useStore'
+import { CHECKLIST_MONTAGEM_GERAL } from '../../constants/checklistOrnare'
 import { faseOrnarePorKey, faseOrnarePorTexto } from '../../constants/fasesOrnare'
 
 const THEME = {
@@ -37,32 +38,7 @@ const VISTORIA_CHECKLIST = [
   'Validar se ambientes estão limpos e desimpedidos.',
 ]
 
-const MONTAGEM_CHECKLIST = [
-  'Infraestrutura da obra validada e apta para receber o mobiliário.',
-  'Materiais e volumes do romaneio recebidos no local.',
-  'Acesso de carga, descarga e elevador liberado pelo condomínio.',
-  'Energia elétrica estável disponível para uso das ferramentas.',
-  'Área de trabalho limpa, desimpedida e organizada.',
-  'Equipe orientada sobre as particularidades do projeto.',
-  'Checklist de pré-obra consultado antes de iniciar a montagem.',
-  'Conferência quantitativa e qualitativa dos volumes realizada antes da abertura.',
-  'Avarias de transporte ou fábrica registradas de imediato, quando houver.',
-  'Sequência de montagem por ambiente seguida conforme planejamento.',
-  'Fixações estruturais executadas conforme o projeto e boas práticas.',
-  'Níveis, alinhamentos verticais e prumos dos módulos conferidos.',
-  'Acabamentos, vistas, fechamentos e tamponamentos ajustados corretamente.',
-  'Recortes e compatibilizações de pontos elétricos e hidráulicos conferidos.',
-  'Ferragens especiais instaladas conforme caderno executivo.',
-  'Fotos da chegada e descarregamento dos materiais registradas.',
-  'Fotos da desembalagem dos módulos principais registradas.',
-  'Fotos das etapas de fixação e montagem registradas.',
-  'Fotos macro dos acabamentos e junções de cantos registradas.',
-  'Foto grande angular de cada ambiente finalizado registrada.',
-  'Mobiliário limpo e sem riscos, manchas ou danos aparentes.',
-  'Funcionamento de portas, gavetas, dobradiças e amortecimentos testado.',
-  'Pendências técnicas residuais registradas em relatório.',
-  'Supervisor notificado sobre o término dos trabalhos em campo.',
-]
+const MONTAGEM_CHECKLIST = CHECKLIST_MONTAGEM_GERAL
 
 const PRIORIDADE = {
   baixa: { label: 'Baixa', color: '#8A8175' },
