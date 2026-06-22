@@ -31,8 +31,6 @@ function montarModeloPadrao(modelo) {
 function montarModeloPadraoBasico(modelo) {
   return {
     descricao: modelo.descricao,
-    fase: modelo.fase,
-    categoria_ambiente: modelo.ambiente || 'Geral',
     ordem: modelo.ordem,
   }
 }
@@ -179,8 +177,10 @@ export async function aplicarBibliotecaChecklist(obraId, filtros = {}) {
   const { modelos, error: erroBiblioteca } = await garantirBibliotecaPadrao(modelosIniciais || [])
   if (erroBiblioteca) return { count: 0, skipped: 0, error: erroBiblioteca }
 
-  const faseFiltro = normalizar(filtros.fase)
-  const ambienteFiltro = normalizar(filtros.ambiente)
+  const temFaseNosModelos = (modelos || []).some(item => item.fase)
+  const temAmbienteNosModelos = (modelos || []).some(item => valorAmbientePadrao(item))
+  const faseFiltro = temFaseNosModelos ? normalizar(filtros.fase) : ''
+  const ambienteFiltro = temAmbienteNosModelos ? normalizar(filtros.ambiente) : ''
   const ambientesNormalizados = (ambientes || []).map(a => ({ ...a, nomeNormalizado: normalizar(a.nome) }))
   const chavesExistentes = new Set((existentes || []).map(i => `${i.ambiente_id || 'geral'}::${normalizar(i.descricao)}`))
   const rows = []

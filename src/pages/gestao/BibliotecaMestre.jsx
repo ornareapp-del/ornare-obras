@@ -77,8 +77,6 @@ function montarRowImportacao(modelo) {
 function montarRowImportacaoBasico(modelo) {
   return {
     descricao: modelo.descricao,
-    fase: modelo.fase,
-    categoria_ambiente: modelo.ambiente || 'Geral',
     ordem: modelo.ordem,
   }
 }
@@ -86,10 +84,16 @@ function montarRowImportacaoBasico(modelo) {
 function montarRowBasico(form) {
   return {
     descricao: form.descricao.trim(),
-    fase: form.fase || null,
-    categoria_ambiente: form.ambiente || 'Geral',
     ordem: form.ordem ? Number(form.ordem) : null,
   }
+}
+
+function mensagemErroBiblioteca(error) {
+  const msg = error?.message || ''
+  if (msg.includes("Could not find the 'fase' column") || msg.includes("Could not find the 'categoria_ambiente' column")) {
+    return 'A Biblioteca Mestre precisa da atualização de schema no Supabase para usar fase e ambiente. Enquanto isso, os modelos serão importados com descrição e ordem.'
+  }
+  return msg || 'Não foi possível concluir a operação.'
 }
 
 export default function BibliotecaMestre() {
@@ -131,9 +135,11 @@ export default function BibliotecaMestre() {
   useEffect(() => { carregar() }, [])
 
   const vm = useMemo(() => {
+    const temFaseNosItens = itens.some(item => item.fase)
+    const temAmbienteNosItens = itens.some(item => valorAmbiente(item))
     const filtrados = itens.filter(item => {
-      const porFase = !filtros.fase || item.fase === filtros.fase
-      const porAmbiente = !filtros.ambiente || valorAmbiente(item) === filtros.ambiente
+      const porFase = !filtros.fase || !temFaseNosItens || item.fase === filtros.fase
+      const porAmbiente = !filtros.ambiente || !temAmbienteNosItens || valorAmbiente(item) === filtros.ambiente
       const porStatus = !filtros.status || (filtros.status === 'ativo' ? valorAtivo(item) : !valorAtivo(item))
       return porFase && porAmbiente && porStatus
     })
@@ -168,7 +174,7 @@ export default function BibliotecaMestre() {
 
     if (error) {
       const { error: fallbackError } = await supabase.from('checklist_padrao').insert([montarRowBasico(form)])
-      if (fallbackError) setErro(fallbackError.message || error.message)
+      if (fallbackError) setErro(mensagemErroBiblioteca(fallbackError))
       else {
         setForm(novoForm())
         mostrarToast('Modelo criado com os campos compatíveis do banco atual.')
@@ -202,7 +208,7 @@ export default function BibliotecaMestre() {
     if (error) {
       const { error: fallbackError } = await supabase.from('checklist_padrao').insert(novos.map(montarRowImportacaoBasico))
       if (fallbackError) {
-        setErro(fallbackError.message || error.message)
+        setErro(mensagemErroBiblioteca(fallbackError))
         setLoading(false)
       } else {
         mostrarToast(automatico ? 'Biblioteca Mestre inicializada com modelos compatíveis.' : `${novos.length} modelos de campo importados com campos compatíveis.`)
