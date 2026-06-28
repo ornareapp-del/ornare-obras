@@ -351,7 +351,7 @@ export default function ObraDetalhe() {
         Voltar para obras
       </button>
 
-      <section style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: 18, padding: compacto ? 18 : 26, marginBottom: 18, boxShadow: '0 20px 45px rgba(29,28,25,0.07)' }}>
+      <section style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: 18, padding: compacto ? 18 : 26, paddingRight: compacto ? 18 : 246, marginBottom: 18, boxShadow: '0 20px 45px rgba(29,28,25,0.07)', boxSizing: 'border-box' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: compacto ? 'stretch' : 'flex-start', gap: 18, flexDirection: compacto ? 'column' : 'row' }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 10, letterSpacing: 3, color: THEME.gold, textTransform: 'uppercase', marginBottom: 8, fontWeight: 700 }}>Detalhe da obra</div>

@@ -281,7 +281,7 @@ const css = `
 .ob-mobile-kpis,.ob-app-card{display:none}
 @media (max-width:760px){
   .ow-page{padding-bottom:112px !important}
-  .ob-header{display:grid !important;grid-template-columns:1fr auto;gap:10px;align-items:end !important;margin-bottom:13px !important}
+  .ob-header{display:grid !important;grid-template-columns:1fr;gap:10px;align-items:start !important;margin-bottom:13px !important;padding-right:0 !important}
   .ob-header h1{font-size:27px !important;line-height:1 !important}
   .ob-header p{display:none !important}
   .ob-new{padding:9px 12px !important;border-radius:12px !important;font-size:12px !important}
@@ -311,11 +311,11 @@ const css = `
 
 const s = {
   page: { padding: '32px 40px', maxWidth: 1100, margin: '0 auto', background: theme.background, color: theme.textPrimary, fontFamily: 'Inter, sans-serif' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 18, marginBottom: 28, paddingRight: 220, boxSizing: 'border-box' },
   breadcrumb: { fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6 },
   title: { fontFamily: 'var(--font-serif)', fontSize: 36, fontWeight: 500, color: 'var(--color-ink)', margin: 0 },
   sub: { fontSize: 13, color: 'var(--color-ink-muted)', marginTop: 4 },
-  btnNew: { background: theme.gold, color: '#141210', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' },
+  btnNew: { background: '#C9A84C', color: '#141210', fontWeight: 600, fontSize: 14, borderRadius: 8, padding: '10px 20px', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' },
   kpiGrid: { display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 12, marginBottom: 20 },
   kpi: { background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
   kpiLabel: { display: 'block', fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: 'var(--color-gold)', fontWeight: 800, marginBottom: 8 },

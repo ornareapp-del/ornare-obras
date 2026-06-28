@@ -550,7 +550,7 @@ const css = `
 .ga-mobile-summary{display:none}
 @media (max-width:760px){
   .ow-page{padding-bottom:112px !important}
-  .ga-header{display:grid !important;grid-template-columns:1fr;gap:10px;margin-bottom:14px !important}
+  .ga-header{display:grid !important;grid-template-columns:1fr;gap:10px;margin-bottom:14px !important;padding-right:0 !important}
   .ga-header h1{font-size:27px !important;line-height:1.02 !important}
   .ga-header p{font-size:12px !important;line-height:1.35 !important;max-width:31ch}
   .ga-header button{width:100% !important;border-radius:14px !important;padding:11px 14px !important}
@@ -581,7 +581,7 @@ const css = `
 
 const s = {
   page:         { padding: '32px 40px', maxWidth: 1000, margin: '0 auto', background: theme.background, color: theme.textPrimary, fontFamily: 'Inter, sans-serif' },
-  header:       { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 },
+  header:       { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 18, marginBottom: 28, paddingRight: 220, boxSizing: 'border-box' },
   breadcrumb:   { fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6 },
   title:        { fontFamily: 'var(--font-serif)', fontSize: 36, fontWeight: 500, color: 'var(--color-ink)', margin: 0 },
   sub:          { fontSize: 13, color: 'var(--color-ink-muted)', marginTop: 4 },

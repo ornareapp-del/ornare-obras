@@ -353,7 +353,7 @@ const css = `
 .eq-mobile-summary{display:none}
 @media (max-width:760px){
   .ow-page{padding-bottom:112px !important}
-  .eq-header{display:grid !important;grid-template-columns:1fr auto;gap:10px;align-items:end !important;margin-bottom:13px !important}
+  .eq-header{display:grid !important;grid-template-columns:1fr auto;gap:10px;align-items:end !important;margin-bottom:13px !important;padding-right:0 !important}
   .eq-header h1{font-size:27px !important;line-height:1 !important}
   .eq-header p{font-size:12px !important;margin-top:4px !important}
   .eq-new{padding:9px 12px !important;border-radius:12px !important;font-size:12px !important}
@@ -383,7 +383,7 @@ const css = `
 
 const s = {
   page: { padding: '32px 40px', maxWidth: 1180, margin: '0 auto', background: theme.background, color: theme.textPrimary, fontFamily: 'Inter, sans-serif' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22, gap: 18 },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22, gap: 18, paddingRight: 220, boxSizing: 'border-box' },
   breadcrumb: { fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6, fontWeight: 800 },
   title: { fontFamily: 'var(--font-serif)', fontSize: 38, fontWeight: 500, color: 'var(--color-ink)', margin: 0, lineHeight: 1.05 },
   sub: { fontSize: 13, color: 'var(--color-ink-muted)', marginTop: 6 },

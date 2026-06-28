@@ -160,10 +160,10 @@ export default function Layout() {
 
       <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} isMobile={isMobile} />
 
-      <main className="ow-app-main" style={{ flex: 1, overflowY: 'auto', transition: 'all 0.25s', background: 'var(--color-bg, #F5F2EE)' }}>
+      <main className="ow-app-main" style={{ flex: 1, overflowY: 'auto', transition: 'all 0.25s', background: 'var(--color-bg, #F5F2EE)', paddingTop: isMobile ? 64 : 76, boxSizing: 'border-box' }}>
 
         {user?.id && (
-          <div style={{ position: 'fixed', top: isMobile ? 14 : 18, right: isMobile ? 14 : 22, zIndex: 36, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ position: 'fixed', top: 16, right: 16, zIndex: 1000, display: 'flex', alignItems: 'center', gap: 12 }}>
             {temPendencias && !isMobile && (
               <button
                 onClick={() => setNotificacoesAbertas(v => !v)}

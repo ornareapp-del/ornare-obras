@@ -899,7 +899,7 @@ const css = `
 .ag-status.tone-danger{background:#FFF1F1;color:#B84040}
 .ag-vistoria-placeholder{display:none}
 @media (max-width:760px){
-  .ag-header{display:grid !important;grid-template-columns:1fr auto;gap:10px;align-items:end !important;margin-bottom:13px !important}
+  .ag-header{display:grid !important;grid-template-columns:1fr auto;gap:10px;align-items:end !important;margin-bottom:13px !important;padding-right:0 !important}
   .ag-header h1{font-size:27px !important;line-height:1 !important}
   .ag-header p{display:none !important}
   .ag-new{padding:9px 12px !important;border-radius:12px !important;font-size:12px !important}
@@ -927,7 +927,7 @@ const css = `
 const s = {
   page: { padding: '32px 40px', maxWidth: 900, margin: '0 auto', background: theme.background, color: theme.textPrimary, fontFamily: 'Inter, sans-serif' },
   toast: { position: 'fixed', left: '50%', bottom: 24, transform: 'translateX(-50%)', zIndex: 1300, background: 'var(--color-ink)', color: '#fff', borderLeft: '3px solid var(--color-gold)', borderRadius: 13, padding: '12px 18px', fontSize: 13, fontWeight: 800, boxShadow: '0 14px 34px rgba(29,28,25,.18)' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 18, marginBottom: 24, paddingRight: 220, boxSizing: 'border-box' },
   breadcrumb: { fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6 },
   title: { fontFamily: 'var(--font-serif)', fontSize: 36, fontWeight: 500, color: 'var(--color-ink)', margin: 0 },
   sub: { fontSize: 13, color: 'var(--color-ink-muted)', marginTop: 4 },
