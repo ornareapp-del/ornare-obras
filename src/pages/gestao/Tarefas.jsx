@@ -125,7 +125,7 @@ export default function Tarefas() {
                 {prioridade.label && <span style={{ fontSize: 11, color: prioridade.color }}>Prioridade: {prioridade.label}</span>}
               </div>
             </div>
-            <select value={tarefa.status} onChange={e => mudarStatus(tarefa.id, e.target.value)} style={{ fontSize: 12, padding: '7px 10px', borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.surfaceElevated, color: status.color, fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}>
+            <select value={tarefa.status} onChange={e => mudarStatus(tarefa.id, e.target.value)} style={{ background: theme.inputBackground, border: '1px solid ' + theme.inputBorder, color: theme.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', fontSize: 14, outline: 'none', fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}>
               {Object.entries(ST).map(([value, item]) => <option key={value} value={value}>{item.label}</option>)}
             </select>
           </div>

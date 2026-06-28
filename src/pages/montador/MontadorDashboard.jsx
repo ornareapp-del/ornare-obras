@@ -12,11 +12,16 @@ const THEME = {
   border: theme.border,
   ink: theme.textPrimary,
   muted: theme.textSecondary,
+  textMuted: theme.textMuted,
   gold: theme.gold,
   success: theme.success,
   danger: theme.error,
   warn: theme.warning,
   elevated: theme.surfaceElevated,
+  inputBackground: theme.inputBackground,
+  inputBorder: theme.inputBorder,
+  inputText: theme.inputText,
+  inputPlaceholder: theme.inputPlaceholder,
 }
 
 const FOTO_CATEGORIAS = [
@@ -1411,11 +1416,11 @@ export default function MontadorDashboard() {
       )}
 
       <nav className="md-bottom-nav" aria-label="Navegação do montador">
-        <button style={telaAtiva === 'hoje' ? { background: THEME.ink, color: '#fff' } : undefined} onClick={() => setTelaAtiva('hoje')}><IconHome />Hoje</button>
-        <button style={telaAtiva === 'checklist' ? { background: THEME.ink, color: '#fff' } : undefined} onClick={() => setTelaAtiva('checklist')}><IconCheck />Checklist</button>
-        <button style={telaAtiva === 'fotos' ? { background: THEME.ink, color: '#fff' } : undefined} onClick={() => setTelaAtiva('fotos')}><IconCamera />Fotos</button>
-        <button style={telaAtiva === 'ocorrencias' ? { background: THEME.ink, color: '#fff' } : undefined} onClick={() => setTelaAtiva('ocorrencias')}><IconAlert />Ocorrências</button>
-        <button style={telaAtiva === 'perfil' ? { background: THEME.ink, color: '#fff' } : undefined} onClick={() => setTelaAtiva('perfil')}><IconUser />Perfil</button>
+        <button className={telaAtiva === 'hoje' ? 'active' : ''} onClick={() => setTelaAtiva('hoje')}><IconHome />Hoje</button>
+        <button className={telaAtiva === 'checklist' ? 'active' : ''} onClick={() => setTelaAtiva('checklist')}><IconCheck />Checklist</button>
+        <button className={telaAtiva === 'fotos' ? 'active' : ''} onClick={() => setTelaAtiva('fotos')}><IconCamera />Fotos</button>
+        <button className={telaAtiva === 'ocorrencias' ? 'active' : ''} onClick={() => setTelaAtiva('ocorrencias')}><IconAlert />Ocorrências</button>
+        <button className={telaAtiva === 'perfil' ? 'active' : ''} onClick={() => setTelaAtiva('perfil')}><IconUser />Perfil</button>
       </nav>
     </div>
   )
@@ -1459,7 +1464,7 @@ const css = `
 .md-profile-logout{width:100%;border:1px solid #F0C8C8;background:#FFF8F8;color:${THEME.danger};border-radius:13px;padding:13px;font-size:13px;font-weight:900;font-family:inherit;cursor:pointer;margin-top:4px}
 .md-field{margin-bottom:12px}
 .md-field label{display:block;font-size:10px;letter-spacing:1.8px;text-transform:uppercase;color:${THEME.gold};font-weight:800;margin-bottom:8px}
-.md-field select,.md-upload select,.md-upload input{width:100%;box-sizing:border-box;border:1px solid ${THEME.border};background:#fff;border-radius:12px;padding:12px 13px;font-family:inherit;font-size:14px;color:${THEME.ink}}
+.md-field select,.md-upload select,.md-upload input{width:100%;box-sizing:border-box;border:1px solid ${THEME.inputBorder};background:${THEME.inputBackground};border-radius:8px;padding:10px 14px;font-family:inherit;font-size:14px;color:${THEME.inputText};outline:none}
 .md-obra-card{background:${THEME.card};color:${THEME.ink};border:1px solid ${THEME.border};border-radius:12px;padding:20px;margin-bottom:12px;box-shadow:0 2px 12px rgba(0,0,0,.3)}
 .md-obra-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}
 .md-phase-badge{display:inline-flex;align-items:center;border:1px solid ${THEME.gold};border-radius:999px;padding:5px 9px;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;font-weight:900;margin-bottom:6px}
@@ -1569,7 +1574,7 @@ const css = `
 .md-env-chips button.active{border-color:${THEME.gold};background:${THEME.gold};color:#fff}
 .md-env-chips button.done{border-color:${THEME.success}}
 .md-add-check{border:1px dashed ${THEME.border};border-radius:14px;padding:10px;margin-top:10px;background:#FFFEFC}
-.md-add-check input{width:100%;box-sizing:border-box;border:1px solid ${THEME.border};background:#fff;border-radius:12px;padding:12px;font-size:14px;font-family:inherit;color:${THEME.ink};margin-bottom:8px}
+.md-add-check input{width:100%;box-sizing:border-box;border:1px solid ${THEME.inputBorder};background:${THEME.inputBackground};border-radius:8px;padding:10px 14px;font-size:14px;font-family:inherit;color:${THEME.inputText};outline:none;margin-bottom:8px}
 .md-add-check button{width:100%;border:1px solid ${THEME.gold};background:#fff;color:${THEME.gold};border-radius:12px;padding:12px;font-size:13px;font-weight:900;font-family:inherit;cursor:pointer}
 .md-add-check button:disabled{opacity:.45;cursor:not-allowed}
 .md-check-item{width:100%;border:1px solid ${THEME.border};background:#fff;border-radius:13px;padding:13px;display:flex;align-items:center;gap:11px;text-align:left;margin-top:8px;font-family:inherit;cursor:pointer}
@@ -1609,7 +1614,7 @@ const css = `
 .md-modal.calendar{max-height:88vh;overflow:auto}
 .md-modal h2{font-family:var(--font-serif);font-size:22px;font-weight:500;margin:0 0 5px;color:${THEME.ink}}
 .md-modal p{font-size:13px;color:${THEME.muted};margin:0 0 14px}
-.md-modal textarea{width:100%;box-sizing:border-box;border:1px solid ${THEME.border};border-radius:13px;padding:12px;font-family:inherit;font-size:14px;resize:none;color:${THEME.ink}}
+.md-modal textarea{width:100%;box-sizing:border-box;border:1px solid ${THEME.inputBorder};background:${THEME.inputBackground};border-radius:8px;padding:10px 14px;font-family:inherit;font-size:14px;resize:none;color:${THEME.inputText};outline:none}
 .md-modal-actions{display:flex;gap:9px;justify-content:flex-end;margin-top:12px}
 .md-modal-actions.split{justify-content:stretch}
 .md-modal-actions button{border:1px solid ${THEME.border};background:#fff;border-radius:12px;padding:11px 14px;font-weight:800;color:${THEME.muted};cursor:pointer}
@@ -1642,8 +1647,9 @@ const css = `
 .md-calendar-event small{display:block;font-size:11px;color:${THEME.muted};margin-top:3px}
 .md-preview{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:900;display:flex;align-items:center;justify-content:center;padding:12px;cursor:pointer}
 .md-preview img{max-width:100%;max-height:92vh;border-radius:12px;object-fit:contain}
-.md-bottom-nav{position:fixed;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:700;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;background:rgba(255,254,252,.96);border:1px solid ${THEME.border};border-radius:18px;padding:7px;box-shadow:0 18px 42px rgba(29,28,25,.18);backdrop-filter:blur(18px);max-width:500px;margin:0 auto}
-.md-bottom-nav button{border:0;background:transparent;color:${THEME.muted};border-radius:13px;min-height:54px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:9.5px;font-weight:900;cursor:pointer}
-.md-bottom-nav svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;color:${THEME.gold}}
+.md-bottom-nav{position:fixed;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:700;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;background:#1E1B18;border-top:1px solid #332F2A;border-left:1px solid #332F2A;border-right:1px solid #332F2A;border-bottom:1px solid #332F2A;border-radius:18px;padding:7px;box-shadow:0 18px 42px rgba(0,0,0,.32);backdrop-filter:blur(18px);max-width:500px;margin:0 auto}
+.md-bottom-nav button{border:0;background:transparent;color:${THEME.textMuted};border-radius:13px;min-height:54px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:9.5px;font-weight:900;cursor:pointer}
+.md-bottom-nav button.active{color:${THEME.gold};background:rgba(201,168,76,.12)}
+.md-bottom-nav svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;color:currentColor}
 @media (min-width:720px){.md-page{max-width:680px;padding:26px 20px calc(112px + env(safe-area-inset-bottom))}.md-summary{grid-template-columns:repeat(4,1fr)}.md-quick{grid-template-columns:repeat(4,1fr)}}
 `

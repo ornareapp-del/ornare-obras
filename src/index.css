@@ -9,21 +9,25 @@
   --gold-pale:       rgba(201,168,76,0.16);
   --gold-muted:      rgba(201,168,76,0.14);
 
-  --sand:            #0F0F0F;
-  --fendi:           #2A2A2A;
-  --off-white:       #222222;
-  --white:           #1A1A1A;
+  --sand:            #141210;
+  --fendi:           #332F2A;
+  --off-white:       #272320;
+  --white:           #1E1B18;
 
-  --sidebar-bg:      #0F0F0F;
+  --sidebar-bg:      #141210;
   --sidebar-active:  rgba(201,168,76,0.14);
   --sidebar-border:  rgba(201,168,76,0.12);
 
-  --graphite:        #F5F5F0;
-  --graphite-mid:    #A0A0A0;
-  --graphite-light:  #606060;
+  --graphite:        #F5F0E8;
+  --graphite-mid:    #9E9589;
+  --graphite-light:  #5C574F;
 
-  --border:          #2A2A2A;
-  --border-light:    #333333;
+  --border:          #332F2A;
+  --border-light:    #3D3830;
+  --input-bg:        #272320;
+  --input-border:    #3D3830;
+  --input-text:      #F5F0E8;
+  --input-placeholder: #5C574F;
 
   --red:             #E05252;
   --green:           #4CAF7D;
@@ -70,8 +74,8 @@
 
 body {
   font-family: 'Inter', sans-serif;
-  background: var(--sand);
-  color: var(--graphite);
+  background: #141210;
+  color: #F5F0E8;
   font-size: 14px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
@@ -81,7 +85,8 @@ body {
 #root {
   min-height: 100vh;
   font-family: 'Inter', sans-serif;
-  background: var(--color-bg);
+  background: #141210;
+  color: #F5F0E8;
 }
 
 h1, h2, h3 {
@@ -110,6 +115,29 @@ h3 {
 
 input, select, textarea, button {
   font-family: inherit;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+select,
+textarea {
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--input-text);
+  border-radius: 8px;
+  padding: 10px 14px;
+  width: 100%;
+  font-size: 14px;
+  outline: none;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--input-placeholder);
+}
+
+select option {
+  background: var(--input-bg);
+  color: var(--input-text);
 }
 
 button, input, select, textarea {
@@ -347,11 +375,11 @@ button {
 .ow-filter-bar input,
 .ow-filter-bar select {
   width: 100%;
-  border: 1px solid var(--border);
-  background: var(--off-white);
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
   border-radius: var(--radius);
   padding: 10px 12px;
-  color: var(--graphite);
+  color: var(--input-text);
 }
 
 .ow-empty-state {
@@ -415,8 +443,8 @@ a {
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 4px;
     padding: 7px;
-    background: rgba(255, 254, 252, 0.96);
-    border: 1px solid var(--border);
+    background: #1E1B18;
+    border: 1px solid #332F2A;
     border-radius: 18px;
     box-shadow: 0 18px 42px rgba(29, 28, 25, 0.18);
     backdrop-filter: blur(18px);
@@ -428,7 +456,7 @@ a {
     border: 0;
     border-radius: 13px;
     background: transparent;
-    color: var(--graphite-mid);
+    color: var(--graphite-light);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -448,16 +476,16 @@ a {
     stroke-width: 2;
     stroke-linecap: round;
     stroke-linejoin: round;
-    color: var(--gold);
+    color: var(--graphite-light);
   }
 
   .ow-bottom-nav button.active {
-    background: var(--graphite);
-    color: var(--white);
+    background: rgba(201, 168, 76, 0.12);
+    color: var(--gold);
   }
 
   .ow-bottom-nav button.active svg {
-    color: var(--white);
+    color: var(--gold);
   }
 
   .ow-bottom-nav button span {

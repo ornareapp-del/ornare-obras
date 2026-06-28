@@ -13,6 +13,9 @@ const THEME = {
   gold: theme.gold,
   danger: theme.error,
   elevated: theme.surfaceElevated,
+  inputBackground: theme.inputBackground,
+  inputBorder: theme.inputBorder,
+  inputText: theme.inputText,
 }
 
 const FASES = FASES_CHECKLIST_ORNARE
@@ -425,7 +428,7 @@ const css = `
 .bm-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px}
 .bm-form label{display:flex;flex-direction:column;gap:6px;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:${THEME.muted};font-weight:900}
 .bm-form label.bm-full{margin-bottom:11px}
-.bm-form input,.bm-form select,.bm-form textarea,.bm-filters select{width:100%;box-sizing:border-box;border:1px solid ${THEME.border};background:#FFFEFC;border-radius:10px;padding:10px 11px;font-family:inherit;font-size:13px;color:${THEME.ink};outline:none}
+.bm-form input,.bm-form select,.bm-form textarea,.bm-filters select{background:${THEME.inputBackground};border:1px solid ${THEME.inputBorder};color:${THEME.inputText};border-radius:8px;padding:10px 14px;width:100%;font-size:14px;outline:none;box-sizing:border-box;font-family:inherit}
 .bm-form textarea{resize:vertical;line-height:1.45;text-transform:none;letter-spacing:0}
 .bm-switches{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0}
 .bm-switches label{flex-direction:row;align-items:center;text-transform:none;letter-spacing:0;font-size:12px;color:${THEME.ink}}

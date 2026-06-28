@@ -326,10 +326,10 @@ function Campo({ label, children, full }) {
   )
 }
 function FInput({ onChange, ...props }) {
-  return <input {...props} onChange={e => onChange(e.target.value)} style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: `1px solid ${theme.border}`, fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit', color: theme.textPrimary, background: theme.surfaceElevated, outline: 'none' }} />
+  return <input {...props} onChange={e => onChange(e.target.value)} style={{ background: theme.inputBackground, border: '1px solid ' + theme.inputBorder, color: theme.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }} />
 }
 function FSelect({ onChange, children, ...props }) {
-  return <select {...props} onChange={e => onChange(e.target.value)} style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: `1px solid ${theme.border}`, fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit', color: theme.textPrimary, background: theme.surfaceElevated }}>{children}</select>
+  return <select {...props} onChange={e => onChange(e.target.value)} style={{ background: theme.inputBackground, border: '1px solid ' + theme.inputBorder, color: theme.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}>{children}</select>
 }
 
 // ─── ESTILOS ──────────────────────────────────────────────────────────────────
@@ -344,7 +344,7 @@ const s = {
   erro:         { background: '#fceee9', borderLeft: '3px solid #c4421e', color: '#5c2010', padding: '10px 14px', borderRadius: 6, fontSize: 12, marginBottom: 16 },
   ambienteGrid: { display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
   ambienteTag:  { padding: '6px 14px', borderRadius: 20, fontSize: 12, cursor: 'pointer', transition: 'all .15s' },
-  textarea:     { width: '100%', border: `1px solid ${theme.border}`, borderRadius: 8, padding: '10px 12px', fontSize: 13, fontFamily: 'inherit', color: theme.textPrimary, background: theme.surfaceElevated, height: 80, resize: 'vertical', boxSizing: 'border-box' },
+  textarea:     { background: theme.inputBackground, border: '1px solid ' + theme.inputBorder, color: theme.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', fontSize: 14, outline: 'none', fontFamily: 'inherit', height: 80, resize: 'vertical', boxSizing: 'border-box' },
   btnAdd:       { background: theme.gold, color: theme.background, border: 'none', borderRadius: 8, padding: '12px 24px', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' },
   footer:       { display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--color-border)' },
   btnCancel:    { background: 'none', border: '1px solid var(--color-border)', borderRadius: 8, padding: '10px 20px', fontSize: 13, cursor: 'pointer', color: '#888' },

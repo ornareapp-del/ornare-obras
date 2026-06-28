@@ -148,7 +148,7 @@ const css = `
 .ow-login-head p{margin:8px 0 0;color:${theme.textSecondary};font-size:13px;line-height:1.45}
 .ow-field{display:block;margin-bottom:14px}
 .ow-field span{display:block;font-size:10px;letter-spacing:1.7px;color:${theme.textSecondary};margin-bottom:7px;text-transform:uppercase;font-weight:900}
-.ow-field input{width:100%;min-height:50px;padding:12px 14px;border-radius:8px;border:1px solid ${theme.border};font-size:15px;font-family:inherit;background:${theme.surfaceElevated};box-sizing:border-box;outline:none;color:${theme.textPrimary};transition:border-color .15s,box-shadow .15s}
+.ow-field input{background:${theme.inputBackground};border:1px solid ${theme.inputBorder};color:${theme.inputText};border-radius:8px;padding:10px 14px;width:100%;font-size:14px;outline:none;min-height:50px;font-family:inherit;box-sizing:border-box;transition:border-color .15s,box-shadow .15s}
 .ow-field input:focus{border-color:${theme.gold};box-shadow:0 0 0 3px rgba(201,168,76,.18)}
 .ow-login-error{font-size:12px;color:${theme.error};margin:2px 0 12px;padding:10px 12px;background:rgba(224,82,82,.12);border-radius:12px;border-left:3px solid ${theme.error}}
 .ow-login-submit{width:100%;min-height:52px;border-radius:8px;background:${theme.gold};color:#0F0F0F;border:0;font-size:13px;font-weight:600;cursor:pointer;margin-top:4px;font-family:inherit;box-shadow:0 2px 12px rgba(0,0,0,.3);transition:background .18s,box-shadow .18s;padding:12px 24px}

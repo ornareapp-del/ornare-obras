@@ -15,6 +15,9 @@ const THEME = {
   dark: '#0F0E0C',
   success: '#1F6B43',
   danger: '#B44747',
+  inputBackground: '#272320',
+  inputBorder: '#3D3830',
+  inputText: '#F5F0E8',
 }
 
 const DESKTOP_NAV = [
@@ -804,7 +807,7 @@ const css = `
 .pc-timeline div.done i{background:${THEME.ink};color:#fff}
 .pc-timeline div.active i{background:#fff;color:${THEME.gold}}
 .pc-filter-card{display:grid;grid-template-columns:1fr 1fr;gap:10px;background:${THEME.card};border:1px solid ${THEME.border};border-radius:16px;padding:12px}
-.pc-filter-card select{width:100%;border:1px solid ${THEME.border};background:#FFFEFC;border-radius:10px;padding:11px;font-family:inherit;color:${THEME.ink}}
+.pc-filter-card select{background:${THEME.inputBackground};border:1px solid ${THEME.inputBorder};color:${THEME.inputText};border-radius:8px;padding:10px 14px;width:100%;font-size:14px;outline:none;font-family:inherit}
 .pc-gallery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .pc-gallery button{border:0;background:${THEME.card};border-radius:17px;overflow:hidden;padding:0;text-align:left;cursor:zoom-in;box-shadow:0 18px 42px rgba(29,28,25,.055)}
 .pc-gallery img,.pc-gallery button>span{display:block;width:100%;height:250px;object-fit:cover;background:#E8E0D5}
@@ -836,7 +839,7 @@ const css = `
 .pc-message>span{display:block;color:${THEME.gold};font-size:10px;letter-spacing:1.5px;text-transform:uppercase;font-weight:900;margin-bottom:8px}
 .pc-message p{white-space:pre-wrap}
 .pc-message-composer{position:sticky;bottom:calc(92px + env(safe-area-inset-bottom));background:${THEME.card};border:1px solid ${THEME.border};border-radius:18px;padding:13px;box-shadow:0 18px 42px rgba(29,28,25,.08)}
-.pc-message-composer textarea{width:100%;border:1px solid ${THEME.border};border-radius:13px;background:#FFFEFC;padding:12px;font-family:inherit;font-size:14px;color:${THEME.ink};resize:vertical;min-height:82px;box-sizing:border-box}
+.pc-message-composer textarea{background:${THEME.inputBackground};border:1px solid ${THEME.inputBorder};color:${THEME.inputText};border-radius:8px;padding:10px 14px;width:100%;font-size:14px;outline:none;font-family:inherit;resize:vertical;min-height:82px;box-sizing:border-box}
 .pc-message-composer button{margin-top:10px;width:100%;border:0;border-radius:12px;background:${THEME.gold};color:#fff;padding:12px;font-weight:950;font-family:inherit;cursor:pointer}
 .pc-message-composer button:disabled{opacity:.55;cursor:default}
 .pc-message-composer span{display:block;margin-top:8px;color:${THEME.muted};font-size:12px;font-weight:800}
@@ -857,7 +860,7 @@ const css = `
 .pc-modal-card>span{display:block;color:${THEME.gold};font-size:10px;letter-spacing:1.7px;text-transform:uppercase;font-weight:950;margin-bottom:7px}
 .pc-modal-card h2{margin:0;color:${THEME.ink};font-size:22px}
 .pc-modal-card p{margin:8px 0 14px;color:${THEME.muted};font-size:13px}
-.pc-modal-card textarea{width:100%;border:1px solid ${THEME.border};border-radius:13px;background:#FFFEFC;padding:12px;font-family:inherit;color:${THEME.ink};resize:vertical;box-sizing:border-box}
+.pc-modal-card textarea{background:${THEME.inputBackground};border:1px solid ${THEME.inputBorder};color:${THEME.inputText};border-radius:8px;padding:10px 14px;width:100%;font-size:14px;outline:none;font-family:inherit;resize:vertical;box-sizing:border-box}
 .pc-primary-action{margin-top:12px;width:100%;border:0;border-radius:12px;background:${THEME.gold};color:#fff;padding:12px;font-family:inherit;font-weight:950;cursor:pointer}
 .pc-preview{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.94);display:flex;align-items:center;justify-content:center;padding:16px;cursor:zoom-out}
 .pc-preview img{max-width:96vw;max-height:92vh;border-radius:10px;object-fit:contain}

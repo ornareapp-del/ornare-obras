@@ -187,7 +187,7 @@ function Modal({ obras, profiles, todosGastos, onClose, onSaved }) {
 
             <div>
               <label style={ms.label}>Valor (R$) *</label>
-              <input style={{ ...ms.input, borderColor: excedeMeta && valorNum > 0 ? '#e8c0c0' : '#e0dbd4' }}
+              <input style={{ ...ms.input, borderColor: excedeMeta && valorNum > 0 ? theme.error : theme.inputBorder }}
                 value={form.valor}
                 onChange={e => set('valor', e.target.value)}
                 placeholder="0,00" />
@@ -601,7 +601,7 @@ const s = {
   catVal:       { fontSize: 12, fontWeight: 600, color: 'var(--color-ink)', minWidth: 100, textAlign: 'right' },
   catPct:       { fontSize: 11, color: '#aaa', minWidth: 36, textAlign: 'right' },
   filters:      { display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' },
-  select:       { padding: '8px 12px', borderRadius: 8, border: '1px solid var(--color-border)', fontSize: 13, fontFamily: 'inherit', background: '#fff', color: 'var(--color-ink)' },
+  select:       { background: theme.inputBackground, border: '1px solid ' + theme.inputBorder, color: theme.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', fontSize: 14, outline: 'none', fontFamily: 'inherit' },
   list:         { display: 'flex', flexDirection: 'column', gap: 8 },
   item:         { background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 20, display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', transition: 'border-color .15s', boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
   itemDot:      { width: 10, height: 10, borderRadius: '50%', flexShrink: 0 },
@@ -627,7 +627,7 @@ const ms = {
   grid:        { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 },
   full:        { gridColumn: '1/-1' },
   label:       { display: 'block', fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: '#888', marginBottom: 6 },
-  input:       { width: '100%', border: '1px solid #e0dbd4', borderRadius: 8, padding: '9px 12px', fontSize: 13, fontFamily: 'inherit', color: 'var(--color-ink)', background: '#fafaf8', outline: 'none', boxSizing: 'border-box' },
+  input:       { background: theme.inputBackground, border: '1px solid ' + theme.inputBorder, color: theme.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' },
   uploadArea:  { display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px dashed #e0dbd4', borderRadius: 8, padding: '16px', cursor: 'pointer', background: '#fafaf8', width: '100%', boxSizing: 'border-box' },
   erro:        { background: '#fceee9', borderLeft: '3px solid #c4421e', color: '#5c2010', padding: '10px 14px', borderRadius: 6, fontSize: 12, marginBottom: 16 },
   alertaExcede:   { background: '#fdecea', borderLeft: '3px solid #B84040', color: '#7a2020', padding: '10px 14px', borderRadius: 6, fontSize: 12, marginBottom: 16, lineHeight: 1.5 },

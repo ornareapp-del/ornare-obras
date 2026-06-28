@@ -73,6 +73,10 @@ const THEME = {
   softGold: 'rgba(201,168,76,.16)',
   danger: theme.error,
   elevated: theme.surfaceElevated,
+  inputBackground: theme.inputBackground,
+  inputBorder: theme.inputBorder,
+  inputText: theme.inputText,
+  inputPlaceholder: theme.inputPlaceholder,
 }
 
 const FOTO_CATEGORIAS = [
@@ -131,17 +135,17 @@ async function criarNotificacoesObra({ obraId, tipo, titulo, descricao, priorida
 }
 
 const textareaStyle = {
+  background: THEME.inputBackground,
+  border: '1px solid ' + THEME.inputBorder,
+  color: THEME.inputText,
+  borderRadius: 8,
+  padding: '10px 14px',
   width: '100%',
-  padding: '11px 13px',
-  borderRadius: 9,
-  border: `1px solid ${THEME.border}`,
-  fontSize: 13,
-  fontFamily: 'inherit',
+  fontSize: 14,
   resize: 'vertical',
   boxSizing: 'border-box',
+  fontFamily: 'inherit',
   outline: 'none',
-  background: '#FFFEFC',
-  color: THEME.ink,
 }
 
 function acaoBtn(primary, active = false) {
@@ -364,7 +368,7 @@ export default function ObraDetalhe() {
               <button onClick={() => { setAba('Tarefas'); carregarTarefas() }} style={acaoBtn(false)}>Tarefas</button>
               <button onClick={() => setAba('Fotos')} style={acaoBtn(false)}>Fotos</button>
               <button onClick={() => setAba('Chat')} style={acaoBtn(false)}>Chat</button>
-              <select value={tipoPdf} onChange={e => setTipoPdf(e.target.value)} style={{ border: `1px solid ${THEME.border}`, borderRadius: 10, padding: '9px 10px', fontSize: 12.5, fontWeight: 700, color: THEME.ink, background: '#FFFEFC', fontFamily: 'inherit' }}>
+              <select value={tipoPdf} onChange={e => setTipoPdf(e.target.value)} style={{ background: THEME.inputBackground, border: '1px solid ' + THEME.inputBorder, color: THEME.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', fontSize: 14, outline: 'none', fontWeight: 700, fontFamily: 'inherit' }}>
                 <option value="executivo">Executivo</option>
                 <option value="operacional">Operacional</option>
                 <option value="cliente">Cliente</option>
@@ -687,7 +691,7 @@ export default function ObraDetalhe() {
             <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, padding: 22, marginBottom: 20 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div style={{ gridColumn: '1/-1' }}><Label>Título *</Label><FInput value={nova.titulo} onChange={v => setNova(p => ({ ...p, titulo: v }))} placeholder="Título da tarefa" /></div>
-                <div style={{ gridColumn: '1/-1' }}><Label>Descrição</Label><textarea value={nova.descricao} onChange={e => setNova(p => ({ ...p, descricao: e.target.value }))} rows={2} style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1px solid #ddd', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }} /></div>
+                <div style={{ gridColumn: '1/-1' }}><Label>Descrição</Label><textarea value={nova.descricao} onChange={e => setNova(p => ({ ...p, descricao: e.target.value }))} rows={2} style={textareaStyle} /></div>
                 <div><Label>Prioridade</Label><FSelect value={nova.prioridade} onChange={v => setNova(p => ({ ...p, prioridade: v }))}><option value="baixa">Baixa</option><option value="media">Média</option><option value="alta">Alta</option></FSelect></div>
                 <div><Label>Prazo</Label><FInput type="date" value={nova.prazo} onChange={v => setNova(p => ({ ...p, prazo: v }))} /></div>
                 <div style={{ gridColumn: '1/-1' }}><Label>Responsável</Label><FSelect value={nova.responsavel_id} onChange={v => setNova(p => ({ ...p, responsavel_id: v }))}><option value="">Sem responsável</option>{profiles.map(p => <option key={p.id} value={p.id}>{p.full_name || p.email}</option>)}</FSelect></div>
@@ -1592,10 +1596,10 @@ function AbaChecklist({ obraId, checklistDestaque }) {
 
       <Card titulo={`Checklist - ${ativo.nome}`}>
         <div style={{ display: 'flex', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
-          <select value={ativo.id} onChange={e => setAmbienteSelecionado(e.target.value)} style={{ minWidth: 180, flex: '0 1 220px', padding: '10px 12px', borderRadius: 9, border: `1px solid ${THEME.border}`, fontSize: 13, fontFamily: 'inherit', background: '#FFFEFC', color: THEME.ink }}>
+          <select value={ativo.id} onChange={e => setAmbienteSelecionado(e.target.value)} style={{ background: THEME.inputBackground, border: '1px solid ' + THEME.inputBorder, color: THEME.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', fontSize: 14, outline: 'none', minWidth: 180, flex: '0 1 220px', fontFamily: 'inherit' }}>
             {grupos.map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
           </select>
-          <input value={novoItem} onChange={e => setNovoItem(e.target.value)} onKeyDown={e => e.key === 'Enter' && adicionar()} placeholder="Novo item do checklist..." style={{ flex: '1 1 240px', padding: '10px 14px', borderRadius: 9, border: `1px solid ${THEME.border}`, fontSize: 13, fontFamily: 'inherit', outline: 'none', minWidth: 0 }} />
+          <input value={novoItem} onChange={e => setNovoItem(e.target.value)} onKeyDown={e => e.key === 'Enter' && adicionar()} placeholder="Novo item do checklist..." style={{ background: THEME.inputBackground, border: '1px solid ' + THEME.inputBorder, color: THEME.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', fontSize: 14, outline: 'none', flex: '1 1 240px', fontFamily: 'inherit', minWidth: 0 }} />
           <button onClick={adicionar} disabled={salvando || !novoItem.trim()} style={{ background: THEME.ink, color: '#fff', border: 'none', borderRadius: 9, padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Adicionar</button>
         </div>
 
@@ -1661,7 +1665,7 @@ function AbaOcorrencias({ obraId, ocorrenciaDestaque }) {
         <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, padding: 22, marginBottom: 20 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div style={{ gridColumn: '1/-1' }}><Label>Título *</Label><FInput value={nova.titulo} onChange={v => setNova(p => ({ ...p, titulo: v }))} placeholder="Descreva a ocorrência" /></div>
-            <div style={{ gridColumn: '1/-1' }}><Label>Detalhes</Label><textarea value={nova.descricao} onChange={e => setNova(p => ({ ...p, descricao: e.target.value }))} rows={3} style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1px solid #ddd', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }} /></div>
+            <div style={{ gridColumn: '1/-1' }}><Label>Detalhes</Label><textarea value={nova.descricao} onChange={e => setNova(p => ({ ...p, descricao: e.target.value }))} rows={3} style={textareaStyle} /></div>
             <div><Label>Categoria</Label><FSelect value={nova.categoria} onChange={v => setNova(p => ({ ...p, categoria: v }))}><option value="geral">Geral</option><option value="atraso">Atraso</option><option value="dano">Dano</option><option value="retrabalho">Retrabalho</option><option value="acesso">Acesso</option><option value="material">Material faltante</option></FSelect></div>
             <div><Label>Gravidade</Label><FSelect value={nova.gravidade} onChange={v => setNova(p => ({ ...p, gravidade: v }))}><option value="baixa">Baixa</option><option value="media">Media</option><option value="alta">Alta</option></FSelect></div>
           </div>
@@ -1711,7 +1715,7 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
     close:   { background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: '#999', padding: 4 },
     body:    { overflowY: 'auto', padding: '18px 26px', flex: 1 },
     label:   { display: 'block', fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: '#888', marginBottom: 6, fontWeight: 700 },
-    input:   { width: '100%', border: '1px solid #e0dbd4', borderRadius: 8, padding: '9px 12px', fontSize: 13, fontFamily: 'inherit', color: 'var(--color-ink)', background: '#fafaf8', outline: 'none', boxSizing: 'border-box' },
+    input:   { background: THEME.inputBackground, border: '1px solid ' + THEME.inputBorder, color: THEME.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' },
     upload:  { display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px dashed #e0dbd4', borderRadius: 8, padding: 16, cursor: 'pointer', background: '#fafaf8', width: '100%', boxSizing: 'border-box' },
     footer:  { display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '14px 26px', borderTop: '1px solid #f0ece6', flexShrink: 0 },
     btnCan:  { background: 'none', border: '1px solid #e0dbd4', borderRadius: 8, padding: '9px 18px', fontSize: 13, cursor: 'pointer', color: '#888', fontFamily: 'inherit' },
@@ -1927,7 +1931,7 @@ function AbaChat({ obraId }) {
           })}
       </div>
       <div style={{ display: 'flex', gap: 10 }}>
-        <input value={texto} onChange={e => setTexto(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && enviar()} placeholder="Escreva uma mensagem..." style={{ flex: 1, padding: '10px 14px', borderRadius: 8, border: '1px solid var(--color-border)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+        <input value={texto} onChange={e => setTexto(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && enviar()} placeholder="Escreva uma mensagem..." style={{ background: THEME.inputBackground, border: '1px solid ' + THEME.inputBorder, color: THEME.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', fontSize: 14, outline: 'none', flex: 1, fontFamily: 'inherit' }} />
         <button onClick={enviar} disabled={enviando || !texto.trim()} style={{ background: 'var(--color-ink)', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{enviando ? '...' : 'Enviar'}</button>
       </div>
     </div>
@@ -2182,7 +2186,7 @@ function AbaCliente({ obraId }) {
         {showComForm && (
           <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: 18, marginBottom: 14 }}>
             <div style={{ marginBottom: 10 }}><Label>Título</Label><FInput value={novoCom.titulo} onChange={v => setNovoCom(p => ({ ...p, titulo: v }))} placeholder="Título do comunicado" /></div>
-            <div style={{ marginBottom: 12 }}><Label>Mensagem</Label><textarea value={novoCom.mensagem} onChange={e => setNovoCom(p => ({ ...p, mensagem: e.target.value }))} rows={3} style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: '1px solid #ddd', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }} /></div>
+            <div style={{ marginBottom: 12 }}><Label>Mensagem</Label><textarea value={novoCom.mensagem} onChange={e => setNovoCom(p => ({ ...p, mensagem: e.target.value }))} rows={3} style={textareaStyle} /></div>
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}><button onClick={salvarComunicado} disabled={salvando} style={{ background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 7, padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{salvando ? 'Salvando...' : 'Publicar'}</button></div>
           </div>
         )}
@@ -2373,7 +2377,7 @@ function AbaEquipeObra({ obraId }) {
         </div>
       )}
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-        <select value={selecionado} onChange={e => setSelecionado(e.target.value)} style={{ flex: 1, padding: '8px 12px', borderRadius: 7, border: '1px solid #ddd', fontSize: 13, fontFamily: 'inherit', background: '#fff' }}>
+        <select value={selecionado} onChange={e => setSelecionado(e.target.value)} style={{ background: THEME.inputBackground, border: '1px solid ' + THEME.inputBorder, color: THEME.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', fontSize: 14, outline: 'none', flex: 1, fontFamily: 'inherit' }}>
           <option value="">-- Selecione montador --</option>
           {naoAlocados.map(m => <option key={m.id} value={m.id}>{m.full_name}{m.cargo ? ' · ' + m.cargo : ''}</option>)}
         </select>
@@ -2416,7 +2420,7 @@ function CardTarefa({ tarefa, onMudarStatus }) {
           <span style={{ fontSize: 11, color: pr.color }}>{pr.label}</span>
         </div>
       </div>
-      <select value={tarefa.status} onChange={handleStatus} disabled={mudando} style={{ fontSize: 11.5, padding: '5px 9px', borderRadius: 7, border: '1px solid #ddd', background: '#fafaf8', color: st.color, fontWeight: 600, cursor: 'pointer', flexShrink: 0, fontFamily: 'inherit' }}>
+      <select value={tarefa.status} onChange={handleStatus} disabled={mudando} style={{ background: THEME.inputBackground, border: '1px solid ' + THEME.inputBorder, color: THEME.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', fontSize: 14, outline: 'none', fontWeight: 600, cursor: 'pointer', flexShrink: 0, fontFamily: 'inherit' }}>
         {Object.entries(STATUS_TAREFA).map(([v, { label }]) => <option key={v} value={v}>{label}</option>)}
       </select>
     </div>
@@ -2440,8 +2444,8 @@ function Info({ label, value }) {
   )
 }
 function Label({ children }) { return <div style={{ fontSize: 11, color: THEME.muted, marginBottom: 6, fontWeight: 700 }}>{children}</div> }
-function FInput({ onChange, ...props }) { return <input {...props} onChange={e => onChange(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: 9, border: `1px solid ${THEME.border}`, fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none', background: '#FFFEFC', color: THEME.ink }} /> }
-function FSelect({ onChange, children, ...props }) { return <select {...props} onChange={e => onChange(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: 9, border: `1px solid ${THEME.border}`, fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit', background: '#FFFEFC', color: THEME.ink }}>{children}</select> }
+function FInput({ onChange, ...props }) { return <input {...props} onChange={e => onChange(e.target.value)} style={{ background: THEME.inputBackground, border: '1px solid ' + THEME.inputBorder, color: THEME.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }} /> }
+function FSelect({ onChange, children, ...props }) { return <select {...props} onChange={e => onChange(e.target.value)} style={{ background: THEME.inputBackground, border: '1px solid ' + THEME.inputBorder, color: THEME.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}>{children}</select> }
 
 
 

@@ -17,6 +17,9 @@ const THEME = {
   warn: theme.warning,
   blue: '#365C7D',
   elevated: theme.surfaceElevated,
+  inputBackground: theme.inputBackground,
+  inputBorder: theme.inputBorder,
+  inputText: theme.inputText,
 }
 
 const FASE_CORES = {
@@ -881,7 +884,7 @@ const css = `
 .pl-day-items span,.pl-day-items small{display:block;font-size:10.5px;color:${THEME.muted};margin-top:2px}
 .pl-day-items em{display:inline-flex;margin-top:5px;border-radius:999px;background:#fff;color:${THEME.gold};font-style:normal;font-size:9.5px;font-weight:900;padding:2px 6px}
 .pl-filters{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px;margin-bottom:14px}
-.pl-filters input,.pl-filters select{width:100%;box-sizing:border-box;border:1px solid ${THEME.border};background:#FFFEFC;border-radius:10px;padding:10px 11px;font-family:inherit;font-size:12.5px;color:${THEME.ink}}
+.pl-filters input,.pl-filters select{background:${THEME.inputBackground};border:1px solid ${THEME.inputBorder};color:${THEME.inputText};border-radius:8px;padding:10px 14px;width:100%;font-size:14px;outline:none;box-sizing:border-box;font-family:inherit}
 .pl-table-wrap{overflow:auto;border:1px solid ${THEME.border};border-radius:14px}
 .pl-table{width:100%;border-collapse:collapse;min-width:1120px}
 .pl-table th{background:#F9F6F0;color:${THEME.muted};font-size:10px;letter-spacing:1.2px;text-transform:uppercase;text-align:left;padding:11px 12px;white-space:nowrap}
@@ -912,7 +915,7 @@ const css = `
 .pl-modal-body{padding:22px 24px;overflow:auto}
 .pl-form-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .pl-form-grid label,.pl-observacao{display:flex;flex-direction:column;gap:6px;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:${THEME.muted};font-weight:900}
-.pl-form-grid input,.pl-form-grid select,.pl-observacao textarea{width:100%;box-sizing:border-box;border:1px solid ${THEME.border};background:#FFFEFC;border-radius:10px;padding:10px 11px;font-family:inherit;font-size:13px;color:${THEME.ink};outline:none}
+.pl-form-grid input,.pl-form-grid select,.pl-observacao textarea{background:${THEME.inputBackground};border:1px solid ${THEME.inputBorder};color:${THEME.inputText};border-radius:8px;padding:10px 14px;width:100%;font-size:14px;outline:none;box-sizing:border-box;font-family:inherit}
 .pl-non-workday-warning{margin-top:12px;display:flex!important;flex-direction:row!important;align-items:center;gap:9px;border:1px solid #E8CDA7;background:#FFF8EC;border-radius:12px;padding:11px 12px;color:${THEME.warn}!important;letter-spacing:0!important;text-transform:none!important;font-size:12.5px!important}
 .pl-non-workday-warning input{width:auto!important}
 .pl-montadores{margin:16px 0;border:1px solid ${THEME.border};background:#FFFEFC;border-radius:14px;padding:14px}
