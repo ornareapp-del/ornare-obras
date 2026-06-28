@@ -99,35 +99,36 @@ export default function Tarefas() {
             style={{
               background: destaque ? theme.surfaceElevated : theme.surface,
               border: destaque ? `2px solid ${theme.gold}` : `1px solid ${theme.border}`,
-              borderLeft: `4px solid ${destaque ? theme.gold : prioridade.color}`,
               borderRadius: 12,
-              padding: 20,
-              marginBottom: 9,
+              padding: 16,
+              marginBottom: 12,
               display: 'flex',
-              alignItems: 'flex-start',
-              gap: 14,
+              flexDirection: 'column',
+              gap: 8,
               boxShadow: '0 2px 12px rgba(0,0,0,0.3)',
             }}
           >
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 14, fontWeight: 800, color: theme.textPrimary }}>{tarefa.titulo}</span>
-                <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <span style={{ display: 'block', fontSize: 14, fontWeight: 800, color: theme.textPrimary, lineHeight: 1.35 }}>{tarefa.titulo}</span>
+                <div style={{ marginTop: 6 }}>
+                  <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+                </div>
               </div>
-              <div style={{ display: 'flex', gap: 14, marginTop: 7, flexWrap: 'wrap' }}>
-                {tarefa.obras?.nome && (
-                  <button onClick={() => navigate(`/obras/${tarefa.obra_id}`)} style={{ border: 0, background: 'transparent', padding: 0, fontSize: 11, color: 'var(--color-gold)', cursor: 'pointer' }}>
-                    Obra: {tarefa.obras.nome}
-                  </button>
-                )}
-                {tarefa.responsavel?.full_name && <span style={{ fontSize: 11, color: 'var(--graphite-light)' }}>Responsável: {tarefa.responsavel.full_name}</span>}
-                {tarefa.prazo && <span style={{ fontSize: 11, color: 'var(--graphite-light)' }}>Prazo: {new Date(tarefa.prazo + 'T00:00:00').toLocaleDateString('pt-BR')}</span>}
-                {prioridade.label && <span style={{ fontSize: 11, color: prioridade.color }}>Prioridade: {prioridade.label}</span>}
-              </div>
+              <select value={tarefa.status} onChange={e => mudarStatus(tarefa.id, e.target.value)} style={{ background: theme.inputBackground, color: theme.inputText, border: '1px solid ' + theme.inputBorder, borderRadius: 6, padding: '6px 10px', width: 160, fontSize: 13, outline: 'none', fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+                {Object.entries(ST).map(([value, item]) => <option key={value} value={value}>{item.label}</option>)}
+              </select>
             </div>
-            <select value={tarefa.status} onChange={e => mudarStatus(tarefa.id, e.target.value)} style={{ background: theme.inputBackground, border: '1px solid ' + theme.inputBorder, color: theme.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', fontSize: 14, outline: 'none', fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}>
-              {Object.entries(ST).map(([value, item]) => <option key={value} value={value}>{item.label}</option>)}
-            </select>
+            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 13, color: theme.textSecondary }}>
+              {tarefa.obras?.nome && (
+                <button onClick={() => navigate(`/obras/${tarefa.obra_id}`)} style={{ border: 0, background: 'transparent', padding: 0, fontSize: 13, color: 'var(--color-gold)', cursor: 'pointer' }}>
+                  Obra: {tarefa.obras.nome}
+                </button>
+              )}
+              {tarefa.responsavel?.full_name && <span style={{ color: theme.textSecondary }}>Responsável: {tarefa.responsavel.full_name}</span>}
+              {tarefa.prazo && <span style={{ color: theme.textSecondary }}>Prazo: {new Date(tarefa.prazo + 'T00:00:00').toLocaleDateString('pt-BR')}</span>}
+              {prioridade.label && <span style={{ color: prioridade.color }}>Prioridade: {prioridade.label}</span>}
+            </div>
           </div>
         )
       })}

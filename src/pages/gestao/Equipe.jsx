@@ -81,16 +81,16 @@ export default function Equipe() {
     else mostrarToast(`Link de redefinição enviado para ${profile.email}.`)
   }
 
-  async function toggleAtivo(p) {
-    await supabase.from('profiles').update({ ativo: !p.ativo }).eq('id', p.id)
-    mostrarToast(`${p.full_name || 'Usuário'} ${p.ativo ? 'desativado' : 'ativado'}.`)
-    await carregar()
-  }
+  async function alterarAtivo(p) {
+    const ativo = p.ativo !== false
+    if (ativo && !window.confirm('Deseja desativar este usuário?')) return
 
-  async function excluir(p) {
-    if (!window.confirm('Excluir o usuário ' + (p.full_name || p.email) + '? Esta ação não pode ser desfeita.')) return
-    await supabase.from('profiles').delete().eq('id', p.id)
-    mostrarToast(`${p.full_name || 'Usuário'} removido da equipe.`)
+    const { error } = await supabase.from('profiles').update({ ativo: !ativo }).eq('id', p.id)
+    if (error) {
+      mostrarToast(`Não foi possível ${ativo ? 'desativar' : 'ativar'} este usuário.`, 'erro')
+      return
+    }
+    mostrarToast(`${p.full_name || 'Usuário'} ${ativo ? 'desativado' : 'ativado'}.`)
     await carregar()
   }
 
@@ -216,8 +216,7 @@ export default function Equipe() {
                     <div className="eq-detail" style={s.detailLine}>{obrasPessoa.length ? `${obrasPessoa.length} obra${obrasPessoa.length === 1 ? '' : 's'} vinculada${obrasPessoa.length === 1 ? '' : 's'}` : 'Sem obras vinculadas'}</div>
                     <div className="eq-actions" style={s.actions}>
                       <button style={s.btnEdit} onClick={() => setEditando({ ...p })}>Editar</button>
-                      <button style={s.btnEdit} onClick={() => toggleAtivo(p)}>{ativo ? 'Desativar' : 'Ativar'}</button>
-                      <button style={{ ...s.btnEdit, color: '#B84040', borderColor: '#F0C8C8' }} onClick={() => excluir(p)}>Excluir</button>
+                      <button style={s.btnEdit} onClick={() => alterarAtivo(p)}>{ativo ? 'Desativar' : 'Ativar'}</button>
                     </div>
                   </>
                 )}
