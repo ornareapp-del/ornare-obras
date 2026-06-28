@@ -927,7 +927,7 @@ const css = `
 const s = {
   page: { padding: '32px 40px', maxWidth: 900, margin: '0 auto', background: theme.background, color: theme.textPrimary, fontFamily: 'Inter, sans-serif' },
   toast: { position: 'fixed', left: '50%', bottom: 24, transform: 'translateX(-50%)', zIndex: 1300, background: 'var(--color-ink)', color: '#fff', borderLeft: '3px solid var(--color-gold)', borderRadius: 13, padding: '12px 18px', fontSize: 13, fontWeight: 800, boxShadow: '0 14px 34px rgba(29,28,25,.18)' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 18, marginBottom: 24, paddingRight: 220, boxSizing: 'border-box' },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 18, marginBottom: 24, boxSizing: 'border-box' },
   breadcrumb: { fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6 },
   title: { fontFamily: 'var(--font-serif)', fontSize: 36, fontWeight: 500, color: 'var(--color-ink)', margin: 0 },
   sub: { fontSize: 13, color: 'var(--color-ink-muted)', marginTop: 4 },

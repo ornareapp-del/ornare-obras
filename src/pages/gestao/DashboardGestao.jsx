@@ -632,7 +632,7 @@ function Empty({ text }) {
 
 const css = `
 .dg-page{min-height:100vh;background:${THEME.bg};padding:30px 34px 52px;color:${THEME.ink};font-family:var(--font-sans);box-sizing:border-box}
-.dg-header{max-width:1380px;margin:0 auto 22px;display:flex;justify-content:space-between;gap:18px;align-items:center;padding-right:220px;box-sizing:border-box}
+.dg-header{max-width:1380px;margin:0 auto 24px;display:flex;justify-content:space-between;gap:18px;align-items:flex-start;box-sizing:border-box}
 .dg-eyebrow{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:${THEME.gold};font-weight:800;margin-bottom:7px}
 .dg-header h1{font-family:var(--font-serif);font-size:38px;line-height:1.05;font-weight:500;margin:0;color:${THEME.ink}}
 .dg-header p{margin:6px 0 0;font-size:13px;color:${THEME.muted}}

@@ -351,7 +351,7 @@ export default function ObraDetalhe() {
         Voltar para obras
       </button>
 
-      <section style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: 18, padding: compacto ? 18 : 26, paddingRight: compacto ? 18 : 246, marginBottom: 18, boxShadow: '0 20px 45px rgba(29,28,25,0.07)', boxSizing: 'border-box' }}>
+      <section style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: 18, padding: compacto ? 18 : 26, marginBottom: 18, boxShadow: '0 20px 45px rgba(29,28,25,0.07)', boxSizing: 'border-box' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: compacto ? 'stretch' : 'flex-start', gap: 18, flexDirection: compacto ? 'column' : 'row' }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 10, letterSpacing: 3, color: THEME.gold, textTransform: 'uppercase', marginBottom: 8, fontWeight: 700 }}>Detalhe da obra</div>
@@ -846,7 +846,7 @@ function CalendarioObra({ obraId, compacto }) {
 
   return (
     <Card titulo="Calendário interno da obra">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
         <div>
           <div style={{ fontSize: 18, color: THEME.ink, fontWeight: 800, textTransform: 'capitalize' }}>{mesLabel}</div>
           <div style={{ fontSize: 12, color: THEME.muted, marginTop: 3 }}>Eventos, fotos, check-ins, ocorrências e atualizações por dia.</div>
@@ -1352,7 +1352,7 @@ function AbaAgenda({ obraId }) {
   return (
     <div style={{ display: 'grid', gap: 14 }}>
       <div style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: 14, padding: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: 24 }}>
           <div>
             <div style={{ fontSize: 10, letterSpacing: 2, color: THEME.gold, textTransform: 'uppercase', fontWeight: 800 }}>Calendário interno da obra</div>
             <div style={{ fontSize: 20, color: THEME.ink, fontWeight: 800, textTransform: 'capitalize', marginTop: 4 }}>{tituloMes(mesCalendario)}</div>
@@ -1658,7 +1658,11 @@ function AbaOcorrencias({ obraId, ocorrenciaDestaque }) {
   const gravCor = { baixa: '#5aab6e', media: '#b09a7a', alta: '#d94a4a' }
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, gap: 12 }}>
+        <div>
+          <div style={{ fontSize: 10, letterSpacing: 2, color: THEME.gold, textTransform: 'uppercase', fontWeight: 800 }}>Ocorrências</div>
+          <div style={{ fontSize: 20, color: THEME.ink, fontWeight: 800, marginTop: 4 }}>Registro da obra</div>
+        </div>
         <button onClick={() => setShowForm(!showForm)} style={{ background: 'var(--color-ink)', color: '#f9f7f4', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}>{showForm ? 'Cancelar' : '+ Nova Ocorrência'}</button>
       </div>
       {showForm && (
@@ -1846,7 +1850,15 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
         </div>
       )}
       <div>
-        <div style={{ display: 'grid', gridTemplateColumns: meta > 0 ? '1fr 1fr 1fr' : '1fr auto', gap: 12, marginBottom: 20, alignItems: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 10, letterSpacing: 2, color: THEME.gold, textTransform: 'uppercase', fontWeight: 800 }}>Gastos</div>
+            <div style={{ fontSize: 20, color: THEME.ink, fontWeight: 800, marginTop: 4 }}>Controle financeiro da obra</div>
+          </div>
+          <button onClick={abrirNovo} style={{ background: THEME.gold, color: '#141210', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>+ Lançar Gasto</button>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: meta > 0 ? '1fr 1fr 1fr' : '1fr', gap: 12, marginBottom: 20, alignItems: 'center' }}>
           <div style={{ background: THEME.card, border: '1px solid ' + THEME.border, borderRadius: 10, padding: '14px 20px' }}>
             <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 4 }}>Total gasto</div>
             <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-ink)' }}>R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
@@ -1864,9 +1876,6 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
               </div>
             </>
           )}
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <button onClick={abrirNovo} style={{ background: THEME.gold, color: '#141210', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>+ Lançar Gasto</button>
-          </div>
         </div>
         {loading ? <div style={{ color: '#bbb' }}>Carregando...</div>
           : gastos.length === 0 ? <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhum gasto registrado.</div>

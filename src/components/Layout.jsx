@@ -160,32 +160,33 @@ export default function Layout() {
 
       <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} isMobile={isMobile} />
 
-      <main className="ow-app-main" style={{ flex: 1, overflowY: 'auto', transition: 'all 0.25s', background: 'var(--color-bg, #F5F2EE)', paddingTop: isMobile ? 64 : 76, boxSizing: 'border-box' }}>
+      <main className="ow-app-main" style={{ flex: 1, overflowY: 'auto', transition: 'all 0.25s', background: 'var(--color-bg, #F5F2EE)', paddingTop: 76, boxSizing: 'border-box' }}>
 
         {user?.id && (
-          <div style={{ position: 'fixed', top: 16, right: 16, zIndex: 1000, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ position: 'fixed', top: 0, right: 0, left: collapsed ? 60 : 220, height: 60, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 24px', gap: 12, background: 'transparent', pointerEvents: 'none', boxSizing: 'border-box' }}>
             {temPendencias && !isMobile && (
               <button
                 onClick={() => setNotificacoesAbertas(v => !v)}
                 style={{
-                  border: '1px solid rgba(192,57,43,.18)',
-                  background: '#FFF5F2',
-                  color: '#C0392B',
+                  border: '1px solid rgba(184,150,94,.35)',
+                  background: '#FFF8EC',
+                  color: '#B8965E',
                   borderRadius: 999,
                   padding: '9px 12px',
                   fontSize: 11,
                   fontWeight: 900,
                   letterSpacing: 1,
                   textTransform: 'uppercase',
-                  boxShadow: '0 12px 28px rgba(192,57,43,.14)',
+                  boxShadow: '0 12px 28px rgba(184,150,94,.14)',
                   cursor: 'pointer',
                   fontFamily: 'inherit',
                   display: 'flex',
                   alignItems: 'center',
                   gap: 12,
+                  pointerEvents: 'auto',
                 }}
               >
-                {pendentes.length > 9 ? '9+' : pendentes.length} ações pendentes
+                {pendentes.length > 9 ? '9+' : pendentes.length} AÇÕES PENDENTES
               </button>
             )}
             <button
@@ -206,6 +207,7 @@ export default function Layout() {
                 padding: temPendencias ? '0 12px' : 0,
                 transition: 'all .22s ease',
                 fontFamily: 'inherit',
+                pointerEvents: 'auto',
               }}
               title="Notificações"
             >
@@ -242,6 +244,7 @@ export default function Layout() {
                 borderRadius: 20,
                 boxShadow: '0 24px 80px rgba(29,28,25,.22)',
                 padding: 12,
+                pointerEvents: 'auto',
               }}>
                 <div style={{ padding: '6px 6px 12px', borderBottom: '1px solid #E7E0D5', marginBottom: 10 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>

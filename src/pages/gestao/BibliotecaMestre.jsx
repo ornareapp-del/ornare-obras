@@ -410,7 +410,7 @@ function Badge({ children, muted, danger }) {
 const css = `
 .bm-page{min-height:100vh;background:${THEME.bg};padding:32px 40px 56px;box-sizing:border-box;color:${THEME.ink}}
 .bm-header,.bm-kpis,.bm-layout,.bm-alert{max-width:1480px;margin-left:auto;margin-right:auto}
-.bm-header{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;margin-bottom:18px}
+.bm-header{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-bottom:24px}
 .bm-header span{display:block;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:${THEME.gold};font-weight:900;margin-bottom:8px}
 .bm-header h1{font-family:var(--font-serif);font-size:42px;line-height:1.05;font-weight:500;margin:0;color:${THEME.ink}}
 .bm-header p{font-size:14px;color:${THEME.muted};margin:10px 0 0;max-width:760px;line-height:1.55}

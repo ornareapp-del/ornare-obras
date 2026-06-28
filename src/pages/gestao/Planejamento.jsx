@@ -834,7 +834,7 @@ function Badge({ color, children }) {
 
 const css = `
 .pl-page{min-height:100vh;background:${THEME.bg};padding:30px 34px 52px;color:${THEME.ink};font-family:var(--font-sans);box-sizing:border-box}
-.pl-header{max-width:1480px;margin:0 auto 20px;display:flex;justify-content:space-between;gap:18px;align-items:center;padding-right:220px;box-sizing:border-box}
+.pl-header{max-width:1480px;margin:0 auto 24px;display:flex;justify-content:space-between;gap:18px;align-items:flex-start;box-sizing:border-box}
 .pl-eyebrow{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:${THEME.gold};font-weight:800;margin-bottom:7px}
 .pl-header h1{font-family:var(--font-serif);font-size:40px;line-height:1.05;font-weight:500;margin:0;color:${THEME.ink}}
 .pl-header p{margin:7px 0 0;font-size:13px;color:${THEME.muted}}

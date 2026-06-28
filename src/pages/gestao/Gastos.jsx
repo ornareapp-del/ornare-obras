@@ -581,7 +581,7 @@ const css = `
 
 const s = {
   page:         { padding: '32px 40px', maxWidth: 1000, margin: '0 auto', background: theme.background, color: theme.textPrimary, fontFamily: 'Inter, sans-serif' },
-  header:       { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 18, marginBottom: 28, paddingRight: 220, boxSizing: 'border-box' },
+  header:       { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 18, marginBottom: 24, boxSizing: 'border-box' },
   breadcrumb:   { fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6 },
   title:        { fontFamily: 'var(--font-serif)', fontSize: 36, fontWeight: 500, color: 'var(--color-ink)', margin: 0 },
   sub:          { fontSize: 13, color: 'var(--color-ink-muted)', marginTop: 4 },
