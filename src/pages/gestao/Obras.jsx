@@ -287,13 +287,13 @@ const css = `
   .ob-new{padding:9px 12px !important;border-radius:12px !important;font-size:12px !important}
   .ob-kpis-desktop{display:none !important}
   .ob-mobile-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 12px;padding:0}
-  .ob-mobile-kpis>div{min-width:0;display:flex;align-items:center;justify-content:space-between;gap:7px;background:#fff;border:1px solid rgba(184,150,94,.22);border-radius:16px;padding:10px 11px;box-shadow:0 8px 20px rgba(29,28,25,.045)}
+  .ob-mobile-kpis>div{min-width:0;display:flex;align-items:center;justify-content:space-between;gap:7px;background:${theme.surface};border:1px solid ${theme.border};border-radius:16px;padding:10px 11px;box-shadow:0 8px 20px rgba(0,0,0,.16)}
   .ob-mobile-kpis strong{font-size:19px;line-height:1;color:var(--color-ink)}
   .ob-mobile-kpis span{font-size:10.5px;line-height:1.05;color:var(--color-ink-muted);font-weight:800;white-space:normal;text-align:right}
   .ob-filters{display:flex !important;overflow-x:auto !important;gap:8px !important;flex-wrap:nowrap !important;margin-bottom:14px !important;padding-bottom:3px}
   .ob-filters button{flex:0 0 auto !important;white-space:nowrap !important}
   .ob-list{gap:10px !important}
-  .ob-card{border-radius:18px !important;box-shadow:0 14px 34px rgba(29,28,25,.06) !important;border:1px solid rgba(231,224,213,.9) !important;background:#fff !important}
+  .ob-card{border-radius:18px !important;box-shadow:0 14px 34px rgba(0,0,0,.18) !important;border:1px solid ${theme.border} !important;background:${theme.surface} !important}
   .ob-card-main{display:none !important}
   .ob-card-actions{display:none !important}
   .ob-app-card{display:block;width:100%;border:0;background:transparent;text-align:left;font-family:inherit;padding:15px 15px 14px;cursor:pointer}

@@ -3,18 +3,20 @@ import { useParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import bgImage from '../../assets/ornare-milao-40-anos.jpg'
 import { FASES_ORNARE, faseOrnarePorKey, faseOrnarePorTexto, indiceFaseOrnare } from '../../constants/fasesOrnare'
+import { theme } from '../../constants/theme'
 
 const THEME = {
-  ink: '#1A1A1A',
-  warm: '#F5F0EB',
-  card: '#FFFFFF',
-  border: '#E7E0D5',
-  muted: '#6D675E',
-  soft: '#9E9E9E',
-  gold: '#C9A96E',
-  dark: '#0F0E0C',
-  success: '#1F6B43',
-  danger: '#B44747',
+  ink: theme.textPrimary,
+  warm: theme.background,
+  card: theme.surface,
+  elevated: theme.surfaceElevated,
+  border: theme.border,
+  muted: theme.textSecondary,
+  soft: theme.textMuted,
+  gold: theme.gold,
+  dark: theme.background,
+  success: theme.success,
+  danger: theme.error,
   inputBackground: '#272320',
   inputBorder: '#3D3830',
   inputText: '#F5F0E8',
@@ -805,7 +807,7 @@ const css = `
 .pc-timeline div.active{background:${THEME.gold};border-color:${THEME.gold};color:#fff;box-shadow:0 12px 30px rgba(201,169,110,.22)}
 .pc-timeline i{display:flex;width:22px;height:22px;border-radius:50%;background:#E8E0D5;color:${THEME.soft};margin:0 auto 8px;align-items:center;justify-content:center;font-style:normal;font-size:10px;font-weight:950}
 .pc-timeline div.done i{background:${THEME.ink};color:#fff}
-.pc-timeline div.active i{background:#fff;color:${THEME.gold}}
+.pc-timeline div.active i{background:${THEME.elevated};color:${THEME.gold}}
 .pc-filter-card{display:grid;grid-template-columns:1fr 1fr;gap:10px;background:${THEME.card};border:1px solid ${THEME.border};border-radius:16px;padding:12px}
 .pc-filter-card select{background:${THEME.inputBackground};border:1px solid ${THEME.inputBorder};color:${THEME.inputText};border-radius:8px;padding:10px 14px;width:100%;font-size:14px;outline:none;font-family:inherit}
 .pc-gallery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
@@ -830,7 +832,7 @@ const css = `
 .pc-agenda-actions button{border-radius:10px;padding:9px 11px;font-size:12px;font-weight:900;font-family:inherit;cursor:pointer}
 .pc-agenda-actions .confirm{border:1px solid ${THEME.success};background:${THEME.success};color:#fff}
 .pc-agenda-actions .confirm:disabled{opacity:.55;cursor:default}
-.pc-agenda-actions .reschedule{border:1px solid ${THEME.gold};background:#fff;color:${THEME.gold}}
+.pc-agenda-actions .reschedule{border:1px solid ${THEME.gold};background:${THEME.elevated};color:${THEME.gold}}
 .pc-doc-list{display:grid;gap:10px}
 .pc-doc{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;border:1px solid ${THEME.border};border-radius:14px;padding:14px;background:#FFFBF5}
 .pc-doc-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
@@ -849,14 +851,14 @@ const css = `
 .pc-contact strong{display:block;color:${THEME.ink};font-size:15px}
 .pc-contact small{display:block;color:${THEME.muted};font-size:12px;margin-top:4px}
 .pc-contact-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
-.pc-contact-actions button,.pc-contact-actions a{border:1px solid ${THEME.border};background:#FFFEFC;color:${THEME.ink};border-radius:10px;padding:9px 12px;font-size:12px;font-weight:800;text-decoration:none;cursor:pointer;font-family:inherit}
+.pc-contact-actions button,.pc-contact-actions a{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:10px;padding:9px 12px;font-size:12px;font-weight:800;text-decoration:none;cursor:pointer;font-family:inherit}
 .pc-empty{text-align:center;background:${THEME.card};border:1px solid ${THEME.border};border-radius:18px;padding:52px 22px;color:${THEME.muted}}
 .pc-empty svg{width:54px;height:54px;margin:0 auto 16px;stroke:${THEME.gold};fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
 .pc-empty strong{display:block;color:${THEME.ink};font-size:15px;margin-bottom:6px}
 .pc-empty p{margin:0;font-size:13px;line-height:1.5}
 .pc-modal{position:fixed;inset:0;z-index:120;background:rgba(15,14,12,.58);display:flex;align-items:center;justify-content:center;padding:18px}
 .pc-modal-card{width:min(460px,100%);background:${THEME.card};border:1px solid ${THEME.border};border-radius:20px;padding:20px;box-shadow:0 28px 70px rgba(0,0,0,.28);position:relative}
-.pc-modal-close{position:absolute;right:14px;top:14px;border:1px solid ${THEME.border};background:#fff;border-radius:999px;padding:7px 10px;font-family:inherit;font-weight:900;cursor:pointer}
+.pc-modal-close{position:absolute;right:14px;top:14px;border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:999px;padding:7px 10px;font-family:inherit;font-weight:900;cursor:pointer}
 .pc-modal-card>span{display:block;color:${THEME.gold};font-size:10px;letter-spacing:1.7px;text-transform:uppercase;font-weight:950;margin-bottom:7px}
 .pc-modal-card h2{margin:0;color:${THEME.ink};font-size:22px}
 .pc-modal-card p{margin:8px 0 14px;color:${THEME.muted};font-size:13px}

@@ -150,9 +150,9 @@ const textareaStyle = {
 
 function acaoBtn(primary, active = false) {
   return {
-    background: primary ? (active ? '#fdecea' : THEME.ink) : '#FFFEFC',
-    color: primary ? (active ? THEME.danger : '#fff') : THEME.ink,
-    border: primary ? 'none' : `1px solid ${THEME.border}`,
+    background: primary ? (active ? '#fdecea' : THEME.elevated) : THEME.elevated,
+    color: primary ? (active ? THEME.danger : THEME.ink) : THEME.ink,
+    border: `1px solid ${THEME.border}`,
     borderRadius: 10,
     padding: '9px 14px',
     fontSize: 12.5,
@@ -559,12 +559,12 @@ export default function ObraDetalhe() {
       </div>
 
       <div style={{ position: 'sticky', top: 0, zIndex: 20, marginBottom: 24 }}>
-        <nav style={{ position: 'relative', display: 'flex', gap: 6, border: `1px solid ${THEME.border}`, background: 'rgba(246,243,238,0.94)', backdropFilter: 'blur(12px)', borderRadius: 14, padding: 6, overflowX: 'auto', boxShadow: compacto ? '0 10px 24px rgba(29,28,25,0.06)' : 'none' }}>
+        <nav style={{ position: 'relative', display: 'flex', gap: 6, border: `1px solid ${THEME.border}`, background: THEME.card, backdropFilter: 'blur(12px)', borderRadius: 14, padding: 6, overflowX: 'auto', boxShadow: compacto ? '0 10px 24px rgba(0,0,0,0.18)' : 'none' }}>
           {SECOES.map(s => (
-            <button key={s.id} onClick={() => setAba(s.id)} style={{ background: aba === s.id ? THEME.ink : 'transparent', border: 'none', cursor: 'pointer', padding: compacto ? '10px 13px' : '9px 14px', fontSize: 12.5, whiteSpace: 'nowrap', color: aba === s.id ? '#fff' : THEME.muted, fontWeight: aba === s.id ? 700 : 500, borderRadius: 10, fontFamily: 'inherit', flex: '0 0 auto' }}>{s.label}</button>
+            <button key={s.id} onClick={() => setAba(s.id)} style={{ background: aba === s.id ? THEME.gold : THEME.elevated, border: 'none', cursor: 'pointer', padding: compacto ? '10px 13px' : '9px 14px', fontSize: 12.5, whiteSpace: 'nowrap', color: aba === s.id ? '#141210' : THEME.muted, fontWeight: aba === s.id ? 700 : 500, borderRadius: 10, fontFamily: 'inherit', flex: '0 0 auto' }}>{s.label}</button>
           ))}
         </nav>
-        {compacto && <div style={{ position: 'absolute', right: 0, top: 2, bottom: 2, width: 32, pointerEvents: 'none', borderRadius: '0 14px 14px 0', background: 'linear-gradient(90deg, rgba(246,243,238,0), rgba(246,243,238,0.96))' }} />}
+        {compacto && <div style={{ position: 'absolute', right: 0, top: 2, bottom: 2, width: 32, pointerEvents: 'none', borderRadius: '0 14px 14px 0', background: 'linear-gradient(90deg, rgba(30,27,24,0), rgba(30,27,24,0.96))' }} />}
       </div>
 
       {aba === 'Resumo' && (
@@ -688,7 +688,7 @@ export default function ObraDetalhe() {
             </button>
           </div>
           {showForm && (
-            <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, padding: 22, marginBottom: 20 }}>
+            <div style={{ background: THEME.card, border: '1px solid ' + THEME.border, borderRadius: 12, padding: 22, marginBottom: 20 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div style={{ gridColumn: '1/-1' }}><Label>Título *</Label><FInput value={nova.titulo} onChange={v => setNova(p => ({ ...p, titulo: v }))} placeholder="Título da tarefa" /></div>
                 <div style={{ gridColumn: '1/-1' }}><Label>Descrição</Label><textarea value={nova.descricao} onChange={e => setNova(p => ({ ...p, descricao: e.target.value }))} rows={2} style={textareaStyle} /></div>
@@ -874,7 +874,7 @@ function CalendarioObra({ obraId, compacto }) {
                 minHeight: compacto ? 46 : 66,
                 borderRadius: 12,
                 border: selecionado ? `2px solid ${THEME.gold}` : `1px solid ${THEME.border}`,
-                background: selecionado ? '#FFFBF2' : fimSemana ? '#FAF6EF' : '#FFFEFC',
+                background: selecionado ? THEME.elevated : fimSemana ? THEME.card : THEME.card,
                 color: THEME.ink,
                 cursor: 'pointer',
                 fontFamily: 'inherit',
@@ -892,7 +892,7 @@ function CalendarioObra({ obraId, compacto }) {
           )
         })}
       </div>
-      <div style={{ marginTop: 14, border: `1px solid ${THEME.border}`, borderRadius: 14, padding: 14, background: '#FFFEFC' }}>
+      <div style={{ marginTop: 14, border: `1px solid ${THEME.border}`, borderRadius: 14, padding: 14, background: THEME.card }}>
         <div style={{ fontSize: 12, color: THEME.gold, fontWeight: 900, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 10 }}>
           {new Date(`${diaSelecionado}T00:00:00`).toLocaleDateString('pt-BR')}
         </div>
@@ -903,7 +903,7 @@ function CalendarioObra({ obraId, compacto }) {
         ) : (
           <div style={{ display: 'grid', gap: 8 }}>
             {itensDia.map(item => (
-              <div key={item.id} style={{ borderLeft: `4px solid ${item.cor}`, padding: '8px 10px', background: '#fff', borderRadius: 10 }}>
+              <div key={item.id} style={{ borderLeft: `4px solid ${item.cor}`, padding: '8px 10px', background: THEME.elevated, borderRadius: 10 }}>
                 <div style={{ fontSize: 11, color: item.cor, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 1 }}>{item.tipo}</div>
                 <div style={{ fontSize: 13, color: THEME.ink, fontWeight: 800, marginTop: 3 }}>{item.titulo}</div>
                 {item.detalhe && <div style={{ fontSize: 12, color: THEME.muted, marginTop: 2 }}>{item.detalhe}</div>}
@@ -932,7 +932,7 @@ function ResumoAtalho({ titulo, valor, detalhe, onClick }) {
       onClick={onClick}
       style={{
         border: `1px solid ${THEME.border}`,
-        background: '#FFFEFC',
+        background: THEME.card,
         borderRadius: 14,
         padding: '14px 13px',
         textAlign: 'left',
@@ -1130,7 +1130,7 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque }) {
             const ativa = fase.key === faseAtual
             const concluida = faseAtualIndex > index
             return (
-              <div key={fase.key} style={{ flex: compacto ? '0 0 120px' : undefined, border: `1px solid ${ativa ? THEME.gold : THEME.border}`, borderTop: ativa ? `4px solid ${fase.cor}` : `1px solid ${concluida ? '#B8DCC4' : THEME.border}`, background: ativa ? `${fase.cor}18` : concluida ? '#F4FBF6' : '#FFFEFC', borderRadius: 12, padding: '12px 10px', minHeight: 92 }}>
+              <div key={fase.key} style={{ flex: compacto ? '0 0 120px' : undefined, border: `1px solid ${ativa ? THEME.gold : THEME.border}`, borderTop: ativa ? `4px solid ${fase.cor}` : `1px solid ${concluida ? '#B8DCC4' : THEME.border}`, background: ativa ? `${fase.cor}18` : concluida ? 'rgba(76,175,125,.14)' : THEME.card, borderRadius: 12, padding: '12px 10px', minHeight: 92 }}>
                 <div style={{ width: 24, height: 24, borderRadius: 999, background: ativa ? fase.cor : concluida ? '#2D7A4A' : THEME.border, color: ativa || concluida ? '#fff' : THEME.muted, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 900, marginBottom: 9 }}>
                   {concluida ? '✓' : fase.id}
                 </div>
@@ -1358,8 +1358,8 @@ function AbaAgenda({ obraId }) {
             <div style={{ fontSize: 20, color: THEME.ink, fontWeight: 800, textTransform: 'capitalize', marginTop: 4 }}>{tituloMes(mesCalendario)}</div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" onClick={() => mudarMes(-1)} style={{ border: `1px solid ${THEME.border}`, background: '#fff', borderRadius: 999, padding: '8px 12px', cursor: 'pointer', fontWeight: 800 }}>Anterior</button>
-            <button type="button" onClick={() => mudarMes(1)} style={{ border: `1px solid ${THEME.border}`, background: '#fff', borderRadius: 999, padding: '8px 12px', cursor: 'pointer', fontWeight: 800 }}>Próximo</button>
+            <button type="button" onClick={() => mudarMes(-1)} style={{ border: `1px solid ${THEME.border}`, background: THEME.elevated, color: THEME.ink, borderRadius: 999, padding: '8px 12px', cursor: 'pointer', fontWeight: 800 }}>Anterior</button>
+            <button type="button" onClick={() => mudarMes(1)} style={{ border: `1px solid ${THEME.border}`, background: THEME.elevated, color: THEME.ink, borderRadius: 999, padding: '8px 12px', cursor: 'pointer', fontWeight: 800 }}>Próximo</button>
           </div>
         </div>
 
@@ -1380,7 +1380,7 @@ function AbaAgenda({ obraId }) {
                 style={{
                   minHeight: 52,
                   border: `1px solid ${ativo ? THEME.gold : eventos.length ? '#D8C8AF' : THEME.border}`,
-                  background: ativo ? THEME.softGold : dia.noMes ? '#FFFEFC' : '#F8F5EF',
+                  background: ativo ? THEME.softGold : dia.noMes ? THEME.card : THEME.elevated,
                   color: dia.noMes ? THEME.ink : THEME.muted,
                   borderRadius: 12,
                   cursor: 'pointer',
@@ -1403,7 +1403,7 @@ function AbaAgenda({ obraId }) {
         </div>
 
         {diaSelecionado && (
-          <div style={{ marginTop: 14, border: `1px solid ${THEME.border}`, borderRadius: 12, padding: 14, background: '#FFFEFC' }}>
+          <div style={{ marginTop: 14, border: `1px solid ${THEME.border}`, borderRadius: 12, padding: 14, background: THEME.card }}>
             <div style={{ fontSize: 12, color: THEME.gold, fontWeight: 900, marginBottom: 10 }}>
               {new Date(`${diaSelecionado}T00:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}
             </div>
@@ -1412,7 +1412,7 @@ function AbaAgenda({ obraId }) {
             ) : (
               <div style={{ display: 'grid', gap: 8 }}>
                 {selecionados.map(evento => (
-                  <div key={evento.id} style={{ borderLeft: `4px solid ${evento.cor}`, padding: '8px 10px', borderRadius: 8, background: '#fff' }}>
+                  <div key={evento.id} style={{ borderLeft: `4px solid ${evento.cor}`, padding: '8px 10px', borderRadius: 8, background: THEME.elevated }}>
                     <div style={{ fontSize: 10, color: evento.cor, letterSpacing: 1.4, textTransform: 'uppercase', fontWeight: 900 }}>{evento.tipo}</div>
                     <div style={{ fontSize: 13.5, color: THEME.ink, fontWeight: 800, marginTop: 3 }}>{evento.titulo}</div>
                     {evento.detalhe && <div style={{ fontSize: 12.5, color: THEME.muted, marginTop: 3 }}>{evento.detalhe}</div>}
@@ -1566,7 +1566,7 @@ function AbaChecklist({ obraId, checklistDestaque }) {
           </button>
         </div>
         {mensagemBiblioteca && (
-          <div style={{ marginTop: 12, border: `1px solid ${mensagemBiblioteca.startsWith('Erro') ? '#F0C8C8' : THEME.border}`, background: mensagemBiblioteca.startsWith('Erro') ? '#FFF7F7' : '#FFFEFC', color: mensagemBiblioteca.startsWith('Erro') ? THEME.danger : THEME.muted, borderRadius: 10, padding: '10px 12px', fontSize: 12.5, fontWeight: 700 }}>
+          <div style={{ marginTop: 12, border: `1px solid ${mensagemBiblioteca.startsWith('Erro') ? '#F0C8C8' : THEME.border}`, background: mensagemBiblioteca.startsWith('Erro') ? '#FFF7F7' : THEME.card, color: mensagemBiblioteca.startsWith('Erro') ? THEME.danger : THEME.muted, borderRadius: 10, padding: '10px 12px', fontSize: 12.5, fontWeight: 700 }}>
             {mensagemBiblioteca}
           </div>
         )}
@@ -1662,7 +1662,7 @@ function AbaOcorrencias({ obraId, ocorrenciaDestaque }) {
         <button onClick={() => setShowForm(!showForm)} style={{ background: 'var(--color-ink)', color: '#f9f7f4', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}>{showForm ? 'Cancelar' : '+ Nova Ocorrência'}</button>
       </div>
       {showForm && (
-        <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, padding: 22, marginBottom: 20 }}>
+        <div style={{ background: THEME.card, border: '1px solid ' + THEME.border, borderRadius: 12, padding: 22, marginBottom: 20 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div style={{ gridColumn: '1/-1' }}><Label>Título *</Label><FInput value={nova.titulo} onChange={v => setNova(p => ({ ...p, titulo: v }))} placeholder="Descreva a ocorrência" /></div>
             <div style={{ gridColumn: '1/-1' }}><Label>Detalhes</Label><textarea value={nova.descricao} onChange={e => setNova(p => ({ ...p, descricao: e.target.value }))} rows={3} style={textareaStyle} /></div>
@@ -1679,7 +1679,7 @@ function AbaOcorrencias({ obraId, ocorrenciaDestaque }) {
         : ocorrencias.map(oc => {
           const destaque = ocorrenciaDestaque && oc.id === ocorrenciaDestaque
           return (
-          <div key={oc.id} style={{ background: destaque ? '#FFFBF2' : '#fff', border: destaque ? `2px solid ${THEME.gold}` : '1px solid var(--color-border)', borderLeft: '4px solid ' + (gravCor[oc.gravidade] || '#ccc'), borderRadius: 10, padding: '16px 18px', marginBottom: 10, boxShadow: destaque ? '0 12px 30px rgba(184,150,94,.16)' : 'none' }}>
+          <div key={oc.id} style={{ background: destaque ? THEME.elevated : THEME.card, border: destaque ? `2px solid ${THEME.gold}` : '1px solid ' + THEME.border, borderLeft: '4px solid ' + (gravCor[oc.gravidade] || '#ccc'), borderRadius: 10, padding: '16px 18px', marginBottom: 10, boxShadow: destaque ? '0 12px 30px rgba(184,150,94,.16)' : 'none' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
               <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-ink)' }}>{oc.titulo}</span>
               <span style={{ fontSize: 10, padding: '2px 9px', borderRadius: 20, background: '#f0ece6', color: '#888', marginLeft: 'auto' }}>{oc.categoria}</span>
@@ -1709,17 +1709,17 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
   const CAT_G = Object.fromEntries(CATS_G.map(c => [c.value, c]))
   const msG = {
     bg:      { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 },
-    box:     { background: '#fff', borderRadius: 14, width: '100%', maxWidth: 560, maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' },
+    box:     { background: THEME.card, border: '1px solid ' + THEME.border, borderRadius: 14, width: '100%', maxWidth: 560, maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' },
     header:  { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '22px 26px 0', flexShrink: 0 },
     title:   { fontFamily: 'var(--font-serif)', fontSize: 22, fontWeight: 500, margin: 0, color: 'var(--color-ink)' },
     close:   { background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: '#999', padding: 4 },
     body:    { overflowY: 'auto', padding: '18px 26px', flex: 1 },
     label:   { display: 'block', fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: '#888', marginBottom: 6, fontWeight: 700 },
     input:   { background: THEME.inputBackground, border: '1px solid ' + THEME.inputBorder, color: THEME.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' },
-    upload:  { display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px dashed #e0dbd4', borderRadius: 8, padding: 16, cursor: 'pointer', background: '#fafaf8', width: '100%', boxSizing: 'border-box' },
-    footer:  { display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '14px 26px', borderTop: '1px solid #f0ece6', flexShrink: 0 },
-    btnCan:  { background: 'none', border: '1px solid #e0dbd4', borderRadius: 8, padding: '9px 18px', fontSize: 13, cursor: 'pointer', color: '#888', fontFamily: 'inherit' },
-    btnSave: { background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' },
+    upload:  { display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px dashed ' + THEME.inputBorder, borderRadius: 8, padding: 16, cursor: 'pointer', background: THEME.inputBackground, width: '100%', boxSizing: 'border-box' },
+    footer:  { display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '14px 26px', borderTop: '1px solid ' + THEME.border, flexShrink: 0 },
+    btnCan:  { background: THEME.elevated, border: '1px solid ' + THEME.border, borderRadius: 8, padding: '9px 18px', fontSize: 13, cursor: 'pointer', color: THEME.ink, fontFamily: 'inherit' },
+    btnSave: { background: THEME.gold, color: '#141210', border: 'none', borderRadius: 8, padding: '9px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' },
     btnDel:  { background: '#fdecea', color: '#a03030', border: 'none', borderRadius: 8, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', marginRight: 'auto' },
   }
 
@@ -1847,17 +1847,17 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
       )}
       <div>
         <div style={{ display: 'grid', gridTemplateColumns: meta > 0 ? '1fr 1fr 1fr' : '1fr auto', gap: 12, marginBottom: 20, alignItems: 'center' }}>
-          <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 20px' }}>
+          <div style={{ background: THEME.card, border: '1px solid ' + THEME.border, borderRadius: 10, padding: '14px 20px' }}>
             <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 4 }}>Total gasto</div>
             <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-ink)' }}>R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
           </div>
           {meta > 0 && (
             <>
-              <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 20px' }}>
+              <div style={{ background: THEME.card, border: '1px solid ' + THEME.border, borderRadius: 10, padding: '14px 20px' }}>
                 <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 4 }}>Meta / Limite</div>
                 <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-ink)' }}>R$ {meta.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
               </div>
-              <div style={{ background: pctGasto >= 90 ? '#fdecea' : '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 20px' }}>
+              <div style={{ background: pctGasto >= 90 ? '#fdecea' : THEME.card, border: '1px solid ' + THEME.border, borderRadius: 10, padding: '14px 20px' }}>
                 <div style={{ fontSize: 9, letterSpacing: 2, color: pctGasto >= 90 ? '#d94a4a' : 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 4 }}>Utilizado</div>
                 <div style={{ fontSize: 22, fontWeight: 700, color: corGasto }}>{pctGasto}%</div>
                 <div style={{ height: 4, background: '#f0ece6', borderRadius: 2, marginTop: 8 }}><div style={{ height: 4, borderRadius: 2, background: corGasto, width: pctGasto + '%', transition: 'width .3s' }} /></div>
@@ -1865,7 +1865,7 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
             </>
           )}
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <button onClick={abrirNovo} style={{ background: 'var(--color-ink)', color: '#f9f7f4', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 12.5, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' }}>+ Novo Gasto</button>
+            <button onClick={abrirNovo} style={{ background: THEME.gold, color: '#141210', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>+ Lançar Gasto</button>
           </div>
         </div>
         {loading ? <div style={{ color: '#bbb' }}>Carregando...</div>
@@ -1873,7 +1873,7 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
           : gastos.map(g => {
             const destaque = gastoDestaque && g.id === gastoDestaque
             return (
-            <div id={`gasto-${g.id}`} key={g.id} onClick={() => abrirEditar(g)} style={{ background: destaque ? '#FFFBF0' : '#fff', border: destaque ? `2px solid ${THEME.gold}` : '1px solid var(--color-border)', borderRadius: 10, padding: '14px 18px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', boxShadow: destaque ? '0 16px 34px rgba(184,150,94,0.22)' : 'none' }}>
+            <div id={`gasto-${g.id}`} key={g.id} onClick={() => abrirEditar(g)} style={{ background: destaque ? THEME.elevated : THEME.card, border: destaque ? `2px solid ${THEME.gold}` : '1px solid ' + THEME.border, borderRadius: 10, padding: '14px 18px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', boxShadow: destaque ? '0 16px 34px rgba(184,150,94,0.22)' : 'none' }}>
               <div style={{ width: 10, height: 10, borderRadius: '50%', background: CAT_G[g.categoria]?.cor || '#ccc', flexShrink: 0 }} />
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--color-ink)' }}>{g.descricao}</div>
@@ -1912,7 +1912,7 @@ function AbaChat({ obraId }) {
   return (
     <div>
       <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 16 }}>Chat da obra — visível para toda a equipe</div>
-      <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, padding: 16, marginBottom: 16, minHeight: 200, maxHeight: 400, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ background: THEME.card, border: '1px solid ' + THEME.border, borderRadius: 12, padding: 16, marginBottom: 16, minHeight: 200, maxHeight: 400, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
         {loading ? <div style={{ color: '#bbb', fontSize: 13 }}>Carregando...</div>
           : mensagens.length === 0 ? <div style={{ textAlign: 'center', padding: '40px 0', color: '#bbb', fontSize: 13 }}>Nenhuma mensagem ainda.</div>
           : mensagens.map(m => {
@@ -2124,7 +2124,7 @@ function AbaHistorico({ obraId }) {
       {historico.map(h => (
         <div key={h.id} style={{ position: 'relative', marginBottom: 20 }}>
           <div style={{ position: 'absolute', left: -21, top: 4, width: 10, height: 10, borderRadius: '50%', background: 'var(--color-gold)', border: '2px solid #fff' }} />
-          <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 18px' }}>
+          <div style={{ background: THEME.card, border: '1px solid ' + THEME.border, borderRadius: 10, padding: '14px 18px' }}>
             <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--color-ink)', marginBottom: 4 }}>{h.descricao || h.acao || 'Registro'}</div>
             <div style={{ display: 'flex', gap: 14, fontSize: 11, color: '#aaa' }}>
               <span>{new Date(h.created_at).toLocaleDateString('pt-BR')} {new Date(h.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
@@ -2171,7 +2171,7 @@ function AbaCliente({ obraId }) {
   const linkPortal = window.location.origin + '/cliente/' + obraId
   return (
     <div>
-      <div style={{ background: '#f9f7f4', border: '1px solid var(--color-border)', borderRadius: 12, padding: '16px 20px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+      <div style={{ background: THEME.card, border: '1px solid ' + THEME.border, borderRadius: 12, padding: '16px 20px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 11, color: 'var(--color-gold)', fontWeight: 600, marginBottom: 4 }}>Link do Portal do Cliente</div>
           <div style={{ fontSize: 12, color: 'var(--color-ink-muted)', wordBreak: 'break-all' }}>{linkPortal}</div>
@@ -2184,7 +2184,7 @@ function AbaCliente({ obraId }) {
           <button onClick={() => setShowComForm(!showComForm)} style={{ background: 'var(--color-ink)', color: '#fff', border: 'none', borderRadius: 7, padding: '7px 14px', fontSize: 12, cursor: 'pointer' }}>{showComForm ? 'Cancelar' : '+ Comunicado'}</button>
         </div>
         {showComForm && (
-          <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: 18, marginBottom: 14 }}>
+          <div style={{ background: THEME.card, border: '1px solid ' + THEME.border, borderRadius: 10, padding: 18, marginBottom: 14 }}>
             <div style={{ marginBottom: 10 }}><Label>Título</Label><FInput value={novoCom.titulo} onChange={v => setNovoCom(p => ({ ...p, titulo: v }))} placeholder="Título do comunicado" /></div>
             <div style={{ marginBottom: 12 }}><Label>Mensagem</Label><textarea value={novoCom.mensagem} onChange={e => setNovoCom(p => ({ ...p, mensagem: e.target.value }))} rows={3} style={textareaStyle} /></div>
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}><button onClick={salvarComunicado} disabled={salvando} style={{ background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 7, padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{salvando ? 'Salvando...' : 'Publicar'}</button></div>
@@ -2193,7 +2193,7 @@ function AbaCliente({ obraId }) {
         {loadingC ? <div style={{ color: '#bbb' }}>Carregando...</div>
           : comunicados.length === 0 ? <div style={{ color: '#bbb', fontSize: 13 }}>Nenhum comunicado enviado.</div>
           : comunicados.map(c => (
-            <div key={c.id} style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 16px', marginBottom: 8, display: 'flex', gap: 12 }}>
+            <div key={c.id} style={{ background: THEME.card, border: '1px solid ' + THEME.border, borderRadius: 10, padding: '14px 16px', marginBottom: 8, display: 'flex', gap: 12 }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--color-ink)', marginBottom: 4 }}>{c.titulo}</div>
                 <div style={{ fontSize: 13, color: 'var(--color-ink-muted)', lineHeight: 1.5 }}>{c.mensagem}</div>
@@ -2210,7 +2210,7 @@ function AbaCliente({ obraId }) {
           <button onClick={() => setShowConForm(!showConForm)} style={{ background: 'var(--color-ink)', color: '#fff', border: 'none', borderRadius: 7, padding: '7px 14px', fontSize: 12, cursor: 'pointer' }}>{showConForm ? 'Cancelar' : '+ Contato'}</button>
         </div>
         {showConForm && (
-          <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: 18, marginBottom: 14 }}>
+          <div style={{ background: THEME.card, border: '1px solid ' + THEME.border, borderRadius: 10, padding: 18, marginBottom: 14 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
               <div><Label>Nome</Label><FInput value={novoCon.nome} onChange={v => setNovoCon(p => ({ ...p, nome: v }))} placeholder="Nome" /></div>
               <div><Label>Cargo</Label><FInput value={novoCon.cargo} onChange={v => setNovoCon(p => ({ ...p, cargo: v }))} placeholder="Ex: Supervisor" /></div>
@@ -2220,7 +2220,7 @@ function AbaCliente({ obraId }) {
           </div>
         )}
         {contatos.map(c => (
-          <div key={c.id} style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 16px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div key={c.id} style={{ background: THEME.card, border: '1px solid ' + THEME.border, borderRadius: 10, padding: '14px 16px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#b09a7a22', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#b09a7a' }}>{(c.nome || '?')[0].toUpperCase()}</div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--color-ink)' }}>{c.nome}</div>
@@ -2406,7 +2406,7 @@ function CardTarefa({ tarefa, onMudarStatus }) {
   const [mudando, setMudando] = useState(false)
   async function handleStatus(e) { setMudando(true); await onMudarStatus(tarefa.id, e.target.value); setMudando(false) }
   return (
-    <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 18px', display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 10 }}>
+    <div style={{ background: THEME.card, border: '1px solid ' + THEME.border, borderRadius: 10, padding: '14px 18px', display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 10 }}>
       <div style={{ width: 3, borderRadius: 2, alignSelf: 'stretch', background: pr.color, flexShrink: 0 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>

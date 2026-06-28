@@ -4,6 +4,7 @@ import BottomNavigation from './BottomNavigation'
 import Sidebar from './Sidebar'
 import { supabase } from '../lib/supabase'
 import { useStore } from '../store/useStore'
+import { theme } from '../constants/theme'
 
 export default function Layout() {
   const navigate = useNavigate()
@@ -231,7 +232,7 @@ export default function Layout() {
                   width: 19,
                   height: 19,
                   borderRadius: 999,
-                  background: '#fff',
+                  background: theme.surfaceElevated,
                   color: '#C0392B',
                   fontSize: 12,
                   fontWeight: 900,
@@ -253,8 +254,8 @@ export default function Layout() {
                 width: isMobile ? 'calc(100vw - 28px)' : 390,
                 maxHeight: isMobile ? 'calc(100vh - 96px)' : 520,
                 overflowY: 'auto',
-                background: '#fff',
-                border: '1px solid #E7E0D5',
+                background: theme.surface,
+                border: '1px solid ' + theme.border,
                 borderRadius: 20,
                 boxShadow: '0 24px 80px rgba(29,28,25,.22)',
                 padding: 12,
@@ -272,7 +273,7 @@ export default function Layout() {
                   {pendentes.length > 0 && (
                     <button
                       onClick={marcarTodasComoLidas}
-                      style={{ marginTop: 12, width: '100%', border: '1px solid #E7E0D5', background: '#FFFEFC', color: '#6D675E', borderRadius: 12, padding: '9px 10px', fontSize: 12, fontWeight: 900, fontFamily: 'inherit', cursor: 'pointer' }}
+                      style={{ marginTop: 12, width: '100%', border: '1px solid ' + theme.border, background: theme.surfaceElevated, color: theme.textSecondary, borderRadius: 12, padding: '9px 10px', fontSize: 12, fontWeight: 900, fontFamily: 'inherit', cursor: 'pointer' }}
                     >
                       Marcar todas como lidas
                     </button>

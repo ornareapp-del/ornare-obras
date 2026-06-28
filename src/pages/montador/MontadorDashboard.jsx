@@ -1396,7 +1396,7 @@ export default function MontadorDashboard() {
           </div>
           <span>{vm.emServico ? 'Em serviço' : 'Disponível'}</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 13, border: `1px solid ${THEME.border}`, background: '#FFFEFC', borderRadius: 15, padding: 13, marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 13, border: `1px solid ${THEME.border}`, background: THEME.card, borderRadius: 15, padding: 13, marginBottom: 12 }}>
           <div style={{ width: 52, height: 52, borderRadius: 999, background: vm.emServico ? '#EAF5EE' : '#fff', border: `1px solid ${vm.emServico ? '#C8E1D0' : THEME.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: vm.emServico ? THEME.success : THEME.gold, fontSize: 20, fontWeight: 900, flexShrink: 0 }}>
             {(profile?.full_name || user?.email || '?')[0].toUpperCase()}
           </div>
@@ -1406,10 +1406,10 @@ export default function MontadorDashboard() {
           </div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9, marginBottom: 12 }}>
-          <div style={{ border: `1px solid ${THEME.border}`, background: '#fff', borderRadius: 13, padding: 11 }}><strong style={{ display: 'block', fontSize: 10, letterSpacing: 1.1, textTransform: 'uppercase', color: THEME.gold, fontWeight: 900, marginBottom: 5 }}>Obra ativa</strong><span style={{ display: 'block', fontSize: 12.5, color: THEME.ink, fontWeight: 800, lineHeight: 1.35 }}>{obraAtiva.nome || 'Obra sem nome'}</span></div>
-          <div style={{ border: `1px solid ${THEME.border}`, background: '#fff', borderRadius: 13, padding: 11 }}><strong style={{ display: 'block', fontSize: 10, letterSpacing: 1.1, textTransform: 'uppercase', color: THEME.gold, fontWeight: 900, marginBottom: 5 }}>Status</strong><span style={{ display: 'block', fontSize: 12.5, color: THEME.ink, fontWeight: 800, lineHeight: 1.35 }}>{faseObraMontador(obraAtiva).label}</span></div>
-          <div style={{ border: `1px solid ${THEME.border}`, background: '#fff', borderRadius: 13, padding: 11 }}><strong style={{ display: 'block', fontSize: 10, letterSpacing: 1.1, textTransform: 'uppercase', color: THEME.gold, fontWeight: 900, marginBottom: 5 }}>Último registro</strong><span style={{ display: 'block', fontSize: 12.5, color: THEME.ink, fontWeight: 800, lineHeight: 1.35 }}>{vm.ultimoServico ? `${horaBR(vm.ultimoServico.entrada || vm.ultimoServico.created_at)}${vm.ultimoServico.saida ? ` - ${horaBR(vm.ultimoServico.saida)}` : ''}` : 'Sem check-in'}</span></div>
-          <div style={{ border: `1px solid ${THEME.border}`, background: '#fff', borderRadius: 13, padding: 11 }}><strong style={{ display: 'block', fontSize: 10, letterSpacing: 1.1, textTransform: 'uppercase', color: THEME.gold, fontWeight: 900, marginBottom: 5 }}>Checklist</strong><span style={{ display: 'block', fontSize: 12.5, color: THEME.ink, fontWeight: 800, lineHeight: 1.35 }}>{vm.checklistConcluidos.length}/{checklist.length} itens</span></div>
+          <div style={{ border: `1px solid ${THEME.border}`, background: THEME.elevated, borderRadius: 13, padding: 11 }}><strong style={{ display: 'block', fontSize: 10, letterSpacing: 1.1, textTransform: 'uppercase', color: THEME.gold, fontWeight: 900, marginBottom: 5 }}>Obra ativa</strong><span style={{ display: 'block', fontSize: 12.5, color: THEME.ink, fontWeight: 800, lineHeight: 1.35 }}>{obraAtiva.nome || 'Obra sem nome'}</span></div>
+          <div style={{ border: `1px solid ${THEME.border}`, background: THEME.elevated, borderRadius: 13, padding: 11 }}><strong style={{ display: 'block', fontSize: 10, letterSpacing: 1.1, textTransform: 'uppercase', color: THEME.gold, fontWeight: 900, marginBottom: 5 }}>Status</strong><span style={{ display: 'block', fontSize: 12.5, color: THEME.ink, fontWeight: 800, lineHeight: 1.35 }}>{faseObraMontador(obraAtiva).label}</span></div>
+          <div style={{ border: `1px solid ${THEME.border}`, background: THEME.elevated, borderRadius: 13, padding: 11 }}><strong style={{ display: 'block', fontSize: 10, letterSpacing: 1.1, textTransform: 'uppercase', color: THEME.gold, fontWeight: 900, marginBottom: 5 }}>Último registro</strong><span style={{ display: 'block', fontSize: 12.5, color: THEME.ink, fontWeight: 800, lineHeight: 1.35 }}>{vm.ultimoServico ? `${horaBR(vm.ultimoServico.entrada || vm.ultimoServico.created_at)}${vm.ultimoServico.saida ? ` - ${horaBR(vm.ultimoServico.saida)}` : ''}` : 'Sem check-in'}</span></div>
+          <div style={{ border: `1px solid ${THEME.border}`, background: THEME.elevated, borderRadius: 13, padding: 11 }}><strong style={{ display: 'block', fontSize: 10, letterSpacing: 1.1, textTransform: 'uppercase', color: THEME.gold, fontWeight: 900, marginBottom: 5 }}>Checklist</strong><span style={{ display: 'block', fontSize: 12.5, color: THEME.ink, fontWeight: 800, lineHeight: 1.35 }}>{vm.checklistConcluidos.length}/{checklist.length} itens</span></div>
         </div>
         <button className="md-profile-logout" onClick={logout}>Sair da conta</button>
       </section>
@@ -1459,7 +1459,7 @@ const css = `
 .md-top h1{font-family:var(--font-serif);font-size:27px;line-height:1.05;font-weight:500;margin:0;color:${THEME.ink}}
 .md-top small{display:block;margin-top:5px;font-size:12px;color:${THEME.muted}}
 .md-top-actions{display:flex;align-items:center;gap:8px}
-.md-avatar{width:42px;height:42px;border-radius:999px;background:#fff;border:1px solid ${THEME.border};display:flex;align-items:center;justify-content:center;color:${THEME.gold};font-weight:800;flex-shrink:0}
+.md-avatar{width:42px;height:42px;border-radius:999px;background:${THEME.elevated};border:1px solid ${THEME.border};display:flex;align-items:center;justify-content:center;color:${THEME.gold};font-weight:800;flex-shrink:0}
 .md-avatar.active{background:#EAF5EE;border-color:#C8E1D0;color:${THEME.success};box-shadow:0 0 0 4px rgba(45,122,74,.08)}
 .md-profile-logout{width:100%;border:1px solid #F0C8C8;background:#FFF8F8;color:${THEME.danger};border-radius:13px;padding:13px;font-size:13px;font-weight:900;font-family:inherit;cursor:pointer;margin-top:4px}
 .md-field{margin-bottom:12px}
@@ -1474,7 +1474,7 @@ const css = `
 .md-obra-card p{font-size:12px;line-height:1.45;color:#D7CABA;margin:10px 0 12px}
 .md-obra-card small{display:block;font-size:11px;color:#BDB0A0;margin-top:10px}
 .md-obra-dates{display:grid;gap:4px;margin-top:12px}
-.md-start-work{width:100%;border:0;background:${THEME.gold};color:#fff;border-radius:13px;padding:13px 14px;font-size:14px;font-weight:900;margin-top:14px;cursor:pointer}
+.md-start-work{width:100%;border:0;background:${THEME.gold};color:#141210;border-radius:13px;padding:13px 14px;font-size:14px;font-weight:600;margin-top:14px;cursor:pointer}
 .md-start-work.secondary{background:#EEF5FF;color:#2563EB;border:1px solid rgba(37,99,235,.22)}
 .md-work-day{margin-top:14px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.08);border-radius:13px;padding:11px 12px;color:#fff;font-size:13px;font-weight:900;text-align:center}
 .md-work-day.gold{border-color:rgba(201,169,110,.32);background:rgba(201,169,110,.12);color:#F5D79D}
@@ -1492,15 +1492,15 @@ const css = `
 .md-check-primary.done{color:${THEME.success}!important}
 .md-check-info small{display:block;font-size:11px;color:${THEME.muted};line-height:1.35;margin-top:3px}
 .md-check-feedback{display:inline-flex;margin-top:8px;background:#EAF5EE;color:${THEME.success};border:1px solid #C8E1D0;border-radius:999px;padding:6px 9px;font-size:11px;font-weight:900;line-height:1.1}
-.md-check-card button{border:0;background:${THEME.ink};color:#fff;border-radius:14px;padding:15px 18px;min-width:118px;font-size:15px;font-weight:900;cursor:pointer}
+.md-check-card button{border:0;background:${THEME.gold};color:#141210;border-radius:14px;padding:15px 18px;min-width:118px;font-size:15px;font-weight:600;cursor:pointer}
 .md-check-card button.checkout{background:${THEME.danger}}
 .md-check-card button.disabled{background:#D8D0C2;color:#7A746B;cursor:default}
 .md-check-progress-card{padding-bottom:14px}
-.md-open-checklist{width:100%;border:1px solid ${THEME.gold};background:#fff;color:${THEME.gold};border-radius:12px;padding:11px 13px;font-size:12px;font-weight:900;font-family:inherit;cursor:pointer}
-.md-today-card{background:#fff;border:1px solid ${THEME.border};border-radius:18px;padding:14px;margin-bottom:12px;box-shadow:0 10px 26px rgba(29,28,25,.04)}
+.md-open-checklist{width:100%;border:1px solid ${THEME.gold};background:${THEME.elevated};color:${THEME.gold};border-radius:12px;padding:11px 13px;font-size:12px;font-weight:900;font-family:inherit;cursor:pointer}
+.md-today-card{background:${THEME.card};border:1px solid ${THEME.border};border-radius:18px;padding:14px;margin-bottom:12px;box-shadow:0 10px 26px rgba(0,0,0,.16)}
 .md-card-head.compact{margin-bottom:9px}
 .md-today-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.md-today-row div{background:#FFFEFC;border:1px solid ${THEME.border};border-radius:13px;padding:10px}
+.md-today-row div{background:${THEME.elevated};border:1px solid ${THEME.border};border-radius:13px;padding:10px}
 .md-today-row strong{display:block;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:${THEME.gold};font-weight:900;margin-bottom:5px}
 .md-today-row span{display:block;font-size:15px;color:${THEME.ink};font-weight:900}
 .md-today-row p{grid-column:1/-1;margin:0;color:${THEME.muted};font-size:12px;line-height:1.35}
@@ -1512,7 +1512,7 @@ const css = `
 .md-card-head button{border:0;background:transparent;color:${THEME.gold};font-size:12px;font-weight:900;cursor:pointer}
 .md-card-sub{display:block;font-size:11px;color:${THEME.muted};font-weight:800;margin-top:3px}
 .md-card-note{margin:-3px 0 12px;color:${THEME.muted};font-size:12.5px;line-height:1.45}
-.md-next-dates{border:1px solid ${THEME.border};background:#FFFEFC;border-radius:15px;padding:13px;margin:12px 0 14px}
+.md-next-dates{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:15px;padding:13px;margin:12px 0 14px}
 .md-next-dates .md-card-head{margin-bottom:10px}
 .md-next-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:5px}
 .md-next strong{display:block;font-size:16px;color:${THEME.ink};margin-bottom:0}
@@ -1524,9 +1524,9 @@ const css = `
 .md-next span{display:block;font-size:13px;color:${THEME.muted};line-height:1.4}
 .md-next small{display:block;font-size:12px;color:${THEME.gold};font-weight:800;margin-top:8px}
 .md-next.highlight{border:1px solid rgba(184,150,94,.45);background:#FFFAF0;border-radius:15px;padding:13px;margin-bottom:10px;box-shadow:0 10px 24px rgba(184,150,94,.12)}
-.md-confirm-btn{border:0;background:${THEME.gold};color:#fff;border-radius:12px;padding:11px 13px;font-size:12px;font-weight:900;margin-top:10px;cursor:pointer;width:100%}
+.md-confirm-btn{border:0;background:${THEME.gold};color:#141210;border-radius:12px;padding:11px 13px;font-size:12px;font-weight:900;margin-top:10px;cursor:pointer;width:100%}
 .md-date-list{display:grid;gap:8px}
-.md-date-list button{width:100%;border:1px solid ${THEME.border};background:#FFFEFC;border-radius:14px;padding:10px 11px;display:grid;grid-template-columns:58px 1fr;align-items:center;gap:10px;font-family:inherit;text-align:left;cursor:pointer}
+.md-date-list button{width:100%;border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:14px;padding:10px 11px;display:grid;grid-template-columns:58px 1fr;align-items:center;gap:10px;font-family:inherit;text-align:left;cursor:pointer}
 .md-date-list strong{font-size:13px;color:${THEME.gold};text-transform:lowercase;line-height:1.15}
 .md-date-list span{min-width:0;display:flex;align-items:center;gap:7px;font-size:13px;color:${THEME.ink};font-weight:800;overflow:hidden}
 .md-date-list span i{font-style:normal;border:1px solid ${THEME.border};border-radius:999px;padding:5px 8px;font-size:10px;line-height:1;font-weight:900;white-space:nowrap;flex-shrink:0}
@@ -1534,14 +1534,14 @@ const css = `
 .md-date-list span small{font-size:12px;color:${THEME.muted};font-weight:900;flex-shrink:0}
 .md-empty-compact{background:#F3F0EA;border:1px solid ${THEME.border};border-radius:14px;padding:13px;color:${THEME.muted};font-size:13px;text-align:center;font-weight:800}
 .md-quick{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px}
-.md-quick button{border:1px solid ${THEME.border};background:#fff;color:${THEME.ink};border-radius:14px;padding:14px 10px;font-size:13px;font-weight:900;cursor:pointer}
+.md-quick button{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:14px;padding:14px 10px;font-size:13px;font-weight:900;cursor:pointer}
 .md-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
-.md-metric{background:#fff;border:1px solid ${THEME.border};border-radius:14px;padding:12px 8px;text-align:center}
+.md-metric{background:${THEME.card};border:1px solid ${THEME.border};border-radius:14px;padding:12px 8px;text-align:center}
 .md-metric.danger{border-color:#F0C8C8;background:#FFF8F8}
 .md-metric strong{display:block;font-size:22px;line-height:1;color:${THEME.ink}}
 .md-metric.danger strong{color:${THEME.danger}}
 .md-metric span{display:block;font-size:10.5px;color:${THEME.muted};margin-top:5px}
-.md-task{border:1px solid ${THEME.border};border-left:4px solid ${THEME.gold};border-radius:15px;padding:14px;margin-bottom:10px;background:#FFFEFC}
+.md-task{border:1px solid ${THEME.border};border-left:4px solid ${THEME.gold};border-radius:15px;padding:14px;margin-bottom:10px;background:${THEME.card}}
 .md-task{cursor:pointer}
 .md-task.compact{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px}
 .md-task.compact strong{display:block;font-size:13.5px;color:${THEME.ink};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:250px}
@@ -1561,7 +1561,7 @@ const css = `
 .md-done-task{width:100%;border:1px solid #C8E1D0;background:#F7FCF8;border-radius:12px;padding:11px 12px;display:flex;align-items:center;justify-content:space-between;margin-top:8px;font-family:inherit;cursor:pointer}
 .md-done-task strong{font-size:13px;color:${THEME.ink}}
 .md-done-task span{color:${THEME.success};font-weight:900}
-.md-env{border:1px solid ${THEME.border};border-radius:15px;padding:13px;margin-top:12px;background:#FFFEFC}
+.md-env{border:1px solid ${THEME.border};border-radius:15px;padding:13px;margin-top:12px;background:${THEME.card}}
 .md-env.progress{border-color:${THEME.gold}}
 .md-env.done{border-color:${THEME.success};background:#F7FCF8}
 .md-env-head{width:100%;border:0;background:transparent;padding:0;display:flex;justify-content:space-between;gap:10px;text-align:left;font-family:inherit;cursor:pointer}
@@ -1570,14 +1570,14 @@ const css = `
 .md-env-head span{font-size:12px;color:${THEME.gold};font-weight:900}
 .md-env.done .md-env-head span{color:${THEME.success}}
 .md-env-chips{display:flex;gap:8px;overflow-x:auto;padding:2px 0 12px;margin-bottom:2px}
-.md-env-chips button{border:1px solid ${THEME.border};background:#fff;color:${THEME.ink};border-radius:999px;padding:9px 12px;font-size:12px;font-weight:900;font-family:inherit;white-space:nowrap;cursor:pointer}
-.md-env-chips button.active{border-color:${THEME.gold};background:${THEME.gold};color:#fff}
+.md-env-chips button{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.muted};border-radius:999px;padding:9px 12px;font-size:12px;font-weight:900;font-family:inherit;white-space:nowrap;cursor:pointer}
+.md-env-chips button.active{border-color:${THEME.gold};background:${THEME.gold};color:#141210}
 .md-env-chips button.done{border-color:${THEME.success}}
-.md-add-check{border:1px dashed ${THEME.border};border-radius:14px;padding:10px;margin-top:10px;background:#FFFEFC}
+.md-add-check{border:1px dashed ${THEME.border};border-radius:14px;padding:10px;margin-top:10px;background:${THEME.card}}
 .md-add-check input{width:100%;box-sizing:border-box;border:1px solid ${THEME.inputBorder};background:${THEME.inputBackground};border-radius:8px;padding:10px 14px;font-size:14px;font-family:inherit;color:${THEME.inputText};outline:none;margin-bottom:8px}
-.md-add-check button{width:100%;border:1px solid ${THEME.gold};background:#fff;color:${THEME.gold};border-radius:12px;padding:12px;font-size:13px;font-weight:900;font-family:inherit;cursor:pointer}
+.md-add-check button{width:100%;border:1px solid ${THEME.gold};background:${THEME.elevated};color:${THEME.gold};border-radius:12px;padding:12px;font-size:13px;font-weight:900;font-family:inherit;cursor:pointer}
 .md-add-check button:disabled{opacity:.45;cursor:not-allowed}
-.md-check-item{width:100%;border:1px solid ${THEME.border};background:#fff;border-radius:13px;padding:13px;display:flex;align-items:center;gap:11px;text-align:left;margin-top:8px;font-family:inherit;cursor:pointer}
+.md-check-item{width:100%;border:1px solid ${THEME.border};background:${THEME.card};color:${THEME.ink};border-radius:13px;padding:13px;display:flex;align-items:center;gap:11px;text-align:left;margin-top:8px;font-family:inherit;cursor:pointer}
 .md-check-item.done{background:#F4FBF6;border-color:#C8E1D0;opacity:.5}
 .md-check-item i{width:23px;height:23px;border-radius:7px;border:2px solid ${THEME.border};display:flex;align-items:center;justify-content:center;font-style:normal;font-size:13px;font-weight:900;flex-shrink:0}
 .md-check-item.done i{background:${THEME.success};border-color:${THEME.success};color:#fff}
@@ -1595,7 +1595,7 @@ const css = `
 .md-photo{position:relative;aspect-ratio:1;border:0;border-radius:13px;overflow:hidden;background:#F0ECE6;padding:0;cursor:pointer}
 .md-photo img{width:100%;height:100%;object-fit:cover;display:block}
 .md-photo span{position:absolute;left:5px;right:5px;bottom:5px;background:rgba(29,28,25,.72);color:#fff;border-radius:8px;padding:4px 5px;font-size:9px;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.md-occ{border:1px solid ${THEME.border};border-radius:14px;padding:12px;margin-bottom:9px;background:#FFFEFC}
+.md-occ{border:1px solid ${THEME.border};border-radius:14px;padding:12px;margin-bottom:9px;background:${THEME.card}}
 .md-occ strong{font-size:13.5px;color:${THEME.ink}}
 .md-occ p{font-size:12px;color:${THEME.muted};line-height:1.4;margin:6px 0}
 .md-occ small{font-size:11px;color:${THEME.gold};font-weight:800}
@@ -1617,28 +1617,28 @@ const css = `
 .md-modal textarea{width:100%;box-sizing:border-box;border:1px solid ${THEME.inputBorder};background:${THEME.inputBackground};border-radius:8px;padding:10px 14px;font-family:inherit;font-size:14px;resize:none;color:${THEME.inputText};outline:none}
 .md-modal-actions{display:flex;gap:9px;justify-content:flex-end;margin-top:12px}
 .md-modal-actions.split{justify-content:stretch}
-.md-modal-actions button{border:1px solid ${THEME.border};background:#fff;border-radius:12px;padding:11px 14px;font-weight:800;color:${THEME.muted};cursor:pointer}
+.md-modal-actions button{border:1px solid ${THEME.border};background:${THEME.elevated};border-radius:12px;padding:11px 14px;font-weight:800;color:${THEME.ink};cursor:pointer}
 .md-modal-actions button.danger{border-color:${THEME.danger};background:${THEME.danger};color:#fff}
-.md-modal-actions button.gold{border-color:${THEME.gold};background:${THEME.gold};color:#fff;flex:1}
+.md-modal-actions button.gold{border-color:${THEME.gold};background:${THEME.gold};color:#141210;flex:1}
 .md-modal-actions button.success{border-color:${THEME.success};background:${THEME.success};color:#fff;flex:1}
-.md-task-detail-status{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid ${THEME.border};background:#FFFEFC;border-radius:13px;padding:11px 12px;margin-bottom:12px}
+.md-task-detail-status{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid ${THEME.border};background:${THEME.card};border-radius:13px;padding:11px 12px;margin-bottom:12px}
 .md-task-detail-status span{font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:${THEME.gold};font-weight:900}
 .md-task-detail-status small{font-size:12px;color:${THEME.muted};font-weight:800}
-.md-task-checklist-preview{border:1px solid ${THEME.border};background:#FFFEFC;border-radius:13px;padding:12px;margin-top:12px}
+.md-task-checklist-preview{border:1px solid ${THEME.border};background:${THEME.card};border-radius:13px;padding:12px;margin-top:12px}
 .md-task-checklist-preview strong{display:block;font-size:13px;color:${THEME.ink};margin-bottom:8px}
 .md-task-checklist-preview span{display:block;font-size:12px;color:${THEME.muted};line-height:1.45;margin-top:5px}
 .md-task-photo-actions button{width:100%;border:0;background:${THEME.ink};color:#fff;border-radius:13px;padding:12px;margin:12px 0;font-weight:900;cursor:pointer}
 .md-calendar-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
 .md-calendar-head h2{text-align:center;margin:0!important}
-.md-calendar-head button{width:38px;height:38px;border:1px solid ${THEME.border};background:#fff;border-radius:12px;font-size:24px;line-height:1;cursor:pointer;color:${THEME.ink}}
+.md-calendar-head button{width:38px;height:38px;border:1px solid ${THEME.border};background:${THEME.elevated};border-radius:12px;font-size:24px;line-height:1;cursor:pointer;color:${THEME.ink}}
 .md-calendar-week{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:6px}
 .md-calendar-week span{text-align:center;font-size:10px;font-weight:900;color:${THEME.muted}}
 .md-calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
-.md-calendar-grid button{height:42px;border:1px solid ${THEME.border};background:#FFFEFC;border-radius:11px;position:relative;font-weight:900;color:${THEME.ink};cursor:pointer}
+.md-calendar-grid button{height:42px;border:1px solid ${THEME.border};background:${THEME.card};border-radius:11px;position:relative;font-weight:900;color:${THEME.ink};cursor:pointer}
 .md-calendar-grid button.muted{opacity:.35}
 .md-calendar-grid button.busy{border-color:${THEME.gold};background:#FFF8EA;color:${THEME.gold}}
 .md-calendar-grid button i{position:absolute;left:50%;bottom:6px;transform:translateX(-50%);width:5px;height:5px;border-radius:999px;background:${THEME.gold}}
-.md-calendar-day{border:1px solid ${THEME.border};background:#FFFEFC;border-radius:14px;padding:12px;margin-top:14px}
+.md-calendar-day{border:1px solid ${THEME.border};background:${THEME.card};border-radius:14px;padding:12px;margin-top:14px}
 .md-calendar-day>strong{font-size:13px;color:${THEME.ink}}
 .md-calendar-day p{font-size:12px;color:${THEME.muted};margin:8px 0 0}
 .md-calendar-event{border-top:1px solid ${THEME.border};border-left:4px solid ${THEME.gold};padding:9px 0 0 10px;margin-top:9px}

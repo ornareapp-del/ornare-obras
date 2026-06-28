@@ -555,7 +555,7 @@ const css = `
   .ga-header p{font-size:12px !important;line-height:1.35 !important;max-width:31ch}
   .ga-header button{width:100% !important;border-radius:14px !important;padding:11px 14px !important}
   .ga-mobile-summary{display:grid !important;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 10px}
-  .ga-mobile-summary button{appearance:none;border:1px solid rgba(231,224,213,.95);background:#fff;border-radius:16px;padding:10px 8px;text-align:left;box-shadow:0 10px 24px rgba(29,28,25,.045);font-family:inherit}
+  .ga-mobile-summary button{appearance:none;border:1px solid ${theme.border};background:${theme.surface};border-radius:16px;padding:10px 8px;text-align:left;box-shadow:0 10px 24px rgba(0,0,0,.16);font-family:inherit}
   .ga-mobile-summary strong{display:block;font-size:17px;line-height:1;color:var(--color-ink);white-space:nowrap}
   .ga-mobile-summary span{display:block;margin-top:5px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.45px;color:var(--color-ink-muted);white-space:nowrap}
   .ga-stats{display:none !important}
@@ -628,7 +628,7 @@ const ms = {
   full:        { gridColumn: '1/-1' },
   label:       { display: 'block', fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: '#888', marginBottom: 6 },
   input:       { background: theme.inputBackground, border: '1px solid ' + theme.inputBorder, color: theme.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' },
-  uploadArea:  { display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px dashed #e0dbd4', borderRadius: 8, padding: '16px', cursor: 'pointer', background: '#fafaf8', width: '100%', boxSizing: 'border-box' },
+  uploadArea:  { display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px dashed ' + theme.inputBorder, borderRadius: 8, padding: '16px', cursor: 'pointer', background: theme.inputBackground, width: '100%', boxSizing: 'border-box' },
   erro:        { background: '#fceee9', borderLeft: '3px solid #c4421e', color: '#5c2010', padding: '10px 14px', borderRadius: 6, fontSize: 12, marginBottom: 16 },
   alertaExcede:   { background: '#fdecea', borderLeft: '3px solid #B84040', color: '#7a2020', padding: '10px 14px', borderRadius: 6, fontSize: 12, marginBottom: 16, lineHeight: 1.5 },
   alertaAprovacao:{ background: '#fdf8f0', borderLeft: '3px solid #C8A86A', color: '#7a5c20', padding: '10px 14px', borderRadius: 6, fontSize: 12, marginBottom: 16, lineHeight: 1.5 },

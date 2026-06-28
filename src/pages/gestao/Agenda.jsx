@@ -908,8 +908,8 @@ const css = `
   .ag-kpis span{font-size:10.5px !important;line-height:1 !important;letter-spacing:0 !important;white-space:nowrap !important;margin:0 !important;color:var(--color-ink-muted) !important}
   .ag-kpis strong{font-size:15px !important;line-height:1 !important}
   .ag-mobile-home{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 12px}
-  .ag-mobile-home button{border:1px solid var(--color-border);background:#fff;border-radius:15px;padding:11px 9px;text-align:left;font-family:inherit;box-shadow:0 10px 26px rgba(29,28,25,.04)}
-  .ag-mobile-home button.muted{background:#FFFEFC}
+  .ag-mobile-home button{border:1px solid var(--color-border);background:${theme.surface};border-radius:15px;padding:11px 9px;text-align:left;font-family:inherit;box-shadow:0 10px 26px rgba(0,0,0,.16)}
+  .ag-mobile-home button.muted{background:${theme.surfaceElevated}}
   .ag-mobile-home strong{display:block;font-size:23px;line-height:1;color:var(--color-ink)}
   .ag-mobile-home span{display:block;font-size:10.5px;color:var(--color-ink-muted);font-weight:900;margin-top:5px}
   .ag-filters{margin-bottom:12px !important}
@@ -958,7 +958,7 @@ const s = {
   modalTitle: { fontFamily: 'var(--font-serif)', fontSize: 24, fontWeight: 500, margin: 0 },
   btnClose: { background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: '#999' },
   modalBody: { overflowY: 'auto', padding: '20px 28px', flex: 1 },
-  modalSummary: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, border: '1px solid var(--color-border)', borderLeft: '4px solid var(--color-gold)', background: '#FFFEFC', borderRadius: 14, padding: '13px 14px', marginBottom: 16 },
+  modalSummary: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, border: '1px solid var(--color-border)', borderLeft: '4px solid var(--color-gold)', background: theme.surfaceElevated, borderRadius: 14, padding: '13px 14px', marginBottom: 16 },
   modalSummaryTitle: { display: 'block', marginTop: 8, fontSize: 15, color: 'var(--color-ink)' },
   modalSummaryMeta: { display: 'block', marginTop: 4, fontSize: 12, color: 'var(--color-ink-muted)', fontWeight: 700 },
   modalFooter: { display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '16px 28px', borderTop: '1px solid #f0ece6', flexShrink: 0 },
@@ -972,21 +972,21 @@ const s = {
   vistoriaTitle: { display: 'block', fontSize: 15, color: 'var(--color-ink)' },
   vistoriaStatus: { borderRadius: 999, background: '#EAF5EE', color: '#2D7A4A', padding: '6px 10px', fontSize: 11, fontWeight: 900, textTransform: 'capitalize', whiteSpace: 'nowrap' },
   vistoriaStats: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 },
-  vistoriaStat: { background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, padding: '12px 13px' },
+  vistoriaStat: { background: theme.surface, border: '1px solid var(--color-border)', borderRadius: 12, padding: '12px 13px' },
   vistoriaStatValue: { display: 'block', fontSize: 24, lineHeight: 1, color: 'var(--color-ink)', marginBottom: 5 },
   vistoriaStatLabel: { display: 'block', fontSize: 11, color: 'var(--color-ink-muted)', fontWeight: 800 },
   vistoriaActions: { display: 'flex', gap: 8, flexWrap: 'wrap' },
   vistoriaPrimary: { background: 'var(--color-ink)', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 12px', fontSize: 12, fontWeight: 900, cursor: 'pointer', fontFamily: 'inherit' },
-  vistoriaButton: { background: '#fff', color: 'var(--color-ink)', border: '1px solid var(--color-border)', borderRadius: 10, padding: '9px 12px', fontSize: 12, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' },
-  vistoriaMessage: { marginTop: 12, borderRadius: 10, background: '#fff', border: '1px solid var(--color-border)', padding: '9px 11px', fontSize: 12, color: 'var(--color-ink-muted)', fontWeight: 700 },
+  vistoriaButton: { background: theme.surfaceElevated, color: 'var(--color-ink)', border: '1px solid var(--color-border)', borderRadius: 10, padding: '9px 12px', fontSize: 12, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' },
+  vistoriaMessage: { marginTop: 12, borderRadius: 10, background: theme.surface, border: '1px solid var(--color-border)', padding: '9px 11px', fontSize: 12, color: 'var(--color-ink-muted)', fontWeight: 700 },
   campoBox: { marginTop: 14, border: '1px solid #DDE7DD', background: '#FBFEFC', borderRadius: 14, padding: 16 },
   campoStatus: { borderRadius: 999, background: '#EAF5EE', color: '#2D7A4A', padding: '6px 11px', fontSize: 11, fontWeight: 900, whiteSpace: 'nowrap' },
   campoActions: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 },
   campoAction: { background: '#2D7A4A', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 13px', fontSize: 12, fontWeight: 900, cursor: 'pointer', fontFamily: 'inherit' },
   campoHint: { fontSize: 11.5, color: 'var(--color-ink-muted)', fontWeight: 700 },
-  campoEmpty: { border: '1px dashed var(--color-border)', background: '#fff', borderRadius: 12, padding: 14, color: 'var(--color-ink-muted)', fontSize: 12.5, fontWeight: 700 },
+  campoEmpty: { border: '1px dashed var(--color-border)', background: theme.surface, borderRadius: 12, padding: 14, color: 'var(--color-ink-muted)', fontSize: 12.5, fontWeight: 700 },
   campoList: { display: 'grid', gap: 9 },
-  campoItem: { border: '1px solid var(--color-border)', background: '#fff', borderRadius: 12, padding: 12 },
+  campoItem: { border: '1px solid var(--color-border)', background: theme.surface, borderRadius: 12, padding: 12 },
   campoPerson: { fontSize: 13, color: 'var(--color-ink)', fontWeight: 900, marginBottom: 9 },
   campoGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 },
   campoInfo: { display: 'block', borderRadius: 10, background: '#F7FAF7', padding: '9px 10px', fontSize: 12, color: 'var(--color-ink)', fontWeight: 800 },

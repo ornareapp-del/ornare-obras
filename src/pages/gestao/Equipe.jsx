@@ -359,7 +359,7 @@ const css = `
   .eq-header p{font-size:12px !important;margin-top:4px !important}
   .eq-new{padding:9px 12px !important;border-radius:12px !important;font-size:12px !important}
   .eq-mobile-summary{display:grid !important;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 10px}
-  .eq-mobile-summary button{appearance:none;border:1px solid rgba(231,224,213,.95);background:#fff;border-radius:16px;padding:10px 8px;text-align:left;box-shadow:0 10px 24px rgba(29,28,25,.045);font-family:inherit}
+  .eq-mobile-summary button{appearance:none;border:1px solid rgba(231,224,213,.95);background:${theme.surface};border-radius:16px;padding:10px 8px;text-align:left;box-shadow:0 10px 24px rgba(29,28,25,.045);font-family:inherit}
   .eq-mobile-summary strong{display:block;font-size:22px;line-height:1;color:var(--color-ink)}
   .eq-mobile-summary span{display:block;margin-top:5px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--color-ink-muted)}
   .eq-kpis{display:none !important}
@@ -407,7 +407,7 @@ const s = {
   badge: { fontSize: 10, padding: '3px 9px', borderRadius: 999, fontWeight: 800 },
   detailLine: { fontSize: 12, color: 'var(--color-ink-muted)', padding: '6px 0', borderTop: '1px solid var(--color-border)' },
   actions: { display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14 },
-  btnEdit: { background: '#fff', border: '1px solid var(--color-border)', borderRadius: 9, padding: '8px 13px', fontSize: 12, fontWeight: 700, cursor: 'pointer', color: 'var(--color-ink-muted)' },
+  btnEdit: { background: theme.surface, border: '1px solid var(--color-border)', borderRadius: 9, padding: '8px 13px', fontSize: 12, fontWeight: 700, cursor: 'pointer', color: 'var(--color-ink-muted)' },
   empty: { textAlign: 'center', padding: '40px 0', color: '#aaa' },
   emptyBox: { textAlign: 'center', padding: '44px 18px', background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
   emptyIcon: { fontSize: 13, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 12 },

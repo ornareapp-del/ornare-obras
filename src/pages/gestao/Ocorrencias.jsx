@@ -289,7 +289,7 @@ const css = `
   .oc-header p{font-size:12px !important;line-height:1.35 !important;max-width:29ch}
   .oc-header button{width:100% !important;border-radius:14px !important;padding:11px 14px !important}
   .oc-mobile-summary{display:grid !important;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 10px}
-  .oc-mobile-summary button{appearance:none;border:1px solid rgba(231,224,213,.95);background:#fff;border-radius:16px;padding:10px 8px;text-align:left;box-shadow:0 10px 24px rgba(29,28,25,.045);font-family:inherit}
+  .oc-mobile-summary button{appearance:none;border:1px solid ${theme.border};background:${theme.surface};border-radius:16px;padding:10px 8px;text-align:left;box-shadow:0 10px 24px rgba(0,0,0,.16);font-family:inherit}
   .oc-mobile-summary strong{display:block;font-size:22px;line-height:1;color:var(--color-ink)}
   .oc-mobile-summary span{display:block;margin-top:5px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.55px;color:var(--color-ink-muted);white-space:nowrap}
   .oc-stats{display:none !important}
