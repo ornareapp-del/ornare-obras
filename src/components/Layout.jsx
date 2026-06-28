@@ -163,7 +163,7 @@ export default function Layout() {
       <main className="ow-app-main" style={{ flex: 1, overflowY: 'auto', transition: 'all 0.25s', background: 'var(--color-bg, #F5F2EE)' }}>
 
         {user?.id && (
-          <div style={{ position: 'fixed', top: isMobile ? 14 : 18, right: isMobile ? 14 : 22, zIndex: 36, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ position: 'fixed', top: isMobile ? 14 : 18, right: isMobile ? 14 : 22, zIndex: 36, display: 'flex', alignItems: 'center', gap: 12 }}>
             {temPendencias && !isMobile && (
               <button
                 onClick={() => setNotificacoesAbertas(v => !v)}
@@ -180,6 +180,9 @@ export default function Layout() {
                   boxShadow: '0 12px 28px rgba(192,57,43,.14)',
                   cursor: 'pointer',
                   fontFamily: 'inherit',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
                 }}
               >
                 {pendentes.length > 9 ? '9+' : pendentes.length} ações pendentes
@@ -188,60 +191,40 @@ export default function Layout() {
             <button
               onClick={() => setNotificacoesAbertas(v => !v)}
               style={{
-                width: temPendencias ? 52 : 42,
-                height: temPendencias ? 52 : 42,
+                minWidth: temPendencias ? 58 : 42,
+                height: 42,
                 borderRadius: 999,
-                border: temPendencias ? '3px solid #FFFFFF' : '1px solid rgba(184,150,94,.35)',
+                border: temPendencias ? '1px solid rgba(192,57,43,.18)' : '1px solid rgba(184,150,94,.35)',
                 background: temPendencias ? 'linear-gradient(135deg, #E07B39 0%, #C0392B 100%)' : '#fff',
                 color: temPendencias ? '#fff' : '#1D1C19',
-                boxShadow: temPendencias ? '0 0 0 7px rgba(192,57,43,.14), 0 18px 42px rgba(192,57,43,.36)' : '0 12px 32px rgba(29,28,25,.12)',
+                boxShadow: temPendencias ? '0 12px 28px rgba(192,57,43,.18)' : '0 12px 32px rgba(29,28,25,.12)',
                 cursor: 'pointer',
-                position: 'relative',
-                display: 'grid',
-                placeItems: 'center',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 12,
+                padding: temPendencias ? '0 12px' : 0,
                 transition: 'all .22s ease',
+                fontFamily: 'inherit',
               }}
               title="Notificações"
             >
               <IconBell active={temPendencias} />
               {temPendencias && (
                 <span style={{
-                  position: 'absolute',
-                  top: -7,
-                  right: -7,
                   minWidth: 22,
                   height: 22,
                   borderRadius: 999,
-                  background: '#C0392B',
-                  color: '#fff',
+                  background: '#fff',
+                  color: '#C0392B',
                   fontSize: 10.5,
                   fontWeight: 900,
-                  display: 'grid',
-                  placeItems: 'center',
-                  border: '3px solid #fff',
-                  boxShadow: '0 6px 14px rgba(192,57,43,.35)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '0 6px',
                 }}>
                   {pendentes.length > 9 ? '9+' : pendentes.length}
-                </span>
-              )}
-              {temPendencias && (
-                <span style={{
-                  position: 'absolute',
-                  bottom: -5,
-                  right: -3,
-                  width: 19,
-                  height: 19,
-                  borderRadius: 999,
-                  background: theme.surfaceElevated,
-                  color: '#C0392B',
-                  fontSize: 12,
-                  fontWeight: 900,
-                  display: 'grid',
-                  placeItems: 'center',
-                  lineHeight: 1,
-                  border: '2px solid #C0392B',
-                }}>
-                  !
                 </span>
               )}
             </button>

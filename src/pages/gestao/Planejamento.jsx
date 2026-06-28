@@ -872,8 +872,8 @@ const css = `
 .pl-calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
 .pl-day{min-height:132px;border:1px solid ${THEME.border};background:${THEME.card};border-radius:13px;padding:9px;min-width:0;cursor:pointer;transition:border-color .15s,box-shadow .15s}
 .pl-day:hover{border-color:${THEME.gold};box-shadow:0 10px 24px rgba(29,28,25,.06)}
-.pl-day.outside{opacity:.45;background:#F9F6F0}
-.pl-day.non-workday{background:#F4EBDD;border-color:#D9C5A8}
+.pl-day.outside{opacity:.5;background:${THEME.bg}}
+.pl-day.non-workday{background:${THEME.elevated};border-color:${THEME.border}}
 .pl-day.non-workday .pl-day-num{color:#A36F22}
 .pl-day-num{font-size:12px;font-weight:900;color:${THEME.gold};margin-bottom:7px}
 .pl-day-items{display:flex;flex-direction:column;gap:6px}

@@ -181,9 +181,9 @@ export default function Obras() {
         {['Todas', ...STATUS_LISTA].map(f => (
           <button key={f} onClick={() => setFiltro(f)} style={{
             ...s.filtroBtn,
-            background: filtro === f ? 'var(--color-ink)' : '#fff',
-            color: filtro === f ? '#f9f7f4' : 'var(--color-ink-muted)',
-            border: filtro === f ? 'none' : '1px solid var(--color-border)',
+            background: filtro === f ? theme.gold : theme.surfaceElevated,
+            color: filtro === f ? '#141210' : theme.textSecondary,
+            border: filtro === f ? '1px solid ' + theme.gold : '1px solid ' + theme.border,
           }}>
             {f === 'Todas' ? 'Todas' : getStatus(f).label}
           </button>
@@ -315,7 +315,7 @@ const s = {
   breadcrumb: { fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6 },
   title: { fontFamily: 'var(--font-serif)', fontSize: 36, fontWeight: 500, color: 'var(--color-ink)', margin: 0 },
   sub: { fontSize: 13, color: 'var(--color-ink-muted)', marginTop: 4 },
-  btnNew: { background: theme.gold, color: theme.background, border: 'none', borderRadius: 8, padding: '12px 24px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' },
+  btnNew: { background: theme.gold, color: '#141210', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' },
   kpiGrid: { display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 12, marginBottom: 20 },
   kpi: { background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
   kpiLabel: { display: 'block', fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: 'var(--color-gold)', fontWeight: 800, marginBottom: 8 },
