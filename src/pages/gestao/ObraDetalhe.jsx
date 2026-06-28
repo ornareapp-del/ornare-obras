@@ -7,6 +7,7 @@ import { aplicarBibliotecaChecklist } from '../../services/checklistService'
 import { exportarRelatorioObra } from '../../services/pdfService'
 import { progressBarStyle, progressFillStyle, statusBadgeBaseStyle } from '../../utils/ui'
 import { FASES_ORNARE, faseOrnarePorKey, faseOrnarePorTexto, indiceFaseOrnare } from '../../constants/fasesOrnare'
+import { theme } from '../../constants/theme'
 
 const ST = {
   'Em montagem':         { label: 'Em montagem',        bg: '#edf7f0', color: '#3a7d4f' },
@@ -63,14 +64,15 @@ const SECOES = [
 ]
 
 const THEME = {
-  bg: '#F6F3EE',
-  card: '#FFFFFF',
-  border: '#E7E0D5',
-  ink: '#1D1C19',
-  muted: '#6D675E',
-  gold: '#B8965E',
-  softGold: '#F2E8D7',
-  danger: '#B94A48',
+  bg: theme.background,
+  card: theme.surface,
+  border: theme.border,
+  ink: theme.textPrimary,
+  muted: theme.textSecondary,
+  gold: theme.gold,
+  softGold: 'rgba(201,168,76,.16)',
+  danger: theme.error,
+  elevated: theme.surfaceElevated,
 }
 
 const FOTO_CATEGORIAS = [

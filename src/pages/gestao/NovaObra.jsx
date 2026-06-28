@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { copiarChecklistPadrao } from '../../services/checklistService'
+import { theme } from '../../constants/theme'
 
 const STATUS_LIST = [
   'Aguardando inicio', 'Medicao agendada', 'Em medicao',
@@ -307,8 +308,8 @@ export default function NovaObra() {
 
 function Secao({ titulo, children }) {
   return (
-    <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, padding: '20px 24px' }}>
-      <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-gold)', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 16 }}>{titulo}</div>
+    <div style={{ background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.3)' }}>
+      <div style={{ fontSize: 10, fontWeight: 600, color: theme.gold, textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 16 }}>{titulo}</div>
       {children}
     </div>
   )
@@ -325,27 +326,27 @@ function Campo({ label, children, full }) {
   )
 }
 function FInput({ onChange, ...props }) {
-  return <input {...props} onChange={e => onChange(e.target.value)} style={{ width: '100%', padding: '8px 12px', borderRadius: 7, border: '1px solid var(--color-border)', fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit', color: 'var(--color-ink)', background: '#fafaf8', outline: 'none' }} />
+  return <input {...props} onChange={e => onChange(e.target.value)} style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: `1px solid ${theme.border}`, fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit', color: theme.textPrimary, background: theme.surfaceElevated, outline: 'none' }} />
 }
 function FSelect({ onChange, children, ...props }) {
-  return <select {...props} onChange={e => onChange(e.target.value)} style={{ width: '100%', padding: '8px 12px', borderRadius: 7, border: '1px solid var(--color-border)', fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit', color: 'var(--color-ink)', background: '#fafaf8' }}>{children}</select>
+  return <select {...props} onChange={e => onChange(e.target.value)} style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: `1px solid ${theme.border}`, fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit', color: theme.textPrimary, background: theme.surfaceElevated }}>{children}</select>
 }
 
 // ─── ESTILOS ──────────────────────────────────────────────────────────────────
 
 const s = {
-  page:         { padding: '32px 40px', maxWidth: 800, margin: '0 auto' },
+  page:         { padding: '32px 40px', maxWidth: 800, margin: '0 auto', background: theme.background, color: theme.textPrimary, fontFamily: 'Inter, sans-serif' },
   header:       { marginBottom: 28 },
   back:         { background: 'none', border: 'none', fontSize: 12, color: '#888', cursor: 'pointer', padding: 0, marginBottom: 12 },
   breadcrumb:   { fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6 },
-  title:        { fontFamily: 'var(--font-serif)', fontSize: 36, fontWeight: 500, color: 'var(--color-ink)', margin: 0 },
+  title:        { fontFamily: 'Inter, sans-serif', fontSize: 36, fontWeight: 700, color: theme.textPrimary, margin: 0 },
   sections:     { display: 'flex', flexDirection: 'column', gap: 16 },
   erro:         { background: '#fceee9', borderLeft: '3px solid #c4421e', color: '#5c2010', padding: '10px 14px', borderRadius: 6, fontSize: 12, marginBottom: 16 },
   ambienteGrid: { display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
   ambienteTag:  { padding: '6px 14px', borderRadius: 20, fontSize: 12, cursor: 'pointer', transition: 'all .15s' },
-  textarea:     { width: '100%', border: '1px solid var(--color-border)', borderRadius: 8, padding: '10px 12px', fontSize: 13, fontFamily: 'inherit', color: 'var(--color-ink)', background: '#fafaf8', height: 80, resize: 'vertical', boxSizing: 'border-box' },
-  btnAdd:       { background: 'var(--color-ink)', color: '#f9f7f4', border: 'none', borderRadius: 7, padding: '8px 14px', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' },
+  textarea:     { width: '100%', border: `1px solid ${theme.border}`, borderRadius: 8, padding: '10px 12px', fontSize: 13, fontFamily: 'inherit', color: theme.textPrimary, background: theme.surfaceElevated, height: 80, resize: 'vertical', boxSizing: 'border-box' },
+  btnAdd:       { background: theme.gold, color: theme.background, border: 'none', borderRadius: 8, padding: '12px 24px', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' },
   footer:       { display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--color-border)' },
   btnCancel:    { background: 'none', border: '1px solid var(--color-border)', borderRadius: 8, padding: '10px 20px', fontSize: 13, cursor: 'pointer', color: '#888' },
-  btnSave:      { background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
+  btnSave:      { background: theme.gold, color: theme.background, border: 'none', borderRadius: 8, padding: '12px 24px', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
 }

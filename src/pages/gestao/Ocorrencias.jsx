@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useStore } from '../../store/useStore'
+import { theme } from '../../constants/theme'
 
 const GRAVIDADES = [
   { value: 'baixa', label: 'Baixa', cor: '#5aab6e', bg: '#edf7f0' },
@@ -306,20 +307,20 @@ const css = `
 `
 
 const s = {
-  page: { padding: '32px 40px', maxWidth: 1000, margin: '0 auto' },
+  page: { padding: '32px 40px', maxWidth: 1000, margin: '0 auto', background: theme.background, color: theme.textPrimary, fontFamily: 'Inter, sans-serif' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 },
   breadcrumb: { fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6 },
   title: { fontFamily: 'var(--font-serif)', fontSize: 36, fontWeight: 500, color: 'var(--color-ink)', margin: 0 },
   sub: { fontSize: 13, color: 'var(--color-ink-muted)', marginTop: 4 },
-  btnNew: { background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' },
+  btnNew: { background: theme.gold, color: theme.background, border: 'none', borderRadius: 8, padding: '12px 24px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' },
   statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 14, marginBottom: 24 },
-  stat: { border: '1px solid', borderRadius: 14, padding: '16px 20px', boxShadow: 'var(--shadow)' },
+  stat: { border: `1px solid ${theme.border}`, background: theme.surface, borderRadius: 12, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
   statLabel: { fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6 },
   statValue: { fontSize: 28, fontWeight: 700 },
   filters: { display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' },
   select: { padding: '8px 12px', borderRadius: 8, border: '1px solid var(--color-border)', fontSize: 13, fontFamily: 'inherit', background: '#fff' },
   list: { display: 'flex', flexDirection: 'column', gap: 10 },
-  item: { background: '#fff', border: '1px solid var(--color-border)', borderLeft: '4px solid', borderRadius: 14, padding: '16px 18px', boxShadow: 'var(--shadow)' },
+  item: { background: theme.surface, border: `1px solid ${theme.border}`, borderLeft: '4px solid', borderRadius: 12, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
   itemTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 6 },
   itemTitle: { fontSize: 14, fontWeight: 600, color: 'var(--color-ink)', flex: 1 },
   itemBadges: { display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 },
@@ -329,7 +330,7 @@ const s = {
   statusSelect: { fontSize: 11, padding: '3px 8px', borderRadius: 20, border: 'none', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
   btnObra: { marginTop: 10, background: 'none', border: 'none', color: 'var(--color-blue)', fontSize: 12, cursor: 'pointer', padding: 0 },
   empty: { textAlign: 'center', padding: '40px 0', color: '#bbb' },
-  emptyBox: { textAlign: 'center', padding: '60px 20px', background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12 },
+  emptyBox: { textAlign: 'center', padding: '60px 20px', background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
   emptyIcon: { fontSize: 40, marginBottom: 12 },
   emptyTitle: { fontSize: 16, fontWeight: 600, color: 'var(--color-ink)', marginBottom: 6 },
   emptySub: { fontSize: 13, color: '#aaa', marginBottom: 20 },
@@ -337,7 +338,7 @@ const s = {
 
 const ms = {
   bg: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 },
-  box: { background: '#fff', borderRadius: 14, width: '100%', maxWidth: 560, maxHeight: '90vh', display: 'flex', flexDirection: 'column' },
+  box: { background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, width: '100%', maxWidth: 560, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '24px 28px 0', flexShrink: 0 },
   title: { fontFamily: 'var(--font-serif)', fontSize: 24, fontWeight: 500, margin: 0 },
   close: { background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: '#999' },
@@ -349,5 +350,5 @@ const ms = {
   erro: { background: '#fceee9', borderLeft: '3px solid #c4421e', color: '#5c2010', padding: '10px 14px', borderRadius: 6, fontSize: 12, marginBottom: 16 },
   footer: { display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '16px 28px', borderTop: '1px solid #f0ece6', flexShrink: 0 },
   btnCancel: { background: 'none', border: '1px solid #e0dbd4', borderRadius: 8, padding: '9px 18px', fontSize: 13, cursor: 'pointer', color: '#888' },
-  btnSave: { background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer' },
+  btnSave: { background: theme.gold, color: theme.background, border: 'none', borderRadius: 8, padding: '12px 24px', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
 }

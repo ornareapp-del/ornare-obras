@@ -4,17 +4,19 @@ import { supabase } from '../../lib/supabase'
 import { useStore } from '../../store/useStore'
 import { CHECKLIST_MONTAGEM_GERAL } from '../../constants/checklistOrnare'
 import { faseOrnarePorKey, faseOrnarePorTexto } from '../../constants/fasesOrnare'
+import { theme } from '../../constants/theme'
 
 const THEME = {
-  bg: '#F6F3EE',
-  card: '#FFFFFF',
-  border: '#E7E0D5',
-  ink: '#1D1C19',
-  muted: '#6D675E',
-  gold: '#B8965E',
-  success: '#2D7A4A',
-  danger: '#B84040',
-  warn: '#9A6A22',
+  bg: theme.background,
+  card: theme.surface,
+  border: theme.border,
+  ink: theme.textPrimary,
+  muted: theme.textSecondary,
+  gold: theme.gold,
+  success: theme.success,
+  danger: theme.error,
+  warn: theme.warning,
+  elevated: theme.surfaceElevated,
 }
 
 const FOTO_CATEGORIAS = [
@@ -242,6 +244,7 @@ export default function MontadorDashboard() {
   const [novoChecklist, setNovoChecklist] = useState('')
   const [criandoChecklist, setCriandoChecklist] = useState(false)
   const [painelAtivo, setPainelAtivo] = useState('')
+  const [telaAtiva, setTelaAtiva] = useState('hoje')
 
   const tarefasRef = useRef(null)
   const checklistRef = useRef(null)
@@ -435,6 +438,7 @@ export default function MontadorDashboard() {
       setAmbienteSelecionado('geral')
       setNovoChecklist('')
       setItemAcao('')
+      setTelaAtiva('hoje')
     }, 0)
     return () => window.clearTimeout(timer)
   }, [obraAtiva?.id])
@@ -499,6 +503,7 @@ export default function MontadorDashboard() {
   async function fazerCheckin() {
     if (!obraAtiva || !user) return
     setCheckando(true)
+    setServicoFeedback('')
 
     let lat = null
     let lng = null
@@ -516,19 +521,43 @@ export default function MontadorDashboard() {
     }
 
     const compromisso = compromissoAtual()
-    const { data, error } = await supabase.from('checkins').insert([{
-      user_id: user.id,
+    const { data: authData, error: authError } = await supabase.auth.getUser()
+    const userId = authData?.user?.id || user.id
+
+    if (authError || !userId) {
+      console.error('Erro ao identificar usuário para check-in:', authError)
+      mostrarSucesso('Não foi possível identificar o usuário logado.')
+      setCheckando(false)
+      return
+    }
+
+    const entrada = new Date().toISOString()
+    const payloadCompleto = {
+      user_id: userId,
       obra_id: obraAtiva.id,
       agenda_id: compromisso?.id || null,
-      entrada: new Date().toISOString(),
+      entrada,
       localizacao_autorizada: localizacaoAutorizada,
       entrada_latitude: lat,
       entrada_longitude: lng,
       latitude: lat,
       longitude: lng,
-    }]).select('*').single()
-    if (error) {
-      mostrarSucesso('Nao foi possivel registrar o check-in.')
+    }
+    const payloadMinimo = {
+      user_id: userId,
+      obra_id: obraAtiva.id,
+      entrada,
+    }
+
+    let resultado = await supabase.from('checkins').insert([payloadCompleto])
+    if (resultado.error) {
+      console.error('Erro no check-in com payload completo:', resultado.error)
+      resultado = await supabase.from('checkins').insert([payloadMinimo])
+    }
+
+    if (resultado.error) {
+      console.error('Erro no check-in com payload mínimo:', resultado.error)
+      mostrarSucesso('Não foi possível registrar o check-in. Verifique permissão de acesso à obra.')
       setCheckando(false)
       return
     }
@@ -536,12 +565,16 @@ export default function MontadorDashboard() {
     const mensagem = lat ? 'Check-in registrado com localização.' : 'Check-in registrado.'
     setServicoFeedback(mensagem)
     mostrarSucesso(mensagem)
+    if (compromisso?.id) {
+      const agendaResult = await supabase.from('agenda').update({ status: 'em andamento' }).eq('id', compromisso.id)
+      if (agendaResult.error) console.error('Check-in registrado, mas nao foi possivel atualizar a agenda:', agendaResult.error)
+    }
     await criarNotificacoesOperacionais({
       tipo: 'checkin',
       titulo: 'Montador fez check-in',
       descricao: `${profile?.full_name || 'Montador'} iniciou serviço em ${obraAtiva.nome || 'obra'}.`,
       entidadeTipo: 'checkin',
-      entidadeId: data?.id,
+      entidadeId: null,
       agendaId: compromisso?.id,
       prioridade: 'normal',
     })
@@ -817,10 +850,6 @@ export default function MontadorDashboard() {
     await carregarDadosObra()
   }
 
-  function scrollTo(ref) {
-    ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
-
   function selecionarObraPorId(obraId) {
     const obra = obras.find(item => item.id === obraId)
     if (obra) setObraAtiva(obra)
@@ -1001,11 +1030,11 @@ export default function MontadorDashboard() {
             <span>Ornare Works</span>
             <h1>Olá, {profile?.full_name?.split(' ')[0] || 'Montador'}</h1>
           </div>
-          <button className="md-logout" onClick={logout}>Sair</button>
         </header>
         <section className="md-empty-card">
           <strong>Nenhuma obra alocada</strong>
           <p>Aguarde seu supervisor vincular você a uma obra.</p>
+          <button className="md-profile-logout" onClick={logout}>Sair da conta</button>
         </section>
       </div>
     )
@@ -1063,7 +1092,7 @@ export default function MontadorDashboard() {
               </div>
             )}
             <div className="md-task-photo-actions">
-              <button onClick={() => { setFormFoto(p => ({ ...p, categoria: 'Vistoria' })); setTarefaAberta(null); window.setTimeout(() => scrollTo(fotosRef), 80) }}>Tirar/enviar foto</button>
+              <button onClick={() => { setFormFoto(p => ({ ...p, categoria: 'Vistoria' })); setTarefaAberta(null); setTelaAtiva('fotos') }}>Tirar/enviar foto</button>
             </div>
             <textarea value={observacaoTarefa} onChange={e => setObservacaoTarefa(e.target.value)} placeholder="Observação da tarefa..." rows={4} />
             <div className="md-modal-actions">
@@ -1123,7 +1152,6 @@ export default function MontadorDashboard() {
           <div className={vm.emServico ? 'md-avatar active' : 'md-avatar'}>
             {(profile?.full_name || user?.email || '?')[0].toUpperCase()}
           </div>
-          <button className="md-logout" onClick={logout}>Sair</button>
         </div>
       </header>
 
@@ -1136,7 +1164,7 @@ export default function MontadorDashboard() {
         </section>
       )}
 
-      <section className="md-obra-card">
+      <section className="md-obra-card" style={telaAtiva === 'hoje' ? undefined : { display: 'none' }}>
         <div className="md-obra-head">
           <div>
             {(() => {
@@ -1177,33 +1205,7 @@ export default function MontadorDashboard() {
         })()}
       </section>
 
-      <section className="md-card">
-        <div className="md-card-head">
-          <h2>Próximas datas</h2>
-          <button onClick={() => setCalendarioAberto(true)}>Ver calendário completo {'>'}</button>
-        </div>
-        {vm.proximasDatas.length === 0 ? (
-          <div className="md-empty-compact">Nenhuma data programada</div>
-        ) : (
-          <div className="md-date-list">
-            {vm.proximasDatas.map(item => {
-              const cor = corDataOperacional(item)
-              return (
-              <button key={item.id} onClick={() => { selecionarObraPorId(item.obra_id); setDiaCalendario(item.data); setMesCalendario(new Date(`${item.data}T00:00:00`)); setCalendarioAberto(true) }}>
-                <strong style={{ color: cor.color }}>{dataCurtaMes(item.data)}</strong>
-                <span>
-                  <i style={{ background: cor.bg, borderColor: cor.border, color: cor.color }}>{tipoAgenda(item)}</i>
-                  <b>{item.obra_nome || 'Obra'}</b>
-                  {item.hora_inicio ? <small>{item.hora_inicio.slice(0, 5)}</small> : null}
-                </span>
-              </button>
-              )
-            })}
-          </div>
-        )}
-      </section>
-
-      <section className={vm.emServico ? 'md-check-card active' : 'md-check-card'}>
+      <section className={vm.emServico ? 'md-check-card active' : 'md-check-card'} style={telaAtiva === 'hoje' ? undefined : { display: 'none' }}>
         <div className="md-check-info">
           <span>Hoje - {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
           {obraAguardandoInicio(obraAtiva) ? (
@@ -1238,44 +1240,21 @@ export default function MontadorDashboard() {
         )}
       </section>
 
-      {loadingObra && <div className="md-loading-inline">Atualizando dados da obra...</div>}
+      {loadingObra && telaAtiva === 'hoje' && <div className="md-loading-inline">Atualizando dados da obra...</div>}
 
-      <section className="md-card" ref={tarefasRef}>
-        <div className="md-card-head">
-          <h2>Tarefas</h2>
-          <span>{vm.tarefasAbertas.length}</span>
-          <button onClick={() => setPainelAtivo(painelAtivo === 'tarefas' ? '' : 'tarefas')}>Ver todas</button>
+      <section className="md-card md-check-progress-card" style={telaAtiva === 'hoje' ? undefined : { display: 'none' }}>
+        <div className="md-card-head compact">
+          <div>
+            <h2>Checklist do dia</h2>
+            <small className="md-card-sub">{vm.checklistConcluidos.length} de {checklist.length} itens concluídos</small>
+          </div>
+          <span>{vm.pctChecklist}%</span>
         </div>
-        {vm.tarefasAbertas.length === 0 ? <div className="md-empty-compact">Nenhuma tarefa pendente</div> : vm.tarefasAbertas.slice(0, painelAtivo === 'tarefas' ? vm.tarefasAbertas.length : 2).map(tarefa => {
-          const pr = PRIORIDADE[norm(tarefa.prioridade)] || { label: tarefa.prioridade || '', color: '#A79F93' }
-          return (
-            <article className="md-task compact" key={tarefa.id} style={{ borderLeftColor: pr.color }} onClick={() => abrirTarefa(tarefa)}>
-              <div>
-                <strong>{tarefa.titulo || 'Tarefa sem título'}</strong>
-                <small>{tarefa.tipo || 'Outro'} · {tarefa.status || 'pendente'}</small>
-              </div>
-              <span>{'>'}</span>
-            </article>
-          )
-        })}
+        <div className="md-progress soft"><i style={{ width: `${vm.pctChecklist}%` }} /></div>
+        <button className="md-open-checklist" onClick={() => setTelaAtiva('checklist')}>Abrir checklist</button>
       </section>
 
-      {vm.tarefasConcluidasHoje.length > 0 && (
-        <section className="md-card compact-card">
-          <div className="md-card-head">
-            <h2>Concluídas hoje</h2>
-            <span>{vm.tarefasConcluidasHoje.length}</span>
-          </div>
-          {vm.tarefasConcluidasHoje.map(tarefa => (
-            <button key={tarefa.id} className="md-done-task" onClick={() => abrirTarefa(tarefa)}>
-              <strong>{tarefa.titulo || 'Tarefa concluída'}</strong>
-              <span>OK</span>
-            </button>
-          ))}
-        </section>
-      )}
-
-      <section className="md-card" ref={checklistRef}>
+      <section className="md-card" ref={checklistRef} style={telaAtiva === 'checklist' ? undefined : { display: 'none' }}>
         <div className="md-card-head">
           <div>
             <h2>Checklist · Selecione o ambiente</h2>
@@ -1284,6 +1263,31 @@ export default function MontadorDashboard() {
           <span>{vm.pctChecklist}%</span>
         </div>
         <div className="md-progress soft"><i style={{ width: `${vm.pctChecklist}%` }} /></div>
+        <div className="md-next-dates">
+          <div className="md-card-head">
+            <h2>Próximas datas</h2>
+            <button onClick={() => setCalendarioAberto(true)}>Ver calendário completo {'>'}</button>
+          </div>
+          {vm.proximasDatas.length === 0 ? (
+            <div className="md-empty-compact">Nenhuma data programada</div>
+          ) : (
+            <div className="md-date-list">
+              {vm.proximasDatas.map(item => {
+                const cor = corDataOperacional(item)
+                return (
+                <button key={item.id} onClick={() => { selecionarObraPorId(item.obra_id); setDiaCalendario(item.data); setMesCalendario(new Date(`${item.data}T00:00:00`)); setCalendarioAberto(true) }}>
+                  <strong style={{ color: cor.color }}>{dataCurtaMes(item.data)}</strong>
+                  <span>
+                    <i style={{ background: cor.bg, borderColor: cor.border, color: cor.color }}>{tipoAgenda(item)}</i>
+                    <b>{item.obra_nome || 'Obra'}</b>
+                    {item.hora_inicio ? <small>{item.hora_inicio.slice(0, 5)}</small> : null}
+                  </span>
+                </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
         <div className="md-env-chips">
           {vm.checklistGrupos.map(grupo => {
             const feitos = grupo.itens.filter(i => i.concluido).length
@@ -1319,12 +1323,7 @@ export default function MontadorDashboard() {
         })()}
       </section>
 
-      <section className="md-quick">
-        <button onClick={() => { setPainelAtivo(painelAtivo === 'fotos' ? '' : 'fotos'); window.setTimeout(() => scrollTo(fotosRef), 80) }}>Enviar foto</button>
-        <button onClick={() => setModalProblema('Ocorrência geral')}>Relatar problema</button>
-      </section>
-
-      {painelAtivo === 'fotos' && (
+      {telaAtiva === 'fotos' && (
       <section className="md-card" ref={fotosRef}>
         <div className="md-card-head">
           <h2>Fotos da obra</h2>
@@ -1367,7 +1366,7 @@ export default function MontadorDashboard() {
       </section>
       )}
 
-      {vm.ocorrenciasAbertas.length > 0 && (
+      {telaAtiva === 'ocorrencias' && (
       <section className="md-card" ref={ocorrenciasRef}>
         <div className="md-card-head">
           <h2>Ocorrências</h2>
@@ -1383,29 +1382,40 @@ export default function MontadorDashboard() {
       </section>
       )}
 
-      {vm.historico.length > 0 && (
+      {telaAtiva === 'perfil' && (
       <section className="md-card">
         <div className="md-card-head">
-          <h2>Histórico simples</h2>
+          <div>
+            <h2>Perfil do montador</h2>
+            <small className="md-card-sub">{profile?.role || 'montador'}</small>
+          </div>
+          <span>{vm.emServico ? 'Em serviço' : 'Disponível'}</span>
         </div>
-        {vm.historico.length === 0 ? <Empty text="Nenhuma movimentação recente." /> : vm.historico.map(item => (
-          <div className="md-history" key={item.id}>
-            <i />
-            <div>
-              <strong>{item.tipo}</strong>
-              <span>{item.detalhe}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 13, border: `1px solid ${THEME.border}`, background: '#FFFEFC', borderRadius: 15, padding: 13, marginBottom: 12 }}>
+          <div style={{ width: 52, height: 52, borderRadius: 999, background: vm.emServico ? '#EAF5EE' : '#fff', border: `1px solid ${vm.emServico ? '#C8E1D0' : THEME.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: vm.emServico ? THEME.success : THEME.gold, fontSize: 20, fontWeight: 900, flexShrink: 0 }}>
+            {(profile?.full_name || user?.email || '?')[0].toUpperCase()}
+          </div>
+          <div>
+            <strong style={{ display: 'block', fontSize: 15, color: THEME.ink, marginBottom: 4 }}>{profile?.full_name || 'Montador'}</strong>
+            <span style={{ display: 'block', fontSize: 12, color: THEME.muted, fontWeight: 800, lineHeight: 1.35, wordBreak: 'break-word' }}>{user?.email || profile?.email || 'E-mail não informado'}</span>
           </div>
         </div>
-      ))}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9, marginBottom: 12 }}>
+          <div style={{ border: `1px solid ${THEME.border}`, background: '#fff', borderRadius: 13, padding: 11 }}><strong style={{ display: 'block', fontSize: 10, letterSpacing: 1.1, textTransform: 'uppercase', color: THEME.gold, fontWeight: 900, marginBottom: 5 }}>Obra ativa</strong><span style={{ display: 'block', fontSize: 12.5, color: THEME.ink, fontWeight: 800, lineHeight: 1.35 }}>{obraAtiva.nome || 'Obra sem nome'}</span></div>
+          <div style={{ border: `1px solid ${THEME.border}`, background: '#fff', borderRadius: 13, padding: 11 }}><strong style={{ display: 'block', fontSize: 10, letterSpacing: 1.1, textTransform: 'uppercase', color: THEME.gold, fontWeight: 900, marginBottom: 5 }}>Status</strong><span style={{ display: 'block', fontSize: 12.5, color: THEME.ink, fontWeight: 800, lineHeight: 1.35 }}>{faseObraMontador(obraAtiva).label}</span></div>
+          <div style={{ border: `1px solid ${THEME.border}`, background: '#fff', borderRadius: 13, padding: 11 }}><strong style={{ display: 'block', fontSize: 10, letterSpacing: 1.1, textTransform: 'uppercase', color: THEME.gold, fontWeight: 900, marginBottom: 5 }}>Último registro</strong><span style={{ display: 'block', fontSize: 12.5, color: THEME.ink, fontWeight: 800, lineHeight: 1.35 }}>{vm.ultimoServico ? `${horaBR(vm.ultimoServico.entrada || vm.ultimoServico.created_at)}${vm.ultimoServico.saida ? ` - ${horaBR(vm.ultimoServico.saida)}` : ''}` : 'Sem check-in'}</span></div>
+          <div style={{ border: `1px solid ${THEME.border}`, background: '#fff', borderRadius: 13, padding: 11 }}><strong style={{ display: 'block', fontSize: 10, letterSpacing: 1.1, textTransform: 'uppercase', color: THEME.gold, fontWeight: 900, marginBottom: 5 }}>Checklist</strong><span style={{ display: 'block', fontSize: 12.5, color: THEME.ink, fontWeight: 800, lineHeight: 1.35 }}>{vm.checklistConcluidos.length}/{checklist.length} itens</span></div>
+        </div>
+        <button className="md-profile-logout" onClick={logout}>Sair da conta</button>
       </section>
       )}
 
       <nav className="md-bottom-nav" aria-label="Navegação do montador">
-        <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}><IconHome />Hoje</button>
-        <button onClick={() => scrollTo(checklistRef)}><IconCheck />Checklist</button>
-        <button onClick={() => { setPainelAtivo('fotos'); window.setTimeout(() => scrollTo(fotosRef), 80) }}><IconCamera />Fotos</button>
-        <button onClick={() => scrollTo(ocorrenciasRef)}><IconAlert />Ocorrências</button>
-        <button onClick={() => scrollTo(perfilRef)}><IconUser />Perfil</button>
+        <button style={telaAtiva === 'hoje' ? { background: THEME.ink, color: '#fff' } : undefined} onClick={() => setTelaAtiva('hoje')}><IconHome />Hoje</button>
+        <button style={telaAtiva === 'checklist' ? { background: THEME.ink, color: '#fff' } : undefined} onClick={() => setTelaAtiva('checklist')}><IconCheck />Checklist</button>
+        <button style={telaAtiva === 'fotos' ? { background: THEME.ink, color: '#fff' } : undefined} onClick={() => setTelaAtiva('fotos')}><IconCamera />Fotos</button>
+        <button style={telaAtiva === 'ocorrencias' ? { background: THEME.ink, color: '#fff' } : undefined} onClick={() => setTelaAtiva('ocorrencias')}><IconAlert />Ocorrências</button>
+        <button style={telaAtiva === 'perfil' ? { background: THEME.ink, color: '#fff' } : undefined} onClick={() => setTelaAtiva('perfil')}><IconUser />Perfil</button>
       </nav>
     </div>
   )
@@ -1446,11 +1456,11 @@ const css = `
 .md-top-actions{display:flex;align-items:center;gap:8px}
 .md-avatar{width:42px;height:42px;border-radius:999px;background:#fff;border:1px solid ${THEME.border};display:flex;align-items:center;justify-content:center;color:${THEME.gold};font-weight:800;flex-shrink:0}
 .md-avatar.active{background:#EAF5EE;border-color:#C8E1D0;color:${THEME.success};box-shadow:0 0 0 4px rgba(45,122,74,.08)}
-.md-logout{border:1px solid ${THEME.border};background:#fff;color:${THEME.muted};border-radius:10px;padding:10px 12px;font-size:12px;font-weight:800;cursor:pointer}
+.md-profile-logout{width:100%;border:1px solid #F0C8C8;background:#FFF8F8;color:${THEME.danger};border-radius:13px;padding:13px;font-size:13px;font-weight:900;font-family:inherit;cursor:pointer;margin-top:4px}
 .md-field{margin-bottom:12px}
 .md-field label{display:block;font-size:10px;letter-spacing:1.8px;text-transform:uppercase;color:${THEME.gold};font-weight:800;margin-bottom:8px}
 .md-field select,.md-upload select,.md-upload input{width:100%;box-sizing:border-box;border:1px solid ${THEME.border};background:#fff;border-radius:12px;padding:12px 13px;font-family:inherit;font-size:14px;color:${THEME.ink}}
-.md-obra-card{background:${THEME.ink};color:#fff;border-radius:18px;padding:18px;margin-bottom:12px;box-shadow:0 16px 34px rgba(29,28,25,.12)}
+.md-obra-card{background:${THEME.card};color:${THEME.ink};border:1px solid ${THEME.border};border-radius:12px;padding:20px;margin-bottom:12px;box-shadow:0 2px 12px rgba(0,0,0,.3)}
 .md-obra-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}
 .md-phase-badge{display:inline-flex;align-items:center;border:1px solid ${THEME.gold};border-radius:999px;padding:5px 9px;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;font-weight:900;margin-bottom:6px}
 .md-obra-status{display:block!important;font-size:10px!important;letter-spacing:1.2px;text-transform:uppercase;color:#BDB0A0!important;font-weight:800!important;margin:0 0 7px!important}
@@ -1467,7 +1477,7 @@ const css = `
 .md-progress{height:7px;background:rgba(255,255,255,.16);border-radius:999px;overflow:hidden}
 .md-progress i{display:block;height:100%;background:${THEME.gold};border-radius:999px}
 .md-progress.soft{background:${THEME.border};margin:10px 0 14px}
-.md-check-card{background:#fff;border:1px solid ${THEME.border};border-radius:18px;padding:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.md-check-card{background:${THEME.card};border:1px solid ${THEME.border};border-radius:12px;padding:20px;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;box-shadow:0 2px 12px rgba(0,0,0,.3)}
 .md-check-card.active{background:#F1FAF4;border-color:#C8E1D0}
 .md-check-card span{display:block;font-size:15px;font-weight:800;color:${THEME.ink};margin-bottom:3px}
 .md-check-card p{margin:0;font-size:11.5px;color:${THEME.muted};line-height:1.4}
@@ -1480,6 +1490,8 @@ const css = `
 .md-check-card button{border:0;background:${THEME.ink};color:#fff;border-radius:14px;padding:15px 18px;min-width:118px;font-size:15px;font-weight:900;cursor:pointer}
 .md-check-card button.checkout{background:${THEME.danger}}
 .md-check-card button.disabled{background:#D8D0C2;color:#7A746B;cursor:default}
+.md-check-progress-card{padding-bottom:14px}
+.md-open-checklist{width:100%;border:1px solid ${THEME.gold};background:#fff;color:${THEME.gold};border-radius:12px;padding:11px 13px;font-size:12px;font-weight:900;font-family:inherit;cursor:pointer}
 .md-today-card{background:#fff;border:1px solid ${THEME.border};border-radius:18px;padding:14px;margin-bottom:12px;box-shadow:0 10px 26px rgba(29,28,25,.04)}
 .md-card-head.compact{margin-bottom:9px}
 .md-today-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -1488,13 +1500,15 @@ const css = `
 .md-today-row span{display:block;font-size:15px;color:${THEME.ink};font-weight:900}
 .md-today-row p{grid-column:1/-1;margin:0;color:${THEME.muted};font-size:12px;line-height:1.35}
 .md-today-empty{color:${THEME.muted};font-size:12.5px;padding:2px 0}
-.md-card{background:#fff;border:1px solid ${THEME.border};border-radius:18px;padding:16px 15px;margin-bottom:12px;box-shadow:0 10px 26px rgba(29,28,25,.04);scroll-margin-top:14px}
+.md-card{background:${THEME.card};border:1px solid ${THEME.border};border-radius:12px;padding:20px;margin-bottom:12px;box-shadow:0 2px 12px rgba(0,0,0,.3);scroll-margin-top:14px}
 .md-card-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px}
 .md-card-head h2{font-size:15px;margin:0;font-weight:900;color:${THEME.ink}}
 .md-card-head span{font-size:12px;color:${THEME.gold};font-weight:900}
 .md-card-head button{border:0;background:transparent;color:${THEME.gold};font-size:12px;font-weight:900;cursor:pointer}
 .md-card-sub{display:block;font-size:11px;color:${THEME.muted};font-weight:800;margin-top:3px}
 .md-card-note{margin:-3px 0 12px;color:${THEME.muted};font-size:12.5px;line-height:1.45}
+.md-next-dates{border:1px solid ${THEME.border};background:#FFFEFC;border-radius:15px;padding:13px;margin:12px 0 14px}
+.md-next-dates .md-card-head{margin-bottom:10px}
 .md-next-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:5px}
 .md-next strong{display:block;font-size:16px;color:${THEME.ink};margin-bottom:0}
 .md-next em{font-style:normal;border-radius:999px;padding:5px 8px;font-size:10.5px;font-weight:900;white-space:nowrap}
@@ -1559,7 +1573,7 @@ const css = `
 .md-add-check button{width:100%;border:1px solid ${THEME.gold};background:#fff;color:${THEME.gold};border-radius:12px;padding:12px;font-size:13px;font-weight:900;font-family:inherit;cursor:pointer}
 .md-add-check button:disabled{opacity:.45;cursor:not-allowed}
 .md-check-item{width:100%;border:1px solid ${THEME.border};background:#fff;border-radius:13px;padding:13px;display:flex;align-items:center;gap:11px;text-align:left;margin-top:8px;font-family:inherit;cursor:pointer}
-.md-check-item.done{background:#F4FBF6;border-color:#C8E1D0}
+.md-check-item.done{background:#F4FBF6;border-color:#C8E1D0;opacity:.5}
 .md-check-item i{width:23px;height:23px;border-radius:7px;border:2px solid ${THEME.border};display:flex;align-items:center;justify-content:center;font-style:normal;font-size:13px;font-weight:900;flex-shrink:0}
 .md-check-item.done i{background:${THEME.success};border-color:${THEME.success};color:#fff}
 .md-check-item span{font-size:14px;color:${THEME.ink};line-height:1.35}
@@ -1586,12 +1600,12 @@ const css = `
 .md-history strong{display:block;font-size:13px;color:${THEME.ink}}
 .md-history span{display:block;font-size:11.5px;color:${THEME.muted};margin-top:2px;line-height:1.3}
 .md-empty{padding:20px 0;text-align:center;color:#A79F93;font-size:13px}
-.md-empty-card{background:#fff;border:1px solid ${THEME.border};border-radius:18px;padding:28px 18px;text-align:center;margin-top:28px}
+.md-empty-card{background:${THEME.card};border:1px solid ${THEME.border};border-radius:12px;padding:28px 18px;text-align:center;margin-top:28px;box-shadow:0 2px 12px rgba(0,0,0,.3)}
 .md-empty-card strong{display:block;font-size:18px;color:${THEME.ink};margin-bottom:8px}
 .md-empty-card p{margin:0;color:${THEME.muted};font-size:13px;line-height:1.45}
 .md-toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:${THEME.ink};color:#fff;border-left:3px solid ${THEME.gold};border-radius:13px;padding:12px 18px;font-size:13px;font-weight:800;z-index:1000;white-space:nowrap;max-width:calc(100vw - 28px);box-sizing:border-box}
 .md-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:800;display:flex;align-items:flex-end;justify-content:center;padding:14px}
-.md-modal{width:100%;max-width:500px;background:#fff;border-radius:18px;padding:20px;box-sizing:border-box}
+.md-modal{width:100%;max-width:500px;background:${THEME.card};border:1px solid ${THEME.border};border-radius:12px;padding:20px;box-sizing:border-box;box-shadow:0 2px 12px rgba(0,0,0,.3)}
 .md-modal.calendar{max-height:88vh;overflow:auto}
 .md-modal h2{font-family:var(--font-serif);font-size:22px;font-weight:500;margin:0 0 5px;color:${THEME.ink}}
 .md-modal p{font-size:13px;color:${THEME.muted};margin:0 0 14px}
@@ -1630,8 +1644,6 @@ const css = `
 .md-preview img{max-width:100%;max-height:92vh;border-radius:12px;object-fit:contain}
 .md-bottom-nav{position:fixed;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:700;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;background:rgba(255,254,252,.96);border:1px solid ${THEME.border};border-radius:18px;padding:7px;box-shadow:0 18px 42px rgba(29,28,25,.18);backdrop-filter:blur(18px);max-width:500px;margin:0 auto}
 .md-bottom-nav button{border:0;background:transparent;color:${THEME.muted};border-radius:13px;min-height:54px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:9.5px;font-weight:900;cursor:pointer}
-.md-bottom-nav button:first-child{background:${THEME.ink};color:#fff}
 .md-bottom-nav svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;color:${THEME.gold}}
-.md-bottom-nav button:first-child svg{color:#fff}
 @media (min-width:720px){.md-page{max-width:680px;padding:26px 20px calc(112px + env(safe-area-inset-bottom))}.md-summary{grid-template-columns:repeat(4,1fr)}.md-quick{grid-template-columns:repeat(4,1fr)}}
 `

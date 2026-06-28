@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { KpiCard as DesignKpiCard, StatusBadge } from '../../components/DesignSystem'
 import { AMBIENTES_CHECKLIST_ORNARE, CRITICIDADES_CHECKLIST_ORNARE, FASES_CHECKLIST_ORNARE, MODELOS_CAMPO_ORNARE, RESPONSAVEIS_CHECKLIST_ORNARE } from '../../constants/checklistOrnare'
+import { theme } from '../../constants/theme'
 import { supabase } from '../../lib/supabase'
 
 const THEME = {
-  bg: '#F6F3EE',
-  card: '#FFFFFF',
-  border: '#E7E0D5',
-  ink: '#1D1C19',
-  muted: '#6D675E',
-  gold: '#B8965E',
-  danger: '#B84040',
+  bg: theme.background,
+  card: theme.surface,
+  border: theme.border,
+  ink: theme.textPrimary,
+  muted: theme.textSecondary,
+  gold: theme.gold,
+  danger: theme.error,
+  elevated: theme.surfaceElevated,
 }
 
 const FASES = FASES_CHECKLIST_ORNARE
@@ -415,7 +417,7 @@ const css = `
 .bm-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:1200;background:${THEME.ink};color:#fff;border-left:3px solid ${THEME.gold};border-radius:13px;padding:12px 18px;font-size:13px;font-weight:800;box-shadow:0 14px 34px rgba(29,28,25,.18)}
 .bm-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
 .bm-layout{display:grid;grid-template-columns:minmax(320px,.46fr) minmax(0,1fr);gap:16px;align-items:start}
-.bm-card{background:#fff;border:1px solid ${THEME.border};border-radius:18px;padding:18px 20px;box-shadow:0 14px 34px rgba(29,28,25,.05);box-sizing:border-box}
+.bm-card{background:${THEME.card};border:1px solid ${THEME.border};border-radius:12px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,.3);box-sizing:border-box}
 .bm-card-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:15px}
 .bm-card-head h2{font-size:15px;margin:0;font-weight:900;color:${THEME.ink}}
 .bm-card-head span{font-size:11px;color:${THEME.muted};font-weight:800}
@@ -431,10 +433,10 @@ const css = `
 .bm-primary:disabled{opacity:.5;cursor:not-allowed}
 .bm-filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-bottom:14px}
 .bm-list{display:grid;gap:10px}
-.bm-item{border:1px solid ${THEME.border};background:#FFFEFC;border-radius:14px;padding:14px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.bm-item{border:1px solid ${THEME.border};background:${THEME.elevated};border-radius:12px;padding:20px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .bm-item strong{display:block;font-size:14px;color:${THEME.ink};line-height:1.45;margin:8px 0 7px}
 .bm-item small{display:block;font-size:11.5px;color:${THEME.muted}}
-.bm-item button{border:1px solid ${THEME.border};background:#fff;color:${THEME.muted};border-radius:10px;padding:8px 10px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap}
+.bm-item button{border:1px solid ${THEME.border};background:${THEME.card};color:${THEME.muted};border-radius:8px;padding:12px 24px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
 .bm-item-top{display:flex;gap:6px;flex-wrap:wrap}
 .bm-empty{text-align:center;padding:52px 0;color:#A79F93;font-size:13px}
 @media (max-width:980px){.bm-layout{grid-template-columns:1fr}.bm-form{position:static}.bm-kpis{grid-template-columns:repeat(2,1fr)}}

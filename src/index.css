@@ -1,44 +1,44 @@
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600;700;800;900&display=swap');
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --gold:            #B8965E;
-  --gold-strong:     #9F7B45;
-  --gold-light:      #D4B87B;
-  --gold-pale:       #F4E9D4;
-  --gold-muted:      rgba(184,150,94,0.15);
+  --gold:            #C9A84C;
+  --gold-strong:     #A88934;
+  --gold-light:      #E8C96A;
+  --gold-pale:       rgba(201,168,76,0.16);
+  --gold-muted:      rgba(201,168,76,0.14);
 
-  --sand:            #F6F3EE;
-  --fendi:           #E7E0D5;
-  --off-white:       #FDFCFA;
-  --white:           #FFFFFF;
+  --sand:            #0F0F0F;
+  --fendi:           #2A2A2A;
+  --off-white:       #222222;
+  --white:           #1A1A1A;
 
-  --sidebar-bg:      #1D1C19;
-  --sidebar-active:  rgba(184,150,94,0.14);
-  --sidebar-border:  rgba(184,150,94,0.10);
+  --sidebar-bg:      #0F0F0F;
+  --sidebar-active:  rgba(201,168,76,0.14);
+  --sidebar-border:  rgba(201,168,76,0.12);
 
-  --graphite:        #1D1C19;
-  --graphite-mid:    #6D675E;
-  --graphite-light:  #A79F93;
+  --graphite:        #F5F5F0;
+  --graphite-mid:    #A0A0A0;
+  --graphite-light:  #606060;
 
-  --border:          #E7E0D5;
-  --border-light:    #F0EAE1;
+  --border:          #2A2A2A;
+  --border-light:    #333333;
 
-  --red:             #B84040;
-  --green:           #2D7A4A;
+  --red:             #E05252;
+  --green:           #4CAF7D;
   --blue:            #365C7D;
-  --warn:            #9A6A22;
-  --status-success:  #2D7A4A;
-  --status-warning:  #A36F22;
-  --status-danger:   #B84040;
+  --warn:            #E0A852;
+  --status-success:  #4CAF7D;
+  --status-warning:  #E0A852;
+  --status-danger:   #E05252;
   --status-info:     #365C7D;
-  --status-gold:     #B8965E;
+  --status-gold:     #C9A84C;
 
-  --shadow-xs:       0 1px 2px rgba(29,28,25,0.04);
-  --shadow:          0 10px 26px rgba(29,28,25,0.05);
-  --shadow-md:       0 16px 38px rgba(29,28,25,0.08);
-  --shadow-lg:       0 24px 70px rgba(29,28,25,0.12);
+  --shadow-xs:       0 2px 12px rgba(0,0,0,0.3);
+  --shadow:          0 2px 12px rgba(0,0,0,0.3);
+  --shadow-md:       0 16px 38px rgba(0,0,0,0.32);
+  --shadow-lg:       0 24px 70px rgba(0,0,0,0.42);
 
   --radius:          10px;
   --radius-sm:       8px;
@@ -65,17 +65,23 @@
   --color-warning:   var(--warn);
 
   --font-serif:      'Cormorant Garamond', Georgia, serif;
-  --font-sans:       'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans:       'Inter', sans-serif;
 }
 
 body {
-  font-family: var(--font-sans);
+  font-family: 'Inter', sans-serif;
   background: var(--sand);
   color: var(--graphite);
   font-size: 14px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100vh;
+  font-family: 'Inter', sans-serif;
+  background: var(--color-bg);
 }
 
 h1, h2, h3 {
@@ -215,9 +221,8 @@ button {
 .ow-premium-card {
   background: var(--white);
   border: 1px solid var(--border);
-  border-top: 3px solid var(--card-tone, var(--gold));
-  border-radius: var(--radius-xl);
-  padding: var(--space-5);
+  border-radius: 12px;
+  padding: 20px;
   box-shadow: var(--shadow);
 }
 
@@ -257,9 +262,8 @@ button {
   min-width: 0;
   background: var(--white);
   border: 1px solid var(--border);
-  border-top: 3px solid var(--kpi-tone, var(--gold));
-  border-radius: var(--radius-lg);
-  padding: 16px 18px;
+  border-radius: 12px;
+  padding: 20px;
   box-shadow: var(--shadow);
 }
 
@@ -308,9 +312,12 @@ button {
 }
 
 .ow-action-button.primary {
-  background: var(--graphite);
-  border-color: var(--graphite);
-  color: var(--white);
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #0F0F0F;
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-weight: 600;
 }
 
 .ow-action-button.secondary {

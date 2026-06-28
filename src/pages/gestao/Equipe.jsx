@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
+import { theme } from '../../constants/theme'
 
 const ROLES = ['gestao', 'pos_venda', 'vendedor', 'supervisor', 'montador', 'cliente']
 const ROLE_LABEL = { gestao: 'Gestão', pos_venda: 'Pós-venda', vendedor: 'Vendedor', supervisor: 'Supervisor', montador: 'Montador', cliente: 'Cliente' }
@@ -382,20 +383,20 @@ const css = `
 `
 
 const s = {
-  page: { padding: '32px 40px', maxWidth: 1180, margin: '0 auto' },
+  page: { padding: '32px 40px', maxWidth: 1180, margin: '0 auto', background: theme.background, color: theme.textPrimary, fontFamily: 'Inter, sans-serif' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22, gap: 18 },
   breadcrumb: { fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6, fontWeight: 800 },
   title: { fontFamily: 'var(--font-serif)', fontSize: 38, fontWeight: 500, color: 'var(--color-ink)', margin: 0, lineHeight: 1.05 },
   sub: { fontSize: 13, color: 'var(--color-ink-muted)', marginTop: 6 },
-  btnNew: { background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' },
+  btnNew: { background: theme.gold, color: theme.background, border: 'none', borderRadius: 8, padding: '12px 24px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' },
   kpiGrid: { display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 12, marginBottom: 20 },
-  kpi: { background: '#fff', border: '1px solid var(--color-border)', borderTop: '3px solid var(--color-gold)', borderRadius: 14, padding: '15px 16px', boxShadow: 'var(--shadow)' },
+  kpi: { background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
   kpiLabel: { display: 'block', fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: 'var(--color-gold)', fontWeight: 800, marginBottom: 8 },
   kpiValue: { display: 'block', fontSize: 30, lineHeight: 1, color: 'var(--color-ink)' },
   filters: { display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' },
   filterBtn: { padding: '7px 16px', borderRadius: 999, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700 },
   gridList: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 },
-  card: { background: '#fff', border: '1px solid var(--color-border)', borderTop: '3px solid var(--color-gold)', borderRadius: 16, padding: 18, boxShadow: 'var(--shadow)', minWidth: 0 },
+  card: { background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.3)', minWidth: 0 },
   cardTop: { display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 },
   avatar: { width: 44, height: 44, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, flexShrink: 0 },
   personInfo: { minWidth: 0, flex: 1 },
@@ -408,7 +409,7 @@ const s = {
   actions: { display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14 },
   btnEdit: { background: '#fff', border: '1px solid var(--color-border)', borderRadius: 9, padding: '8px 13px', fontSize: 12, fontWeight: 700, cursor: 'pointer', color: 'var(--color-ink-muted)' },
   empty: { textAlign: 'center', padding: '40px 0', color: '#aaa' },
-  emptyBox: { textAlign: 'center', padding: '44px 18px', background: '#fff', border: '1px solid var(--color-border)', borderRadius: 16, boxShadow: 'var(--shadow)' },
+  emptyBox: { textAlign: 'center', padding: '44px 18px', background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
   emptyIcon: { fontSize: 13, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 12 },
   emptyTitle: { fontSize: 16, fontWeight: 700, color: 'var(--color-ink)', marginBottom: 18 },
   editGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
@@ -418,7 +419,7 @@ const s = {
   passwordBox: { marginTop: 14, background: '#F9F6F0', border: '1px solid var(--color-border)', borderRadius: 12, padding: 12, display: 'grid', gap: 7, color: 'var(--color-ink-muted)', fontSize: 12 },
   toast: { position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)', padding: '12px 22px', borderRadius: 12, fontSize: 13, fontWeight: 800, borderLeft: '3px solid var(--color-gold)', zIndex: 2000, boxShadow: 'var(--shadow-md)', maxWidth: 'calc(100vw - 24px)' },
   modalBg: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.42)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 },
-  modal: { background: '#fff', borderRadius: 16, width: '100%', maxWidth: 620, maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: 'var(--shadow-lg)' },
+  modal: { background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, width: '100%', maxWidth: 620, maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
   modalHead: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '22px 24px 0' },
   modalBody: { overflowY: 'auto', padding: 24 },
   modalFoot: { display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '16px 24px', borderTop: '1px solid var(--color-border)' },

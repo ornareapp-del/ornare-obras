@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { EmptyState, KpiCard, PageHeader, StatusBadge } from '../../components/DesignSystem'
+import { theme } from '../../constants/theme'
 
 const ST = {
   pendente: { label: 'Pendente', tone: 'warning', color: 'var(--status-warning)' },
@@ -49,7 +50,7 @@ export default function Tarefas() {
   const lista = tarefaDestaque || filtro === 'todas' ? tarefas : tarefas.filter(t => t.status === filtro)
 
   return (
-    <div className="ow-page" style={{ padding: '40px 48px', maxWidth: 1100, margin: '0 auto' }}>
+    <div className="ow-page" style={{ padding: '40px 48px', maxWidth: 1100, margin: '0 auto', background: theme.background, color: theme.textPrimary, fontFamily: 'Inter, sans-serif' }}>
       <PageHeader
         eyebrow="Gestão"
         title="Tarefas"
@@ -72,9 +73,9 @@ export default function Tarefas() {
               borderRadius: 20,
               fontSize: 12,
               cursor: 'pointer',
-              background: filtro === item ? 'var(--color-ink)' : '#fff',
-              color: filtro === item ? '#f9f7f4' : 'var(--color-ink-muted)',
-              border: filtro === item ? 'none' : '1px solid var(--color-border)',
+              background: filtro === item ? theme.gold : theme.surface,
+              color: filtro === item ? theme.background : theme.textSecondary,
+              border: filtro === item ? 'none' : `1px solid ${theme.border}`,
               fontWeight: filtro === item ? 800 : 600,
             }}
           >
@@ -96,21 +97,21 @@ export default function Tarefas() {
             id={`tarefa-${tarefa.id}`}
             key={tarefa.id}
             style={{
-              background: destaque ? '#FFFBF2' : '#fff',
-              border: destaque ? '2px solid var(--color-gold)' : '1px solid var(--color-border)',
-              borderLeft: `4px solid ${destaque ? 'var(--color-gold)' : prioridade.color}`,
+              background: destaque ? theme.surfaceElevated : theme.surface,
+              border: destaque ? `2px solid ${theme.gold}` : `1px solid ${theme.border}`,
+              borderLeft: `4px solid ${destaque ? theme.gold : prioridade.color}`,
               borderRadius: 12,
-              padding: '15px 18px',
+              padding: 20,
               marginBottom: 9,
               display: 'flex',
               alignItems: 'flex-start',
               gap: 14,
-              boxShadow: destaque ? '0 16px 34px rgba(184,150,94,.18)' : 'var(--shadow)',
+              boxShadow: '0 2px 12px rgba(0,0,0,0.3)',
             }}
           >
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--color-ink)' }}>{tarefa.titulo}</span>
+                <span style={{ fontSize: 14, fontWeight: 800, color: theme.textPrimary }}>{tarefa.titulo}</span>
                 <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
               </div>
               <div style={{ display: 'flex', gap: 14, marginTop: 7, flexWrap: 'wrap' }}>
@@ -124,7 +125,7 @@ export default function Tarefas() {
                 {prioridade.label && <span style={{ fontSize: 11, color: prioridade.color }}>Prioridade: {prioridade.label}</span>}
               </div>
             </div>
-            <select value={tarefa.status} onChange={e => mudarStatus(tarefa.id, e.target.value)} style={{ fontSize: 12, padding: '7px 10px', borderRadius: 8, border: '1px solid var(--color-border)', background: '#FFFEFC', color: status.color, fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}>
+            <select value={tarefa.status} onChange={e => mudarStatus(tarefa.id, e.target.value)} style={{ fontSize: 12, padding: '7px 10px', borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.surfaceElevated, color: status.color, fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}>
               {Object.entries(ST).map(([value, item]) => <option key={value} value={value}>{item.label}</option>)}
             </select>
           </div>

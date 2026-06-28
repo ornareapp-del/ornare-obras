@@ -5,19 +5,21 @@ import { faseOrnarePorKey, faseOrnarePorTexto } from '../../constants/fasesOrnar
 import { supabase } from '../../lib/supabase'
 import { useStore } from '../../store/useStore'
 import { limparNome } from '../../utils/ui'
+import { theme } from '../../constants/theme'
 
 const THEME = {
-  bg: '#F5F0EB',
-  card: '#FFFFFF',
-  border: '#E7E0D5',
-  ink: '#1A1A1A',
-  muted: '#6D675E',
-  soft: '#9E9E9E',
-  gold: '#C9A96E',
-  danger: '#C0392B',
-  warn: '#E07B39',
-  success: '#2D7A4A',
+  bg: theme.background,
+  card: theme.surface,
+  border: theme.border,
+  ink: theme.textPrimary,
+  muted: theme.textSecondary,
+  soft: theme.textMuted,
+  gold: theme.gold,
+  danger: theme.error,
+  warn: theme.warning,
+  success: theme.success,
   blue: '#3B5F86',
+  elevated: theme.surfaceElevated,
 }
 
 const STATUS_OBRA = {
@@ -827,8 +829,8 @@ const css = `
 .ds-header h1{font-family:var(--font-serif);font-size:38px;line-height:1.05;font-weight:500;margin:0;color:${THEME.ink}}
 .ds-header p{margin:6px 0 0;font-size:13px;color:${THEME.muted}}
 .ds-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
-.ds-actions button{border:1px solid ${THEME.border};background:#fff;color:${THEME.ink};border-radius:10px;padding:10px 14px;font-size:13px;font-weight:800;cursor:pointer}
-.ds-actions .primary{background:${THEME.gold};border-color:${THEME.gold};color:#fff}
+.ds-actions button{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:8px;padding:12px 24px;font-size:13px;font-weight:600;cursor:pointer}
+.ds-actions .primary{background:${THEME.gold};border-color:${THEME.gold};color:${THEME.bg}}
 .ds-period-filter{max-width:1380px;margin:0 auto 14px;display:flex;gap:8px;flex-wrap:wrap}
 .ds-period-filter button{border:1px solid ${THEME.gold};background:#fff;color:${THEME.ink};border-radius:999px;padding:9px 13px;font-size:12px;font-weight:900;cursor:pointer;font-family:inherit}
 .ds-period-filter button.active{background:${THEME.gold};color:#fff}
@@ -869,7 +871,7 @@ const css = `
 .ds-kpis.secondary-kpis{grid-template-columns:repeat(3,minmax(0,1fr));margin-top:10px;margin-bottom:0}
 .ds-kpi-button{border:0;background:transparent;padding:0;text-align:left;font-family:inherit;cursor:pointer}
 .ds-kpi-button>*{height:100%}
-.ds-kpi{background:#fff;border:1px solid ${THEME.border};border-top:3px solid ${THEME.gold};border-radius:14px;padding:15px 16px;min-width:0}
+.ds-kpi{background:${THEME.card};border:1px solid ${THEME.border};border-radius:12px;padding:20px;min-width:0;box-shadow:0 2px 12px rgba(0,0,0,.3)}
 .ds-kpi span{display:block;font-size:10px;letter-spacing:1.8px;text-transform:uppercase;font-weight:800;margin-bottom:9px;white-space:nowrap}
 .ds-kpi strong{display:block;font-size:34px;line-height:1;color:${THEME.ink}}
 .ds-kpi small{display:block;font-size:12px;color:${THEME.muted};margin-top:7px}
@@ -882,7 +884,7 @@ const css = `
 .ds-grid-3{grid-template-columns:1fr 1.15fr 1fr}
 .ds-main{grid-template-columns:minmax(0,1.45fr) minmax(340px,.75fr)}
 .ds-stack{display:flex;flex-direction:column;gap:16px}
-.ds-card{background:#fff;border:1px solid ${THEME.border};border-radius:16px;padding:18px 20px;box-shadow:0 14px 34px rgba(29,28,25,.045);min-width:0}
+.ds-card{background:${THEME.card};border:1px solid ${THEME.border};border-radius:12px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,.3);min-width:0}
 .ds-card-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:14px}
 .ds-card-head h2{font-size:14px;font-weight:800;margin:0;color:${THEME.ink}}
 .ds-card-head button{border:0;background:transparent;color:${THEME.gold};font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap}
@@ -929,7 +931,7 @@ const css = `
 .ds-field-person strong{display:block;font-size:13px;color:${THEME.ink};line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ds-field-person small{display:block;font-size:11.5px;color:${THEME.muted};margin-top:2px}
 .ds-compact-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.ds-compact-card{border:1px solid ${THEME.border};background:#fff;border-radius:15px;padding:16px;text-align:left;font-family:inherit;cursor:pointer;box-shadow:0 12px 28px rgba(29,28,25,.04)}
+.ds-compact-card{border:1px solid ${THEME.border};background:${THEME.card};border-radius:12px;padding:20px;text-align:left;font-family:inherit;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,.3)}
 .ds-compact-card span{display:block;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:${THEME.muted};font-weight:900;margin-bottom:10px}
 .ds-compact-card strong{display:block;font-size:30px;line-height:1}
 .ds-compact-card small{display:block;margin-top:6px;color:${THEME.muted};font-size:12px;font-weight:800}
@@ -941,7 +943,7 @@ const css = `
 .ds-mini-list.spaced{margin-top:12px}
 .ds-empty{padding:24px 0;text-align:center;color:#A79F93;font-size:13px}
 .ds-modal{position:fixed;inset:0;z-index:80;background:rgba(15,14,12,.52);display:flex;align-items:center;justify-content:center;padding:18px}
-.ds-modal-card{width:min(520px,100%);max-height:min(720px,88vh);overflow:auto;background:#fff;border:1px solid ${THEME.border};border-radius:22px;padding:20px;box-shadow:0 28px 70px rgba(0,0,0,.28);position:relative}
+.ds-modal-card{width:min(520px,100%);max-height:min(720px,88vh);overflow:auto;background:${THEME.card};border:1px solid ${THEME.border};border-radius:12px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,.3);position:relative}
 .ds-modal-close{position:absolute;right:14px;top:14px;border:1px solid ${THEME.border};background:#fff;border-radius:999px;padding:7px 10px;font-size:12px;font-weight:900;cursor:pointer}
 .ds-modal-card>span{display:block;color:${THEME.gold};font-size:10px;letter-spacing:2px;text-transform:uppercase;font-weight:900;margin-bottom:7px}
 .ds-modal-card h2{font-family:var(--font-serif);font-size:27px;font-weight:500;margin:0 0 14px;color:${THEME.ink}}

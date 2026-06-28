@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useStore } from '../../store/useStore'
+import { theme } from '../../constants/theme'
 
 const CATEGORIAS = [
   { value: 'combustivel',  label: 'Combustível',  emoji: '⛽', cor: '#E8A020' },
@@ -579,18 +580,18 @@ const css = `
 `
 
 const s = {
-  page:         { padding: '32px 40px', maxWidth: 1000, margin: '0 auto' },
+  page:         { padding: '32px 40px', maxWidth: 1000, margin: '0 auto', background: theme.background, color: theme.textPrimary, fontFamily: 'Inter, sans-serif' },
   header:       { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 },
   breadcrumb:   { fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6 },
   title:        { fontFamily: 'var(--font-serif)', fontSize: 36, fontWeight: 500, color: 'var(--color-ink)', margin: 0 },
   sub:          { fontSize: 13, color: 'var(--color-ink-muted)', marginTop: 4 },
-  btnNew:       { background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' },
+  btnNew:       { background: theme.gold, color: theme.background, border: 'none', borderRadius: 8, padding: '12px 24px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' },
   pendentesBox: { background: '#fdf8f0', border: '1px solid #e8d9b8', borderLeft: '3px solid #C8A86A', borderRadius: 12, padding: '16px 20px', marginBottom: 24 },
   statsGrid:    { display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 24 },
-  stat:         { background: '#fff', border: '1px solid var(--color-border)', borderRadius: 14, padding: '18px 22px', boxShadow: 'var(--shadow)' },
+  stat:         { background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
   statLabel:    { fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 8 },
   statValue:    { fontSize: 26, fontWeight: 700, color: 'var(--color-ink)' },
-  card:         { background: '#fff', border: '1px solid var(--color-border)', borderRadius: 14, padding: '18px 22px', marginBottom: 20, boxShadow: 'var(--shadow)' },
+  card:         { background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 20, marginBottom: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
   cardLabel:    { fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 14 },
   catRow:       { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 },
   catDot:       { width: 8, height: 8, borderRadius: '50%', flexShrink: 0 },
@@ -602,7 +603,7 @@ const s = {
   filters:      { display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' },
   select:       { padding: '8px 12px', borderRadius: 8, border: '1px solid var(--color-border)', fontSize: 13, fontFamily: 'inherit', background: '#fff', color: 'var(--color-ink)' },
   list:         { display: 'flex', flexDirection: 'column', gap: 8 },
-  item:         { background: '#fff', border: '1px solid var(--color-border)', borderRadius: 14, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', transition: 'border-color .15s', boxShadow: 'var(--shadow)' },
+  item:         { background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 20, display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', transition: 'border-color .15s', boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
   itemDot:      { width: 10, height: 10, borderRadius: '50%', flexShrink: 0 },
   itemBody:     { flex: 1, minWidth: 0 },
   itemTitle:    { fontSize: 14, fontWeight: 600, color: 'var(--color-ink)' },
@@ -610,7 +611,7 @@ const s = {
   itemObs:      { fontSize: 11, color: '#bbb', marginTop: 3, fontStyle: 'italic' },
   itemValor:    { fontSize: 15, fontWeight: 700, color: 'var(--color-ink)', whiteSpace: 'nowrap' },
   empty:        { textAlign: 'center', padding: '40px 0', color: '#bbb' },
-  emptyBox:     { textAlign: 'center', padding: '60px 20px', background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12 },
+  emptyBox:     { textAlign: 'center', padding: '60px 20px', background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
   emptyIcon:    { fontSize: 40, marginBottom: 12 },
   emptyTitle:   { fontSize: 16, fontWeight: 600, color: 'var(--color-ink)', marginBottom: 6 },
   emptySub:     { fontSize: 13, color: '#aaa', marginBottom: 20 },
@@ -618,7 +619,7 @@ const s = {
 
 const ms = {
   bg:          { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 },
-  box:         { background: '#fff', borderRadius: 14, width: '100%', maxWidth: 580, maxHeight: '92vh', display: 'flex', flexDirection: 'column' },
+  box:         { background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, width: '100%', maxWidth: 580, maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
   header:      { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '24px 28px 0', flexShrink: 0 },
   title:       { fontFamily: 'var(--font-serif)', fontSize: 24, fontWeight: 500, margin: 0 },
   close:       { background: 'none', border: 'none', fontSize: 16, cursor: 'pointer', color: '#999', padding: 4 },
@@ -633,5 +634,5 @@ const ms = {
   alertaAprovacao:{ background: '#fdf8f0', borderLeft: '3px solid #C8A86A', color: '#7a5c20', padding: '10px 14px', borderRadius: 6, fontSize: 12, marginBottom: 16, lineHeight: 1.5 },
   footer:      { display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '16px 28px', borderTop: '1px solid #f0ece6', flexShrink: 0 },
   btnCancel:   { background: 'none', border: '1px solid #e0dbd4', borderRadius: 8, padding: '9px 18px', fontSize: 13, cursor: 'pointer', color: '#888', fontFamily: 'inherit' },
-  btnSave:     { color: '#fff', border: 'none', borderRadius: 8, padding: '9px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  btnSave:     { color: theme.background, border: 'none', borderRadius: 8, padding: '12px 24px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 }

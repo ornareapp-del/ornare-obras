@@ -2,19 +2,21 @@
 import { useNavigate } from 'react-router-dom'
 import { KpiCard as DesignKpiCard, StatusBadge } from '../../components/DesignSystem'
 import { supabase } from '../../lib/supabase'
+import { theme } from '../../constants/theme'
 import { exportarPlanejamentoPdf } from '../../services/pdfService'
 
 const THEME = {
-  bg: '#F6F3EE',
-  card: '#FFFFFF',
-  border: '#E7E0D5',
-  ink: '#1D1C19',
-  muted: '#6D675E',
-  gold: '#B8965E',
-  success: '#2D7A4A',
-  danger: '#B84040',
-  warn: '#A36F22',
+  bg: theme.background,
+  card: theme.surface,
+  border: theme.border,
+  ink: theme.textPrimary,
+  muted: theme.textSecondary,
+  gold: theme.gold,
+  success: theme.success,
+  danger: theme.error,
+  warn: theme.warning,
   blue: '#365C7D',
+  elevated: theme.surfaceElevated,
 }
 
 const FASE_CORES = {
@@ -835,19 +837,19 @@ const css = `
 .pl-header p{margin:7px 0 0;font-size:13px;color:${THEME.muted}}
 .pl-month-nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .pl-month-nav strong{min-width:180px;text-align:center;font-size:14px}
-.pl-month-nav button,.pl-tabs button{border:1px solid ${THEME.border};background:#fff;color:${THEME.ink};border-radius:10px;padding:10px 13px;font-size:12px;font-weight:800;cursor:pointer}
+.pl-month-nav button,.pl-tabs button{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:8px;padding:12px 24px;font-size:12px;font-weight:600;cursor:pointer}
 .pl-alert{max-width:1480px;margin:0 auto 14px;border:1px solid #F0C8C8;background:#FFF7F7;color:${THEME.danger};border-radius:12px;padding:11px 14px;font-size:13px;font-weight:700}
 .pl-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:1200;background:${THEME.ink};color:#fff;border-left:3px solid ${THEME.gold};border-radius:13px;padding:12px 18px;font-size:13px;font-weight:800;box-shadow:0 14px 34px rgba(29,28,25,.18)}
 .pl-mobile-actions{display:none}
 .pl-kpis{max-width:1480px;margin:0 auto 16px;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
-.pl-kpi{background:#fff;border:1px solid ${THEME.border};border-top:3px solid ${THEME.gold};border-radius:14px;padding:15px 16px}
+.pl-kpi{background:${THEME.card};border:1px solid ${THEME.border};border-radius:12px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,.3)}
 .pl-kpi.danger{border-top-color:${THEME.danger}}
 .pl-kpi span{display:block;font-size:10px;letter-spacing:1.7px;text-transform:uppercase;color:${THEME.gold};font-weight:800;margin-bottom:9px;white-space:nowrap}
 .pl-kpi.danger span{color:${THEME.danger}}
 .pl-kpi strong{display:block;font-size:32px;line-height:1;color:${THEME.ink}}
 .pl-tabs{max-width:1480px;margin:0 auto 16px;display:flex;gap:8px;overflow-x:auto;padding-bottom:2px}
 .pl-tabs button.active{background:${THEME.ink};border-color:${THEME.ink};color:#fff}
-.pl-attention{max-width:1480px;margin:0 auto 16px;background:#fff;border:1px solid ${THEME.border};border-radius:18px;padding:16px 18px;box-shadow:0 14px 34px rgba(29,28,25,.045)}
+.pl-attention{max-width:1480px;margin:0 auto 16px;background:${THEME.card};border:1px solid ${THEME.border};border-radius:12px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,.3)}
 .pl-attention-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .pl-attention-list button{border:1px solid ${THEME.border};background:#FFFEFC;border-radius:13px;padding:12px;text-align:left;display:flex;gap:10px;align-items:flex-start;cursor:pointer;font-family:inherit}
 .pl-attention-list i{width:8px;height:8px;border-radius:999px;margin-top:5px;flex-shrink:0}
@@ -855,7 +857,7 @@ const css = `
 .pl-attention-list span{display:block;font-size:11.5px;color:${THEME.muted};line-height:1.35}
 .pl-attention-empty{padding:18px 0;text-align:center;color:#A79F93;font-size:13px}
 .pl-mobile-operational{display:none}
-.pl-card{max-width:1480px;margin:0 auto;background:#fff;border:1px solid ${THEME.border};border-radius:18px;padding:18px 20px;box-shadow:0 14px 34px rgba(29,28,25,.05);box-sizing:border-box}
+.pl-card{max-width:1480px;margin:0 auto;background:${THEME.card};border:1px solid ${THEME.border};border-radius:12px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,.3);box-sizing:border-box}
 .pl-card-head{display:flex;justify-content:space-between;gap:14px;align-items:center;margin-bottom:15px}
 .pl-card-head h2{font-size:15px;margin:0;font-weight:900;color:${THEME.ink}}
 .pl-card-head span{font-size:12px;color:${THEME.gold};font-weight:900}
@@ -900,9 +902,9 @@ const css = `
 .pl-gantt-name span{display:block;font-size:11px;color:${THEME.muted};margin-top:3px}
 .pl-gantt-lane{position:relative;height:54px;background:repeating-linear-gradient(90deg,#fff 0,#fff 119px,${THEME.border} 120px)}
 .pl-gantt-lane i{position:absolute;top:16px;height:22px;border-radius:999px;color:#fff;font-style:normal;font-size:10px;font-weight:900;padding:5px 10px;box-sizing:border-box;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;box-shadow:0 8px 18px rgba(29,28,25,.12)}
-.pl-empty{max-width:1480px;margin:0 auto;background:#fff;border:1px solid ${THEME.border};border-radius:16px;padding:42px;text-align:center;color:${THEME.muted}}
+.pl-empty{max-width:1480px;margin:0 auto;background:${THEME.card};border:1px solid ${THEME.border};border-radius:12px;padding:42px;text-align:center;color:${THEME.muted};box-shadow:0 2px 12px rgba(0,0,0,.3)}
 .pl-modal-bg{position:fixed;inset:0;background:rgba(29,28,25,.48);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(4px)}
-.pl-modal{width:100%;max-width:780px;max-height:92vh;background:#fff;border:1px solid ${THEME.border};border-radius:18px;box-shadow:0 28px 80px rgba(29,28,25,.22);display:flex;flex-direction:column;overflow:hidden}
+.pl-modal{width:100%;max-width:780px;max-height:92vh;background:${THEME.card};border:1px solid ${THEME.border};border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden}
 .pl-modal-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;padding:22px 24px 0}
 .pl-modal-head span{display:block;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:${THEME.gold};font-weight:900;margin-bottom:5px}
 .pl-modal-head h2{font-family:var(--font-serif);font-size:28px;line-height:1.05;font-weight:500;margin:0;color:${THEME.ink}}

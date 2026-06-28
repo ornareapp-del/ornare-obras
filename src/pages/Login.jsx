@@ -1,6 +1,7 @@
 ﻿import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import bgImage from '../assets/ornare-milao-40-anos.jpg'
+import { theme } from '../constants/theme'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -123,9 +124,9 @@ Ornare</h1>
 }
 
 const css = `
-.ow-login{position:relative;min-height:100vh;background:#11100E;color:#F8F5EF;display:flex;align-items:center;justify-content:center;font-family:var(--font-sans);padding:0 64px;overflow:hidden}
-.ow-login-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:grayscale(1) brightness(.36) contrast(1.18);transform:scale(1.02)}
-.ow-login-shade{position:absolute;inset:0;background:radial-gradient(circle at 78% 30%,rgba(201,169,110,.12),transparent 30%),linear-gradient(90deg,rgba(15,14,12,.96),rgba(15,14,12,.84) 48%,rgba(15,14,12,.64));box-shadow:inset 0 0 0 1px rgba(255,255,255,.03)}
+.ow-login{position:relative;min-height:100vh;background:${theme.background};color:${theme.textPrimary};display:flex;align-items:center;justify-content:center;font-family:'Inter',sans-serif;padding:0 64px;overflow:hidden}
+.ow-login-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:grayscale(1) brightness(.28) contrast(1.2);transform:scale(1.02)}
+.ow-login-shade{position:absolute;inset:0;background:radial-gradient(circle at 78% 30%,rgba(201,169,110,.10),transparent 28%),linear-gradient(90deg,rgba(12,11,10,.98),rgba(12,11,10,.92) 46%,rgba(12,11,10,.76));box-shadow:inset 0 0 0 1px rgba(255,255,255,.03),inset 0 -180px 220px rgba(0,0,0,.34)}
 .ow-login-shell{position:relative;z-index:1;width:min(1080px,100%);margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:72px;align-items:center;min-height:100vh;padding:60px 0}
 .ow-login-brand{display:flex;flex-direction:column;justify-content:center;align-items:flex-start}
 .ow-login-logo{display:flex;flex-direction:column;align-items:flex-start;margin-bottom:40px}
@@ -136,28 +137,28 @@ const css = `
 .ow-login-brand p{max-width:470px;margin:0;color:rgba(248,245,239,.88);font-size:16px;line-height:1.65;font-weight:600;text-shadow:0 18px 38px rgba(0,0,0,.46)}
 .ow-login-points{display:flex;gap:10px;margin-top:28px;padding-left:22px}
 .ow-login-points strong{border:1px solid rgba(201,169,110,.38);background:rgba(255,255,255,.06);color:#F8F5EF;border-radius:999px;padding:8px 12px;font-size:11px;font-weight:900;letter-spacing:.5px;backdrop-filter:blur(8px);cursor:default;user-select:none}
-.ow-login-card{background:rgba(255,254,252,.97);border:1px solid rgba(231,224,213,.88);border-top:3px solid var(--color-gold);border-radius:24px;padding:36px;box-shadow:0 40px 100px rgba(0,0,0,.42);backdrop-filter:blur(24px);color:var(--color-ink);align-self:center}
+.ow-login-card{background:${theme.surface};border:1px solid ${theme.border};border-radius:12px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,.3);backdrop-filter:blur(24px);color:${theme.textPrimary};align-self:center}
 .ow-login-card.success{text-align:center}
 .ow-login-mark{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;background:#F1E6D3;color:var(--color-gold);font-size:13px;font-weight:900}
 .ow-login-card.success strong{display:block;font-size:18px;margin-bottom:8px}
 .ow-login-card.success p{margin:0 0 20px;color:var(--color-ink-muted);font-size:13px;line-height:1.55}
 .ow-login-head{margin-bottom:22px}
 .ow-login-head span{display:block;color:var(--color-gold);font-size:10px;letter-spacing:2.2px;text-transform:uppercase;font-weight:900;margin-bottom:9px}
-.ow-login-head h2{font-family:var(--font-serif);font-size:32px;line-height:1.03;font-weight:500;margin:0;color:var(--color-ink)}
-.ow-login-head p{margin:8px 0 0;color:var(--color-ink-muted);font-size:13px;line-height:1.45}
+.ow-login-head h2{font-family:'Inter',sans-serif;font-size:32px;line-height:1.03;font-weight:700;margin:0;color:${theme.textPrimary}}
+.ow-login-head p{margin:8px 0 0;color:${theme.textSecondary};font-size:13px;line-height:1.45}
 .ow-field{display:block;margin-bottom:14px}
-.ow-field span{display:block;font-size:10px;letter-spacing:1.7px;color:var(--color-ink-muted);margin-bottom:7px;text-transform:uppercase;font-weight:900}
-.ow-field input{width:100%;min-height:50px;padding:12px 14px;border-radius:14px;border:1.5px solid var(--color-border);font-size:15px;font-family:inherit;background:#fff;box-sizing:border-box;outline:none;color:var(--color-ink);transition:border-color .15s,box-shadow .15s}
-.ow-field input:focus{border-color:var(--color-gold);box-shadow:0 0 0 3px rgba(184,150,94,.14)}
-.ow-login-error{font-size:12px;color:var(--color-danger);margin:2px 0 12px;padding:10px 12px;background:#fdecea;border-radius:12px;border-left:3px solid var(--color-danger)}
-.ow-login-submit{width:100%;min-height:52px;border-radius:14px;background:var(--color-ink);color:#F8F5EF;border:0;font-size:12px;font-weight:900;letter-spacing:1.6px;cursor:pointer;margin-top:4px;text-transform:uppercase;font-family:inherit;box-shadow:0 14px 32px rgba(23,21,18,.18);transition:background .18s,box-shadow .18s}
-.ow-login-submit:hover:not(:disabled){background:var(--color-gold);box-shadow:0 16px 36px rgba(184,150,94,.32)}
-.ow-login-submit:disabled{background:#8A8175;cursor:not-allowed}
+.ow-field span{display:block;font-size:10px;letter-spacing:1.7px;color:${theme.textSecondary};margin-bottom:7px;text-transform:uppercase;font-weight:900}
+.ow-field input{width:100%;min-height:50px;padding:12px 14px;border-radius:8px;border:1px solid ${theme.border};font-size:15px;font-family:inherit;background:${theme.surfaceElevated};box-sizing:border-box;outline:none;color:${theme.textPrimary};transition:border-color .15s,box-shadow .15s}
+.ow-field input:focus{border-color:${theme.gold};box-shadow:0 0 0 3px rgba(201,168,76,.18)}
+.ow-login-error{font-size:12px;color:${theme.error};margin:2px 0 12px;padding:10px 12px;background:rgba(224,82,82,.12);border-radius:12px;border-left:3px solid ${theme.error}}
+.ow-login-submit{width:100%;min-height:52px;border-radius:8px;background:${theme.gold};color:#0F0F0F;border:0;font-size:13px;font-weight:600;cursor:pointer;margin-top:4px;font-family:inherit;box-shadow:0 2px 12px rgba(0,0,0,.3);transition:background .18s,box-shadow .18s;padding:12px 24px}
+.ow-login-submit:hover:not(:disabled){background:${theme.goldLight};box-shadow:0 16px 36px rgba(201,168,76,.18)}
+.ow-login-submit:disabled{background:${theme.textMuted};cursor:not-allowed}
 .ow-login-alt{text-align:center;margin-top:18px}
 .ow-login-alt button,.ow-login-link{background:transparent;border:0;color:var(--color-gold);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit}
 @media (max-width:760px){
   .ow-login{align-items:flex-end;padding:0;min-height:100svh}
-  .ow-login-shade{background:linear-gradient(180deg,rgba(15,14,12,.58),rgba(15,14,12,.78) 42%,rgba(15,14,12,.96))}
+  .ow-login-shade{background:linear-gradient(180deg,rgba(12,11,10,.72),rgba(12,11,10,.88) 38%,rgba(12,11,10,.98))}
   .ow-login-shell{display:flex;flex-direction:column;gap:18px;align-items:stretch;justify-content:flex-end;min-height:100svh;padding:18px 20px 24px}
   .ow-login-brand{min-height:auto}
   .ow-login-logo{margin-bottom:22px}

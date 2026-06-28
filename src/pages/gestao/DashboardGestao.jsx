@@ -3,17 +3,19 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { EmptyState, KpiCard as DesignKpiCard, PremiumCard } from '../../components/DesignSystem'
 import { limparNome } from '../../utils/ui'
+import { theme } from '../../constants/theme'
 
 const THEME = {
-  bg: '#F6F3EE',
-  card: '#FFFFFF',
-  border: '#E7E0D5',
-  ink: '#1D1C19',
-  muted: '#6D675E',
-  gold: '#C9A96E',
-  danger: '#C0392B',
-  success: '#2D7A4A',
-  warn: '#E07B39',
+  bg: theme.background,
+  card: theme.surface,
+  border: theme.border,
+  ink: theme.textPrimary,
+  muted: theme.textSecondary,
+  gold: theme.gold,
+  danger: theme.error,
+  success: theme.success,
+  warn: theme.warning,
+  elevated: theme.surfaceElevated,
 }
 
 const STATUS = {
@@ -635,8 +637,8 @@ const css = `
 .dg-header h1{font-family:var(--font-serif);font-size:38px;line-height:1.05;font-weight:500;margin:0;color:${THEME.ink}}
 .dg-header p{margin:6px 0 0;font-size:13px;color:${THEME.muted}}
 .dg-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
-.dg-actions button{border:1px solid ${THEME.border};background:#fff;color:${THEME.ink};border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;cursor:pointer}
-.dg-actions .primary{background:${THEME.gold};border-color:${THEME.gold};color:#fff}
+.dg-actions button{border:1px solid ${THEME.border};background:${THEME.surfaceElevated || THEME.elevated};color:${THEME.ink};border-radius:8px;padding:12px 24px;font-size:13px;font-weight:600;cursor:pointer}
+.dg-actions .primary{background:${THEME.gold};border-color:${THEME.gold};color:${THEME.bg}}
 .dg-mobile-home{display:none}
 .dg-priority-board{max-width:1380px;margin:0 auto 16px;display:grid;grid-template-columns:1.25fr 1fr 1fr 1fr;gap:12px}
 .dg-agenda-mobile{max-width:1380px;margin:0 auto 16px}
@@ -666,7 +668,7 @@ const css = `
 .dg-priority-row span{display:block;font-size:11.5px;color:${THEME.muted};line-height:1.35;margin-top:3px}
 .dg-priority-row.compact{padding:9px 0}
 .dg-kpis{max-width:1380px;margin:0 auto 18px;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
-.dg-kpi{background:#fff;border:1px solid ${THEME.border};border-top:3px solid ${THEME.gold};border-radius:14px;padding:15px 16px;min-width:0}
+.dg-kpi{background:${THEME.card};border:1px solid ${THEME.border};border-radius:12px;padding:20px;min-width:0;box-shadow:0 2px 12px rgba(0,0,0,.3)}
 .dg-kpi span{display:block;font-size:10px;letter-spacing:1.8px;text-transform:uppercase;font-weight:800;margin-bottom:9px;white-space:nowrap}
 .dg-kpi strong{display:block;font-size:34px;line-height:1;color:${THEME.ink}}
 .dg-kpi small{display:block;font-size:12px;color:${THEME.muted};margin-top:7px}
@@ -674,7 +676,7 @@ const css = `
 .dg-grid-3{grid-template-columns:1fr 1.15fr 1fr}
 .dg-main{grid-template-columns:minmax(0,1.45fr) minmax(340px,.75fr)}
 .dg-stack{display:flex;flex-direction:column;gap:16px}
-.dg-card{background:#fff;border:1px solid ${THEME.border};border-radius:16px;padding:18px 20px;box-shadow:0 14px 34px rgba(29,28,25,.045);min-width:0}
+.dg-card{background:${THEME.card};border:1px solid ${THEME.border};border-radius:12px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,.3);min-width:0}
 .dg-card-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:14px}
 .dg-card-head h2{font-size:14px;font-weight:800;margin:0;color:${THEME.ink}}
 .dg-card-head button{border:0;background:transparent;color:${THEME.gold};font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap}
