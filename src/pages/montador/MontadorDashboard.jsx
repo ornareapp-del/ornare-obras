@@ -47,12 +47,6 @@ const VISTORIA_CHECKLIST = [
 
 const MONTAGEM_CHECKLIST = CHECKLIST_MONTAGEM_GERAL
 
-const PRIORIDADE = {
-  baixa: { label: 'Baixa', color: '#8A8175' },
-  media: { label: 'Média', color: THEME.warn },
-  alta: { label: 'Alta', color: THEME.danger },
-}
-
 const safeArray = result => result?.data || []
 const norm = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 const VISTORIA_CHECKLIST_NORMALIZADO = new Set(VISTORIA_CHECKLIST.map(norm))
@@ -248,10 +242,8 @@ export default function MontadorDashboard() {
   const [itemAcao, setItemAcao] = useState('')
   const [novoChecklist, setNovoChecklist] = useState('')
   const [criandoChecklist, setCriandoChecklist] = useState(false)
-  const [painelAtivo, setPainelAtivo] = useState('')
   const [telaAtiva, setTelaAtiva] = useState('hoje')
 
-  const tarefasRef = useRef(null)
   const checklistRef = useRef(null)
   const fotosRef = useRef(null)
   const ocorrenciasRef = useRef(null)
@@ -470,10 +462,14 @@ export default function MontadorDashboard() {
   async function criarNotificacoesOperacionais({ tipo, titulo, descricao, entidadeTipo, entidadeId, agendaId, prioridade = 'normal' }) {
     if (!obraAtiva || !user) return
     const destinatarios = new Set([obraAtiva.supervisor_id, obraAtiva.comercial_id].filter(Boolean))
-    const { data: gestores } = await supabase
+    const { data: gestores, error: gestoresError } = await supabase
       .from('profiles')
       .select('id')
       .in('role', ['gestao', 'pos_venda', 'vendedor'])
+
+    if (gestoresError) {
+      console.error('Erro ao buscar destinatários das notificações:', gestoresError)
+    }
 
     ;(gestores || []).forEach(p => p.id && destinatarios.add(p.id))
     destinatarios.delete(user.id)
@@ -831,7 +827,7 @@ export default function MontadorDashboard() {
     if (!problema.trim() || !obraAtiva || !user) return
     setSalvandoProblema(true)
 
-    const { data: ocorrenciaCriada } = await supabase.from('ocorrencias').insert([{
+    const { data: ocorrenciaCriada, error } = await supabase.from('ocorrencias').insert([{
       obra_id: obraAtiva.id,
       criado_por: user.id,
       tipo: 'Problema técnico',
@@ -840,6 +836,13 @@ export default function MontadorDashboard() {
       gravidade: 'media',
       status: 'Aberta',
     }]).select('id, titulo').single()
+
+    if (error) {
+      console.error('Erro ao registrar problema do montador:', error)
+      mostrarSucesso('Não foi possível registrar o problema.')
+      setSalvandoProblema(false)
+      return
+    }
 
     await criarNotificacoesOperacionais({
       tipo: 'ocorrencia',
@@ -1249,6 +1252,27 @@ export default function MontadorDashboard() {
       </section>
 
       {loadingObra && telaAtiva === 'hoje' && <div className="md-loading-inline">Atualizando dados da obra...</div>}
+
+      {telaAtiva === 'hoje' && vm.tarefasAbertas.length > 0 && (
+        <section className="md-card compact-card">
+          <div className="md-card-head compact">
+            <div>
+              <h2>Tarefas abertas</h2>
+              <small className="md-card-sub">{vm.tarefasAbertas.length} pendente{vm.tarefasAbertas.length > 1 ? 's' : ''} para esta obra</small>
+            </div>
+            <span>{vm.tarefasConcluidasHoje.length} hoje</span>
+          </div>
+          {vm.tarefasAbertas.slice(0, 4).map(tarefa => (
+            <button key={tarefa.id} className="md-task compact" onClick={() => abrirTarefa(tarefa)}>
+              <div>
+                <strong>{tarefa.titulo || tarefa.descricao || tarefa.tipo || 'Tarefa operacional'}</strong>
+                <small>{tarefa.prazo ? `Prevista para ${dataBR(tarefa.prazo)}` : tarefa.status || 'Pendente'}</small>
+              </div>
+              <span>{'>'}</span>
+            </button>
+          ))}
+        </section>
+      )}
 
       <section className="md-card md-check-progress-card" style={telaAtiva === 'hoje' ? undefined : { display: 'none' }}>
         <div className="md-card-head compact">
