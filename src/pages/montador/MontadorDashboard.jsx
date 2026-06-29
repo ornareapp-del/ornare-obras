@@ -521,7 +521,8 @@ export default function MontadorDashboard() {
       lat = pos.coords.latitude
       lng = pos.coords.longitude
       localizacaoAutorizada = true
-    } catch {
+    } catch (error) {
+      console.warn('Check-in sem localização disponível:', error)
       // O check-in continua mesmo se a localização não estiver disponível.
     }
 
@@ -599,7 +600,8 @@ export default function MontadorDashboard() {
         )
         lat = pos.coords.latitude
         lng = pos.coords.longitude
-      } catch {
+      } catch (error) {
+        console.warn('Check-out sem localização disponível:', error)
         // Check-out continua mesmo sem localizacao.
       }
       const { error } = await supabase.from('checkins').update({
@@ -816,7 +818,8 @@ export default function MontadorDashboard() {
       setFormFoto({ categoria: '', ambiente_id: '', agenda_id: '', observacao: '' })
       mostrarSucesso('Foto enviada.')
       await carregarDadosObra()
-    } catch {
+    } catch (error) {
+      console.error('Erro ao enviar foto do montador:', error)
       mostrarSucesso('Não foi possível enviar a foto.')
     } finally {
       setUploading(false)

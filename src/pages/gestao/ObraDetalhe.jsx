@@ -99,6 +99,10 @@ function fotoUrl(foto) {
   return supabase.storage.from('fotos-obras').getPublicUrl(foto.storage_path).data.publicUrl
 }
 
+function mensagemErro(error, fallback = 'Não foi possível concluir a operação.') {
+  return error?.message || error?.details || fallback
+}
+
 async function criarNotificacoesObra({ obraId, tipo, titulo, descricao, prioridade = 'normal', entidadeTipo, entidadeId, rota, excluirUsuarioId }) {
   if (!obraId || !titulo) return
   try {
@@ -271,7 +275,6 @@ export default function ObraDetalhe() {
 
   async function salvarEdicaoObra() {
     setSalvando(true)
-    console.log("GASTO META ENVIADO:", formObra.gasto_meta, parseFloat(formObra.gasto_meta))
     const { error } = await supabase.from('obras').update({
       nome:               formObra.nome,
       numero_contrato:    formObra.numero_contrato    || null,
@@ -1481,21 +1484,32 @@ function AbaChecklist({ obraId, checklistDestaque }) {
     const temGrupoGeral = itens.some(i => !i.ambiente_id) || ambientes.length === 0
     const destinoId = ambienteSelecionado === 'geral' && !temGrupoGeral ? (ambientes[0]?.id || 'geral') : ambienteSelecionado
     setSalvando(true)
-    await supabase.from('checklist_items').insert([{
+    setMensagemBiblioteca('')
+    const { error } = await supabase.from('checklist_items').insert([{
       obra_id: obraId,
       ambiente_id: destinoId === 'geral' ? null : destinoId,
       descricao: novoItem.trim(),
       concluido: false,
     }])
+    if (error) {
+      setMensagemBiblioteca('Erro ao adicionar checklist: ' + mensagemErro(error))
+      setSalvando(false)
+      return
+    }
     setNovoItem(''); await carregar(); setSalvando(false)
   }
   async function toggle(item) {
     const concluindo = !item.concluido
-    await supabase.from('checklist_items').update({
+    setMensagemBiblioteca('')
+    const { error } = await supabase.from('checklist_items').update({
       concluido: concluindo,
       concluido_por: concluindo ? user?.id : null,
       concluido_em: concluindo ? new Date().toISOString() : null,
     }).eq('id', item.id)
+    if (error) {
+      setMensagemBiblioteca('Erro ao atualizar checklist: ' + mensagemErro(error))
+      return
+    }
     if (concluindo) {
       await criarNotificacoesObra({
         obraId,
@@ -1630,6 +1644,7 @@ function AbaOcorrencias({ obraId, ocorrenciaDestaque }) {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState('')
   const [nova, setNova] = useState({ titulo: '', descricao: '', categoria: 'geral', gravidade: 'baixa' })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { carregar() }, [])
@@ -1640,7 +1655,13 @@ function AbaOcorrencias({ obraId, ocorrenciaDestaque }) {
   async function salvar() {
     if (!nova.titulo.trim()) return
     setSalvando(true)
-    const { data: criada } = await supabase.from('ocorrencias').insert([{ ...nova, obra_id: obraId }]).select().single()
+    setErro('')
+    const { data: criada, error } = await supabase.from('ocorrencias').insert([{ ...nova, obra_id: obraId }]).select().single()
+    if (error) {
+      setErro(mensagemErro(error, 'Não foi possível registrar a ocorrência.'))
+      setSalvando(false)
+      return
+    }
     await criarNotificacoesObra({
       obraId,
       tipo: 'ocorrencia',
@@ -1663,8 +1684,9 @@ function AbaOcorrencias({ obraId, ocorrenciaDestaque }) {
           <div style={{ fontSize: 10, letterSpacing: 2, color: THEME.gold, textTransform: 'uppercase', fontWeight: 800 }}>Ocorrências</div>
           <div style={{ fontSize: 20, color: THEME.ink, fontWeight: 800, marginTop: 4 }}>Registro da obra</div>
         </div>
-        <button onClick={() => setShowForm(!showForm)} style={{ background: 'var(--color-ink)', color: '#f9f7f4', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}>{showForm ? 'Cancelar' : '+ Nova Ocorrência'}</button>
+        <button onClick={() => { setErro(''); setShowForm(!showForm) }} style={{ background: 'var(--color-ink)', color: '#f9f7f4', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}>{showForm ? 'Cancelar' : '+ Nova Ocorrência'}</button>
       </div>
+      {erro && <div style={{ background: '#fdecea', color: '#a03030', borderLeft: '3px solid #d94a4a', borderRadius: 8, padding: '10px 12px', fontSize: 12, fontWeight: 700, marginBottom: 12 }}>{erro}</div>}
       {showForm && (
         <div style={{ background: THEME.card, border: '1px solid ' + THEME.border, borderRadius: 12, padding: 22, marginBottom: 20 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -1766,21 +1788,43 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
     const vNum = parseFloat(String(form.valor).replace(',', '.'))
     if (isNaN(vNum) || vNum <= 0) { setErro('Valor invalido.'); return }
     setSalvando(true)
-    if (gastoEdit) {
-      await supabase.from('gastos').update({ descricao: form.descricao.trim(), valor: vNum, categoria: form.categoria, data: form.data || null, observacao: form.observacao || null }).eq('id', gastoEdit.id)
-    } else {
-      const { data: ins } = await supabase.from('gastos').insert([{ obra_id: obraId, descricao: form.descricao.trim(), valor: vNum, categoria: form.categoria, data: form.data, observacao: form.observacao || null, status: 'aprovado' }]).select().single()
-      if (arquivo && ins) {
-        const ext = arquivo.name.split('.').pop()
-        await supabase.storage.from('fotos-obras').upload('gastos/' + ins.id + '.' + ext, arquivo)
+    setErro('')
+    try {
+      if (gastoEdit) {
+        const { error } = await supabase.from('gastos').update({ descricao: form.descricao.trim(), valor: vNum, categoria: form.categoria, data: form.data || null, observacao: form.observacao || null }).eq('id', gastoEdit.id)
+        if (error) throw error
+      } else {
+        const { data: ins, error } = await supabase.from('gastos').insert([{ obra_id: obraId, descricao: form.descricao.trim(), valor: vNum, categoria: form.categoria, data: form.data, observacao: form.observacao || null, status: 'aprovado' }]).select().single()
+        if (error) throw error
+        if (!ins?.id) throw new Error('Gasto registrado sem identificador para anexar comprovante.')
+        if (arquivo) {
+          const ext = arquivo.name.split('.').pop()
+          const { error: uploadError } = await supabase.storage.from('fotos-obras').upload('gastos/' + ins.id + '.' + ext, arquivo)
+          if (uploadError) {
+            setErro('Gasto registrado, mas não foi possível anexar o comprovante: ' + mensagemErro(uploadError))
+            setSalvando(false)
+            await carregar()
+            return
+          }
+        }
       }
+      setSalvando(false); fechar(); carregar()
+    } catch (error) {
+      setErro(mensagemErro(error, 'Não foi possível salvar o gasto.'))
+      setSalvando(false)
     }
-    setSalvando(false); fechar(); carregar()
   }
 
   async function deletar(g) {
     if (!window.confirm('Excluir este gasto?')) return
-    await supabase.from('gastos').delete().eq('id', g.id)
+    setSalvando(true)
+    setErro('')
+    const { error } = await supabase.from('gastos').delete().eq('id', g.id)
+    setSalvando(false)
+    if (error) {
+      setErro(mensagemErro(error, 'Não foi possível excluir o gasto.'))
+      return
+    }
     fechar(); carregar()
   }
 
@@ -1905,6 +1949,7 @@ function AbaChat({ obraId }) {
   const [texto, setTexto] = useState('')
   const [loading, setLoading] = useState(true)
   const [enviando, setEnviando] = useState(false)
+  const [erro, setErro] = useState('')
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { carregar() }, [])
   async function carregar() {
@@ -1914,7 +1959,13 @@ function AbaChat({ obraId }) {
   async function enviar() {
     if (!texto.trim()) return
     setEnviando(true)
-    await supabase.from('mensagens_obra').insert([{ obra_id: obraId, user_id: user.id, mensagem: texto.trim() }])
+    setErro('')
+    const { error } = await supabase.from('mensagens_obra').insert([{ obra_id: obraId, user_id: user.id, mensagem: texto.trim() }])
+    if (error) {
+      setErro(mensagemErro(error, 'Não foi possível enviar a mensagem.'))
+      setEnviando(false)
+      return
+    }
     setTexto(''); await carregar(); setEnviando(false)
   }
   const ROLE_COR = { gestao: '#3a5580', supervisor: '#3a7d4f', montador: '#b09a7a', cliente: '#888', vendedor: '#9070c0' }
@@ -1943,6 +1994,7 @@ function AbaChat({ obraId }) {
         <input value={texto} onChange={e => setTexto(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && enviar()} placeholder="Escreva uma mensagem..." style={{ background: THEME.inputBackground, border: '1px solid ' + THEME.inputBorder, color: THEME.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', fontSize: 14, outline: 'none', flex: 1, fontFamily: 'inherit' }} />
         <button onClick={enviar} disabled={enviando || !texto.trim()} style={{ background: 'var(--color-ink)', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{enviando ? '...' : 'Enviar'}</button>
       </div>
+      {erro && <div style={{ color: THEME.danger, fontSize: 12, fontWeight: 700, marginTop: 8 }}>{erro}</div>}
     </div>
   )
 }
@@ -1954,6 +2006,7 @@ function AbaFotos({ obraId, fotoDestaque }) {
   const [agendaVistorias, setAgendaVistorias] = useState([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
+  const [erro, setErro] = useState('')
   const [preview, setPreview] = useState(null)
   const [filtroCategoria, setFiltroCategoria] = useState('')
   const [filtroAmbiente, setFiltroAmbiente] = useState('')
@@ -1980,23 +2033,31 @@ function AbaFotos({ obraId, fotoDestaque }) {
       return
     }
     setUploading(true)
+    setErro('')
     const ext = file.name.split('.').pop()
     const path = obraId + '/' + Date.now() + '.' + ext
     const { error: upErr } = await supabase.storage.from('fotos-obras').upload(path, file)
-    if (!upErr) {
-      await supabase.from('fotos').insert([{
-        obra_id: obraId,
-        enviada_por: user?.id || null,
-        storage_path: path,
-        categoria: formFoto.categoria,
-        ambiente_id: formFoto.ambiente_id || null,
-        agenda_id: formFoto.agenda_id || null,
-        observacao: formFoto.observacao || file.name,
-        visivel_cliente: formFoto.visivel_cliente,
-        aprovada: false,
-        aprovada_gestao: false,
-        visibilidade: formFoto.visivel_cliente ? 'cliente' : 'interna',
-      }])
+    if (upErr) {
+      setErro(mensagemErro(upErr, 'Não foi possível enviar a foto.'))
+    } else {
+      const { error: insertError } = await supabase.from('fotos').insert([{
+          obra_id: obraId,
+          enviada_por: user?.id || null,
+          storage_path: path,
+          categoria: formFoto.categoria,
+          ambiente_id: formFoto.ambiente_id || null,
+          agenda_id: formFoto.agenda_id || null,
+          observacao: formFoto.observacao || file.name,
+          visivel_cliente: formFoto.visivel_cliente,
+          aprovada: false,
+          aprovada_gestao: false,
+          visibilidade: formFoto.visivel_cliente ? 'cliente' : 'interna',
+        }])
+      if (insertError) {
+        setErro(mensagemErro(insertError, 'A foto foi enviada, mas não foi vinculada à obra.'))
+        setUploading(false); e.target.value = ''
+        return
+      }
       setFormFoto({ categoria: '', ambiente_id: '', agenda_id: '', observacao: '', visivel_cliente: false })
       await carregar()
     }
@@ -2004,11 +2065,16 @@ function AbaFotos({ obraId, fotoDestaque }) {
   }
   async function aprovar(foto) {
     const aprovado = !foto.aprovada
-    await supabase.from('fotos').update({
+    setErro('')
+    const { error } = await supabase.from('fotos').update({
       aprovada: aprovado,
       aprovada_gestao: aprovado,
       aprovada_por: aprovado ? user?.id : null,
     }).eq('id', foto.id)
+    if (error) {
+      setErro(mensagemErro(error, 'Não foi possível atualizar a aprovação da foto.'))
+      return
+    }
     await criarNotificacoesObra({
       obraId,
       tipo: 'foto',
@@ -2023,13 +2089,26 @@ function AbaFotos({ obraId, fotoDestaque }) {
     await carregar()
   }
   async function alternarCliente(foto) {
-    await supabase.from('fotos').update({
+    setErro('')
+    const { error } = await supabase.from('fotos').update({
       visivel_cliente: !foto.visivel_cliente,
       visibilidade: !foto.visivel_cliente ? 'cliente' : 'interna',
     }).eq('id', foto.id)
+    if (error) {
+      setErro(mensagemErro(error, 'Não foi possível atualizar a visibilidade da foto.'))
+      return
+    }
     await carregar()
   }
-  async function deletar(foto) { await supabase.from('fotos').delete().eq('id', foto.id); await carregar() }
+  async function deletar(foto) {
+    setErro('')
+    const { error } = await supabase.from('fotos').delete().eq('id', foto.id)
+    if (error) {
+      setErro(mensagemErro(error, 'Não foi possível excluir a foto.'))
+      return
+    }
+    await carregar()
+  }
   const ambienteNome = ambienteId => ambientes.find(a => a.id === ambienteId)?.nome || 'Sem ambiente'
   const filtradas = fotos.filter(f => {
     if (filtroCategoria && (f.categoria || 'Geral') !== filtroCategoria) return false
@@ -2074,6 +2153,7 @@ function AbaFotos({ obraId, fotoDestaque }) {
             <input type="file" accept="image/*" onChange={handleUpload} style={{ display: 'none' }} disabled={uploading || !formFoto.categoria} />
           </label>
         </div>
+        {erro && <div style={{ color: THEME.danger, fontSize: 12, fontWeight: 700, marginTop: 10 }}>{erro}</div>}
       </Card>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, margin: '18px 0' }}>
@@ -2153,6 +2233,7 @@ function AbaCliente({ obraId }) {
   const [showComForm, setShowComForm] = useState(false)
   const [showConForm, setShowConForm] = useState(false)
   const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState('')
   const [novoCom, setNovoCom] = useState({ titulo: '', mensagem: '' })
   const [novoCon, setNovoCon] = useState({ nome: '', cargo: '', telefone: '' })
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2167,16 +2248,36 @@ function AbaCliente({ obraId }) {
   async function salvarComunicado() {
     if (!novoCom.titulo.trim()) return
     setSalvando(true)
-    await supabase.from('comunicados_cliente').insert([{ ...novoCom, obra_id: obraId }])
+    setErro('')
+    const { error } = await supabase.from('comunicados_cliente').insert([{ ...novoCom, obra_id: obraId }])
+    if (error) {
+      setErro(mensagemErro(error, 'Não foi possível publicar o comunicado.'))
+      setSalvando(false)
+      return
+    }
     setNovoCom({ titulo: '', mensagem: '' }); setShowComForm(false); await carregar(); setSalvando(false)
   }
   async function salvarContato() {
     if (!novoCon.nome.trim()) return
     setSalvando(true)
-    await supabase.from('contatos_cliente').insert([{ ...novoCon, obra_id: obraId }])
+    setErro('')
+    const { error } = await supabase.from('contatos_cliente').insert([{ ...novoCon, obra_id: obraId }])
+    if (error) {
+      setErro(mensagemErro(error, 'Não foi possível adicionar o contato.'))
+      setSalvando(false)
+      return
+    }
     setNovoCon({ nome: '', cargo: '', telefone: '' }); setShowConForm(false); await carregar(); setSalvando(false)
   }
-  async function deletarComunicado(cid) { await supabase.from('comunicados_cliente').delete().eq('id', cid); await carregar() }
+  async function deletarComunicado(cid) {
+    setErro('')
+    const { error } = await supabase.from('comunicados_cliente').delete().eq('id', cid)
+    if (error) {
+      setErro(mensagemErro(error, 'Não foi possível excluir o comunicado.'))
+      return
+    }
+    await carregar()
+  }
   const linkPortal = window.location.origin + '/cliente/' + obraId
   return (
     <div>
@@ -2187,6 +2288,7 @@ function AbaCliente({ obraId }) {
         </div>
         <button onClick={() => navigator.clipboard.writeText(linkPortal)} style={{ background: 'var(--color-ink)', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 12, cursor: 'pointer', flexShrink: 0 }}>Copiar link</button>
       </div>
+      {erro && <div style={{ background: '#fdecea', color: '#a03030', borderLeft: '3px solid #d94a4a', borderRadius: 8, padding: '10px 12px', fontSize: 12, fontWeight: 700, marginBottom: 14 }}>{erro}</div>}
       <div style={{ marginBottom: 28 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase' }}>Comunicados ao cliente</div>

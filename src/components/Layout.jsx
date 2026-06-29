@@ -52,7 +52,11 @@ export default function Layout() {
     if (!notificacao) return
     if (notificacao.status !== 'lida') {
       const lidaEm = new Date().toISOString()
-      await supabase.from('notificacoes').update({ status: 'lida', lida_em: lidaEm }).eq('id', notificacao.id)
+      const { error } = await supabase.from('notificacoes').update({ status: 'lida', lida_em: lidaEm }).eq('id', notificacao.id)
+      if (error) {
+        console.error('Erro ao marcar notificação como lida:', error)
+        return
+      }
       setNotificacoes(lista => lista.map(item => item.id === notificacao.id ? { ...item, status: 'lida', lida_em: lidaEm } : item))
     }
     setNotificacoesAbertas(false)
@@ -125,7 +129,11 @@ export default function Layout() {
     if (pendentes.length === 0) return
     const ids = pendentes.map(item => item.id).filter(Boolean)
     const lidaEm = new Date().toISOString()
-    await supabase.from('notificacoes').update({ status: 'lida', lida_em: lidaEm }).in('id', ids)
+    const { error } = await supabase.from('notificacoes').update({ status: 'lida', lida_em: lidaEm }).in('id', ids)
+    if (error) {
+      console.error('Erro ao marcar notificações como lidas:', error)
+      return
+    }
     setNotificacoes(lista => lista.map(item => ids.includes(item.id) ? { ...item, status: 'lida', lida_em: lidaEm } : item))
   }
 

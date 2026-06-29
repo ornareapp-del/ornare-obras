@@ -341,7 +341,8 @@ export default function PortalCliente() {
       await navigator.clipboard.writeText(texto)
       setCopiado(label)
       setTimeout(() => setCopiado(''), 2200)
-    } catch {
+    } catch (error) {
+      console.error('Erro ao copiar informação no portal cliente:', error)
       setCopiado('')
     }
   }
