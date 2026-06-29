@@ -6,6 +6,9 @@ import { supabase } from '../lib/supabase'
 import { useStore } from '../store/useStore'
 import { theme } from '../constants/theme'
 
+const L = theme.app
+const S = theme.status
+
 export default function Layout() {
   const navigate = useNavigate()
   const { user } = useStore()
@@ -138,10 +141,10 @@ export default function Layout() {
   }
 
   function corPrioridade(item) {
-    if (item.prioridade === 'alta') return '#C0392B'
-    if (item.prioridade === 'media') return '#E07B39'
-    if (item.status !== 'lida') return '#B8965E'
-    return '#D8D0C2'
+    if (item.prioridade === 'alta') return S.dangerDeep
+    if (item.prioridade === 'media') return S.warningDeep
+    if (item.status !== 'lida') return S.goldMuted
+    return S.read
   }
 
   function labelPrioridade(item) {
@@ -152,7 +155,7 @@ export default function Layout() {
   }
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--color-bg, #F5F2EE)' }}>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: L.background }}>
 
       {/* overlay mobile */}
       {isMobile && !collapsed && (
@@ -160,7 +163,7 @@ export default function Layout() {
           onClick={() => setCollapsed(true)}
           style={{
             position: 'fixed', inset: 0,
-            background: 'rgba(26,24,20,0.55)',
+            background: theme.overlay.scrim,
             zIndex: 40, backdropFilter: 'blur(2px)',
           }}
         />
@@ -168,7 +171,7 @@ export default function Layout() {
 
       <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} isMobile={isMobile} />
 
-      <main className="ow-app-main" style={{ flex: 1, overflowY: 'auto', transition: 'all 0.25s', background: 'var(--color-bg, #F5F2EE)', paddingTop: 76, boxSizing: 'border-box' }}>
+      <main className="ow-app-main" style={{ flex: 1, overflowY: 'auto', transition: 'all 0.25s', background: L.background, paddingTop: 76, boxSizing: 'border-box' }}>
 
         {user?.id && (
           <div style={{ position: 'fixed', top: 0, right: 0, left: collapsed ? 60 : 220, height: 60, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 24px', gap: 12, background: 'transparent', pointerEvents: 'none', boxSizing: 'border-box' }}>
@@ -176,16 +179,16 @@ export default function Layout() {
               <button
                 onClick={() => setNotificacoesAbertas(v => !v)}
                 style={{
-                  border: '1px solid rgba(184,150,94,.35)',
-                  background: '#FFF8EC',
-                  color: '#B8965E',
+                  border: '1px solid ' + S.goldMuted,
+                  background: L.surfaceWarm,
+                  color: S.goldMuted,
                   borderRadius: 999,
                   padding: '9px 12px',
                   fontSize: 11,
                   fontWeight: 900,
                   letterSpacing: 1,
                   textTransform: 'uppercase',
-                  boxShadow: '0 12px 28px rgba(184,150,94,.14)',
+                  boxShadow: L.shadowSoft,
                   cursor: 'pointer',
                   fontFamily: 'inherit',
                   display: 'flex',
@@ -203,10 +206,10 @@ export default function Layout() {
                 minWidth: temPendencias ? 58 : 42,
                 height: 42,
                 borderRadius: 999,
-                border: temPendencias ? '1px solid rgba(192,57,43,.18)' : '1px solid rgba(184,150,94,.35)',
-                background: temPendencias ? 'linear-gradient(135deg, #E07B39 0%, #C0392B 100%)' : '#fff',
-                color: temPendencias ? '#fff' : '#1D1C19',
-                boxShadow: temPendencias ? '0 12px 28px rgba(192,57,43,.18)' : '0 12px 32px rgba(29,28,25,.12)',
+                border: temPendencias ? '1px solid ' + S.dangerDeep : '1px solid ' + S.goldMuted,
+                background: temPendencias ? `linear-gradient(135deg, ${S.warningDeep} 0%, ${S.dangerDeep} 100%)` : L.surface,
+                color: temPendencias ? theme.textOnAccent : L.ink,
+                boxShadow: temPendencias ? L.shadowSoft : L.shadow,
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -225,8 +228,8 @@ export default function Layout() {
                   minWidth: 22,
                   height: 22,
                   borderRadius: 999,
-                  background: '#fff',
-                  color: '#C0392B',
+                  background: L.surface,
+                  color: S.dangerDeep,
                   fontSize: 10.5,
                   fontWeight: 900,
                   display: 'flex',
@@ -247,34 +250,34 @@ export default function Layout() {
                 width: isMobile ? 'calc(100vw - 28px)' : 390,
                 maxHeight: isMobile ? 'calc(100vh - 96px)' : 520,
                 overflowY: 'auto',
-                background: theme.surface,
-                border: '1px solid ' + theme.border,
+                background: L.surface,
+                border: '1px solid ' + L.border,
                 borderRadius: 20,
-                boxShadow: '0 24px 80px rgba(29,28,25,.22)',
+                boxShadow: L.shadowPanel,
                 padding: 12,
                 pointerEvents: 'auto',
               }}>
-                <div style={{ padding: '6px 6px 12px', borderBottom: '1px solid #E7E0D5', marginBottom: 10 }}>
+                <div style={{ padding: '6px 6px 12px', borderBottom: '1px solid ' + L.border, marginBottom: 10 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
                     <div>
-                      <strong style={{ fontFamily: 'var(--font-serif)', fontSize: 21, color: '#1D1C19', display: 'block', lineHeight: 1 }}>Central de ações</strong>
-                      <span style={{ display: 'block', marginTop: 5, color: '#6D675E', fontSize: 12.5, fontWeight: 700 }}>Pendências que precisam de atenção.</span>
+                      <strong style={{ fontFamily: 'var(--font-serif)', fontSize: 21, color: L.ink, display: 'block', lineHeight: 1 }}>Central de ações</strong>
+                      <span style={{ display: 'block', marginTop: 5, color: L.muted, fontSize: 12.5, fontWeight: 700 }}>Pendências que precisam de atenção.</span>
                     </div>
-                    <span style={{ minWidth: 34, height: 34, borderRadius: 999, display: 'grid', placeItems: 'center', background: temPendencias ? '#C0392B' : '#F4EFE7', color: temPendencias ? '#fff' : '#B8965E', fontSize: 13, fontWeight: 900, border: '2px solid #fff', boxShadow: temPendencias ? '0 8px 18px rgba(192,57,43,.22)' : 'none' }}>
+                    <span style={{ minWidth: 34, height: 34, borderRadius: 999, display: 'grid', placeItems: 'center', background: temPendencias ? S.dangerDeep : L.surfaceMuted, color: temPendencias ? theme.textOnAccent : S.goldMuted, fontSize: 13, fontWeight: 900, border: '2px solid ' + L.surface, boxShadow: temPendencias ? L.shadowSoft : 'none' }}>
                       {pendentes.length}
                     </span>
                   </div>
                   {pendentes.length > 0 && (
                     <button
                       onClick={marcarTodasComoLidas}
-                      style={{ marginTop: 12, width: '100%', border: '1px solid ' + theme.border, background: theme.surfaceElevated, color: theme.textSecondary, borderRadius: 12, padding: '9px 10px', fontSize: 12, fontWeight: 900, fontFamily: 'inherit', cursor: 'pointer' }}
+                      style={{ marginTop: 12, width: '100%', border: '1px solid ' + L.border, background: L.surfaceMuted, color: L.muted, borderRadius: 12, padding: '9px 10px', fontSize: 12, fontWeight: 900, fontFamily: 'inherit', cursor: 'pointer' }}
                     >
                       Marcar todas como lidas
                     </button>
                   )}
                 </div>
                 {notificacoes.length === 0 ? (
-                  <div style={{ padding: 28, textAlign: 'center', color: '#6D675E', fontSize: 13, lineHeight: 1.5 }}>Nenhuma ação pendente agora.</div>
+                  <div style={{ padding: 28, textAlign: 'center', color: L.muted, fontSize: 13, lineHeight: 1.5 }}>Nenhuma ação pendente agora.</div>
                 ) : (
                   notificacoesOrdenadas.map(item => (
                     <button
@@ -282,29 +285,29 @@ export default function Layout() {
                       onClick={() => abrirNotificacao(item)}
                       style={{
                         width: '100%',
-                        border: '1px solid #E7E0D5',
+                        border: '1px solid ' + L.border,
                         borderLeft: `5px solid ${corPrioridade(item)}`,
-                        background: item.status !== 'lida' ? '#FFFCF7' : '#fff',
+                        background: item.status !== 'lida' ? L.surfaceSoft : L.surface,
                         borderRadius: 14,
                         padding: 13,
                         marginBottom: 9,
                         textAlign: 'left',
                         cursor: 'pointer',
                         fontFamily: 'inherit',
-                        boxShadow: item.status !== 'lida' ? '0 10px 22px rgba(184,150,94,.08)' : 'none',
+                        boxShadow: item.status !== 'lida' ? L.shadowSoft : 'none',
                       }}
                     >
                       <span style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', marginBottom: 6 }}>
                         <span style={{ color: corPrioridade(item), fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: 900 }}>{item.tipo || 'ação'}</span>
                         <span style={{ borderRadius: 999, background: `${corPrioridade(item)}18`, color: corPrioridade(item), padding: '4px 7px', fontSize: 10, fontWeight: 900, whiteSpace: 'nowrap' }}>{labelPrioridade(item)}</span>
                       </span>
-                      <strong style={{ display: 'block', color: '#1D1C19', fontSize: 13.5, lineHeight: 1.25 }}>{item.titulo}</strong>
-                      {item.descricao && <small style={{ display: 'block', color: '#6D675E', fontSize: 12, lineHeight: 1.35, marginTop: 4 }}>{item.descricao}</small>}
+                      <strong style={{ display: 'block', color: L.ink, fontSize: 13.5, lineHeight: 1.25 }}>{item.titulo}</strong>
+                      {item.descricao && <small style={{ display: 'block', color: L.muted, fontSize: 12, lineHeight: 1.35, marginTop: 4 }}>{item.descricao}</small>}
                       <span style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', marginTop: 10 }}>
-                        <small style={{ display: 'block', color: '#9E9E9E', fontSize: 11 }}>
+                        <small style={{ display: 'block', color: L.soft, fontSize: 11 }}>
                           {item.created_at ? new Date(item.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}
                         </small>
-                        <small style={{ color: '#B8965E', fontSize: 11, fontWeight: 900 }}>Abrir →</small>
+                        <small style={{ color: S.goldMuted, fontSize: 11, fontWeight: 900 }}>Abrir →</small>
                       </span>
                     </button>
                   ))
@@ -321,11 +324,11 @@ export default function Layout() {
             className="ow-mobile-menu-fallback"
             style={{
               position: 'fixed', top: 14, left: 14, zIndex: 30,
-              background: '#1A1A18',
-              border: '1px solid rgba(200,168,106,0.25)',
+              background: theme.sidebar.background,
+              border: '1px solid ' + theme.sidebar.avatarRing,
               borderRadius: 10, padding: '8px 12px',
               cursor: 'pointer',
-              boxShadow: '0 2px 16px rgba(0,0,0,0.25)',
+              boxShadow: 'var(--shadow-xs)',
               display: 'flex', alignItems: 'center', gap: 8,
             }}
           >
@@ -334,7 +337,7 @@ export default function Layout() {
               fontSize: 10,
               fontFamily: 'var(--font-serif, serif)',
               letterSpacing: 3,
-              color: '#C8A86A',
+              color: theme.sidebar.gold,
               fontWeight: 600,
             }}>
               ORNARE
@@ -351,7 +354,7 @@ export default function Layout() {
 
 function IconMenu() {
   return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#C8A86A" strokeWidth="2.5">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={theme.sidebar.gold} strokeWidth="2.5">
       <line x1="3" y1="6"  x2="21" y2="6"  />
       <line x1="3" y1="12" x2="21" y2="12" />
       <line x1="3" y1="18" x2="21" y2="18" />
@@ -361,7 +364,7 @@ function IconMenu() {
 
 function IconBell({ active = false }) {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={active ? '#FFFFFF' : '#B8965E'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={active ? theme.textOnAccent : theme.status.goldMuted} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
       <path d="M13.73 21a2 2 0 0 1-3.46 0" />
     </svg>

@@ -1,6 +1,7 @@
 ﻿import { NavLink, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useStore } from '../store/useStore'
+import { theme } from '../constants/theme'
 
 // Definicao do menu por role.
 //
@@ -13,7 +14,7 @@ const NAV_ITEMS = [
     label: 'Dashboard',
     icon: IconGrid,
     group: 'Operação',
-    color: '#B8965E',
+    color: theme.status.goldMuted,
     end: true,
     roles: ['gestao'],
   },
@@ -22,7 +23,7 @@ const NAV_ITEMS = [
     label: 'Obras',
     icon: IconBuilding,
     group: 'Operação',
-    color: '#365C7D',
+    color: theme.status.info,
     roles: ['gestao', 'supervisor', 'pos_venda'],
     readOnly: ['pos_venda'],
   },
@@ -31,7 +32,7 @@ const NAV_ITEMS = [
     label: 'Planejamento',
     icon: IconTimeline,
     group: 'Operação',
-    color: '#7A5AA6',
+    color: theme.status.purple,
     roles: ['gestao', 'supervisor', 'pos_venda'],
     readOnly: ['pos_venda'],
   },
@@ -40,7 +41,7 @@ const NAV_ITEMS = [
     label: 'Agenda',
     icon: IconCalendar,
     group: 'Operação',
-    color: '#2D7A4A',
+    color: theme.status.successDeep,
     roles: ['gestao', 'supervisor', 'pos_venda'],
   },
   {
@@ -48,7 +49,7 @@ const NAV_ITEMS = [
     label: 'Tarefas',
     icon: IconCheck,
     group: 'Controle',
-    color: '#2D7A4A',
+    color: theme.status.successDeep,
     roles: ['gestao', 'supervisor'],
   },
   {
@@ -56,7 +57,7 @@ const NAV_ITEMS = [
     label: 'Ocorrências',
     icon: IconAlert,
     group: 'Controle',
-    color: '#B84040',
+    color: theme.status.danger,
     roles: ['gestao', 'supervisor'],
   },
   {
@@ -64,7 +65,7 @@ const NAV_ITEMS = [
     label: 'Equipe',
     icon: IconUsers,
     group: 'Equipe',
-    color: '#365C7D',
+    color: theme.status.info,
     roles: ['gestao', 'supervisor'],  // supervisor gerencia montadores
   },
   {
@@ -72,7 +73,7 @@ const NAV_ITEMS = [
     label: 'Gastos',
     icon: IconReceipt,
     group: 'Financeiro',
-    color: '#A36F22',
+    color: theme.status.finance,
     roles: ['gestao', 'supervisor'],
   },
   {
@@ -80,7 +81,7 @@ const NAV_ITEMS = [
     label: 'Biblioteca Mestre',
     icon: IconCheck,
     group: 'Administração',
-    color: '#B8965E',
+    color: theme.status.goldMuted,
     roles: ['gestao', 'supervisor'],
   },
 ]
@@ -127,19 +128,19 @@ export default function Sidebar({ collapsed, setCollapsed, isMobile }) {
   return (
     <aside style={{
       width, minWidth: width,
-      background: C.sidebarBg,
+      background: C.background,
       display: 'flex', flexDirection: 'column',
       height: '100vh', overflow: 'hidden',
       transition: 'width 0.22s ease, min-width 0.22s ease',
       position: isMobile ? 'fixed' : 'relative',
       zIndex: 50, flexShrink: 0,
-      borderRight: '1px solid rgba(200,168,106,0.10)',
+      borderRight: '1px solid ' + C.border,
     }}>
 
       {/* Logo */}
       <div style={{
         padding: collapsed && !isMobile ? '18px 0' : '18px 16px 16px',
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
+        borderBottom: '1px solid ' + C.divider,
         display: 'flex', alignItems: 'center',
         justifyContent: collapsed && !isMobile ? 'center' : 'space-between',
         gap: 8, minHeight: 64,
@@ -153,7 +154,7 @@ export default function Sidebar({ collapsed, setCollapsed, isMobile }) {
               onError={e => e.target.style.display = 'none'}
             />
             <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#fff', letterSpacing: 3 }}>ORNARE</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.text, letterSpacing: 3 }}>ORNARE</div>
               <div style={{ fontSize: 8, color: C.gold, letterSpacing: 2, marginTop: 1 }}>WORKS</div>
             </div>
           </div>
@@ -161,7 +162,7 @@ export default function Sidebar({ collapsed, setCollapsed, isMobile }) {
 
         {collapsed && !isMobile && (
           <div style={{ width: 28, height: 28, borderRadius: 6, background: C.gold, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: 11, fontWeight: 800, color: '#fff', letterSpacing: 1 }}>O</span>
+            <span style={{ fontSize: 11, fontWeight: 800, color: C.text, letterSpacing: 1 }}>O</span>
           </div>
         )}
 
@@ -182,7 +183,7 @@ export default function Sidebar({ collapsed, setCollapsed, isMobile }) {
         {grupos.map(grupo => (
           <div key={grupo.nome} style={{ paddingTop: collapsed && !isMobile ? 4 : 8 }}>
             {(!collapsed || isMobile) && (
-              <div style={{ fontSize: 8, letterSpacing: 2.2, color: 'rgba(200,168,106,0.48)', textTransform: 'uppercase', padding: '8px 16px 6px', fontWeight: 800 }}>
+              <div style={{ fontSize: 8, letterSpacing: 2.2, color: C.groupText, textTransform: 'uppercase', padding: '8px 16px 6px', fontWeight: 800 }}>
                 {grupo.nome}
               </div>
             )}
@@ -203,9 +204,9 @@ export default function Sidebar({ collapsed, setCollapsed, isMobile }) {
                     justifyContent: collapsed && !isMobile ? 'center' : 'flex-start',
                     fontSize: 13,
                     fontWeight: isActive ? 700 : 500,
-                    color: isActive ? '#fff' : C.navMuted,
+                    color: isActive ? C.text : C.muted,
                     borderRadius: collapsed && !isMobile ? 0 : 9,
-                    background: isActive ? 'rgba(200,168,106,0.16)' : 'transparent',
+                    background: isActive ? C.activeBg : 'transparent',
                     transition: 'all 0.15s',
                     whiteSpace: 'nowrap',
                     position: 'relative',
@@ -226,7 +227,7 @@ export default function Sidebar({ collapsed, setCollapsed, isMobile }) {
                       <span style={{
                         width: 25, height: 25, borderRadius: 8,
                         display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                        color: isActive ? '#fff' : color,
+                        color: isActive ? C.text : color,
                         background: isActive ? color : `${color}22`,
                         transition: 'all 0.15s',
                       }}>
@@ -238,8 +239,8 @@ export default function Sidebar({ collapsed, setCollapsed, isMobile }) {
                           <span style={{ flex: 1 }}>{label}</span>
                           {somenteLeitura && (
                             <span style={{
-                              fontSize: 8, letterSpacing: 0.5, color: 'rgba(200,168,106,0.62)',
-                              background: 'rgba(200,168,106,0.08)', borderRadius: 4,
+                              fontSize: 8, letterSpacing: 0.5, color: C.readOnlyText,
+                              background: C.readOnlyBg, borderRadius: 4,
                               padding: '2px 5px', fontWeight: 700, whiteSpace: 'nowrap',
                             }}>
                               leitura
@@ -259,7 +260,7 @@ export default function Sidebar({ collapsed, setCollapsed, isMobile }) {
       {/* Usuario + logout */}
       <div style={{
         padding: collapsed && !isMobile ? '12px 0' : '12px 10px',
-        borderTop: '1px solid rgba(255,255,255,0.06)',
+        borderTop: '1px solid ' + C.divider,
         display: 'flex', alignItems: 'center',
         justifyContent: collapsed && !isMobile ? 'center' : 'space-between',
         gap: 8,
@@ -269,16 +270,16 @@ export default function Sidebar({ collapsed, setCollapsed, isMobile }) {
             {/* avatar */}
             <div style={{
               width: 30, height: 30, borderRadius: '50%',
-              background: 'linear-gradient(135deg, #C8A86A 0%, #a8884a 100%)',
+              background: `linear-gradient(135deg, ${C.gold} 0%, ${C.goldDeep} 100%)`,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0,
-              boxShadow: '0 0 0 2px rgba(200,168,106,0.25)',
+              fontSize: 11, fontWeight: 700, color: C.text, flexShrink: 0,
+              boxShadow: '0 0 0 2px ' + C.avatarRing,
             }}>
               {initials}
             </div>
             {/* nome e role */}
             <div style={{ overflow: 'hidden' }}>
-              <div style={{ fontSize: 12, fontWeight: 500, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <div style={{ fontSize: 12, fontWeight: 500, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {profile?.full_name?.split(' ')[0] || 'Usuário'}
                 {profile?.full_name?.split(' ')[1] ? ' ' + profile.full_name.split(' ')[1][0] + '.' : ''}
               </div>
@@ -299,25 +300,23 @@ export default function Sidebar({ collapsed, setCollapsed, isMobile }) {
 
 // ─── TOKENS DE COR ────────────────────────────────────────────────────────────
 const C = {
-  sidebarBg: '#1A1A18',
-  gold:      '#C8A86A',
-  navMuted:  'rgba(200,192,176,0.55)',
+  ...theme.sidebar,
 }
 
 // ─── ESTILOS DE BOTAO ─────────────────────────────────────────────────────────
 const bt = {
   toggle: {
-    background: 'rgba(200,168,106,0.10)',
+    background: C.controlBg,
     border: 'none', cursor: 'pointer',
-    color: 'rgba(200,168,106,0.7)',
+    color: C.controlColor,
     padding: 6, borderRadius: 6,
     display: 'flex', alignItems: 'center', flexShrink: 0,
     transition: 'background 0.15s',
   },
   logout: {
-    background: 'rgba(255,255,255,0.06)',
+    background: C.logoutBg,
     border: 'none', cursor: 'pointer',
-    color: 'rgba(200,192,176,0.55)',
+    color: C.muted,
     padding: 7, borderRadius: 6,
     display: 'flex', alignItems: 'center', flexShrink: 0,
     transition: 'background 0.15s',

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
+import { theme } from '../constants/theme'
 
 export default function Splash({ onDone }) {
   const [fase, setFase] = useState(0)
@@ -14,7 +15,7 @@ export default function Splash({ onDone }) {
   return (
     <div style={{
       position: 'fixed', inset: 0,
-      background: '#1a1814',
+      background: theme.background,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       opacity: fase === 3 ? 0 : 1,
       transition: 'opacity 0.6s ease',
@@ -39,14 +40,14 @@ export default function Splash({ onDone }) {
           }}
         />
         <div style={{
-          fontSize: 10, letterSpacing: 6, color: '#b09a7a',
+          fontSize: 10, letterSpacing: 6, color: theme.goldMuted,
           opacity: fase >= 2 ? 1 : 0,
           transition: 'opacity 0.5s 0.2s',
         }}>
-          GESTÃO DE OBRAS
+          GESTÃƒO DE OBRAS
         </div>
         <div style={{
-          width: 36, height: 1, background: '#b09a7a',
+          width: 36, height: 1, background: theme.goldMuted,
           margin: '14px auto 0',
           transform: fase >= 2 ? 'scaleX(1)' : 'scaleX(0)',
           transition: 'transform 0.6s 0.4s',

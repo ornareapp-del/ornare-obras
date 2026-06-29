@@ -1,9 +1,11 @@
+import { theme } from '../constants/theme'
+
 const STATUS = {
-  success: { label: 'Concluído', color: 'var(--status-success)', bg: 'rgba(45,122,74,.12)' },
-  warning: { label: 'Atenção', color: 'var(--status-warning)', bg: 'rgba(163,111,34,.13)' },
-  danger: { label: 'Crítico', color: 'var(--status-danger)', bg: 'rgba(184,64,64,.12)' },
-  info: { label: 'Informativo', color: 'var(--status-info)', bg: 'rgba(54,92,125,.12)' },
-  gold: { label: 'Ornare', color: 'var(--status-gold)', bg: 'rgba(184,150,94,.14)' },
+  success: { label: 'Concluído', color: theme.status.successDeep, bg: theme.statusBg.success },
+  warning: { label: 'Atenção', color: theme.status.warningDeep, bg: theme.statusBg.warning },
+  danger: { label: 'Crítico', color: theme.status.dangerDeep, bg: theme.statusBg.danger },
+  info: { label: 'Informativo', color: theme.status.info, bg: theme.statusBg.info },
+  gold: { label: 'Ornare', color: theme.status.goldMuted, bg: theme.statusBg.gold },
 }
 
 function toneStyle(tone = 'gold') {
