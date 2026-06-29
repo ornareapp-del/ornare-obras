@@ -1,10 +1,17 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { theme } from '../../constants/theme'
 
 const ROLES = ['gestao', 'pos_venda', 'vendedor', 'supervisor', 'montador', 'cliente']
 const ROLE_LABEL = { gestao: 'Gestão', pos_venda: 'Pós-venda', vendedor: 'Vendedor', supervisor: 'Supervisor', montador: 'Montador', cliente: 'Cliente' }
-const ROLE_COLOR = { gestao: '#365C7D', pos_venda: '#7A5AA6', vendedor: '#7A5AA6', supervisor: '#3B5F86', montador: '#B8965E', cliente: '#8A8175' }
+const ROLE_COLOR = {
+  gestao: theme.status.info,
+  pos_venda: theme.status.purple,
+  vendedor: theme.status.purple,
+  supervisor: theme.status.info,
+  montador: theme.status.goldMuted,
+  cliente: theme.app.muted,
+}
 const ROLE_DESC = {
   gestao: 'Obras, agenda, equipe e relatórios',
   pos_venda: 'Acompanhamento comercial das obras',
@@ -26,25 +33,38 @@ export default function Equipe() {
   const [salvando, setSalvando] = useState(false)
   const [toast, setToast] = useState({ msg: '', tipo: 'sucesso' })
 
-  useEffect(() => { carregar() }, [])
+  const mostrarToast = useCallback((msg, tipo = 'sucesso') => {
+    setToast({ msg, tipo })
+    setTimeout(() => setToast({ msg: '', tipo: 'sucesso' }), 3200)
+  }, [])
 
-  async function carregar() {
-    const [{ data: pr }, { data: ob }, { data: vm }] = await Promise.all([
+  const carregar = useCallback(async () => {
+    setLoading(true)
+    const [profilesResult, obrasResult, vinculosResult] = await Promise.all([
       supabase.from('profiles').select('*').order('full_name'),
       supabase.from('obras').select('id, nome, supervisor_id, comercial_id'),
       supabase.from('obra_montadores').select('obra_id, montador_id'),
     ])
-    setProfiles(pr || [])
-    setObras(ob || [])
-    setVinculos(vm || [])
-    setSupervisores((pr || []).filter(p => p.role === 'supervisor'))
-    setLoading(false)
-  }
+    if (profilesResult.error || obrasResult.error || vinculosResult.error) {
+      console.error('Erro ao carregar equipe:', {
+        profiles: profilesResult.error,
+        obras: obrasResult.error,
+        vinculos: vinculosResult.error,
+      })
+      mostrarToast('Não foi possível carregar todos os dados da equipe.', 'erro')
+    }
 
-  function mostrarToast(msg, tipo = 'sucesso') {
-    setToast({ msg, tipo })
-    setTimeout(() => setToast({ msg: '', tipo: 'sucesso' }), 3200)
-  }
+    setProfiles(profilesResult.data || [])
+    setObras(obrasResult.data || [])
+    setVinculos(vinculosResult.data || [])
+    setSupervisores((profilesResult.data || []).filter(p => p.role === 'supervisor'))
+    setLoading(false)
+  }, [mostrarToast])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => carregar(), 0)
+    return () => window.clearTimeout(timer)
+  }, [carregar])
 
   async function salvarEdicao() {
     if (!editando) return
@@ -290,7 +310,7 @@ function ModalNovoUsuario({ supervisores, onClose, onSaved }) {
     if (error) { setErro(error.message); setSaving(false); return }
     if (data?.user) {
       await new Promise(r => setTimeout(r, 1200))
-      await supabase.from('profiles').update({
+      const { error: profileError } = await supabase.from('profiles').update({
         full_name: form.full_name,
         role: form.role,
         cargo: form.cargo || null,
@@ -298,6 +318,11 @@ function ModalNovoUsuario({ supervisores, onClose, onSaved }) {
         supervisor_id: form.role === 'montador' ? (form.supervisor_id || null) : null,
         ativo: true,
       }).eq('id', data.user.id)
+      if (profileError) {
+        setErro('Usuário criado, mas não foi possível configurar o perfil: ' + profileError.message)
+        setSaving(false)
+        return
+      }
     }
     setSaving(false)
     onSaved()
@@ -315,7 +340,7 @@ function ModalNovoUsuario({ supervisores, onClose, onSaved }) {
           <div style={s.editGrid}>
             <Field label="Nome completo"><input style={s.input} value={form.full_name} onChange={e => set('full_name', e.target.value)} /></Field>
             <Field label="E-mail"><input style={s.input} type="email" value={form.email} onChange={e => set('email', e.target.value)} /></Field>
-            <Field label="Senha inicial"><input style={s.input} value={form.senha} onChange={e => set('senha', e.target.value)} /></Field>
+            <Field label="Senha inicial"><input style={s.input} type="password" autoComplete="new-password" value={form.senha} onChange={e => set('senha', e.target.value)} /></Field>
             <Field label="Cargo"><input style={s.input} value={form.cargo} onChange={e => set('cargo', e.target.value)} /></Field>
             <Field label="Telefone"><input style={s.input} value={form.telefone} onChange={e => set('telefone', e.target.value)} /></Field>
             <Field label="Perfil">
@@ -387,13 +412,13 @@ const s = {
   breadcrumb: { fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6, fontWeight: 800 },
   title: { fontFamily: 'var(--font-serif)', fontSize: 38, fontWeight: 500, color: 'var(--color-ink)', margin: 0, lineHeight: 1.05 },
   sub: { fontSize: 13, color: 'var(--color-ink-muted)', marginTop: 6 },
-  btnNew: { background: theme.gold, color: theme.background, border: 'none', borderRadius: 8, padding: '12px 24px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' },
+  btnNew: { background: theme.gold, color: theme.background, border: 'none', borderRadius: 8, padding: '12px 24px', minHeight: 44, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' },
   kpiGrid: { display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 12, marginBottom: 20 },
   kpi: { background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
   kpiLabel: { display: 'block', fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: 'var(--color-gold)', fontWeight: 800, marginBottom: 8 },
   kpiValue: { display: 'block', fontSize: 30, lineHeight: 1, color: 'var(--color-ink)' },
   filters: { display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' },
-  filterBtn: { padding: '7px 16px', borderRadius: 999, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700 },
+  filterBtn: { padding: '9px 16px', minHeight: 44, borderRadius: 999, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700 },
   gridList: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 },
   card: { background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.3)', minWidth: 0 },
   cardTop: { display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 },
@@ -406,14 +431,14 @@ const s = {
   badge: { fontSize: 10, padding: '3px 9px', borderRadius: 999, fontWeight: 800 },
   detailLine: { fontSize: 12, color: 'var(--color-ink-muted)', padding: '6px 0', borderTop: '1px solid var(--color-border)' },
   actions: { display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14 },
-  btnEdit: { background: theme.surface, border: '1px solid var(--color-border)', borderRadius: 9, padding: '8px 13px', fontSize: 12, fontWeight: 700, cursor: 'pointer', color: 'var(--color-ink-muted)' },
+  btnEdit: { background: theme.surface, border: '1px solid var(--color-border)', borderRadius: 9, padding: '10px 13px', minHeight: 44, fontSize: 12, fontWeight: 700, cursor: 'pointer', color: 'var(--color-ink-muted)' },
   empty: { textAlign: 'center', padding: '40px 0', color: '#aaa' },
   emptyBox: { textAlign: 'center', padding: '44px 18px', background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
   emptyIcon: { fontSize: 13, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 12 },
   emptyTitle: { fontSize: 16, fontWeight: 700, color: 'var(--color-ink)', marginBottom: 18 },
   editGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
   field: { display: 'flex', flexDirection: 'column', gap: 6, fontSize: 10, letterSpacing: 1.3, textTransform: 'uppercase', color: 'var(--color-ink-muted)', fontWeight: 800 },
-  input: { background: theme.inputBackground, border: '1px solid ' + theme.inputBorder, color: theme.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' },
+  input: { background: theme.inputBackground, border: '1px solid ' + theme.inputBorder, color: theme.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', minHeight: 44, fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' },
   checkLine: { display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontSize: 13, color: 'var(--color-ink-muted)' },
   passwordBox: { marginTop: 14, background: '#F9F6F0', border: '1px solid var(--color-border)', borderRadius: 12, padding: 12, display: 'grid', gap: 7, color: 'var(--color-ink-muted)', fontSize: 12 },
   toast: { position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)', padding: '12px 22px', borderRadius: 12, fontSize: 13, fontWeight: 800, borderLeft: '3px solid var(--color-gold)', zIndex: 2000, boxShadow: 'var(--shadow-md)', maxWidth: 'calc(100vw - 24px)' },

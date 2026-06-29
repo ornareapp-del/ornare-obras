@@ -2360,6 +2360,21 @@ function AbaEquipeObra({ obraId }) {
   function erroTexto(error, fallback) {
     return error?.message || error?.details || fallback
   }
+  async function notificarMontadorAlocado(montadorId) {
+    const { error } = await supabase.from('notificacoes').insert([{
+      usuario_id: montadorId,
+      obra_id: obraId,
+      tipo: 'obra_alocada',
+      titulo: 'Você foi alocado em uma obra',
+      descricao: 'A obra já aparece no seu painel de montador para check-in, checklist e fotos.',
+      prioridade: 'normal',
+      status: 'nao_lida',
+      rota: '/montador',
+      entidade_tipo: 'obra_montadores',
+      entidade_id: obraId,
+    }])
+    if (error) console.error('Erro ao notificar montador alocado:', error)
+  }
   async function carregar() {
     setLoading(true)
     let listaMontadores = []
@@ -2449,6 +2464,7 @@ function AbaEquipeObra({ obraId }) {
       return
     }
 
+    await notificarMontadorAlocado(selecionado)
     setSelecionado('')
     avisar('sucesso', 'Montador alocado com sucesso.')
     await carregar()
@@ -2476,9 +2492,9 @@ function AbaEquipeObra({ obraId }) {
       {mensagem && (
         <div style={{
           marginBottom: 12,
-          border: '1px solid ' + (mensagem.tipo === 'erro' ? '#f1c6c6' : mensagem.tipo === 'sucesso' ? '#c8e1d0' : '#e6d8bd'),
-          background: mensagem.tipo === 'erro' ? '#fff6f6' : mensagem.tipo === 'sucesso' ? '#f4fbf6' : '#fff8ec',
-          color: mensagem.tipo === 'erro' ? '#B84040' : mensagem.tipo === 'sucesso' ? '#2D7A4A' : '#9A6A22',
+          border: '1px solid ' + (mensagem.tipo === 'erro' ? theme.status.danger : mensagem.tipo === 'sucesso' ? theme.status.successDeep : theme.status.goldMuted),
+          background: mensagem.tipo === 'erro' ? theme.statusBg.danger : mensagem.tipo === 'sucesso' ? theme.statusBg.success : theme.statusBg.gold,
+          color: mensagem.tipo === 'erro' ? theme.status.dangerDeep : mensagem.tipo === 'sucesso' ? theme.status.successDeep : theme.status.finance,
           borderRadius: 8,
           padding: '9px 11px',
           fontSize: 12.5,
@@ -2487,23 +2503,23 @@ function AbaEquipeObra({ obraId }) {
           {mensagem.texto}
         </div>
       )}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-        <select value={selecionado} onChange={e => setSelecionado(e.target.value)} style={{ background: THEME.inputBackground, border: '1px solid ' + THEME.inputBorder, color: THEME.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', fontSize: 14, outline: 'none', flex: 1, fontFamily: 'inherit' }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+        <select value={selecionado} onChange={e => setSelecionado(e.target.value)} style={{ background: THEME.inputBackground, border: '1px solid ' + THEME.inputBorder, color: THEME.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', minHeight: 44, fontSize: 14, outline: 'none', flex: '1 1 240px', fontFamily: 'inherit' }}>
           <option value="">-- Selecione montador --</option>
           {naoAlocados.map(m => <option key={m.id} value={m.id}>{m.full_name}{m.cargo ? ' · ' + m.cargo : ''}</option>)}
         </select>
-        <button onClick={alocar} disabled={!selecionado || adicionando} style={{ background: 'var(--color-ink)', color: '#fff', border: 'none', borderRadius: 7, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>{adicionando ? '...' : '+ Alocar'}</button>
+        <button onClick={alocar} disabled={!selecionado || adicionando} style={{ background: THEME.ink, color: theme.textOnAccent, border: 'none', borderRadius: 8, padding: '10px 16px', minHeight: 44, fontSize: 13, fontWeight: 700, cursor: !selecionado || adicionando ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap', opacity: !selecionado || adicionando ? 0.55 : 1, flex: '0 0 auto' }}>{adicionando ? '...' : '+ Alocar'}</button>
       </div>
-      {loading ? <div style={{ color: '#bbb', fontSize: 13 }}>Carregando...</div>
-        : montadores.length === 0 ? <div style={{ color: '#bbb', fontSize: 13 }}>Nenhum montador alocado.</div>
+      {loading ? <div style={{ color: THEME.muted, fontSize: 13 }}>Carregando...</div>
+        : montadores.length === 0 ? <div style={{ color: THEME.muted, fontSize: 13 }}>Nenhum montador alocado.</div>
         : montadores.map(m => (
-          <div key={m.montador_id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--color-border)' }}>
-            <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#b09a7a22', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#b09a7a' }}>{(m.montador?.full_name || '?')[0].toUpperCase()}</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-ink)' }}>{m.montador?.full_name || 'Montador não encontrado'}</div>
-              {m.montador?.role && <div style={{ fontSize: 11, color: '#aaa' }}>{m.montador.role}</div>}
+          <div key={m.montador_id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid ' + THEME.border }}>
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: theme.statusBg.gold, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color: theme.status.goldMuted, flexShrink: 0 }}>{(m.montador?.full_name || '?')[0].toUpperCase()}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: THEME.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.montador?.full_name || 'Montador não encontrado'}</div>
+              {m.montador?.role && <div style={{ fontSize: 11.5, color: THEME.muted }}>{m.montador.role}</div>}
             </div>
-            <button onClick={() => remover(m.montador_id)} style={{ background: 'none', border: 'none', color: '#ccc', cursor: 'pointer', fontSize: 13, padding: '4px 8px' }}>Remover</button>
+            <button onClick={() => remover(m.montador_id)} style={{ background: theme.statusBg.danger, border: '1px solid ' + theme.status.danger, borderRadius: 8, color: theme.status.dangerDeep, cursor: 'pointer', fontSize: 12.5, fontWeight: 800, padding: '9px 10px', minHeight: 44, flexShrink: 0 }}>Remover</button>
           </div>
         ))
       }

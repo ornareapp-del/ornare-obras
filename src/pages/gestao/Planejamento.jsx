@@ -393,6 +393,7 @@ export default function Planejamento() {
       hora_fim: null,
       observacao: blocosObservacao.join('\n'),
       reuniao_interna: modalCompromisso.tipo === 'Reunião' && !modalCompromisso.obra_id,
+      visivel_montador: Boolean(modalCompromisso.obra_id),
     }])
 
     if (error) {
