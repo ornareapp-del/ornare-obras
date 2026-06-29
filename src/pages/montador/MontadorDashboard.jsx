@@ -207,6 +207,50 @@ function diasEmAndamento(obra) {
   return Math.max(1, Math.floor((hoje - dataInicio) / (1000 * 60 * 60 * 24)) + 1)
 }
 
+async function buscarDadosOperacionais(obraId, userId) {
+  const [
+    tarefasResult,
+    checkinsResult,
+    checklistResult,
+    ambientesResult,
+    fotosResult,
+    ocorrenciasResult,
+    agendaResult,
+  ] = await Promise.all([
+    supabase.from('tarefas').select('*').eq('obra_id', obraId).eq('responsavel_id', userId).order('prazo'),
+    supabase.from('checkins').select('*').eq('user_id', userId).eq('obra_id', obraId).order('created_at', { ascending: false }).limit(20),
+    supabase.from('checklist_items').select('id, obra_id, ambiente_id, descricao, concluido, concluido_por, concluido_em').eq('obra_id', obraId).order('descricao'),
+    supabase.from('obra_ambientes').select('id, nome, status').eq('obra_id', obraId).order('nome'),
+    supabase.from('fotos').select('*').eq('obra_id', obraId).order('created_at', { ascending: false }).limit(60),
+    supabase.from('ocorrencias').select('*').eq('obra_id', obraId).order('created_at', { ascending: false }).limit(40),
+    supabase.from('agenda').select('*').eq('obra_id', obraId).order('data').order('hora_inicio'),
+  ])
+
+  return {
+    tarefasResult,
+    checkinsResult,
+    checklistResult,
+    ambientesResult,
+    fotosResult,
+    ocorrenciasResult,
+    agendaResult,
+  }
+}
+
+function registrarErrosOperacionais(contexto, dados) {
+  Object.entries({
+    tarefas: dados.tarefasResult,
+    checkins: dados.checkinsResult,
+    checklist: dados.checklistResult,
+    ambientes: dados.ambientesResult,
+    fotos: dados.fotosResult,
+    ocorrencias: dados.ocorrenciasResult,
+    agenda: dados.agendaResult,
+  }).forEach(([nome, result]) => {
+    if (result?.error) console.error(`Erro ao carregar ${nome} (${contexto}):`, result.error)
+  })
+}
+
 export default function MontadorDashboard() {
   const navigate = useNavigate()
   const { user, profile, setUser, setProfile } = useStore()
@@ -310,32 +354,24 @@ export default function MontadorDashboard() {
   async function carregarDadosObra(obra = obraAtiva) {
     if (!obra?.id || !user?.id) return
 
-    const [
-      tarefasResult,
-      checkinsResult,
-      checklistResult,
-      ambientesResult,
-      fotosResult,
-      ocorrenciasResult,
-      agendaResult,
-    ] = await Promise.all([
-      supabase.from('tarefas').select('*').eq('obra_id', obra.id).eq('responsavel_id', user.id).order('prazo'),
-      supabase.from('checkins').select('*').eq('user_id', user.id).eq('obra_id', obra.id).order('created_at', { ascending: false }).limit(20),
-      supabase.from('checklist_items').select('id, obra_id, ambiente_id, descricao, concluido, concluido_por, concluido_em').eq('obra_id', obra.id).order('descricao'),
-      supabase.from('obra_ambientes').select('id, nome, status').eq('obra_id', obra.id).order('nome'),
-      supabase.from('fotos').select('*').eq('obra_id', obra.id).order('created_at', { ascending: false }).limit(60),
-      supabase.from('ocorrencias').select('*').eq('obra_id', obra.id).order('created_at', { ascending: false }).limit(40),
-      supabase.from('agenda').select('*').eq('obra_id', obra.id).order('data').order('hora_inicio'),
-    ])
+    setLoadingObra(true)
+    try {
+      const dados = await buscarDadosOperacionais(obra.id, user.id)
+      registrarErrosOperacionais('recarregar obra', dados)
 
-    setTarefas(safeArray(tarefasResult))
-    setCheckins(safeArray(checkinsResult))
-    setChecklist(await garantirChecklistMontagem(obra, safeArray(checklistResult)))
-    setAmbientes(safeArray(ambientesResult))
-    setFotos(safeArray(fotosResult).map(foto => ({ ...foto, categoria: foto.categoria || 'Geral', publicUrl: fotoUrl(foto) })))
-    setOcorrencias(safeArray(ocorrenciasResult))
-    setAgenda(safeArray(agendaResult))
-    setLoadingObra(false)
+      setTarefas(safeArray(dados.tarefasResult))
+      setCheckins(safeArray(dados.checkinsResult))
+      setChecklist(await garantirChecklistMontagem(obra, safeArray(dados.checklistResult)))
+      setAmbientes(safeArray(dados.ambientesResult))
+      setFotos(safeArray(dados.fotosResult).map(foto => ({ ...foto, categoria: foto.categoria || 'Geral', publicUrl: fotoUrl(foto) })))
+      setOcorrencias(safeArray(dados.ocorrenciasResult))
+      setAgenda(safeArray(dados.agendaResult))
+    } catch (error) {
+      console.error('Erro inesperado ao recarregar dados da obra:', error)
+      mostrarSucesso('Não foi possível atualizar os dados da obra.')
+    } finally {
+      setLoadingObra(false)
+    }
   }
 
   useEffect(() => {
@@ -348,6 +384,11 @@ export default function MontadorDashboard() {
         .from('obra_montadores')
         .select('obra_id')
         .eq('montador_id', user.id)
+
+      if (vinculosResult.error) {
+        console.error('Erro ao carregar vínculos do montador:', vinculosResult.error)
+        mostrarSucesso('Não foi possível carregar suas obras.')
+      }
 
       if (!ativo) return
 
@@ -372,6 +413,9 @@ export default function MontadorDashboard() {
         .order('data')
         .order('hora_inicio')
 
+      if (obrasResult.error) console.error('Erro ao carregar obras do montador:', obrasResult.error)
+      if (agendaTodasResult.error) console.error('Erro ao carregar agenda geral do montador:', agendaTodasResult.error)
+
       if (!ativo) return
 
       const lista = safeArray(obrasResult)
@@ -395,34 +439,25 @@ export default function MontadorDashboard() {
 
     async function carregar() {
       setLoadingObra(true)
-      const [
-        tarefasResult,
-        checkinsResult,
-        checklistResult,
-        ambientesResult,
-        fotosResult,
-        ocorrenciasResult,
-        agendaResult,
-      ] = await Promise.all([
-        supabase.from('tarefas').select('*').eq('obra_id', obraAtiva.id).eq('responsavel_id', user.id).order('prazo'),
-        supabase.from('checkins').select('*').eq('user_id', user.id).eq('obra_id', obraAtiva.id).order('created_at', { ascending: false }).limit(20),
-        supabase.from('checklist_items').select('id, obra_id, ambiente_id, descricao, concluido, concluido_por, concluido_em').eq('obra_id', obraAtiva.id).order('descricao'),
-        supabase.from('obra_ambientes').select('id, nome, status').eq('obra_id', obraAtiva.id).order('nome'),
-        supabase.from('fotos').select('*').eq('obra_id', obraAtiva.id).order('created_at', { ascending: false }).limit(60),
-        supabase.from('ocorrencias').select('*').eq('obra_id', obraAtiva.id).order('created_at', { ascending: false }).limit(40),
-        supabase.from('agenda').select('*').eq('obra_id', obraAtiva.id).order('data').order('hora_inicio'),
-      ])
+      try {
+        const dados = await buscarDadosOperacionais(obraAtiva.id, user.id)
 
-      if (!ativo) return
+        if (!ativo) return
 
-      setTarefas(safeArray(tarefasResult))
-      setCheckins(safeArray(checkinsResult))
-      setChecklist(await garantirChecklistMontagem(obraAtiva, safeArray(checklistResult)))
-      setAmbientes(safeArray(ambientesResult))
-      setFotos(safeArray(fotosResult).map(foto => ({ ...foto, categoria: foto.categoria || 'Geral', publicUrl: fotoUrl(foto) })))
-      setOcorrencias(safeArray(ocorrenciasResult))
-      setAgenda(safeArray(agendaResult))
-      setLoadingObra(false)
+        registrarErrosOperacionais('troca de obra', dados)
+        setTarefas(safeArray(dados.tarefasResult))
+        setCheckins(safeArray(dados.checkinsResult))
+        setChecklist(await garantirChecklistMontagem(obraAtiva, safeArray(dados.checklistResult)))
+        setAmbientes(safeArray(dados.ambientesResult))
+        setFotos(safeArray(dados.fotosResult).map(foto => ({ ...foto, categoria: foto.categoria || 'Geral', publicUrl: fotoUrl(foto) })))
+        setOcorrencias(safeArray(dados.ocorrenciasResult))
+        setAgenda(safeArray(dados.agendaResult))
+      } catch (error) {
+        console.error('Erro inesperado ao carregar dados da obra ativa:', error)
+        if (ativo) mostrarSucesso('Não foi possível carregar os dados da obra.')
+      } finally {
+        if (ativo) setLoadingObra(false)
+      }
     }
 
     carregar()
