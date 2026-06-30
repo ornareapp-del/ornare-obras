@@ -153,7 +153,7 @@ const css = `
 .ow-login-error{font-size:12px;color:${theme.error};margin:2px 0 12px;padding:10px 12px;background:rgba(224,82,82,.12);border-radius:12px;border-left:3px solid ${theme.error}}
 .ow-login-submit{width:100%;min-height:52px;border-radius:8px;background:${theme.gold};color:#0F0F0F;border:0;font-size:13px;font-weight:600;cursor:pointer;margin-top:4px;font-family:inherit;box-shadow:0 2px 12px rgba(0,0,0,.3);transition:background .18s,box-shadow .18s;padding:12px 24px}
 .ow-login-submit:hover:not(:disabled){background:${theme.goldLight};box-shadow:0 16px 36px rgba(201,168,76,.18)}
-.ow-login-submit:disabled{background:${theme.textMuted};cursor:not-allowed}
+.ow-login-submit:disabled{background:#3D3830;color:#7A746B;cursor:not-allowed}
 .ow-login-alt{text-align:center;margin-top:18px}
 .ow-login-alt button,.ow-login-link{background:transparent;border:0;color:var(--color-gold);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit}
 @media (max-width:760px){
