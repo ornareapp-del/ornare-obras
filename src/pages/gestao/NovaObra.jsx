@@ -97,6 +97,7 @@ async function salvar() {
 
     const endereco_completo = [form.rua, form.numero, form.complemento, form.bairro, form.cidade, form.uf, form.cep]
       .filter(Boolean).join(', ')
+      const { latitude, longitude } = await geocodificarEndereco(form.rua, form.numero, form.bairro, form.cidade, form.uf)
 
     const { data, error } = await supabase.from('obras').insert([{
       nome:              form.nome,
@@ -106,6 +107,8 @@ async function salvar() {
       cliente_email:     form.cliente_email     || null,
       cliente_telefone:  form.cliente_telefone  || null,
       endereco:          endereco_completo       || null,
+  latitude:          latitude                || null,
+  longitude:         longitude               || null,
       rua:               form.rua               || null,
       numero:            form.numero             || null,
       complemento:       form.complemento        || null,
