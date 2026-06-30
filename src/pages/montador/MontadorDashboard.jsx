@@ -1444,7 +1444,7 @@ export default function MontadorDashboard() {
           <article className="md-occ" key={oc.id}>
             <strong>{oc.titulo || 'Ocorrência'}</strong>
             {oc.descricao && <p>{oc.descricao}</p>}
-            <small>{oc.gravidade || 'sem gravidade'} · {oc.status || 'Aberta'}</small>
+            <small>{oc.gravidade === 'media' ? 'Média' : oc.gravidade || 'sem gravidade'} · {oc.status || 'Aberta'}</small>
           </article>
         ))}
       </section>
