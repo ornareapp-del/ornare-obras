@@ -962,12 +962,19 @@ export default function MontadorDashboard() {
     const proximaAgendaStatus = proximaAgenda ? statusAgenda(proximaAgenda) : null
     const preMontagemAgenda = agendaFutura.find(item => norm(item.tipo || item.titulo || item.observacao).includes('pre-montagem') || norm(item.tipo || item.titulo || item.observacao).includes('pre montagem'))
 
-    const registrosHoje = checkins.filter(c => mesmoDia(c.entrada || c.created_at, hoje))
+    const registrosHoje = checkins.filter(c => mesmoDia(c.entrada || c.created_at, hoje)).sort((a, b) => new Date(a.entrada || a.created_at) - new Date(b.entrada || b.created_at))
     const registroAbertoHoje = registrosHoje.find(c => !c.saida) || null
     const emServico = Boolean(registroAbertoHoje)
-    const ultimoCheckin = registroAbertoHoje || registrosHoje[0] || checkins[0] || null
-    const registroHoje = registrosHoje.find(c => !c.saida) || registrosHoje[0] || null
+    const ultimoCheckin = registroAbertoHoje || registrosHoje[registrosHoje.length - 1] || checkins[0] || null
+    const registroHoje = registroAbertoHoje || registrosHoje[registrosHoje.length - 1] || null
     const ultimoServico = checkins.find(c => c.saida) || ultimoCheckin
+    const minutosTrabalhadosHoje = registrosHoje.reduce((total, c) => {
+      if (!c.saida) return total
+      const inicio = new Date(c.entrada || c.created_at)
+      const fim = new Date(c.saida)
+      return total + Math.max(0, (fim - inicio) / 60000)
+    }, 0)
+    const horasTrabalhadasHoje = (minutosTrabalhadosHoje / 60).toFixed(1).replace('.0', '')
     const pctChecklist = checklist.length ? Math.round((checklistConcluidos.length / checklist.length) * 100) : 0
 
     const checklistGrupos = [
@@ -1006,28 +1013,30 @@ export default function MontadorDashboard() {
       })),
     ].filter(item => item.data).sort((a, b) => new Date(b.data) - new Date(a.data)).slice(0, 8)
 
-    return {
-      tarefasAbertas,
-      tarefasConcluidasHoje,
-      checklistPendentes,
-      checklistConcluidos,
-      ocorrenciasAbertas,
-      fotosHoje,
-      proximaAgenda,
-      proximasDatas,
-      datasOperacionais,
-      proximaAgendaStatus,
-      preMontagemAgenda,
-      emServico,
-      ultimoCheckin,
-      registroHoje,
-      ultimoServico,
-      pctChecklist,
-      checklistGrupos,
-      fotosGrupos,
-      fotosVistoria,
-      historico,
-    }
+   return {
+  tarefasAbertas,
+  tarefasConcluidasHoje,
+  checklistPendentes,
+  checklistConcluidos,
+  ocorrenciasAbertas,
+  fotosHoje,
+  proximaAgenda,
+  proximasDatas,
+  datasOperacionais,
+  proximaAgendaStatus,
+  preMontagemAgenda,
+  emServico,
+  ultimoCheckin,
+  registroHoje,
+  registrosHoje,
+  ultimoServico,
+  horasTrabalhadasHoje,
+  pctChecklist,
+  checklistGrupos,
+  fotosGrupos,
+  fotosVistoria,
+  historico,
+}
   }, [agenda, agendaCalendario, ambientes, checkins, checklist, fotos, obras, ocorrencias, tarefas])
 
   const ambienteNome = ambienteId => ambientes.find(a => a.id === ambienteId)?.nome || 'Sem ambiente'
@@ -1260,15 +1269,19 @@ export default function MontadorDashboard() {
               <p className="md-check-primary">Obra ainda não iniciada</p>
               <small>Inicie a obra antes de registrar presença em campo.</small>
             </>
-          ) : vm.emServico && vm.ultimoCheckin ? (
+          ) : vm.registrosHoje.length > 0 ? (
             <>
-              <p className="md-check-primary">Em serviço desde {horaBR(vm.ultimoCheckin.entrada || vm.ultimoCheckin.created_at)}</p>
+              <div className="md-check-periods">
+                {vm.registrosHoje.map(reg => (
+                  <span key={reg.id} className="md-check-period">
+                    {horaBR(reg.entrada || reg.created_at)} {'->'} {reg.saida ? horaBR(reg.saida) : 'em andamento'}
+                  </span>
+                ))}
+              </div>
+              {vm.minutosTrabalhadosHoje > 0 && (
+                <p className="md-check-primary done">Total hoje: {vm.horasTrabalhadasHoje}h</p>
+              )}
               <small>{localizacaoCheckin(vm.ultimoCheckin)}</small>
-            </>
-          ) : vm.registroHoje?.saida ? (
-            <>
-              <p className="md-check-primary done">Trabalhou hoje: {horaBR(vm.registroHoje.entrada || vm.registroHoje.created_at)} às {horaBR(vm.registroHoje.saida)}</p>
-              <small>{localizacaoCheckin(vm.registroHoje)}</small>
             </>
           ) : (
             <>
