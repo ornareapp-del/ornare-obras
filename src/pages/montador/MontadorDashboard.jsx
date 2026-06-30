@@ -162,14 +162,14 @@ function tipoAgenda(item) {
 
 function corDataOperacional(item) {
   const tipo = norm(tipoAgenda(item))
-  if (tipo.includes('vistoria')) return { bg: '#EAF3FF', border: '#4A90D9', color: '#1F5D9E' }
-  if (tipo.includes('montagem')) return { bg: '#EAF5EE', border: THEME.success, color: THEME.success }
-  if (tipo.includes('assist')) return { bg: '#FFF5EA', border: '#E07B39', color: '#B95A1F' }
-  if (tipo.includes('medicao')) return { bg: '#F1ECFA', border: '#9070C0', color: '#6D4E9E' }
-  if (tipo.includes('entrega')) return { bg: '#F6F0E6', border: '#B09A7A', color: '#7A6241' }
-  if (tipo.includes('termino')) return { bg: '#F3F1ED', border: THEME.ink, color: THEME.ink }
-  if (tipo.includes('inicio previsto')) return { bg: '#FFF8EA', border: THEME.gold, color: THEME.warn }
-  return { bg: '#F6F3EE', border: THEME.border, color: THEME.muted }
+  if (tipo.includes('vistoria')) return { bg: 'rgba(74,144,217,.14)', border: '#4A90D9', color: '#7AB8F5' }
+  if (tipo.includes('montagem')) return { bg: 'rgba(76,175,125,.12)', border: THEME.success, color: '#6FCF97' }
+  if (tipo.includes('assist')) return { bg: 'rgba(224,123,57,.13)', border: '#E07B39', color: '#F0A06A' }
+  if (tipo.includes('medicao')) return { bg: 'rgba(122,90,166,.13)', border: '#9070C0', color: '#B89AE0' }
+  if (tipo.includes('entrega')) return { bg: 'rgba(176,154,122,.13)', border: '#B09A7A', color: '#C8B08A' }
+  if (tipo.includes('termino')) return { bg: 'rgba(255,255,255,.07)', border: THEME.muted, color: THEME.muted }
+  if (tipo.includes('inicio previsto')) return { bg: 'rgba(201,168,76,.12)', border: THEME.gold, color: THEME.gold }
+  return { bg: 'rgba(255,255,255,.05)', border: THEME.border, color: THEME.muted }
 }
 
 function obraAguardandoInicio(obra) {
