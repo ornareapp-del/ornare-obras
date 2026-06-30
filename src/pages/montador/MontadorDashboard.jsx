@@ -1524,7 +1524,7 @@ const css = `
 .md-top-actions{display:flex;align-items:center;gap:8px}
 .md-avatar{width:42px;height:42px;border-radius:999px;background:${THEME.elevated};border:1px solid ${THEME.border};display:flex;align-items:center;justify-content:center;color:${THEME.gold};font-weight:800;flex-shrink:0}
 .md-avatar.active{background:#EAF5EE;border-color:#C8E1D0;color:${THEME.success};box-shadow:0 0 0 4px rgba(45,122,74,.08)}
-.md-profile-logout{width:100%;min-height:44px;border:1px solid #F0C8C8;background:#FFF8F8;color:${THEME.danger};border-radius:13px;padding:13px;font-size:13px;font-weight:900;font-family:inherit;cursor:pointer;margin-top:4px}
+.md-profile-logout{width:100%;min-height:44px;border:1px solid rgba(224,82,82,.28);background:rgba(224,82,82,.10);color:${THEME.danger};border-radius:13px;padding:13px;font-size:13px;font-weight:900;font-family:inherit;cursor:pointer;margin-top:4px}
 .md-field{margin-bottom:12px}
 .md-field label{display:block;font-size:10px;letter-spacing:1.8px;text-transform:uppercase;color:${THEME.gold};font-weight:800;margin-bottom:8px}
 .md-field select,.md-upload select,.md-upload input{width:100%;min-height:44px;box-sizing:border-box;border:1px solid ${THEME.inputBorder};background:${THEME.inputBackground};border-radius:8px;padding:10px 14px;font-family:inherit;font-size:14px;color:${THEME.inputText};outline:none}
