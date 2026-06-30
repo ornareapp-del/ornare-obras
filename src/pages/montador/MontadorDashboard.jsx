@@ -1547,12 +1547,12 @@ const css = `
 .md-progress i{display:block;height:100%;background:${THEME.gold};border-radius:999px}
 .md-progress.soft{background:${THEME.border};margin:10px 0 14px}
 .md-check-card{background:${THEME.card};border:1px solid ${THEME.border};border-radius:12px;padding:20px;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;box-shadow:0 2px 12px rgba(0,0,0,.3)}
-.md-check-card.active{background:#F1FAF4;border-color:#C8E1D0}
-.md-check-card span{display:block;font-size:15px;font-weight:800;color:${THEME.ink};margin-bottom:3px}
+.md-check-card.active{background:rgba(76,175,125,.10);border-color:rgba(76,175,125,.28)}
+.md-check-card span{display:block;font-size:15px;font-weight:800;color:${THEME.textPrimary};margin-bottom:3px}
 .md-check-card p{margin:0;font-size:11.5px;color:${THEME.muted};line-height:1.4}
 .md-check-info{min-width:0}
 .md-check-info>p:not(.md-check-primary){display:none}
-.md-check-primary{font-size:12px!important;color:${THEME.ink}!important;font-weight:800!important;margin-bottom:5px!important}
+.md-check-primary{font-size:12px!important;color:${THEME.textPrimary}!important;font-weight:800!important;margin-bottom:5px!important}
 .md-check-primary.done{color:${THEME.success}!important}
 .md-check-info small{display:block;font-size:11px;color:${THEME.muted};line-height:1.35;margin-top:3px}
 .md-check-feedback{display:inline-flex;margin-top:8px;background:#EAF5EE;color:${THEME.success};border:1px solid #C8E1D0;border-radius:999px;padding:6px 9px;font-size:11px;font-weight:900;line-height:1.1}
