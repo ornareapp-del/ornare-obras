@@ -71,7 +71,25 @@ export default function NovaObra() {
     setAmbienteCustom('')
   }
 
-  async function salvar() {
+  async function geocodificarEndereco(rua, numero, bairro, cidade, uf) {
+  const endereco = [rua, numero, bairro, cidade, uf].filter(Boolean).join(', ')
+  if (!endereco) return { latitude: null, longitude: null }
+
+  try {
+    const query = encodeURIComponent(`${endereco}, Brasil`)
+    const url = `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1`
+    const resp = await fetch(url, { headers: { 'Accept-Language': 'pt-BR' } })
+    const data = await resp.json()
+    if (data && data[0]) {
+      return { latitude: parseFloat(data[0].lat), longitude: parseFloat(data[0].lon) }
+    }
+  } catch (error) {
+    console.error('Erro ao geocodificar endereco da obra:', error)
+  }
+  return { latitude: null, longitude: null }
+}
+
+async function salvar() {
     if (!form.nome.trim())        { setErro('Nome da obra e obrigatorio.');    return }
     if (!form.cliente_nome.trim()) { setErro('Nome do cliente e obrigatorio.'); return }
     setErro('')
