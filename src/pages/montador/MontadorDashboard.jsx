@@ -1651,7 +1651,7 @@ const css = `
 .md-check-delete{margin-left:auto;min-height:44px;border:0;background:#FFF1F1;color:${THEME.danger};border-radius:10px;padding:8px 9px;font-size:11px;font-weight:900;cursor:pointer}
 .md-upload{display:flex;flex-direction:column;gap:9px;margin-bottom:14px}
 .md-file{display:block;min-height:48px;box-sizing:border-box;background:${THEME.ink};color:#fff;border-radius:14px;padding:15px;text-align:center;font-size:14px;font-weight:900;cursor:pointer}
-.md-file.disabled{opacity:.52}
+.md-file.disabled{opacity:1;background:#2A2620;color:#6D675E;cursor:not-allowed}
 .md-file input{display:none}
 .md-photo-group{margin-top:16px}
 .md-photo-group h3{font-size:10px;letter-spacing:1.8px;text-transform:uppercase;color:${THEME.gold};font-weight:900;margin:0 0 9px}
