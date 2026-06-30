@@ -1030,6 +1030,7 @@ export default function MontadorDashboard() {
   registroHoje,
   registrosHoje,
   ultimoServico,
+  minutosTrabalhadosHoje,
   horasTrabalhadasHoje,
   pctChecklist,
   checklistGrupos,
