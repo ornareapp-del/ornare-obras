@@ -1565,6 +1565,8 @@ const css = `
 .md-check-card p{margin:0;font-size:11.5px;color:${THEME.muted};line-height:1.4}
 .md-check-info{min-width:0}
 .md-check-info>p:not(.md-check-primary){display:none}
+.md-check-periods{display:flex;flex-direction:column;gap:3px;margin-bottom:6px}
+.md-check-period{font-size:12px;color:${THEME.muted};font-weight:700}
 .md-check-primary{font-size:12px!important;color:${THEME.textPrimary}!important;font-weight:800!important;margin-bottom:5px!important}
 .md-check-primary.done{color:${THEME.success}!important}
 .md-check-info small{display:block;font-size:11px;color:${THEME.muted};line-height:1.35;margin-top:3px}
