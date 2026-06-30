@@ -1074,7 +1074,7 @@ export default function MontadorDashboard() {
         <style>{css}</style>
         <header className="md-top">
           <div>
-            <span>Ornare Works</span>
+            <span style={{ color: '#E8C96A' }}>Ornare Works</span>
             <h1>Olá, {profile?.full_name?.split(' ')[0] || 'Montador'}</h1>
           </div>
         </header>
