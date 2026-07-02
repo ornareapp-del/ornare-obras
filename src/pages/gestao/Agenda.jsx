@@ -424,7 +424,7 @@ export default function Agenda() {
       hora_fim: form.hora_fim || null,
       reuniao_interna: form.reuniao_interna,
       status: form.status || 'pendente',
-      visivel_montador: Boolean(form.visivel_montador),
+      visivel_montador: !form.reuniao_interna && Boolean(form.obra_id) && Boolean(form.visivel_montador),
       visivel_cliente: Boolean(form.visivel_cliente),
     }
 
@@ -469,11 +469,20 @@ export default function Agenda() {
 
   async function excluir(id) {
     if (!window.confirm('Excluir este evento?')) return
-    await supabase.from('agenda').delete().eq('id', id)
+    setAcaoStatus('Excluindo compromisso...')
+    const { error } = await supabase.from('agenda').delete().eq('id', id)
+    if (error) {
+      setAcaoStatus('')
+      setErroModal('Nao foi possivel excluir este compromisso: ' + error.message)
+      return
+    }
     if (editandoId === id) {
       setModal(false)
       setEditandoId(null)
     }
+    setToast('Compromisso excluido.')
+    window.setTimeout(() => setToast(''), 3200)
+    setAcaoStatus('')
     await carregar()
   }
 
@@ -648,7 +657,7 @@ export default function Agenda() {
                 </div>
                 <div style={s.full}>
                   <L>Obra vinculada</L>
-                  <Sel value={form.obra_id} onChange={v => setForm(p => ({ ...p, obra_id: v }))} disabled={form.reuniao_interna}>
+                  <Sel value={form.obra_id} onChange={v => setForm(p => ({ ...p, obra_id: v, visivel_montador: v ? p.visivel_montador : false }))} disabled={form.reuniao_interna}>
                     <option value="">Sem obra vinculada</option>
                     {obras.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
                   </Sel>
@@ -658,11 +667,11 @@ export default function Agenda() {
                   <textarea value={form.descricao} onChange={e => setForm(p => ({ ...p, descricao: e.target.value }))} rows={2} placeholder="Detalhes do evento..." style={{ background: theme.inputBackground, border: '1px solid ' + theme.inputBorder, color: theme.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', fontSize: 14, outline: 'none', fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }} />
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <input type="checkbox" id="ri" checked={form.reuniao_interna} onChange={e => setForm(p => ({ ...p, reuniao_interna: e.target.checked, obra_id: '' }))} />
+                  <input type="checkbox" id="ri" checked={form.reuniao_interna} onChange={e => setForm(p => ({ ...p, reuniao_interna: e.target.checked, obra_id: e.target.checked ? '' : p.obra_id, visivel_montador: e.target.checked ? false : p.visivel_montador }))} />
                   <label htmlFor="ri" style={{ fontSize: 13, color: 'var(--color-ink-muted)', cursor: 'pointer' }}>Reunião Interna</label>
                 </div>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: 'var(--color-ink-muted)', cursor: 'pointer' }}>
-                  <input type="checkbox" checked={form.visivel_montador} onChange={e => setForm(p => ({ ...p, visivel_montador: e.target.checked }))} />
+                  <input type="checkbox" checked={form.visivel_montador && !form.reuniao_interna && Boolean(form.obra_id)} disabled={form.reuniao_interna || !form.obra_id} onChange={e => setForm(p => ({ ...p, visivel_montador: e.target.checked }))} />
                   Visível para montador
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: 'var(--color-ink-muted)', cursor: 'pointer' }}>

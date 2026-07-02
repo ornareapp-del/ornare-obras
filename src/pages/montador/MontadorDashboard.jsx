@@ -818,10 +818,12 @@ export default function MontadorDashboard() {
     setUploading(true)
     const ext = file.name.split('.').pop() || 'jpg'
     const path = `${obraAtiva.id}/${Date.now()}.${ext}`
+    let uploadConcluido = false
 
     try {
       const { error: uploadError } = await supabase.storage.from('fotos-obras').upload(path, file)
       if (uploadError) throw uploadError
+      uploadConcluido = true
 
       const { data: fotoCriada, error: insertError } = await supabase.from('fotos').insert([{
         obra_id: obraAtiva.id,
@@ -852,6 +854,10 @@ export default function MontadorDashboard() {
       await carregarDadosObra()
     } catch (error) {
       console.error('Erro ao enviar foto do montador:', error)
+      if (uploadConcluido) {
+        mostrarSucesso('Foto enviada, mas nao foi vinculada a obra.')
+        return
+      }
       mostrarSucesso('Não foi possível enviar a foto.')
     } finally {
       setUploading(false)

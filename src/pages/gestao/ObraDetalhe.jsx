@@ -103,6 +103,13 @@ function mensagemErro(error, fallback = 'Não foi possível concluir a operaçã
   return error?.message || error?.details || fallback
 }
 
+function rolarParaDestaque(id) {
+  if (!id) return
+  window.setTimeout(() => {
+    document.querySelector(`[data-destaque-id="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, 120)
+}
+
 async function criarNotificacoesObra({ obraId, tipo, titulo, descricao, prioridade = 'normal', entidadeTipo, entidadeId, rota, excluirUsuarioId }) {
   if (!obraId || !titulo) return
   try {
@@ -1267,7 +1274,6 @@ function AbaAgenda({ obraId }) {
 
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
   useEffect(() => { carregar() }, [])
-
   function isoLocal(date) {
     const ano = date.getFullYear()
     const mes = String(date.getMonth() + 1).padStart(2, '0')
@@ -1478,6 +1484,9 @@ function AbaChecklist({ obraId, checklistDestaque }) {
   }
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
   useEffect(() => { carregar() }, [])
+  useEffect(() => {
+    if (!loading && checklistDestaque) rolarParaDestaque(checklistDestaque)
+  }, [checklistDestaque, loading])
 
   async function adicionar() {
     if (!novoItem.trim()) return
@@ -1623,7 +1632,7 @@ function AbaChecklist({ obraId, checklistDestaque }) {
           : ativo.itens.map(item => {
             const destaque = checklistDestaque && item.id === checklistDestaque
             return (
-            <div key={item.id} onClick={() => toggle(item)} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 12px', border: destaque ? `2px solid ${THEME.gold}` : 'none', borderBottom: destaque ? `2px solid ${THEME.gold}` : `1px solid ${THEME.border}`, borderRadius: destaque ? 12 : 0, background: destaque ? '#FFFBF2' : 'transparent', cursor: 'pointer' }}>
+            <div key={item.id} data-destaque-id={item.id} onClick={() => toggle(item)} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 12px', border: destaque ? `2px solid ${THEME.gold}` : 'none', borderBottom: destaque ? `2px solid ${THEME.gold}` : `1px solid ${THEME.border}`, borderRadius: destaque ? 12 : 0, background: destaque ? '#FFFBF2' : 'transparent', cursor: 'pointer' }}>
               <div style={{ width: 22, height: 22, borderRadius: 6, border: '2px solid ' + (item.concluido ? '#5aab6e' : THEME.border), background: item.concluido ? '#5aab6e' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 {item.concluido && <span style={{ color: '#fff', fontSize: 12, fontWeight: 700 }}>v</span>}
               </div>
@@ -1648,6 +1657,9 @@ function AbaOcorrencias({ obraId, ocorrenciaDestaque }) {
   const [nova, setNova] = useState({ titulo: '', descricao: '', categoria: 'geral', gravidade: 'baixa' })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { carregar() }, [])
+  useEffect(() => {
+    if (!loading && ocorrenciaDestaque) rolarParaDestaque(ocorrenciaDestaque)
+  }, [loading, ocorrenciaDestaque])
   async function carregar() {
     const { data } = await supabase.from('ocorrencias').select('*, responsavel:profiles!ocorrencias_responsavel_id_fkey(full_name)').eq('obra_id', obraId).order('created_at', { ascending: false })
     setOcorrencias(data || []); setLoading(false)
@@ -1705,7 +1717,7 @@ function AbaOcorrencias({ obraId, ocorrenciaDestaque }) {
         : ocorrencias.map(oc => {
           const destaque = ocorrenciaDestaque && oc.id === ocorrenciaDestaque
           return (
-          <div key={oc.id} style={{ background: destaque ? THEME.elevated : THEME.card, border: destaque ? `2px solid ${THEME.gold}` : '1px solid ' + THEME.border, borderLeft: '4px solid ' + (gravCor[oc.gravidade] || '#ccc'), borderRadius: 10, padding: '16px 18px', marginBottom: 10, boxShadow: destaque ? '0 12px 30px rgba(184,150,94,.16)' : 'none' }}>
+          <div key={oc.id} data-destaque-id={oc.id} style={{ background: destaque ? THEME.elevated : THEME.card, border: destaque ? `2px solid ${THEME.gold}` : '1px solid ' + THEME.border, borderLeft: '4px solid ' + (gravCor[oc.gravidade] || '#ccc'), borderRadius: 10, padding: '16px 18px', marginBottom: 10, boxShadow: destaque ? '0 12px 30px rgba(184,150,94,.16)' : 'none' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
               <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-ink)' }}>{oc.titulo}</span>
               <span style={{ fontSize: 10, padding: '2px 9px', borderRadius: 20, background: '#f0ece6', color: '#888', marginLeft: 'auto' }}>{oc.categoria}</span>
@@ -1761,6 +1773,9 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { carregar() }, [])
+  useEffect(() => {
+    if (!loading && gastoDestaque) rolarParaDestaque(gastoDestaque)
+  }, [gastoDestaque, loading])
 
   async function carregar() {
     const { data } = await supabase.from('gastos').select('*').eq('obra_id', obraId).order('created_at', { ascending: false })
@@ -1926,7 +1941,7 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
           : gastos.map(g => {
             const destaque = gastoDestaque && g.id === gastoDestaque
             return (
-            <div id={`gasto-${g.id}`} key={g.id} onClick={() => abrirEditar(g)} style={{ background: destaque ? THEME.elevated : THEME.card, border: destaque ? `2px solid ${THEME.gold}` : '1px solid ' + THEME.border, borderRadius: 10, padding: '14px 18px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', boxShadow: destaque ? '0 16px 34px rgba(184,150,94,0.22)' : 'none' }}>
+            <div id={`gasto-${g.id}`} data-destaque-id={g.id} key={g.id} onClick={() => abrirEditar(g)} style={{ background: destaque ? THEME.elevated : THEME.card, border: destaque ? `2px solid ${THEME.gold}` : '1px solid ' + THEME.border, borderRadius: 10, padding: '14px 18px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', boxShadow: destaque ? '0 16px 34px rgba(184,150,94,0.22)' : 'none' }}>
               <div style={{ width: 10, height: 10, borderRadius: '50%', background: CAT_G[g.categoria]?.cor || '#ccc', flexShrink: 0 }} />
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--color-ink)' }}>{g.descricao}</div>
@@ -2025,6 +2040,9 @@ function AbaFotos({ obraId, fotoDestaque }) {
   }
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
   useEffect(() => { carregar() }, [])
+  useEffect(() => {
+    if (!loading && fotoDestaque) rolarParaDestaque(fotoDestaque)
+  }, [fotoDestaque, loading])
   async function handleUpload(e) {
     const file = e.target.files[0]; if (!file) return
     if (!formFoto.categoria) {
@@ -2172,7 +2190,7 @@ function AbaFotos({ obraId, fotoDestaque }) {
               {grupo.fotos.map(foto => {
                 const destaque = fotoDestaque && foto.id === fotoDestaque
                 return (
-                <div key={foto.id} style={{ background: destaque ? '#FFFBF2' : THEME.card, border: destaque ? `2px solid ${THEME.gold}` : `1px solid ${THEME.border}`, borderRadius: 14, overflow: 'hidden', boxShadow: destaque ? '0 14px 34px rgba(184,150,94,.18)' : 'none' }}>
+                <div key={foto.id} data-destaque-id={foto.id} style={{ background: destaque ? '#FFFBF2' : THEME.card, border: destaque ? `2px solid ${THEME.gold}` : `1px solid ${THEME.border}`, borderRadius: 14, overflow: 'hidden', boxShadow: destaque ? '0 14px 34px rgba(184,150,94,.18)' : 'none' }}>
                   <div onClick={() => foto.publicUrl && setPreview(foto.publicUrl)} style={{ cursor: 'zoom-in', height: 170, overflow: 'hidden', background: '#f5f5f5' }}>{foto.publicUrl && <img src={foto.publicUrl} alt={foto.observacao || foto.categoria} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}</div>
                   <div style={{ padding: 12 }}>
                     <div style={{ fontSize: 12, color: THEME.ink, fontWeight: 700, marginBottom: 4 }}>{ambienteNome(foto.ambiente_id)}</div>

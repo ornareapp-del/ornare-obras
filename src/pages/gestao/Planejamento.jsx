@@ -704,6 +704,12 @@ function CompromissoModal({ form, setForm, obras, supervisores, montadores, vinc
             )}
           </div>
 
+          {form.obra_id && (
+            <div className="pl-montador-visibility">
+              Este compromisso sera exibido no painel do montador porque esta vinculado a uma obra.
+            </div>
+          )}
+
           <label className="pl-observacao">
             <span>Observação</span>
             <textarea rows={4} value={form.observacao} onChange={e => set('observacao', e.target.value)} placeholder="Detalhes para equipe, restrições de acesso, materiais, horários..." />
@@ -925,6 +931,7 @@ const css = `
 .pl-montadores>div{display:flex;gap:8px;flex-wrap:wrap}
 .pl-montadores button{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:999px;padding:8px 11px;font-size:12px;font-weight:800;cursor:pointer}
 .pl-montadores button.active{background:${THEME.ink};border-color:${THEME.ink};color:#fff}
+.pl-montador-visibility{margin:-4px 0 16px;border:1px solid #C8E1D0;background:#F7FCF8;color:${THEME.success};border-radius:12px;padding:10px 12px;font-size:12.5px;font-weight:800;line-height:1.35}
 .pl-modal-foot{display:flex;justify-content:flex-end;gap:10px;padding:16px 24px;border-top:1px solid ${THEME.border};background:${THEME.card}}
 .pl-modal-foot button{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:10px;padding:10px 15px;font-size:13px;font-weight:800;cursor:pointer}
 .pl-modal-foot button.primary{background:${THEME.gold};border-color:${THEME.gold};color:#fff}

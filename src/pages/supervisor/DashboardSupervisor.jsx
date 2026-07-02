@@ -105,6 +105,7 @@ export default function DashboardSupervisor() {
   const [fluxoAberto, setFluxoAberto] = useState(false)
   const [metricasAberto, setMetricasAberto] = useState(false)
   const [equipeAberta, setEquipeAberta] = useState(false)
+  const [erroDados, setErroDados] = useState('')
 
   useEffect(() => {
     if (!profile?.id) return
@@ -112,6 +113,7 @@ export default function DashboardSupervisor() {
 
     async function carregar() {
       setLoading(true)
+      setErroDados('')
 
       const obrasResult = await supabase
         .from('obras')
@@ -120,6 +122,13 @@ export default function DashboardSupervisor() {
         .order('created_at', { ascending: false })
 
       if (!ativo) return
+
+      if (obrasResult.error) {
+        setErroDados(obrasResult.error.message || 'Nao foi possivel carregar as obras do supervisor.')
+        setDados(prev => ({ ...prev, obras: [] }))
+        setLoading(false)
+        return
+      }
 
       const obras = safeArray(obrasResult)
       const obraIds = obras.map(o => o.id)
@@ -152,6 +161,9 @@ export default function DashboardSupervisor() {
 
       if (!ativo) return
 
+      const falhaOperacional = [agendaResult, tarefasResult, ocorrenciasResult, obraMontadoresResult, checklistResult, fotosResult, gastosResult, cronogramasResult].find(result => result.error)
+      if (falhaOperacional?.error) setErroDados(falhaOperacional.error.message || 'Alguns dados operacionais nao foram carregados.')
+
       const obraMontadores = safeArray(obraMontadoresResult)
       const montadorIds = [...new Set(obraMontadores.map(m => m.montador_id).filter(Boolean))]
 
@@ -165,6 +177,9 @@ export default function DashboardSupervisor() {
       ])
 
       if (!ativo) return
+
+      const falhaEquipe = [profilesResult, checkinsResult].find(result => result.error)
+      if (falhaEquipe?.error) setErroDados(falhaEquipe.error.message || 'Alguns dados da equipe nao foram carregados.')
 
       setDados({
         obras,
@@ -231,15 +246,27 @@ export default function DashboardSupervisor() {
     })
     const entraramIds = new Set(checkinsHoje.map(c => c.user_id).filter(Boolean))
     const emServicoIds = new Set(checkinsHoje.filter(c => !c.saida).map(c => c.user_id).filter(Boolean))
+    const checkinHojePorMontador = new Map()
+    checkinsHoje.forEach(checkin => {
+      if (!checkin.user_id) return
+      const atual = checkinHojePorMontador.get(checkin.user_id)
+      const dataAtual = new Date(atual?.entrada || atual?.created_at || 0)
+      const dataCheckin = new Date(checkin.entrada || checkin.created_at || 0)
+      if (!atual || dataCheckin > dataAtual) checkinHojePorMontador.set(checkin.user_id, checkin)
+    })
 
     const obrasPorMontador = montadorIds.map(id => {
       const obrasIds = dados.obraMontadores.filter(m => m.montador_id === id).map(m => m.obra_id)
+      const checkinHoje = checkinHojePorMontador.get(id)
+      const obraAtual = obraPorId.get(checkinHoje?.obra_id) || obraPorId.get(obrasIds[0])
       return {
         id,
         nome: limparNome(profilePorId.get(id)?.full_name || profilePorId.get(id)?.email || 'Montador'),
         obras: obrasIds.map(obraId => obraPorId.get(obraId)).filter(Boolean),
         entrouHoje: entraramIds.has(id),
         emServico: emServicoIds.has(id),
+        checkinHoje,
+        obraAtual,
       }
     })
 
@@ -433,6 +460,12 @@ export default function DashboardSupervisor() {
     { label: 'Reuniões', items: vm.agenda.reunioes },
   ].filter(item => loading || item.items.length > 0)
 
+  function abrirObraOperacional(obraId, aba = 'Resumo', params = {}) {
+    if (!obraId) return
+    const query = new URLSearchParams({ aba, ...params })
+    navigate(`/obras/${obraId}?${query.toString()}`)
+  }
+
   return (
     <div className="ds-page">
       <style>{css}</style>
@@ -459,13 +492,14 @@ export default function DashboardSupervisor() {
             </div>
             <div className="ds-mini-list spaced">
               {loading ? <Empty text="Carregando equipe..." /> : vm.equipe.montadores.length === 0 ? <Empty text="Nenhum montador alocado." /> : vm.equipe.montadores.map(m => (
-                <div className="ds-field-person" key={m.id}>
+                <button className="ds-field-person" key={m.id} onClick={() => abrirObraOperacional(m.obraAtual?.id, 'Historico')}>
                   <span className={m.emServico ? 'on' : m.entrouHoje ? 'done' : 'off'} />
                   <div>
                     <strong>{m.nome}</strong>
+                    {m.obraAtual?.nome && <small className="ds-field-work">{m.obraAtual.nome}</small>}
                     <small>{m.emServico ? 'Em serviço agora' : m.entrouHoje ? 'Entrada registrada' : 'Ainda sem check-in'} · {m.obras.length} obra{m.obras.length === 1 ? '' : 's'}</small>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -508,6 +542,7 @@ export default function DashboardSupervisor() {
       </section>
 
       <section className="ds-status-flow">
+        {erroDados && <div className="ds-load-alert">Alguns dados do supervisor nao foram carregados: {erroDados}</div>}
         <Card title="Fluxo Ornare" action={fluxoAberto ? 'Ocultar fluxo' : 'Ver fluxo completo'} onAction={() => setFluxoAberto(v => !v)}>
           {fluxoAberto ? (
             <div className="ds-status-grid">
@@ -839,6 +874,7 @@ const css = `
 .ds-collapsed-note{width:100%;border-style:dashed;color:${THEME.muted};border-radius:14px;padding:18px;background:${THEME.elevated}}
 .ds-priorities{max-width:1380px;margin:0 auto 16px}
 .ds-status-flow{max-width:1380px;margin:0 auto 16px}
+.ds-load-alert{max-width:1380px;margin:0 auto 12px;border:1px solid #F0C8C8;background:#FFF7F7;color:${THEME.danger};border-radius:12px;padding:11px 14px;font-size:13px;font-weight:800}
 .ds-approval-panel{max-width:1380px;margin:0 auto 16px}
 .ds-approval-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
 .ds-approval-grid button{border:1px solid ${THEME.border};background:${THEME.elevated};border-radius:14px;padding:13px;text-align:left;font-family:inherit;cursor:pointer}
@@ -923,13 +959,14 @@ const css = `
 .ds-field-status div.warn{border-color:#ECD7B5;background:#FFF8EC}
 .ds-field-status strong{display:block;font-size:22px;line-height:1;color:${THEME.ink}}
 .ds-field-status span{display:block;font-size:10.5px;color:${THEME.muted};margin-top:5px;font-weight:800}
-.ds-field-person{display:flex;gap:9px;align-items:flex-start;padding:9px 0;border-bottom:1px solid ${THEME.border}}
+.ds-field-person{width:100%;border:0;background:transparent;display:flex;gap:9px;align-items:flex-start;padding:9px 0;border-bottom:1px solid ${THEME.border};text-align:left;font-family:inherit;cursor:pointer;min-height:44px}
 .ds-field-person:last-child{border-bottom:0}
 .ds-field-person>span{width:9px;height:9px;border-radius:999px;margin-top:5px;background:#CFC7BB;flex-shrink:0}
 .ds-field-person>span.on{background:${THEME.success};box-shadow:0 0 0 4px rgba(45,122,74,.08)}
 .ds-field-person>span.done{background:${THEME.gold}}
 .ds-field-person strong{display:block;font-size:13px;color:${THEME.ink};line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ds-field-person small{display:block;font-size:11.5px;color:${THEME.muted};margin-top:2px}
+.ds-field-work{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${THEME.gold}!important;font-weight:800}
 .ds-compact-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .ds-compact-card{border:1px solid ${THEME.border};background:${THEME.card};border-radius:12px;padding:20px;text-align:left;font-family:inherit;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,.3)}
 .ds-compact-card span{display:block;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:${THEME.muted};font-weight:900;margin-bottom:10px}
