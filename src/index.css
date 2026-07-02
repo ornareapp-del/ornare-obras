@@ -78,6 +78,7 @@ body {
   color: #F5F0E8;
   font-size: 14px;
   line-height: 1.6;
+  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -149,8 +150,11 @@ button {
 }
 
 .ow-page {
+  width: 100%;
+  max-width: none;
   background: var(--color-bg);
   color: var(--color-ink);
+  overflow-x: hidden;
 }
 
 .ow-page h1 {

@@ -50,7 +50,7 @@ export default function Tarefas() {
   const lista = tarefaDestaque || filtro === 'todas' ? tarefas : tarefas.filter(t => t.status === filtro)
 
   return (
-    <div className="ow-page" style={{ padding: '40px 48px', maxWidth: 1100, margin: '0 auto', background: theme.background, color: theme.textPrimary, fontFamily: 'Inter, sans-serif' }}>
+    <div className="ow-page" style={{ width: '100%', padding: '40px 48px', maxWidth: 'none', margin: 0, background: theme.background, color: theme.textPrimary, fontFamily: 'Inter, sans-serif', boxSizing: 'border-box', overflowX: 'hidden' }}>
       <PageHeader
         eyebrow="Gestão"
         title="Tarefas"

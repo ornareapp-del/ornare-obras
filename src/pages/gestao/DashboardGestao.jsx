@@ -87,6 +87,14 @@ function erroConsulta(label, result) {
   return `${label}: ${result.error.message || 'falha ao carregar'}`
 }
 
+function mapearCheckinsComPerfis(checkins, profiles) {
+  const perfilPorId = new Map((profiles || []).map(profile => [profile.id, profile]))
+  return (checkins || []).map(checkin => ({
+    ...checkin,
+    profiles: perfilPorId.get(checkin.user_id) || null,
+  }))
+}
+
 function isConcluido(status) {
   return ['concluida', 'concluido', 'finalizada', 'finalizado', 'resolvida', 'resolvido'].includes(normalizar(status))
 }
@@ -147,7 +155,7 @@ export default function DashboardGestao() {
       supabase.from('obras').select('*').order('created_at', { ascending: false }),
       supabase.from('agenda').select('*, obras(nome)').order('data').order('hora_inicio').limit(80),
       supabase.from('ocorrencias').select('*').order('created_at', { ascending: false }).limit(120),
-      supabase.from('checkins').select('*, profiles(full_name), obras(nome)').order('created_at', { ascending: false }).limit(200),
+      supabase.from('checkins').select('*, obras(nome)').order('created_at', { ascending: false }).limit(200),
       supabase.from('fotos').select('*, obras(nome)').order('created_at', { ascending: false }).limit(80),
       supabase.from('gastos').select('*, obras(nome)').order('created_at', { ascending: false }).limit(200),
       supabase.from('tarefas').select('*').order('prazo', { ascending: true }).limit(200),
@@ -177,7 +185,7 @@ export default function DashboardGestao() {
       obras: safeArray(obrasResult),
       agenda: safeArray(agendaResult),
       ocorrencias: safeArray(ocorrenciasResult),
-      checkins: safeArray(checkinsResult),
+      checkins: mapearCheckinsComPerfis(safeArray(checkinsResult), safeArray(profilesResult)),
       fotos: safeArray(fotosResult),
       gastos: safeArray(gastosResult),
       tarefas: safeArray(tarefasResult),

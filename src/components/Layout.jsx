@@ -155,7 +155,7 @@ export default function Layout() {
   }
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: L.background }}>
+    <div style={{ display: 'flex', height: '100dvh', overflow: 'hidden', background: L.background }}>
 
       {/* overlay mobile */}
       {isMobile && !collapsed && (
@@ -171,10 +171,10 @@ export default function Layout() {
 
       <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} isMobile={isMobile} />
 
-      <main className="ow-app-main" style={{ flex: 1, overflowY: 'auto', transition: 'all 0.25s', background: L.background, paddingTop: 76, boxSizing: 'border-box' }}>
+      <main className="ow-app-main" style={{ flex: '1 1 auto', minWidth: 0, width: '100%', overflowY: 'auto', overflowX: 'hidden', transition: 'all 0.25s', background: L.background, paddingTop: 76, boxSizing: 'border-box' }}>
 
         {user?.id && (
-          <div style={{ position: 'fixed', top: 0, right: 0, left: collapsed ? 60 : 220, height: 60, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 24px', gap: 12, background: 'transparent', pointerEvents: 'none', boxSizing: 'border-box' }}>
+          <div style={{ position: 'fixed', top: 0, right: 0, left: isMobile ? 0 : (collapsed ? 56 : 224), height: 60, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 24px', gap: 12, background: 'transparent', pointerEvents: 'none', boxSizing: 'border-box' }}>
             {temPendencias && !isMobile && (
               <button
                 onClick={() => setNotificacoesAbertas(v => !v)}

@@ -93,6 +93,14 @@ function visivelParaMontador(form) {
   return !form.reuniao_interna && Boolean(form.obra_id) && Boolean(form.visivel_montador)
 }
 
+function anexarPerfisAosCheckins(checkins, profiles) {
+  const perfilPorId = new Map((profiles || []).map(profile => [profile.id, profile]))
+  return (checkins || []).map(checkin => ({
+    ...checkin,
+    profiles: perfilPorId.get(checkin.user_id) || null,
+  }))
+}
+
 export default function Agenda() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -230,12 +238,12 @@ export default function Agenda() {
     if (agendaId) {
       const { data, error } = await supabase
         .from('checkins')
-        .select('id, user_id, obra_id, agenda_id, entrada, saida, latitude, longitude, entrada_latitude, entrada_longitude, saida_latitude, saida_longitude, created_at, profiles(full_name)')
+        .select('id, user_id, obra_id, agenda_id, entrada, saida, latitude, longitude, entrada_latitude, entrada_longitude, saida_latitude, saida_longitude, created_at')
         .eq('agenda_id', agendaId)
         .order('entrada', { ascending: false })
 
       if (!error && data?.length) {
-        setCheckinsCompromisso(data)
+        setCheckinsCompromisso(anexarPerfisAosCheckins(data, profiles))
         setCheckinsLoading(false)
         return
       }
@@ -246,13 +254,13 @@ export default function Agenda() {
     fim.setDate(fim.getDate() + 1)
     const { data, error } = await supabase
       .from('checkins')
-      .select('id, user_id, obra_id, agenda_id, entrada, saida, latitude, longitude, entrada_latitude, entrada_longitude, saida_latitude, saida_longitude, created_at, profiles(full_name)')
+      .select('id, user_id, obra_id, agenda_id, entrada, saida, latitude, longitude, entrada_latitude, entrada_longitude, saida_latitude, saida_longitude, created_at')
       .eq('obra_id', obraId)
       .gte('entrada', inicio.toISOString())
       .lt('entrada', fim.toISOString())
       .order('entrada', { ascending: false })
 
-    setCheckinsCompromisso(error ? [] : (data || []))
+    setCheckinsCompromisso(error ? [] : anexarPerfisAosCheckins(data, profiles))
     setCheckinsLoading(false)
   }
 
@@ -944,7 +952,7 @@ const css = `
 `
 
 const s = {
-  page: { padding: '32px 40px', maxWidth: 900, margin: '0 auto', background: theme.background, color: theme.textPrimary, fontFamily: 'Inter, sans-serif' },
+  page: { width: '100%', padding: '32px 40px', maxWidth: 'none', margin: 0, background: theme.background, color: theme.textPrimary, fontFamily: 'Inter, sans-serif', boxSizing: 'border-box', overflowX: 'hidden' },
   toast: { position: 'fixed', left: '50%', bottom: 24, transform: 'translateX(-50%)', zIndex: 1300, background: 'var(--color-ink)', color: '#fff', borderLeft: '3px solid var(--color-gold)', borderRadius: 13, padding: '12px 18px', fontSize: 13, fontWeight: 800, boxShadow: '0 14px 34px rgba(29,28,25,.18)' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 18, marginBottom: 24, boxSizing: 'border-box' },
   breadcrumb: { fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6 },
