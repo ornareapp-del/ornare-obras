@@ -1806,6 +1806,23 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
     { value: 'outro',       label: 'Outros',      emoji: '📋', cor: '#AAA'    },
   ]
   const CAT_G = Object.fromEntries(CATS_G.map(c => [c.value, c]))
+  function valorSeguro(valor) {
+    const parsed = parseFloat(String(valor ?? '').replace(',', '.'))
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+  function comprovanteUrl(gasto) {
+    const match = String(gasto?.observacao || '').match(/Comprovante:\s*(https?:\/\/\S+)/i)
+    return match?.[1] || ''
+  }
+  async function anexarComprovante(gastoId, arquivoAtual, observacaoAtual = '') {
+    if (!arquivoAtual) return observacaoAtual || null
+    const ext = arquivoAtual.name.split('.').pop() || 'bin'
+    const path = `gastos/${gastoId}-${Date.now()}.${ext}`
+    const { error: uploadError } = await supabase.storage.from('fotos-obras').upload(path, arquivoAtual)
+    if (uploadError) throw uploadError
+    const url = supabase.storage.from('fotos-obras').getPublicUrl(path).data.publicUrl
+    return [observacaoAtual, `Comprovante: ${url}`].filter(Boolean).join('\n')
+  }
   const msG = {
     bg:      { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 },
     box:     { background: THEME.card, border: '1px solid ' + THEME.border, borderRadius: 14, width: '100%', maxWidth: 560, maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' },
@@ -1839,8 +1856,16 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
   }, [gastoDestaque, loading])
 
   async function carregar() {
-    const { data } = await supabase.from('gastos').select('*').eq('obra_id', obraId).order('created_at', { ascending: false })
-    setGastos(data || []); setLoading(false)
+    setLoading(true)
+    setErro('')
+    const { data, error } = await supabase.from('gastos').select('*').eq('obra_id', obraId).order('created_at', { ascending: false })
+    if (error) {
+      setErro(mensagemErro(error, 'Nao foi possivel carregar os gastos da obra.'))
+      setGastos([])
+    } else {
+      setGastos(data || [])
+    }
+    setLoading(false)
   }
 
   function abrirNovo() {
@@ -1861,21 +1886,24 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
 
   async function salvar() {
     if (!form.descricao.trim() || !form.valor || !form.data) { setErro('Preencha descricao, valor e data.'); return }
-    const vNum = parseFloat(String(form.valor).replace(',', '.'))
-    if (isNaN(vNum) || vNum <= 0) { setErro('Valor invalido.'); return }
+    if (!form.categoria) { setErro('Selecione uma categoria.'); return }
+    const vNum = valorSeguro(form.valor)
+    if (!Number.isFinite(vNum) || vNum <= 0) { setErro('Valor invalido.'); return }
+    if (Number.isNaN(new Date(form.data + 'T00:00:00').getTime())) { setErro('Informe uma data valida.'); return }
     setSalvando(true)
     setErro('')
     try {
       if (gastoEdit) {
-        const { error } = await supabase.from('gastos').update({ descricao: form.descricao.trim(), valor: vNum, categoria: form.categoria, data: form.data || null, observacao: form.observacao || null }).eq('id', gastoEdit.id)
+        const observacao = arquivo ? await anexarComprovante(gastoEdit.id, arquivo, form.observacao || gastoEdit.observacao || '') : (form.observacao || null)
+        const { error } = await supabase.from('gastos').update({ descricao: form.descricao.trim(), valor: vNum, categoria: form.categoria, data: form.data || null, observacao }).eq('id', gastoEdit.id)
         if (error) throw error
       } else {
-        const { data: ins, error } = await supabase.from('gastos').insert([{ obra_id: obraId, descricao: form.descricao.trim(), valor: vNum, categoria: form.categoria, data: form.data, observacao: form.observacao || null, status: 'aprovado' }]).select().single()
+        const { data: ins, error } = await supabase.from('gastos').insert([{ obra_id: obraId, descricao: form.descricao.trim(), valor: vNum, categoria: form.categoria, data: form.data, observacao: form.observacao || null, status: 'aprovado' }]).select('id, observacao').single()
         if (error) throw error
         if (!ins?.id) throw new Error('Gasto registrado sem identificador para anexar comprovante.')
         if (arquivo) {
-          const ext = arquivo.name.split('.').pop()
-          const { error: uploadError } = await supabase.storage.from('fotos-obras').upload('gastos/' + ins.id + '.' + ext, arquivo)
+          const observacao = await anexarComprovante(ins.id, arquivo, ins.observacao || '')
+          const { error: uploadError } = await supabase.from('gastos').update({ observacao }).eq('id', ins.id)
           if (uploadError) {
             setErro('Gasto registrado, mas não foi possível anexar o comprovante: ' + mensagemErro(uploadError))
             setSalvando(false)
@@ -1904,8 +1932,8 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
     fechar(); carregar()
   }
 
-  const total    = gastos.reduce((s, g) => s + (parseFloat(g.valor) || 0), 0)
-  const meta     = parseFloat(obraInfo?.gasto_meta) || 0
+  const total    = gastos.reduce((s, g) => s + valorSeguro(g.valor), 0)
+  const meta     = valorSeguro(obraInfo?.gasto_meta)
   const pctGasto = meta > 0 ? Math.min(Math.round(total / meta * 100), 100) : 0
   const corGasto = pctGasto >= 90 ? '#d94a4a' : pctGasto >= 70 ? '#b09a7a' : '#5aab6e'
 
@@ -2001,6 +2029,7 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
           : gastos.length === 0 ? <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhum gasto registrado.</div>
           : gastos.map(g => {
             const destaque = gastoDestaque && g.id === gastoDestaque
+            const urlComprovante = comprovanteUrl(g)
             return (
             <div id={`gasto-${g.id}`} data-destaque-id={g.id} key={g.id} onClick={() => abrirEditar(g)} style={{ background: destaque ? THEME.elevated : THEME.card, border: destaque ? `2px solid ${THEME.gold}` : '1px solid ' + THEME.border, borderRadius: 10, padding: '14px 18px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', boxShadow: destaque ? '0 16px 34px rgba(184,150,94,0.22)' : 'none' }}>
               <div style={{ width: 10, height: 10, borderRadius: '50%', background: CAT_G[g.categoria]?.cor || '#ccc', flexShrink: 0 }} />
@@ -2008,6 +2037,7 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
                 <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--color-ink)' }}>{g.descricao}</div>
                 <div style={{ fontSize: 11, color: '#aaa', marginTop: 3 }}>{CAT_G[g.categoria]?.emoji} {CAT_G[g.categoria]?.label || g.categoria}{g.data ? ' · ' + new Date(g.data + 'T00:00:00').toLocaleDateString('pt-BR') : ''}</div>
                 {g.observacao && <div style={{ fontSize: 11, color: '#bbb', marginTop: 2, fontStyle: 'italic' }}>{g.observacao}</div>}
+                {urlComprovante && <a href={urlComprovante} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ display: 'inline-flex', alignItems: 'center', minHeight: 32, marginTop: 6, color: THEME.gold, fontSize: 12, fontWeight: 800, textDecoration: 'none' }}>Abrir comprovante</a>}
               </div>
               <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-ink)' }}>R$ {parseFloat(g.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
               <span style={{ fontSize: 12, color: '#aaa' }}>✏️</span>

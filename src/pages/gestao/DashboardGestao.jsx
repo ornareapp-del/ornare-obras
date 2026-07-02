@@ -45,7 +45,12 @@ function dataBR(data) {
 }
 
 function moeda(valor) {
-  return 'R$ ' + Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+  return 'R$ ' + valorSeguro(valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+}
+
+function valorSeguro(valor) {
+  const parsed = parseFloat(String(valor ?? '').replace(',', '.'))
+  return Number.isFinite(parsed) ? parsed : 0
 }
 
 function tempoRelativo(iso) {
@@ -223,7 +228,7 @@ export default function DashboardGestao() {
     const gastosPorObra = new Map()
     dados.gastos.forEach(g => {
       if (!g.obra_id) return
-      gastosPorObra.set(g.obra_id, (gastosPorObra.get(g.obra_id) || 0) + (parseFloat(g.valor) || 0))
+      gastosPorObra.set(g.obra_id, (gastosPorObra.get(g.obra_id) || 0) + valorSeguro(g.valor))
     })
 
     const checklistPendentes = dados.checklist.filter(i => !i.concluido)
@@ -346,10 +351,16 @@ export default function DashboardGestao() {
         naoConformidadesPendentes,
       },
       financeiro: {
-        totalMes: gastosMes.reduce((s, g) => s + (parseFloat(g.valor) || 0), 0),
+        totalMes: gastosMes.reduce((s, g) => s + valorSeguro(g.valor), 0),
+        totalOperacional: dados.gastos.reduce((s, g) => s + valorSeguro(g.valor), 0),
         gastosMes,
         topObras: [...gastosPorObra.entries()].map(([obraId, total]) => ({ obraId, nome: obraNome(dados.obras, obraId), total })).sort((a, b) => b.total - a.total).slice(0, 5),
-        acimaMeta: dados.obras.filter(o => o.gasto_meta && (gastosPorObra.get(o.id) || 0) > Number(o.gasto_meta)),
+        acimaMeta: dados.obras.filter(o => valorSeguro(o.gasto_meta) > 0 && (gastosPorObra.get(o.id) || 0) >= valorSeguro(o.gasto_meta) * 0.9),
+        pertoMeta: dados.obras.filter(o => {
+          const meta = valorSeguro(o.gasto_meta)
+          const usado = gastosPorObra.get(o.id) || 0
+          return meta > 0 && usado >= meta * 0.7 && usado < meta * 0.9
+        }),
       },
       fluxo,
       atencao,
@@ -631,7 +642,10 @@ export default function DashboardGestao() {
           <Card title="Financeiro operacional" action="Gastos" onAction={() => navigate('/gastos')}>
             <div className="dg-money">{moeda(vm.financeiro.totalMes)}</div>
             <div className="dg-muted">{vm.financeiro.gastosMes.length} lançamento{vm.financeiro.gastosMes.length === 1 ? '' : 's'} no mês</div>
+            <MetricLine label="Total operacional" value={moeda(vm.financeiro.totalOperacional)} color={THEME.gold} />
             <MetricLine label="Gastos pendentes" value={vm.aprovacoes.gastosPendentes.length} color={THEME.warn} />
+            <MetricLine label="Obras proximas da meta" value={vm.financeiro.pertoMeta.length} color={THEME.warn} />
+            <MetricLine label="Obras criticas/acima da meta" value={vm.financeiro.acimaMeta.length} color={THEME.danger} />
             <div className="dg-mini-list spaced">
               {vm.financeiro.topObras.map(o => <Line key={o.obraId} title={o.nome} meta={moeda(o.total)} />)}
             </div>

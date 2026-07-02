@@ -21,6 +21,39 @@ const CAT = Object.fromEntries(CATEGORIAS.map(c => [c.value, c]))
 const CATS_APROVACAO = ['terceiros', 'hospedagem', 'frete']
 const LIMITE_APROVACAO = 500
 
+function valorSeguro(valor) {
+  const parsed = parseFloat(String(valor ?? '').replace(',', '.'))
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function moeda(valor) {
+  return `R$ ${valorSeguro(valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+}
+
+function mensagemErro(error, fallback = 'Nao foi possivel concluir a operacao.') {
+  console.error(fallback, error)
+  return error?.message || error?.details || fallback
+}
+
+function comprovanteUrl(gasto) {
+  const texto = gasto?.observacao || ''
+  const match = texto.match(/Comprovante:\s*(https?:\/\/\S+)/i)
+  return match?.[1] || ''
+}
+
+async function anexarComprovante(gastoId, arquivo, observacaoAtual = '') {
+  if (!arquivo) return { observacao: observacaoAtual || null, url: '' }
+  const ext = arquivo.name.split('.').pop() || 'bin'
+  const path = `gastos/${gastoId}-${Date.now()}.${ext}`
+  const { error: uploadError } = await supabase.storage.from('fotos-obras').upload(path, arquivo)
+  if (uploadError) throw uploadError
+  const url = supabase.storage.from('fotos-obras').getPublicUrl(path).data.publicUrl
+  return {
+    observacao: [observacaoAtual, `Comprovante: ${url}`].filter(Boolean).join('\n'),
+    url,
+  }
+}
+
 // ─── PAINEL DE CONTEXTO DE ORCAMENTO ─────────────────────────────────────────
 function PainelOrcamento({ obra, gastosObra }) {
   if (!obra) return null
@@ -92,38 +125,59 @@ function Modal({ obras, profiles, todosGastos, onClose, onSaved }) {
 
   const obraSelecionada  = obras.find(o => o.id === form.obra_id) || null
   const gastosObraSel    = todosGastos.filter(g => g.obra_id === form.obra_id)
-  const valorNum         = parseFloat(form.valor.replace(',', '.')) || 0
-  const metaObra         = parseFloat(obraSelecionada?.gasto_meta) || 0
-  const gastoAtualObra   = gastosObraSel.reduce((s, g) => s + (parseFloat(g.valor) || 0), 0)
+  const valorNum         = valorSeguro(form.valor)
+  const metaObra         = valorSeguro(obraSelecionada?.gasto_meta)
+  const gastoAtualObra   = gastosObraSel.reduce((s, g) => s + valorSeguro(g.valor), 0)
   const gastoPosLanc     = gastoAtualObra + valorNum
   const excedeMeta       = metaObra > 0 && gastoPosLanc > metaObra
   const precisaAprovacao = CATS_APROVACAO.includes(form.categoria) && valorNum > LIMITE_APROVACAO
 
   async function salvar() {
+    if (!form.obra_id) {
+      setErro('Selecione a obra vinculada ao gasto.'); return
+    }
+    if (!form.categoria) {
+      setErro('Selecione a categoria do gasto.'); return
+    }
     if (!form.descricao.trim() || !form.valor || !form.data) {
       setErro('Preencha descricao, valor e data.'); return
     }
-    if (isNaN(valorNum) || valorNum <= 0) {
+    if (!Number.isFinite(valorNum) || valorNum <= 0) {
       setErro('Valor invalido.'); return
     }
+    if (Number.isNaN(new Date(form.data + 'T00:00:00').getTime())) {
+      setErro('Informe uma data valida.'); return
+    }
     setSaving(true)
+    setErro('')
 
     const status = precisaAprovacao ? 'pendente_aprovacao' : 'aprovado'
+    try {
+      const { data: gasto, error } = await supabase.from('gastos').insert({
+        obra_id:        form.obra_id,
+        categoria:      form.categoria,
+        descricao:      form.descricao.trim(),
+        valor:          valorNum,
+        data:           form.data,
+        responsavel_id: form.responsavel_id || null,
+        observacao:     form.observacao     || null,
+        criado_por:     profile?.id,
+        status,
+      }).select('id, observacao').single()
 
-    const { error } = await supabase.from('gastos').insert({
-      obra_id:        form.obra_id        || null,
-      categoria:      form.categoria,
-      descricao:      form.descricao.trim(),
-      valor:          valorNum,
-      data:           form.data,
-      responsavel_id: form.responsavel_id || null,
-      observacao:     form.observacao     || null,
-      criado_por:     profile?.id,
-      status,
-    })
-
-    if (error) { setErro(error.message); setSaving(false); return }
-    onSaved(precisaAprovacao)
+      if (error) throw error
+      if (form.arquivo) {
+        if (!gasto?.id) throw new Error('Gasto registrado sem identificador para anexar comprovante.')
+        const anexo = await anexarComprovante(gasto.id, form.arquivo, gasto.observacao || form.observacao)
+        const { error: updateError } = await supabase.from('gastos').update({ observacao: anexo.observacao }).eq('id', gasto.id)
+        if (updateError) throw updateError
+      }
+      onSaved(precisaAprovacao, Boolean(form.arquivo))
+    } catch (error) {
+      setErro(mensagemErro(error, 'Nao foi possivel salvar o gasto.'))
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -140,7 +194,7 @@ function Modal({ obras, profiles, todosGastos, onClose, onSaved }) {
           {/* seletor de obra primeiro — desbloqueia o painel */}
           <div style={{ marginBottom: 16 }}>
             <label style={ms.label}>Obra vinculada</label>
-            <select style={ms.input} value={form.obra_id} onChange={e => set('obra_id', e.target.value)}>
+            <select style={ms.input} value={form.obra_id} onChange={e => set('obra_id', e.target.value)} disabled={saving}>
               <option value="">— Sem obra vinculada —</option>
               {obras.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
             </select>
@@ -178,7 +232,7 @@ function Modal({ obras, profiles, todosGastos, onClose, onSaved }) {
 
             <div>
               <label style={ms.label}>Categoria *</label>
-              <select style={ms.input} value={form.categoria} onChange={e => set('categoria', e.target.value)}>
+              <select style={ms.input} value={form.categoria} onChange={e => set('categoria', e.target.value)} disabled={saving}>
                 {CATEGORIAS.map(c => (
                   <option key={c.value} value={c.value}>{c.emoji} {c.label}</option>
                 ))}
@@ -195,12 +249,12 @@ function Modal({ obras, profiles, todosGastos, onClose, onSaved }) {
 
             <div>
               <label style={ms.label}>Data *</label>
-              <input style={ms.input} type="date" value={form.data} onChange={e => set('data', e.target.value)} />
+              <input style={ms.input} type="date" value={form.data} onChange={e => set('data', e.target.value)} disabled={saving} />
             </div>
 
             <div>
               <label style={ms.label}>Responsável</label>
-              <select style={ms.input} value={form.responsavel_id} onChange={e => set('responsavel_id', e.target.value)}>
+              <select style={ms.input} value={form.responsavel_id} onChange={e => set('responsavel_id', e.target.value)} disabled={saving}>
                 <option value="">— Selecione —</option>
                 {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
               </select>
@@ -230,7 +284,7 @@ function Modal({ obras, profiles, todosGastos, onClose, onSaved }) {
         </div>
 
         <div style={ms.footer}>
-          <button style={ms.btnCancel} onClick={onClose}>Cancelar</button>
+          <button style={ms.btnCancel} onClick={onClose} disabled={saving}>Cancelar</button>
           <button style={{ ...ms.btnSave, background: precisaAprovacao ? '#C8A86A' : 'var(--color-gold)' }}
             onClick={salvar} disabled={saving}>
             {saving ? 'Salvando...' : precisaAprovacao ? 'Enviar para aprovação' : 'Salvar Gasto'}
@@ -245,17 +299,36 @@ function Modal({ obras, profiles, todosGastos, onClose, onSaved }) {
 function ModalAprovacao({ gasto, onClose, onAprovado }) {
   const [justificativa, setJustificativa] = useState('')
   const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState('')
 
   async function aprovar() {
     setSalvando(true)
-    await supabase.from('gastos').update({ status: 'aprovado', observacao: gasto.observacao + (justificativa ? ' | Aprovado: ' + justificativa : '') }).eq('id', gasto.id)
-    onAprovado()
+    setErro('')
+    try {
+      const observacao = [gasto.observacao, justificativa ? 'Aprovado: ' + justificativa : 'Aprovado pela gestao'].filter(Boolean).join(' | ')
+      const { error } = await supabase.from('gastos').update({ status: 'aprovado', observacao }).eq('id', gasto.id)
+      if (error) throw error
+      onAprovado()
+    } catch (error) {
+      setErro(mensagemErro(error, 'Nao foi possivel aprovar o gasto.'))
+    } finally {
+      setSalvando(false)
+    }
   }
   async function recusar() {
     if (!justificativa.trim()) return
     setSalvando(true)
-    await supabase.from('gastos').update({ status: 'recusado', observacao: gasto.observacao + ' | Recusado: ' + justificativa }).eq('id', gasto.id)
-    onAprovado()
+    setErro('')
+    try {
+      const observacao = [gasto.observacao, 'Recusado: ' + justificativa.trim()].filter(Boolean).join(' | ')
+      const { error } = await supabase.from('gastos').update({ status: 'recusado', observacao }).eq('id', gasto.id)
+      if (error) throw error
+      onAprovado()
+    } catch (error) {
+      setErro(mensagemErro(error, 'Nao foi possivel recusar o gasto.'))
+    } finally {
+      setSalvando(false)
+    }
   }
 
   return (
@@ -266,6 +339,7 @@ function ModalAprovacao({ gasto, onClose, onAprovado }) {
           <button style={ms.close} onClick={onClose}>✕</button>
         </div>
         <div style={{ padding: '20px 28px' }}>
+          {erro && <div style={ms.erro}>{erro}</div>}
           <div style={{ background: '#f9f7f4', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-ink)', marginBottom: 4 }}>{gasto.descricao}</div>
             <div style={{ fontSize: 13, color: '#888', marginBottom: 8 }}>{CAT[gasto.categoria]?.emoji} {CAT[gasto.categoria]?.label} · {gasto.obras?.nome || 'Sem obra'}</div>
@@ -307,19 +381,23 @@ export default function Gastos() {
   const [gastoPendente,   setGastoPendente]   = useState(null) // para modal de aprovação
   const [toast,           setToast]           = useState('')
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { carregar() }, [])
 
   async function carregar() {
-    const [{ data: g }, { data: o }, { data: p }] = await Promise.all([
+    setLoading(true)
+    const [gastosResult, obrasResult, profilesResult] = await Promise.all([
       supabase.from('gastos')
         .select('*, obras(nome, gasto_meta), responsavel:profiles!gastos_responsavel_id_fkey(full_name)')
         .order('created_at', { ascending: false }),
       supabase.from('obras').select('id, nome, gasto_meta').order('nome'),
       supabase.from('profiles').select('id, full_name').in('role', ['gestao', 'supervisor', 'montador']),
     ])
-    setGastos(g    || [])
-    setObras(o     || [])
-    setProfiles(p  || [])
+    const falha = [gastosResult, obrasResult, profilesResult].find(result => result.error)
+    if (falha?.error) mostrarToast(mensagemErro(falha.error, 'Parte dos dados financeiros nao foi carregada.'))
+    setGastos(gastosResult.data || [])
+    setObras(obrasResult.data || [])
+    setProfiles(profilesResult.data || [])
     setLoading(false)
   }
 
@@ -335,16 +413,16 @@ export default function Gastos() {
     .filter(g => !filtroCategoria || g.categoria === filtroCategoria)
     .filter(g => !filtroStatus    || g.status    === filtroStatus)
 
-  const total = lista.reduce((s, g) => s + (parseFloat(g.valor) || 0), 0)
+  const total = lista.reduce((s, g) => s + valorSeguro(g.valor), 0)
   const mesAtual = new Date().toISOString().slice(0, 7)
   const gastosMes = gastos.filter(g => String(g.data || g.created_at || '').slice(0, 7) === mesAtual)
-  const totalMes = gastosMes.reduce((s, g) => s + (parseFloat(g.valor) || 0), 0)
+  const totalMes = gastosMes.reduce((s, g) => s + valorSeguro(g.valor), 0)
   const aprovados = gastos.filter(g => (g.status || 'aprovado') === 'aprovado')
   const recusados = gastos.filter(g => g.status === 'recusado')
 
   const porCategoria = Object.entries(
     lista.reduce((acc, g) => {
-      acc[g.categoria] = (acc[g.categoria] || 0) + parseFloat(g.valor || 0)
+      acc[g.categoria] = (acc[g.categoria] || 0) + valorSeguro(g.valor)
       return acc
     }, {})
   ).sort((a, b) => b[1] - a[1])
@@ -504,6 +582,7 @@ export default function Gastos() {
         <div className="ga-list" style={s.list}>
           {lista.map(g => {
             const sc = statusCor[g.status] || statusCor.aprovado
+            const urlComprovante = comprovanteUrl(g)
             return (
               <div key={g.id} className="ga-item" style={s.item} onClick={() => g.obra_id && navigate(`/obras/${g.obra_id}`)}>
                 <div style={{ ...s.itemDot, background: CAT[g.categoria]?.cor || '#ccc' }} />
@@ -523,10 +602,15 @@ export default function Gastos() {
                     {g.data               ? ' · ' + new Date(g.data + 'T00:00:00').toLocaleDateString('pt-BR')         : ''}
                   </div>
                   {g.observacao && <div style={s.itemObs}>{g.observacao}</div>}
+                  {urlComprovante && (
+                    <a href={urlComprovante} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={s.receiptLink}>
+                      Abrir comprovante
+                    </a>
+                  )}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
                   <div style={s.itemValor}>
-                    R$ {parseFloat(g.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    {moeda(g.valor)}
                   </div>
                   {g.status === 'pendente_aprovacao' && (
                     <button
@@ -609,6 +693,7 @@ const s = {
   itemTitle:    { fontSize: 14, fontWeight: 600, color: 'var(--color-ink)' },
   itemMeta:     { fontSize: 11, color: '#aaa', marginTop: 2 },
   itemObs:      { fontSize: 11, color: '#bbb', marginTop: 3, fontStyle: 'italic' },
+  receiptLink:  { display: 'inline-flex', alignItems: 'center', minHeight: 32, marginTop: 6, color: theme.gold, fontSize: 12, fontWeight: 700, textDecoration: 'none' },
   itemValor:    { fontSize: 15, fontWeight: 700, color: 'var(--color-ink)', whiteSpace: 'nowrap' },
   empty:        { textAlign: 'center', padding: '40px 0', color: '#bbb' },
   emptyBox:     { textAlign: 'center', padding: '60px 20px', background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
