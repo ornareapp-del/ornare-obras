@@ -99,11 +99,8 @@ function faseKeyObra(obra) {
   return fase?.key || null
 }
 
-export default function DashboardSupervisor() {
-  const navigate = useNavigate()
-  const { profile } = useStore()
-
-  const [dados, setDados] = useState({
+function criarDadosVazios(overrides = {}) {
+  return {
     obras: [],
     agenda: [],
     tarefas: [],
@@ -115,8 +112,16 @@ export default function DashboardSupervisor() {
     fotos: [],
     gastos: [],
     cronogramas: [],
-  })
-  const [loading, setLoading] = useState(true)
+    ...overrides,
+  }
+}
+
+export default function DashboardSupervisor() {
+  const navigate = useNavigate()
+  const { profile } = useStore()
+
+  const [dados, setDados] = useState(criarDadosVazios)
+  const [loading, setLoading] = useState(false)
   const [periodo, setPeriodo] = useState('semana')
   const [fluxoAberto, setFluxoAberto] = useState(false)
   const [metricasAberto, setMetricasAberto] = useState(false)
@@ -132,97 +137,108 @@ export default function DashboardSupervisor() {
       setErroDados('')
       const falhas = []
 
-      const obrasResult = await supabase
-        .from('obras')
-        .select('*')
-        .eq('supervisor_id', profile.id)
-        .order('created_at', { ascending: false })
+      try {
+        const obrasResult = await supabase
+          .from('obras')
+          .select('*')
+          .eq('supervisor_id', profile.id)
+          .order('created_at', { ascending: false })
 
-      if (!ativo) return
+        if (!ativo) return
 
-      if (obrasResult.error) {
-        setErroDados(obrasResult.error.message || 'Nao foi possivel carregar as obras do supervisor.')
-        setDados(prev => ({ ...prev, obras: [] }))
+        if (obrasResult.error) {
+          setErroDados(obrasResult.error.message || 'Nao foi possivel carregar as obras do supervisor.')
+          setDados(criarDadosVazios())
+          setLoading(false)
+          return
+        }
+
+        const obras = safeArray(obrasResult)
+        const obraIds = obras.map(o => o.id).filter(Boolean)
+        const obraIdSet = new Set(obraIds)
+
+        if (!obraIds.length) {
+          setDados(criarDadosVazios({ obras }))
+          setLoading(false)
+          return
+        }
+
+        const [
+          agendaResult,
+          tarefasResult,
+          ocorrenciasResult,
+          obraMontadoresResult,
+          checklistResult,
+          fotosResult,
+          gastosResult,
+          cronogramasResult,
+        ] = await Promise.all([
+          supabase.from('agenda').select('*').in('obra_id', obraIds).order('data').order('hora_inicio'),
+          supabase.from('tarefas').select('*').in('obra_id', obraIds).order('prazo', { ascending: true }),
+          supabase.from('ocorrencias').select('*').in('obra_id', obraIds).order('created_at', { ascending: false }),
+          supabase.from('obra_montadores').select('obra_id, montador_id').in('obra_id', obraIds),
+          supabase.from('checklist_items').select('id, obra_id, descricao, concluido, concluido_em, ambiente_id').in('obra_id', obraIds),
+          supabase.from('fotos').select('*').in('obra_id', obraIds).order('created_at', { ascending: false }),
+          supabase.from('gastos').select('*').in('obra_id', obraIds).order('created_at', { ascending: false }),
+          supabase.from('obra_cronograma').select('id, obra_id, fase, travado, motivo_trava, risco, updated_at').in('obra_id', obraIds),
+        ])
+
+        if (!ativo) return
+
+        falhas.push(...[
+          erroConsulta('Agenda', agendaResult),
+          erroConsulta('Tarefas', tarefasResult),
+          erroConsulta('Ocorrencias', ocorrenciasResult),
+          erroConsulta('Equipe alocada', obraMontadoresResult),
+          erroConsulta('Checklist', checklistResult),
+          erroConsulta('Fotos', fotosResult),
+          erroConsulta('Gastos', gastosResult),
+          erroConsulta('Cronograma', cronogramasResult),
+        ].filter(Boolean))
+
+        const obraMontadores = safeArray(obraMontadoresResult)
+        const montadorIds = [...new Set(obraMontadores.map(m => m.montador_id).filter(Boolean))]
+
+        const [profilesResult, checkinsResult] = await Promise.all([
+          montadorIds.length
+            ? supabase.from('profiles').select('id, full_name, email, role').in('id', montadorIds)
+            : { data: [] },
+          montadorIds.length
+            ? supabase.from('checkins').select('*').in('user_id', montadorIds).in('obra_id', obraIds).order('created_at', { ascending: false }).limit(120)
+            : { data: [] },
+        ])
+
+        if (!ativo) return
+
+        falhas.push(...[
+          erroConsulta('Perfis dos montadores', profilesResult),
+          erroConsulta('Check-ins', checkinsResult),
+        ].filter(Boolean))
+
+        if (falhas.length > 0) console.error('Falhas ao carregar DashboardSupervisor:', falhas)
+
+        setDados({
+          obras,
+          agenda: safeArray(agendaResult),
+          tarefas: safeArray(tarefasResult),
+          ocorrencias: safeArray(ocorrenciasResult),
+          checkins: safeArray(checkinsResult).filter(checkin => obraIdSet.has(checkin.obra_id)),
+          obraMontadores,
+          profiles: safeArray(profilesResult),
+          checklist: safeArray(checklistResult),
+          fotos: safeArray(fotosResult),
+          gastos: safeArray(gastosResult),
+          cronogramas: safeArray(cronogramasResult),
+        })
+        setErroDados(falhas.join(' / '))
         setLoading(false)
-        return
-      }
-
-      const obras = safeArray(obrasResult)
-      const obraIds = obras.map(o => o.id)
-
-      if (!obraIds.length) {
-        setDados(prev => ({ ...prev, obras }))
+      } catch (error) {
+        if (!ativo) return
+        console.error('Falha inesperada ao carregar DashboardSupervisor:', error)
+        setDados(criarDadosVazios())
+        setErroDados(error?.message || 'falha inesperada ao carregar o dashboard do supervisor')
         setLoading(false)
-        return
       }
-
-      const [
-        agendaResult,
-        tarefasResult,
-        ocorrenciasResult,
-        obraMontadoresResult,
-        checklistResult,
-        fotosResult,
-        gastosResult,
-        cronogramasResult,
-      ] = await Promise.all([
-        supabase.from('agenda').select('*').in('obra_id', obraIds).order('data').order('hora_inicio'),
-        supabase.from('tarefas').select('*').in('obra_id', obraIds).order('prazo', { ascending: true }),
-        supabase.from('ocorrencias').select('*').in('obra_id', obraIds).order('created_at', { ascending: false }),
-        supabase.from('obra_montadores').select('obra_id, montador_id').in('obra_id', obraIds),
-        supabase.from('checklist_items').select('id, obra_id, descricao, concluido, concluido_em, ambiente_id').in('obra_id', obraIds),
-        supabase.from('fotos').select('*').in('obra_id', obraIds).order('created_at', { ascending: false }),
-        supabase.from('gastos').select('*').in('obra_id', obraIds).order('created_at', { ascending: false }),
-        supabase.from('obra_cronograma').select('id, obra_id, fase, travado, motivo_trava, risco, updated_at').in('obra_id', obraIds),
-      ])
-
-      if (!ativo) return
-
-      falhas.push(...[
-        erroConsulta('Agenda', agendaResult),
-        erroConsulta('Tarefas', tarefasResult),
-        erroConsulta('Ocorrencias', ocorrenciasResult),
-        erroConsulta('Equipe alocada', obraMontadoresResult),
-        erroConsulta('Checklist', checklistResult),
-        erroConsulta('Fotos', fotosResult),
-        erroConsulta('Gastos', gastosResult),
-        erroConsulta('Cronograma', cronogramasResult),
-      ].filter(Boolean))
-
-      const obraMontadores = safeArray(obraMontadoresResult)
-      const montadorIds = [...new Set(obraMontadores.map(m => m.montador_id).filter(Boolean))]
-
-      const [profilesResult, checkinsResult] = await Promise.all([
-        montadorIds.length
-          ? supabase.from('profiles').select('id, full_name, email, role').in('id', montadorIds)
-          : { data: [] },
-        montadorIds.length
-          ? supabase.from('checkins').select('*').in('user_id', montadorIds).order('created_at', { ascending: false }).limit(120)
-          : { data: [] },
-      ])
-
-      if (!ativo) return
-
-      falhas.push(...[
-        erroConsulta('Perfis dos montadores', profilesResult),
-        erroConsulta('Check-ins', checkinsResult),
-      ].filter(Boolean))
-
-      setDados({
-        obras,
-        agenda: safeArray(agendaResult),
-        tarefas: safeArray(tarefasResult),
-        ocorrencias: safeArray(ocorrenciasResult),
-        checkins: safeArray(checkinsResult),
-        obraMontadores,
-        profiles: safeArray(profilesResult),
-        checklist: safeArray(checklistResult),
-        fotos: safeArray(fotosResult),
-        gastos: safeArray(gastosResult),
-        cronogramas: safeArray(cronogramasResult),
-      })
-      setErroDados(falhas.join(' / '))
-      setLoading(false)
     }
 
     carregar()
@@ -683,7 +699,7 @@ export default function DashboardSupervisor() {
                 </button>
               ))}
               {vm.aprovacoes.gastosPendentes.slice(0, 2).map(gasto => (
-                <button key={gasto.id} onClick={() => navigate(`/obras/${gasto.obra_id}?aba=Gastos&gasto=${gasto.id}`)}>
+                <button key={gasto.id} onClick={() => gasto.obra_id ? navigate(`/obras/${gasto.obra_id}?aba=Gastos&gasto=${gasto.id}`) : navigate('/gastos')}>
                   <i className="orange" />
                   <div>
                     <strong>{gasto.descricao || 'Gasto pendente'}</strong>
@@ -692,7 +708,7 @@ export default function DashboardSupervisor() {
                 </button>
               ))}
               {vm.aprovacoes.cronogramasTravados.slice(0, 2).map(crono => (
-                <button className="danger" key={crono.id} onClick={() => navigate(`/obras/${crono.obra_id}?aba=Cronograma&cronograma=${crono.id}`)}>
+                <button className="danger" key={crono.id} onClick={() => crono.obra_id ? navigate(`/obras/${crono.obra_id}?aba=Cronograma&cronograma=${crono.id}`) : navigate('/obras')}>
                   <i />
                   <div>
                     <strong>Cronograma travado</strong>

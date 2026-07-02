@@ -95,6 +95,22 @@ function mapearCheckinsComPerfis(checkins, profiles) {
   }))
 }
 
+function criarDadosVazios() {
+  return {
+    obras: [],
+    agenda: [],
+    ocorrencias: [],
+    checkins: [],
+    fotos: [],
+    gastos: [],
+    tarefas: [],
+    profiles: [],
+    montadores: [],
+    checklist: [],
+    cronogramas: [],
+  }
+}
+
 function isConcluido(status) {
   return ['concluida', 'concluido', 'finalizada', 'finalizado', 'resolvida', 'resolvido'].includes(normalizar(status))
 }
@@ -131,82 +147,77 @@ function rotaObra(obraId, aba, params = {}) {
 export default function DashboardGestao() {
   const navigate = useNavigate()
   const [fluxoAberto, setFluxoAberto] = useState(false)
-  const [dados, setDados] = useState({
-    obras: [],
-    agenda: [],
-    ocorrencias: [],
-    checkins: [],
-    fotos: [],
-    gastos: [],
-    tarefas: [],
-    profiles: [],
-    montadores: [],
-    checklist: [],
-    cronogramas: [],
-  })
+  const [dados, setDados] = useState(criarDadosVazios)
   const [loading, setLoading] = useState(true)
   const [erroDados, setErroDados] = useState('')
 
   async function carregar() {
     setLoading(true)
     setErroDados('')
-    const [
-      obrasResult,
-      agendaResult,
-      ocorrenciasResult,
-      checkinsResult,
-      fotosResult,
-      gastosResult,
-      tarefasResult,
-      profilesResult,
-      montadoresResult,
-      checklistResult,
-      cronogramasResult,
-    ] = await Promise.all([
-      supabase.from('obras').select('*').order('created_at', { ascending: false }),
-      supabase.from('agenda').select('*, obras(nome)').order('data').order('hora_inicio').limit(80),
-      supabase.from('ocorrencias').select('*').order('created_at', { ascending: false }).limit(120),
-      supabase.from('checkins').select('*, obras(nome)').order('created_at', { ascending: false }).limit(200),
-      supabase.from('fotos').select('*, obras(nome)').order('created_at', { ascending: false }).limit(80),
-      supabase.from('gastos').select('*, obras(nome)').order('created_at', { ascending: false }),
-      supabase.from('tarefas').select('*').order('prazo', { ascending: true }).limit(200),
-      supabase.from('profiles').select('id, full_name, email, role'),
-      supabase.from('obra_montadores').select('obra_id, montador_id, montador:profiles!obra_montadores_montador_id_fkey(full_name)'),
-      supabase.from('checklist_items').select('id, obra_id, descricao, concluido, concluido_em').limit(500),
-      supabase.from('obra_cronograma').select('id, obra_id, fase, travado, motivo_trava, risco, updated_at').limit(300),
-    ])
+    try {
+      const [
+        obrasResult,
+        agendaResult,
+        ocorrenciasResult,
+        checkinsResult,
+        fotosResult,
+        gastosResult,
+        tarefasResult,
+        profilesResult,
+        montadoresResult,
+        checklistResult,
+        cronogramasResult,
+      ] = await Promise.all([
+        supabase.from('obras').select('*').order('created_at', { ascending: false }),
+        supabase.from('agenda').select('*, obras(nome)').order('data').order('hora_inicio').limit(80),
+        supabase.from('ocorrencias').select('*').order('created_at', { ascending: false }).limit(120),
+        supabase.from('checkins').select('*').order('created_at', { ascending: false }).limit(200),
+        supabase.from('fotos').select('*, obras(nome)').order('created_at', { ascending: false }).limit(80),
+        supabase.from('gastos').select('*, obras(nome)').order('created_at', { ascending: false }),
+        supabase.from('tarefas').select('*').order('prazo', { ascending: true }).limit(200),
+        supabase.from('profiles').select('id, full_name, email, role'),
+        supabase.from('obra_montadores').select('obra_id, montador_id, montador:profiles!obra_montadores_montador_id_fkey(full_name)'),
+        supabase.from('checklist_items').select('id, obra_id, descricao, concluido, concluido_em').limit(500),
+        supabase.from('obra_cronograma').select('id, obra_id, fase, travado, motivo_trava, risco, updated_at').limit(300),
+      ])
 
-    const falhas = [
-      erroConsulta('Obras', obrasResult),
-      erroConsulta('Agenda', agendaResult),
-      erroConsulta('Ocorrencias', ocorrenciasResult),
-      erroConsulta('Check-ins', checkinsResult),
-      erroConsulta('Fotos', fotosResult),
-      erroConsulta('Gastos', gastosResult),
-      erroConsulta('Tarefas', tarefasResult),
-      erroConsulta('Perfis', profilesResult),
-      erroConsulta('Montadores alocados', montadoresResult),
-      erroConsulta('Checklist', checklistResult),
-      erroConsulta('Cronograma', cronogramasResult),
-    ].filter(Boolean)
+      const falhas = [
+        erroConsulta('Obras', obrasResult),
+        erroConsulta('Agenda', agendaResult),
+        erroConsulta('Ocorrencias', ocorrenciasResult),
+        erroConsulta('Check-ins', checkinsResult),
+        erroConsulta('Fotos', fotosResult),
+        erroConsulta('Gastos', gastosResult),
+        erroConsulta('Tarefas', tarefasResult),
+        erroConsulta('Perfis', profilesResult),
+        erroConsulta('Montadores alocados', montadoresResult),
+        erroConsulta('Checklist', checklistResult),
+        erroConsulta('Cronograma', cronogramasResult),
+      ].filter(Boolean)
 
-    if (falhas.length > 0) console.error('Falhas ao carregar DashboardGestao:', falhas)
+      if (falhas.length > 0) console.error('Falhas ao carregar DashboardGestao:', falhas)
 
-    setDados({
-      obras: safeArray(obrasResult),
-      agenda: safeArray(agendaResult),
-      ocorrencias: safeArray(ocorrenciasResult),
-      checkins: mapearCheckinsComPerfis(safeArray(checkinsResult), safeArray(profilesResult)),
-      fotos: safeArray(fotosResult),
-      gastos: safeArray(gastosResult),
-      tarefas: safeArray(tarefasResult),
-      profiles: safeArray(profilesResult),
-      montadores: safeArray(montadoresResult),
-      checklist: safeArray(checklistResult),
-      cronogramas: safeArray(cronogramasResult),
-    })
-    setErroDados(falhas.join(' / '))
-    setLoading(false)
+      setDados({
+        obras: safeArray(obrasResult),
+        agenda: safeArray(agendaResult),
+        ocorrencias: safeArray(ocorrenciasResult),
+        checkins: mapearCheckinsComPerfis(safeArray(checkinsResult), safeArray(profilesResult)),
+        fotos: safeArray(fotosResult),
+        gastos: safeArray(gastosResult),
+        tarefas: safeArray(tarefasResult),
+        profiles: safeArray(profilesResult),
+        montadores: safeArray(montadoresResult),
+        checklist: safeArray(checklistResult),
+        cronogramas: safeArray(cronogramasResult),
+      })
+      setErroDados(falhas.join(' / '))
+    } catch (error) {
+      console.error('Falha inesperada ao carregar DashboardGestao:', error)
+      setDados(criarDadosVazios())
+      setErroDados(error?.message || 'falha inesperada ao carregar o dashboard')
+    } finally {
+      setLoading(false)
+    }
   }
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -312,7 +323,7 @@ export default function DashboardGestao() {
       ...dados.fotos.slice(0, 8).map(f => ({ tipo: 'Foto', texto: f.categoria || 'Nova foto enviada', sub: f.obras?.nome || obraNome(dados.obras, f.obra_id), ts: f.created_at })),
       ...dados.ocorrencias.slice(0, 8).map(o => ({ tipo: 'Ocorrência', texto: o.titulo || o.descricao || 'Ocorrência registrada', sub: obraNome(dados.obras, o.obra_id), ts: o.created_at })),
       ...dados.checklist.filter(i => i.concluido && i.concluido_em).slice(0, 8).map(i => ({ tipo: 'Checklist', texto: i.descricao || 'Item concluído', sub: obraNome(dados.obras, i.obra_id), ts: i.concluido_em })),
-      ...dados.checkins.slice(0, 8).map(c => ({ tipo: 'Equipe', texto: `${limparNome(c.profiles?.full_name) || 'Equipe'} fez ${c.saida ? 'check-out' : 'check-in'}`, sub: c.obras?.nome || '', ts: c.created_at })),
+      ...dados.checkins.slice(0, 8).map(c => ({ tipo: 'Equipe', texto: `${limparNome(c.profiles?.full_name) || 'Equipe'} fez ${c.saida ? 'check-out' : 'check-in'}`, sub: obraNome(dados.obras, c.obra_id), ts: c.created_at })),
       ...dados.gastos.slice(0, 8).map(g => ({ tipo: 'Gasto', texto: g.descricao || 'Gasto lançado', sub: `${g.obras?.nome || obraNome(dados.obras, g.obra_id)} - ${moeda(g.valor)}`, ts: g.created_at })),
     ].sort((a, b) => new Date(b.ts) - new Date(a.ts)).slice(0, 10)
 

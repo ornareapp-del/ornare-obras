@@ -59,10 +59,6 @@ function dataBR(value) {
   return Number.isNaN(date.getTime()) ? '-' : date.toLocaleDateString('pt-BR')
 }
 
-function normalizar(value) {
-  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-}
-
 function nomePessoa(profile) {
   return profile?.full_name || profile?.nome || profile?.email || '-'
 }
@@ -79,15 +75,54 @@ function fotoUrl(foto) {
 
 function isAgendaCliente(item) {
   if (item.reuniao_interna) return false
-  if (item.visivel_cliente === true || item.visibilidade === 'cliente' || item.visibilidade === 'publica') return true
-  const tipo = normalizar(item.tipo || item.titulo)
-  return ['visita', 'vistoria', 'montagem', 'entrega', 'assistencia', 'medicao'].some(t => tipo.includes(t))
+  return item.visivel_cliente === true || item.visibilidade === 'cliente' || item.visibilidade === 'publica'
 }
 
 function isMensagemCliente(item) {
   if (item.visivel_cliente === true || item.visibilidade === 'cliente' || item.tipo === 'cliente') return true
   if (item.publico_cliente === true) return true
   return false
+}
+
+function isFotoCliente(foto) {
+  const aprovada = foto.aprovada === true && (foto.aprovada_gestao === true || foto.aprovada_gestao === undefined)
+  const visivel = foto.visivel_cliente === true || foto.visibilidade === 'cliente' || foto.visibilidade === 'publica'
+  return aprovada && visivel
+}
+
+function isChecklistCliente(item) {
+  const visivel = item.visivel_cliente === true || item.visibilidade === 'cliente' || item.visibilidade === 'publica'
+  const aprovado = item.aprovado_cliente === true || item.aprovado_gestao === true || item.validado_supervisor === true || item.concluido === true
+  return item.concluido === true && visivel && aprovado
+}
+
+function isDocumentoCliente(doc) {
+  return doc.visivel_cliente === true || doc.visibilidade === 'cliente' || doc.visibilidade === 'publica' || doc.publico_cliente === true
+}
+
+function detalheErro(error, fallback) {
+  return error?.message || error?.details || fallback
+}
+
+async function carregarMensagensObraCliente(obraId) {
+  const publicas = await supabase
+    .from('mensagens_obra')
+    .select('*')
+    .eq('obra_id', obraId)
+    .or('visivel_cliente.eq.true,visibilidade.eq.cliente,visibilidade.eq.publica,publico_cliente.eq.true')
+    .order('created_at', { ascending: false })
+
+  if (!publicas.error) return publicas
+
+  console.error('Erro ao filtrar mensagens publicas da obra para cliente:', publicas.error)
+  const fallback = await supabase
+    .from('mensagens_obra')
+    .select('*')
+    .eq('obra_id', obraId)
+    .order('created_at', { ascending: false })
+
+  if (fallback.error) return publicas
+  return { ...fallback, data: safeArray(fallback).filter(isMensagemCliente) }
 }
 
 function tabelaNaoEncontrada(error) {
@@ -110,6 +145,7 @@ export default function PortalCliente() {
     contatos: [],
     profiles: [],
     documentos: [],
+    checklist: [],
   })
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState('')
@@ -132,9 +168,30 @@ export default function PortalCliente() {
     const { data: authData } = await supabase.auth.getUser()
     setUsuario(authData?.user || null)
 
+    const obra = await supabase.from('obras').select('*').eq('id', id).single()
+    if (obra.error) {
+      console.error('Erro ao carregar obra no portal cliente:', obra.error)
+      setErro(detalheErro(obra.error, 'Não foi possível abrir esta obra no momento.'))
+      setLoading(false)
+      return
+    }
+
+    const cronograma = await supabase.from('obra_cronograma').select('*').eq('obra_id', id).maybeSingle()
+    if (cronograma.error) {
+      console.error('Erro ao carregar cronograma no portal cliente:', cronograma.error)
+      setErro(detalheErro(cronograma.error, 'Parte das informações da obra não foi carregada.'))
+    }
+
+    const cronogramaCliente = cronograma.data?.visivel_cliente === true ? cronograma.data : null
+    const profileIds = [
+      obra.data?.supervisor_id,
+      obra.data?.comercial_id,
+      cronogramaCliente?.supervisor_id,
+      cronogramaCliente?.comercial_id,
+      cronogramaCliente?.pos_venda_id,
+    ].filter(Boolean)
+
     const [
-      obra,
-      cronograma,
       fotos,
       ambientes,
       agenda,
@@ -143,22 +200,24 @@ export default function PortalCliente() {
       mensagensCliente,
       contatos,
       profiles,
+      checklist,
     ] = await Promise.all([
-      supabase.from('obras').select('*').eq('id', id).single(),
-      supabase.from('obra_cronograma').select('*').eq('obra_id', id).maybeSingle(),
-      supabase.from('fotos').select('*').eq('obra_id', id).eq('aprovada', true).eq('visivel_cliente', true).order('created_at', { ascending: false }),
+      supabase.from('fotos').select('*').eq('obra_id', id).eq('aprovada', true).eq('aprovada_gestao', true).eq('visivel_cliente', true).order('created_at', { ascending: false }),
       supabase.from('obra_ambientes').select('id, nome').eq('obra_id', id),
       supabase.from('agenda').select('*').eq('obra_id', id).order('data', { ascending: true }),
       supabase.from('comunicados_cliente').select('*').eq('obra_id', id).order('created_at', { ascending: false }),
-      supabase.from('mensagens_obra').select('*').eq('obra_id', id).order('created_at', { ascending: false }),
+      carregarMensagensObraCliente(id),
       supabase.from('mensagens').select('*').eq('obra_id', id).order('created_at', { ascending: false }),
       supabase.from('contatos_cliente').select('*').eq('obra_id', id),
-      supabase.from('profiles').select('id, full_name, email, role, telefone'),
+      profileIds.length
+        ? supabase.from('profiles').select('id, full_name, email, role, telefone').in('id', [...new Set(profileIds)])
+        : Promise.resolve({ data: [], error: null }),
+      supabase.from('checklist_items').select('*').eq('obra_id', id).order('descricao'),
     ])
 
     const documentos = await supabase
       .from('documentos')
-      .select('id, obra_id, nome_arquivo, tipo, url_arquivo, created_at')
+      .select('*')
       .eq('obra_id', id)
       .order('created_at', { ascending: false })
 
@@ -169,26 +228,29 @@ export default function PortalCliente() {
       return
     }
 
-    const falha = [cronograma, fotos, ambientes, agenda, comunicados, mensagens, mensagensCliente, contatos, profiles].find(r => r.error)
+    const falha = [fotos, ambientes, agenda, comunicados, mensagens, mensagensCliente, contatos, profiles, checklist].find(r => r.error)
     if (falha?.error) {
       console.error('Erro em dados complementares do portal cliente:', falha.error)
+      setErro(detalheErro(falha.error, 'Parte das informações liberadas ao cliente não foi carregada.'))
     }
     if (documentos.error && !tabelaNaoEncontrada(documentos.error)) {
       console.error('Erro ao carregar documentos do portal cliente:', documentos.error)
+      setErro(detalheErro(documentos.error, 'Não foi possível carregar documentos liberados.'))
     }
 
     setDados({
       obra: obra.data,
-      cronograma: cronograma.data || null,
-      fotos: safeArray(fotos).map(foto => ({ ...foto, publicUrl: fotoUrl(foto), categoria: foto.categoria || foto.etapa || 'Geral' })),
+      cronograma: cronogramaCliente,
+      fotos: safeArray(fotos).filter(isFotoCliente).map(foto => ({ ...foto, publicUrl: fotoUrl(foto), categoria: foto.categoria || foto.etapa || 'Geral' })),
       ambientes: safeArray(ambientes),
       agenda: safeArray(agenda).filter(isAgendaCliente),
       comunicados: safeArray(comunicados),
       mensagens: safeArray(mensagens).filter(isMensagemCliente),
-      mensagensCliente: safeArray(mensagensCliente),
+      mensagensCliente: safeArray(mensagensCliente).filter(isMensagemCliente),
       contatos: safeArray(contatos),
       profiles: safeArray(profiles),
-      documentos: documentos.error ? [] : safeArray(documentos),
+      documentos: documentos.error ? [] : safeArray(documentos).filter(isDocumentoCliente),
+      checklist: safeArray(checklist).filter(isChecklistCliente),
     })
     setLoading(false)
   }
@@ -202,7 +264,7 @@ export default function PortalCliente() {
     const profilesPorId = new Map(dados.profiles.map(p => [p.id, p]))
     const ambientesPorId = new Map(dados.ambientes.map(a => [a.id, a]))
     const supervisor = profilesPorId.get(cronograma.supervisor_id || obra.supervisor_id)
-    const posVenda = profilesPorId.get(cronograma.comercial_id || obra.comercial_id)
+    const posVenda = profilesPorId.get(cronograma.pos_venda_id || cronograma.comercial_id || obra.comercial_id)
     const progresso = Math.max(0, Math.min(100, Number(cronograma.percentual_concluido ?? obra.progresso ?? 0)))
     const faseInterna = cronograma.fase || obra.fase_atual || obra.status || ''
     const faseAtualObj = faseOrnarePorKey(faseInterna) || faseOrnarePorTexto(faseInterna) || FASES_ORNARE[0]
@@ -240,6 +302,7 @@ export default function PortalCliente() {
       categorias: [...new Set(dados.fotos.map(f => f.categoria).filter(Boolean))].sort(),
       ambientesPorId,
       documentos: dados.documentos,
+      checklist: dados.checklist,
       mensagens: [
         ...dados.comunicados.map(c => ({ ...c, origem: 'Comunicado' })),
         ...dados.mensagens.map(m => ({ ...m, origem: 'Mensagem' })),
@@ -492,6 +555,7 @@ function HomeObra({ vm }) {
         </div>
       </Card>
       <Timeline faseAtualKey={vm.faseAtualKey} />
+      <ChecklistCliente checklist={vm.checklist} ambientesPorId={vm.ambientesPorId} />
       <Card title="Documentos">
         {vm.documentos.length === 0 ? (
           <Empty icon="document" title="Nenhum documento disponível ainda." />
@@ -506,6 +570,9 @@ function HomeObra({ vm }) {
 }
 
 function Cronograma({ vm }) {
+  if (!vm.cronograma?.visivel_cliente) {
+    return <Empty title="Cronograma em atualização" text="A equipe Ornare liberará novas etapas assim que estiverem confirmadas." />
+  }
   return (
     <div className="pc-stack">
       <Card title="Cronograma liberado">
@@ -515,6 +582,27 @@ function Cronograma({ vm }) {
       </Card>
       <Timeline faseAtualKey={vm.faseAtualKey} />
     </div>
+  )
+}
+
+function ChecklistCliente({ checklist, ambientesPorId }) {
+  if (!checklist.length) {
+    return <Card title="Checklist"><Empty title="Nenhum checklist liberado ainda." text="Itens concluídos e validados aparecerão aqui quando forem liberados pela equipe." /></Card>
+  }
+  return (
+    <Card title="Checklist liberado">
+      <div className="pc-checklist-list">
+        {checklist.map(item => (
+          <div key={item.id} className="pc-checklist-item">
+            <i>✓</i>
+            <div>
+              <strong>{item.descricao}</strong>
+              <small>{ambientesPorId.get(item.ambiente_id)?.nome || item.categoria_ambiente || 'Geral'}</small>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
   )
 }
 
@@ -665,6 +753,7 @@ function Timeline({ faseAtualKey }) {
 }
 
 function Documento({ doc }) {
+  const url = doc.url_arquivo || doc.url || doc.public_url
   return (
     <div className="pc-doc">
       <div>
@@ -673,7 +762,7 @@ function Documento({ doc }) {
       </div>
       <div className="pc-doc-actions">
         <span>{doc.tipo || 'documento'}</span>
-        {doc.url_arquivo ? <a href={doc.url_arquivo} target="_blank" rel="noreferrer">Abrir</a> : <span>Em breve</span>}
+        {url ? <a href={url} target="_blank" rel="noreferrer">Abrir</a> : <span>Em breve</span>}
       </div>
     </div>
   )
@@ -802,6 +891,11 @@ const css = `
 .pc-detail{display:flex;justify-content:space-between;gap:16px;padding:12px 0;border-bottom:1px solid ${THEME.border}}
 .pc-detail:last-child{border-bottom:0}
 .pc-detail strong{text-align:right;color:${THEME.ink};font-size:14px;line-height:1.35}
+.pc-checklist-list{display:grid;gap:10px}
+.pc-checklist-item{display:flex;gap:11px;align-items:flex-start;border:1px solid ${THEME.border};background:${THEME.elevated};border-radius:14px;padding:12px}
+.pc-checklist-item i{width:24px;height:24px;border-radius:999px;background:${THEME.success};color:#fff;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:13px;font-weight:950;flex-shrink:0}
+.pc-checklist-item strong{display:block;color:${THEME.ink};font-size:13.5px;line-height:1.35}
+.pc-checklist-item small{display:block;color:${THEME.muted};font-size:12px;margin-top:3px}
 .pc-timeline{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
 .pc-timeline div{background:${THEME.card};border:1px solid ${THEME.border};border-radius:14px;padding:13px 10px;color:${THEME.soft};font-size:12px;font-weight:900;text-align:center}
 .pc-timeline div.done{color:${THEME.ink};border-color:#D8D0C6;background:#FAF7F1}
@@ -830,20 +924,20 @@ const css = `
 .pc-agenda-status.gold{background:#FBF3E2;color:#9C7838}
 .pc-agenda-status.neutral{background:#F0EDEA;color:${THEME.muted}}
 .pc-agenda-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
-.pc-agenda-actions button{border-radius:10px;padding:9px 11px;font-size:12px;font-weight:900;font-family:inherit;cursor:pointer}
+.pc-agenda-actions button{border-radius:10px;padding:9px 11px;min-height:44px;font-size:12px;font-weight:900;font-family:inherit;cursor:pointer}
 .pc-agenda-actions .confirm{border:1px solid ${THEME.success};background:${THEME.success};color:#fff}
 .pc-agenda-actions .confirm:disabled{opacity:.55;cursor:default}
 .pc-agenda-actions .reschedule{border:1px solid ${THEME.gold};background:${THEME.elevated};color:${THEME.gold}}
 .pc-doc-list{display:grid;gap:10px}
 .pc-doc{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;border:1px solid ${THEME.border};border-radius:14px;padding:14px;background:#FFFBF5}
 .pc-doc-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
-.pc-doc span,.pc-doc a{border:1px solid ${THEME.border};border-radius:999px;padding:6px 10px;font-size:11px;color:${THEME.muted};white-space:nowrap;text-decoration:none;font-weight:900}
+.pc-doc span,.pc-doc a{border:1px solid ${THEME.border};border-radius:999px;padding:6px 10px;min-height:32px;display:inline-flex;align-items:center;font-size:11px;color:${THEME.muted};white-space:nowrap;text-decoration:none;font-weight:900}
 .pc-doc a{background:${THEME.ink};border-color:${THEME.ink};color:#fff}
 .pc-message>span{display:block;color:${THEME.gold};font-size:10px;letter-spacing:1.5px;text-transform:uppercase;font-weight:900;margin-bottom:8px}
 .pc-message p{white-space:pre-wrap}
 .pc-message-composer{position:sticky;bottom:calc(92px + env(safe-area-inset-bottom));background:${THEME.card};border:1px solid ${THEME.border};border-radius:18px;padding:13px;box-shadow:0 18px 42px rgba(29,28,25,.08)}
 .pc-message-composer textarea{background:${THEME.inputBackground};border:1px solid ${THEME.inputBorder};color:${THEME.inputText};border-radius:8px;padding:10px 14px;width:100%;font-size:14px;outline:none;font-family:inherit;resize:vertical;min-height:82px;box-sizing:border-box}
-.pc-message-composer button{margin-top:10px;width:100%;border:0;border-radius:12px;background:${THEME.gold};color:#fff;padding:12px;font-weight:950;font-family:inherit;cursor:pointer}
+.pc-message-composer button{margin-top:10px;width:100%;border:0;border-radius:12px;background:${THEME.gold};color:#fff;padding:12px;min-height:44px;font-weight:950;font-family:inherit;cursor:pointer}
 .pc-message-composer button:disabled{opacity:.55;cursor:default}
 .pc-message-composer span{display:block;margin-top:8px;color:${THEME.muted};font-size:12px;font-weight:800}
 .pc-contact{display:flex;gap:14px;align-items:center}
@@ -852,7 +946,7 @@ const css = `
 .pc-contact strong{display:block;color:${THEME.ink};font-size:15px}
 .pc-contact small{display:block;color:${THEME.muted};font-size:12px;margin-top:4px}
 .pc-contact-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
-.pc-contact-actions button,.pc-contact-actions a{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:10px;padding:9px 12px;font-size:12px;font-weight:800;text-decoration:none;cursor:pointer;font-family:inherit}
+.pc-contact-actions button,.pc-contact-actions a{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:10px;padding:9px 12px;min-height:44px;display:inline-flex;align-items:center;font-size:12px;font-weight:800;text-decoration:none;cursor:pointer;font-family:inherit}
 .pc-empty{text-align:center;background:${THEME.card};border:1px solid ${THEME.border};border-radius:18px;padding:52px 22px;color:${THEME.muted}}
 .pc-empty svg{width:54px;height:54px;margin:0 auto 16px;stroke:${THEME.gold};fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
 .pc-empty strong{display:block;color:${THEME.ink};font-size:15px;margin-bottom:6px}
@@ -864,7 +958,7 @@ const css = `
 .pc-modal-card h2{margin:0;color:${THEME.ink};font-size:22px}
 .pc-modal-card p{margin:8px 0 14px;color:${THEME.muted};font-size:13px}
 .pc-modal-card textarea{background:${THEME.inputBackground};border:1px solid ${THEME.inputBorder};color:${THEME.inputText};border-radius:8px;padding:10px 14px;width:100%;font-size:14px;outline:none;font-family:inherit;resize:vertical;box-sizing:border-box}
-.pc-primary-action{margin-top:12px;width:100%;border:0;border-radius:12px;background:${THEME.gold};color:#fff;padding:12px;font-family:inherit;font-weight:950;cursor:pointer}
+.pc-primary-action{margin-top:12px;width:100%;border:0;border-radius:12px;background:${THEME.gold};color:#fff;padding:12px;min-height:44px;font-family:inherit;font-weight:950;cursor:pointer}
 .pc-preview{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.94);display:flex;align-items:center;justify-content:center;padding:16px;cursor:zoom-out}
 .pc-preview img{max-width:96vw;max-height:92vh;border-radius:10px;object-fit:contain}
 .pc-preview button{position:absolute;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);color:#fff;border-radius:10px;padding:9px 12px;cursor:pointer}

@@ -1417,6 +1417,20 @@ function AbaAgenda({ obraId, agendaDestaque }) {
     ]
   }
 
+  async function alternarAgendaCliente(item) {
+    setErro('')
+    const proximo = !item.visivel_cliente
+    const { error } = await supabase.from('agenda').update({
+      visivel_cliente: proximo,
+      visibilidade: proximo ? 'cliente' : 'interna',
+    }).eq('id', item.id)
+    if (error) {
+      setErro(mensagemErro(error, 'Nao foi possivel atualizar a visibilidade do compromisso.'))
+      return
+    }
+    await carregar()
+  }
+
   if (loading) return <div style={{ color: THEME.muted }}>Carregando...</div>
   const dias = diasCalendario()
   const selecionados = diaSelecionado ? eventosDoDia(diaSelecionado) : []
@@ -1519,7 +1533,12 @@ function AbaAgenda({ obraId, agendaDestaque }) {
               </div>
             )}
           </div>
-          {item.tipo && <span style={{ fontSize: 11, color: THEME.muted, border: `1px solid ${THEME.border}`, borderRadius: 999, padding: '5px 10px' }}>{item.tipo}</span>}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            {item.tipo && <span style={{ fontSize: 11, color: THEME.muted, border: `1px solid ${THEME.border}`, borderRadius: 999, padding: '5px 10px' }}>{item.tipo}</span>}
+            <button type="button" onClick={() => alternarAgendaCliente(item)} style={{ border: `1px solid ${item.visivel_cliente ? THEME.gold : THEME.border}`, background: item.visivel_cliente ? THEME.softGold : THEME.elevated, color: item.visivel_cliente ? THEME.gold : THEME.muted, borderRadius: 9, padding: '9px 12px', minHeight: 44, fontSize: 12, fontWeight: 900, cursor: 'pointer' }}>
+              {item.visivel_cliente ? 'Cliente: visivel' : 'Liberar ao cliente'}
+            </button>
+          </div>
         </div>
       ))}
     </div>
@@ -1540,7 +1559,7 @@ function AbaChecklist({ obraId, checklistDestaque }) {
   async function carregar() {
     const [ambientesResult, checklistResult] = await Promise.all([
       supabase.from('obra_ambientes').select('id, nome, status').eq('obra_id', obraId),
-      supabase.from('checklist_items').select('id, obra_id, ambiente_id, descricao, concluido, concluido_por, concluido_em').eq('obra_id', obraId).order('descricao'),
+      supabase.from('checklist_items').select('*').eq('obra_id', obraId).order('descricao'),
     ])
     const falha = [ambientesResult, checklistResult].find(result => result.error)
     if (falha?.error) setMensagemBiblioteca(mensagemErro(falha.error, 'Nao foi possivel carregar o checklist.'))
@@ -1600,6 +1619,26 @@ function AbaChecklist({ obraId, checklistDestaque }) {
     }
     await carregar()
   }
+
+  async function alternarCliente(item) {
+    setMensagemBiblioteca('')
+    if (!item.concluido && !item.visivel_cliente) {
+      setMensagemBiblioteca('Erro: conclua o item antes de liberar ao cliente.')
+      return
+    }
+    const proximo = !item.visivel_cliente
+    const { error } = await supabase.from('checklist_items').update({
+      visivel_cliente: proximo,
+      visibilidade: proximo ? 'cliente' : 'interna',
+      aprovado_cliente: proximo,
+    }).eq('id', item.id)
+    if (error) {
+      setMensagemBiblioteca('Erro ao atualizar visibilidade do checklist: ' + mensagemErro(error))
+      return
+    }
+    await carregar()
+  }
+
   async function aplicarBiblioteca() {
     setAplicando(true)
     setMensagemBiblioteca('')
@@ -1697,15 +1736,19 @@ function AbaChecklist({ obraId, checklistDestaque }) {
           : ativo.itens.length === 0 ? <div style={{ textAlign: 'center', padding: '36px 0', color: '#bbb' }}>Nenhum item neste ambiente.</div>
           : ativo.itens.map(item => {
             const destaque = checklistDestaque && item.id === checklistDestaque
+            const bloqueadoCliente = !item.concluido && !item.visivel_cliente
             return (
-            <div key={item.id} data-destaque-id={item.id} onClick={() => toggle(item)} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 12px', border: destaque ? `2px solid ${THEME.gold}` : 'none', borderBottom: destaque ? `2px solid ${THEME.gold}` : `1px solid ${THEME.border}`, borderRadius: destaque ? 12 : 0, background: destaque ? THEME.softGold : 'transparent', cursor: 'pointer' }}>
-              <div style={{ width: 22, height: 22, borderRadius: 6, border: '2px solid ' + (item.concluido ? '#5aab6e' : THEME.border), background: item.concluido ? '#5aab6e' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <div key={item.id} data-destaque-id={item.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 12px', border: destaque ? `2px solid ${THEME.gold}` : 'none', borderBottom: destaque ? `2px solid ${THEME.gold}` : `1px solid ${THEME.border}`, borderRadius: destaque ? 12 : 0, background: destaque ? THEME.softGold : 'transparent' }}>
+              <button type="button" onClick={() => toggle(item)} style={{ width: 30, height: 30, borderRadius: 6, border: '2px solid ' + (item.concluido ? '#5aab6e' : THEME.border), background: item.concluido ? '#5aab6e' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer' }} aria-label={item.concluido ? 'Marcar item como pendente' : 'Concluir item'}>
                 {item.concluido && <span style={{ color: '#fff', fontSize: 12, fontWeight: 700 }}>v</span>}
-              </div>
+              </button>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13.5, color: item.concluido ? '#aaa' : THEME.ink, textDecoration: item.concluido ? 'line-through' : 'none', fontWeight: 600 }}>{item.descricao}</div>
                 {item.concluido_em && <div style={{ fontSize: 11, color: THEME.muted, marginTop: 3 }}>Concluído em {new Date(item.concluido_em).toLocaleString('pt-BR')}</div>}
               </div>
+              <button type="button" onClick={() => alternarCliente(item)} disabled={bloqueadoCliente} style={{ border: `1px solid ${item.visivel_cliente ? THEME.gold : THEME.border}`, background: item.visivel_cliente ? THEME.softGold : THEME.elevated, color: item.visivel_cliente ? THEME.gold : THEME.muted, borderRadius: 9, padding: '9px 12px', minHeight: 44, fontSize: 12, fontWeight: 900, cursor: bloqueadoCliente ? 'not-allowed' : 'pointer', opacity: bloqueadoCliente ? 0.55 : 1 }}>
+                {item.visivel_cliente ? 'Cliente: visivel' : 'Liberar ao cliente'}
+              </button>
             </div>
           )})
         }
