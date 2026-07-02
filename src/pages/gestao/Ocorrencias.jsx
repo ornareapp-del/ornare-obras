@@ -307,7 +307,7 @@ const css = `
 `
 
 const s = {
-  page: { padding: '32px 40px', maxWidth: 1000, margin: '0 auto', background: theme.background, color: theme.textPrimary, fontFamily: 'Inter, sans-serif' },
+  page: { width: '100%', padding: '32px 40px', maxWidth: 'none', margin: 0, background: theme.background, color: theme.textPrimary, fontFamily: 'Inter, sans-serif', boxSizing: 'border-box', overflowX: 'hidden' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 18, marginBottom: 24, boxSizing: 'border-box' },
   breadcrumb: { fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6 },
   title: { fontFamily: 'var(--font-serif)', fontSize: 36, fontWeight: 500, color: 'var(--color-ink)', margin: 0 },

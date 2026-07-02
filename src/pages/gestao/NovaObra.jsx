@@ -149,7 +149,7 @@ async function salvar() {
   }
 
   return (
-    <div style={s.page}>
+    <div className="ow-page" style={s.page}>
       <div style={s.header}>
         <button style={s.back} onClick={() => navigate('/obras')}>Obras</button>
         <div>
@@ -356,7 +356,7 @@ function FSelect({ onChange, children, ...props }) {
 // ─── ESTILOS ──────────────────────────────────────────────────────────────────
 
 const s = {
-  page:         { padding: '32px 40px', maxWidth: 800, margin: '0 auto', background: theme.background, color: theme.textPrimary, fontFamily: 'Inter, sans-serif' },
+  page:         { width: '100%', padding: '32px 40px', maxWidth: 'none', margin: 0, background: theme.background, color: theme.textPrimary, fontFamily: 'Inter, sans-serif', boxSizing: 'border-box', overflowX: 'hidden' },
   header:       { marginBottom: 28 },
   back:         { background: 'none', border: 'none', fontSize: 12, color: '#888', cursor: 'pointer', padding: 0, marginBottom: 12 },
   breadcrumb:   { fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6 },

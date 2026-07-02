@@ -379,8 +379,8 @@ export default function ObraDetalhe() {
   const comercialNome = profiles.find(p => p.id === obra.comercial_id)?.full_name || obra.comercial_nome
 
   return (
-    <div style={{ minHeight: '100vh', background: THEME.bg, padding: compacto ? '18px 14px 40px' : '32px 40px 56px' }}>
-      <div style={{ maxWidth: 1180, margin: '0 auto' }}>
+    <div className="ow-page" style={{ minHeight: '100vh', width: '100%', background: THEME.bg, padding: compacto ? '18px 14px 40px' : '32px 40px 56px', boxSizing: 'border-box', overflowX: 'hidden' }}>
+      <div style={{ width: '100%', maxWidth: 'none', margin: 0 }}>
 
       {/* Toast */}
       {toast.msg && (
