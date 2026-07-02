@@ -15,6 +15,7 @@ const THEME = {
   danger: theme.error,
   success: theme.success,
   warn: theme.warning,
+  blue: '#3B5F86',
   elevated: theme.surfaceElevated,
 }
 
@@ -72,6 +73,37 @@ function activityColor(tipo) {
   return THEME.gold
 }
 
+function safeArray(result) {
+  return result?.data || []
+}
+
+function erroConsulta(label, result) {
+  if (!result?.error) return null
+  return `${label}: ${result.error.message || 'falha ao carregar'}`
+}
+
+function isConcluido(status) {
+  return ['concluida', 'concluido', 'finalizada', 'finalizado', 'resolvida', 'resolvido'].includes(normalizar(status))
+}
+
+function isAberto(status) {
+  const atual = normalizar(status || 'aberta')
+  return !isConcluido(atual) && !['fechada', 'fechado', 'cancelada', 'cancelado'].includes(atual)
+}
+
+function fotoPendenteAprovacao(foto) {
+  return !(foto?.aprovada === true && foto?.aprovada_gestao === true)
+}
+
+function rotaObra(obraId, aba, params = {}) {
+  if (!obraId) return ''
+  const query = new URLSearchParams({ aba })
+  Object.entries(params).forEach(([key, value]) => {
+    if (value) query.set(key, value)
+  })
+  return `/obras/${obraId}?${query.toString()}`
+}
+
 export default function DashboardGestao() {
   const navigate = useNavigate()
   const [fluxoAberto, setFluxoAberto] = useState(false)
@@ -89,47 +121,67 @@ export default function DashboardGestao() {
     cronogramas: [],
   })
   const [loading, setLoading] = useState(true)
+  const [erroDados, setErroDados] = useState('')
 
   async function carregar() {
+    setLoading(true)
+    setErroDados('')
     const [
-      { data: obras },
-      { data: agenda },
-      { data: ocorrencias },
-      { data: checkins },
-      { data: fotos },
-      { data: gastos },
-      { data: tarefas },
-      { data: profiles },
-      { data: montadores },
-      { data: checklist },
-      { data: cronogramas },
+      obrasResult,
+      agendaResult,
+      ocorrenciasResult,
+      checkinsResult,
+      fotosResult,
+      gastosResult,
+      tarefasResult,
+      profilesResult,
+      montadoresResult,
+      checklistResult,
+      cronogramasResult,
     ] = await Promise.all([
       supabase.from('obras').select('*').order('created_at', { ascending: false }),
       supabase.from('agenda').select('*, obras(nome)').order('data').order('hora_inicio').limit(80),
       supabase.from('ocorrencias').select('*').order('created_at', { ascending: false }).limit(120),
-      supabase.from('checkins').select('*, profiles(full_name), obras(nome)').order('created_at', { ascending: false }).limit(20),
+      supabase.from('checkins').select('*, profiles(full_name), obras(nome)').order('created_at', { ascending: false }).limit(200),
       supabase.from('fotos').select('*, obras(nome)').order('created_at', { ascending: false }).limit(80),
       supabase.from('gastos').select('*, obras(nome)').order('created_at', { ascending: false }).limit(200),
       supabase.from('tarefas').select('*').order('prazo', { ascending: true }).limit(200),
       supabase.from('profiles').select('id, full_name, email, role'),
       supabase.from('obra_montadores').select('obra_id, montador_id, montador:profiles!obra_montadores_montador_id_fkey(full_name)'),
-      supabase.from('checklist_items').select('id, obra_id, descricao, concluido, concluido_em').limit(300),
+      supabase.from('checklist_items').select('id, obra_id, descricao, concluido, concluido_em').limit(500),
       supabase.from('obra_cronograma').select('id, obra_id, fase, travado, motivo_trava, risco, updated_at').limit(300),
     ])
 
+    const falhas = [
+      erroConsulta('Obras', obrasResult),
+      erroConsulta('Agenda', agendaResult),
+      erroConsulta('Ocorrencias', ocorrenciasResult),
+      erroConsulta('Check-ins', checkinsResult),
+      erroConsulta('Fotos', fotosResult),
+      erroConsulta('Gastos', gastosResult),
+      erroConsulta('Tarefas', tarefasResult),
+      erroConsulta('Perfis', profilesResult),
+      erroConsulta('Montadores alocados', montadoresResult),
+      erroConsulta('Checklist', checklistResult),
+      erroConsulta('Cronograma', cronogramasResult),
+    ].filter(Boolean)
+
+    if (falhas.length > 0) console.error('Falhas ao carregar DashboardGestao:', falhas)
+
     setDados({
-      obras: obras || [],
-      agenda: agenda || [],
-      ocorrencias: ocorrencias || [],
-      checkins: checkins || [],
-      fotos: fotos || [],
-      gastos: gastos || [],
-      tarefas: tarefas || [],
-      profiles: profiles || [],
-      montadores: montadores || [],
-      checklist: checklist || [],
-      cronogramas: cronogramas || [],
+      obras: safeArray(obrasResult),
+      agenda: safeArray(agendaResult),
+      ocorrencias: safeArray(ocorrenciasResult),
+      checkins: safeArray(checkinsResult),
+      fotos: safeArray(fotosResult),
+      gastos: safeArray(gastosResult),
+      tarefas: safeArray(tarefasResult),
+      profiles: safeArray(profilesResult),
+      montadores: safeArray(montadoresResult),
+      checklist: safeArray(checklistResult),
+      cronogramas: safeArray(cronogramasResult),
     })
+    setErroDados(falhas.join(' / '))
     setLoading(false)
   }
 
@@ -144,10 +196,12 @@ export default function DashboardGestao() {
     const em7 = new Date(hoje)
     em7.setDate(em7.getDate() + 7)
     const em7Str = em7.toISOString().split('T')[0]
+    const amanha = new Date(hoje)
+    amanha.setDate(amanha.getDate() + 1)
     const mesAtual = hoje.toISOString().slice(0, 7)
     const ativos = dados.obras.filter(o => !inStatus(o, STATUS.concluidas) && !inStatus(o, STATUS.travadas))
 
-    const ocorrenciasAbertas = dados.ocorrencias.filter(o => ['Aberta', 'aberta', 'Pendente', 'pendente'].includes(o.status || 'Aberta'))
+    const ocorrenciasAbertas = dados.ocorrencias.filter(o => isAberto(o.status))
     const ocorrPorObra = new Map()
     ocorrenciasAbertas.forEach(o => {
       if (!o.obra_id) return
@@ -172,10 +226,24 @@ export default function DashboardGestao() {
       gastosPorObra.set(g.obra_id, (gastosPorObra.get(g.obra_id) || 0) + (parseFloat(g.valor) || 0))
     })
 
-    const tarefasAtrasadas = dados.tarefas.filter(t => t.prazo && t.prazo < hojeStr && t.status !== 'concluida')
+    const checklistPendentes = dados.checklist.filter(i => !i.concluido)
+    const fotosPendentes = dados.fotos.filter(fotoPendenteAprovacao)
+    const naoConformidades = dados.fotos.filter(f => normalizar(f.categoria || f.etapa) === 'nao conformidade')
+    const naoConformidadesPendentes = naoConformidades.filter(fotoPendenteAprovacao)
+    const tarefasAtrasadas = dados.tarefas.filter(t => t.prazo && t.prazo < hojeStr && !isConcluido(t.status))
     const agenda7 = dados.agenda.filter(a => a.data >= hojeStr && a.data <= em7Str)
     const tipoAgenda = termo => agenda7.filter(a => normalizar(a.tipo || a.titulo).includes(termo))
     const gastosMes = dados.gastos.filter(g => (g.data || g.created_at || '').slice(0, 7) === mesAtual)
+    const gastosPendentes = dados.gastos.filter(g => normalizar(g.status || 'pendente').includes('pendente'))
+    const checkinsHoje = dados.checkins.filter(c => {
+      const base = c.entrada || c.created_at
+      if (!base) return false
+      const data = new Date(base)
+      return data >= hoje && data < amanha
+    })
+    const checkinsAbertosHoje = checkinsHoje.filter(c => !c.saida)
+    const montadoresComCheckin = new Set(checkinsHoje.map(c => c.user_id).filter(Boolean))
+    const montadoresEmCampo = new Set(checkinsAbertosHoje.map(c => c.user_id).filter(Boolean))
 
     const saude = ativos.map(obra => {
       const previsao = obra.data_previsao ? new Date(obra.data_previsao + 'T00:00:00') : null
@@ -223,17 +291,20 @@ export default function DashboardGestao() {
       ...dados.gastos.slice(0, 8).map(g => ({ tipo: 'Gasto', texto: g.descricao || 'Gasto lançado', sub: `${g.obras?.nome || obraNome(dados.obras, g.obra_id)} - ${moeda(g.valor)}`, ts: g.created_at })),
     ].sort((a, b) => new Date(b.ts) - new Date(a.ts)).slice(0, 10)
 
+    const pendenciasCriticasExecutivas = [
+      ...ocorrenciasAbertas.slice(0, 3).map(o => ({ id: `oc-${o.id}`, tipo: 'Ocorrencia aberta', titulo: o.titulo || o.descricao || 'Ocorrencia sem titulo', obraId: o.obra_id, detalhe: obraNome(dados.obras, o.obra_id), rota: rotaObra(o.obra_id, 'Ocorrencias', { ocorrencia: o.id }) })),
+      ...checklistPendentes.slice(0, 3).map(i => ({ id: `ck-${i.id}`, tipo: 'Checklist pendente', titulo: i.descricao || 'Checklist pendente', obraId: i.obra_id, detalhe: obraNome(dados.obras, i.obra_id), rota: rotaObra(i.obra_id, 'Checklist', { checklist: i.id }) })),
+      ...tarefasAtrasadas.slice(0, 3).map(t => ({ id: `ta-${t.id}`, tipo: 'Tarefa atrasada', titulo: t.titulo || t.descricao || 'Tarefa atrasada', obraId: t.obra_id, detalhe: obraNome(dados.obras, t.obra_id), rota: t.obra_id ? `/obras/${t.obra_id}` : '' })),
+    ].slice(0, 5)
+
     return {
       hojeStr,
       travadasLista: dados.obras
         .filter(o => inStatus(o, STATUS.travadas) || (ocorrPorObra.get(o.id) || []).some(oc => normalizar(oc.gravidade) === 'alta'))
         .slice(0, 4),
       riscoLista: saude.filter(s => s.atrasada || s.risco).map(s => s.obra).slice(0, 4),
-      pendenciasCriticas: [
-        ...ocorrenciasAbertas.slice(0, 3).map(o => ({ id: `oc-${o.id}`, tipo: 'Ocorrência aberta', titulo: o.titulo || o.descricao || 'Ocorrência sem título', obraId: o.obra_id, detalhe: obraNome(dados.obras, o.obra_id) })),
-        ...tarefasAtrasadas.slice(0, 3).map(t => ({ id: `ta-${t.id}`, tipo: 'Tarefa atrasada', titulo: t.titulo || t.descricao || 'Tarefa atrasada', obraId: t.obra_id, detalhe: obraNome(dados.obras, t.obra_id) })),
-      ].slice(0, 5),
       operacao: {
+        andamento: ativos.length,
         producao: dados.obras.filter(o => inStatus(o, STATUS.producao)).length,
         montagem: dados.obras.filter(o => inStatus(o, STATUS.montagem)).length,
         aguardandoCliente: dados.obras.filter(o => inStatus(o, STATUS.aguardandoCliente)).length,
@@ -249,6 +320,9 @@ export default function DashboardGestao() {
       equipe: {
         supervisores: dados.profiles.filter(p => ['gestao', 'supervisor'].includes(p.role)).length,
         montadores: new Set(dados.montadores.map(m => m.montador_id)).size,
+        checkinsHoje: checkinsHoje.length,
+        montadoresComCheckin: montadoresComCheckin.size,
+        montadoresEmCampo: montadoresEmCampo.size,
         obrasPorSupervisor,
       },
       agenda7: {
@@ -258,16 +332,18 @@ export default function DashboardGestao() {
       },
       pendencias: {
         ocorrenciasAbertas,
-        naoConformidades: dados.fotos.filter(f => normalizar(f.categoria) === 'nao conformidade'),
+        naoConformidades,
         tarefasAtrasadas,
+        checklistPendentes,
       },
       aprovacoes: {
-        fotosPendentes: dados.fotos.filter(f => f.aprovada === false || f.aprovada_gestao === false),
-        fotosCliente: dados.fotos.filter(f => (f.aprovada === false || f.aprovada_gestao === false) && f.visivel_cliente),
-        naoConformidades: dados.fotos.filter(f => normalizar(f.categoria) === 'nao conformidade'),
-        vistoriasPendentes: dados.agenda.filter(a => normalizar(a.tipo || a.titulo).includes('vistoria') && !['realizada', 'concluida', 'concluída'].includes(normalizar(a.status))),
-        gastosPendentes: dados.gastos.filter(g => normalizar(g.status).includes('pendente')),
+        fotosPendentes,
+        fotosCliente: fotosPendentes.filter(f => f.visivel_cliente),
+        naoConformidades,
+        vistoriasPendentes: dados.agenda.filter(a => normalizar(a.tipo || a.titulo).includes('vistoria') && !isConcluido(a.status)),
+        gastosPendentes,
         cronogramasTravados: dados.cronogramas.filter(c => c.travado || normalizar(c.risco) === 'alto'),
+        naoConformidadesPendentes,
       },
       financeiro: {
         totalMes: gastosMes.reduce((s, g) => s + (parseFloat(g.valor) || 0), 0),
@@ -279,17 +355,18 @@ export default function DashboardGestao() {
       atencao,
       atividade,
       obrasOperacionais: ativos.slice(0, 8),
+      pendenciasCriticasExecutivas,
       ocorrPorObra,
     }
   }, [dados])
 
-  const kpis = [
-    { label: 'Em Produção', value: vm.operacao.producao, sub: 'fábrica e preparação', tone: THEME.gold },
-    { label: 'Em Montagem', value: vm.operacao.montagem, sub: 'campo ativo', tone: '#1E3A5F' },
-    { label: 'Aguard. Cliente', value: vm.operacao.aguardandoCliente, sub: 'dependência externa', tone: THEME.warn },
-    { label: 'Aguard. Produção', value: vm.operacao.aguardandoProducao, sub: 'pré-operação', tone: '#6B5B43' },
-    { label: 'Concluídas', value: vm.operacao.concluidas, sub: 'entregues', tone: THEME.success },
-    { label: 'Travadas', value: vm.operacao.travadas, sub: 'ação imediata', tone: THEME.danger },
+  const kpisExecutivos = [
+    { label: 'Em andamento', value: vm.operacao.andamento, sub: 'operacao ativa', tone: THEME.gold },
+    { label: 'Em montagem', value: vm.operacao.montagem, sub: 'campo ativo', tone: THEME.blue },
+    { label: 'Montadores', value: vm.equipe.montadores, sub: `${vm.equipe.montadoresEmCampo} em campo`, tone: THEME.blue },
+    { label: 'Check-ins hoje', value: vm.equipe.checkinsHoje, sub: `${vm.equipe.montadoresComCheckin} montador(es)`, tone: THEME.success },
+    { label: 'Fotos pendentes', value: vm.aprovacoes.fotosPendentes.length, sub: 'aguardando validacao', tone: vm.aprovacoes.fotosPendentes.length ? THEME.warn : THEME.success },
+    { label: 'Travadas', value: vm.operacao.travadas, sub: 'acao imediata', tone: THEME.danger },
   ]
 
   return (
@@ -310,13 +387,15 @@ export default function DashboardGestao() {
         </div>
       </header>
 
+      {erroDados && <div className="dg-load-alert">Parte dos dados nao foi carregada: {erroDados}</div>}
+
       <section className="dg-mobile-home" aria-label="Resumo executivo">
         <button className={vm.operacao.travadas ? 'critical' : ''} onClick={() => navigate('/obras')}>
           <strong>{loading ? '-' : vm.operacao.travadas}</strong>
           <span>travadas</span>
         </button>
-        <button className={vm.pendenciasCriticas.length ? 'warn' : ''} onClick={() => navigate('/ocorrencias')}>
-          <strong>{loading ? '-' : vm.pendenciasCriticas.length}</strong>
+        <button className={vm.pendenciasCriticasExecutivas.length ? 'warn' : ''} onClick={() => navigate('/ocorrencias')}>
+          <strong>{loading ? '-' : vm.pendenciasCriticasExecutivas.length}</strong>
           <span>pendências</span>
         </button>
         <button className={vm.saude.risco ? 'warn' : ''} onClick={() => navigate('/planejamento')}>
@@ -331,7 +410,7 @@ export default function DashboardGestao() {
       </section>
 
       <section className="dg-kpis" aria-label="Indicadores operacionais">
-        {kpis.map(k => <Kpi key={k.label} {...k} loading={loading} />)}
+        {kpisExecutivos.map(k => <Kpi key={k.label} {...k} loading={loading} />)}
       </section>
 
       <section className="dg-priority-board">
@@ -357,8 +436,8 @@ export default function DashboardGestao() {
         </Card>
 
         <Card title="Pendências críticas">
-          {vm.pendenciasCriticas.length === 0 ? <Empty text="Nenhuma pendência crítica." /> : vm.pendenciasCriticas.map(item => (
-            <button className="dg-priority-row compact" key={item.id} onClick={() => item.obraId && navigate(`/obras/${item.obraId}`)}>
+          {vm.pendenciasCriticasExecutivas.length === 0 ? <Empty text="Nenhuma pendência crítica." /> : vm.pendenciasCriticasExecutivas.map(item => (
+            <button className="dg-priority-row compact" key={item.id} disabled={!item.rota && !item.obraId} onClick={() => navigate(item.rota || `/obras/${item.obraId}`)}>
               <i style={{ background: THEME.warn }} />
               <div><strong>{item.titulo}</strong><span>{item.tipo} · {item.detalhe}</span></div>
             </button>
@@ -378,19 +457,19 @@ export default function DashboardGestao() {
       <section className="dg-approval-panel">
         <Card title="Aprovações pendentes" action="Fotos" onAction={() => navigate('/obras')}>
           <div className="dg-approval-grid">
-            <button className={vm.aprovacoes.fotosPendentes.length ? 'warn' : ''} onClick={() => vm.aprovacoes.fotosPendentes[0]?.obra_id && navigate(`/obras/${vm.aprovacoes.fotosPendentes[0].obra_id}?aba=Fotos&foto=${vm.aprovacoes.fotosPendentes[0].id}`)}>
+            <button className={vm.aprovacoes.fotosPendentes.length ? 'warn' : ''} disabled={!vm.aprovacoes.fotosPendentes[0]?.obra_id} onClick={() => navigate(`/obras/${vm.aprovacoes.fotosPendentes[0].obra_id}?aba=Fotos&foto=${vm.aprovacoes.fotosPendentes[0].id}`)}>
               <strong>{loading ? '-' : vm.aprovacoes.fotosPendentes.length}</strong>
               <span>Fotos para aprovar</span>
             </button>
-            <button className={vm.aprovacoes.fotosCliente.length ? 'hot' : ''} onClick={() => vm.aprovacoes.fotosCliente[0]?.obra_id && navigate(`/obras/${vm.aprovacoes.fotosCliente[0].obra_id}?aba=Fotos&foto=${vm.aprovacoes.fotosCliente[0].id}`)}>
+            <button className={vm.aprovacoes.fotosCliente.length ? 'hot' : ''} disabled={!vm.aprovacoes.fotosCliente[0]?.obra_id} onClick={() => navigate(`/obras/${vm.aprovacoes.fotosCliente[0].obra_id}?aba=Fotos&foto=${vm.aprovacoes.fotosCliente[0].id}`)}>
               <strong>{loading ? '-' : vm.aprovacoes.fotosCliente.length}</strong>
               <span>Cliente aguardando</span>
             </button>
-            <button className={vm.aprovacoes.naoConformidades.length ? 'danger' : ''} onClick={() => vm.aprovacoes.naoConformidades[0]?.obra_id && navigate(`/obras/${vm.aprovacoes.naoConformidades[0].obra_id}?aba=Fotos&foto=${vm.aprovacoes.naoConformidades[0].id}`)}>
+            <button className={vm.aprovacoes.naoConformidades.length ? 'danger' : ''} disabled={!vm.aprovacoes.naoConformidades[0]?.obra_id} onClick={() => navigate(`/obras/${vm.aprovacoes.naoConformidades[0].obra_id}?aba=Fotos&foto=${vm.aprovacoes.naoConformidades[0].id}`)}>
               <strong>{loading ? '-' : vm.aprovacoes.naoConformidades.length}</strong>
               <span>Não conformidades</span>
             </button>
-            <button className={vm.aprovacoes.vistoriasPendentes.length ? 'info' : ''} onClick={() => vm.aprovacoes.vistoriasPendentes[0]?.id && navigate(`/agenda?compromisso=${vm.aprovacoes.vistoriasPendentes[0].id}`)}>
+            <button className={vm.aprovacoes.vistoriasPendentes.length ? 'info' : ''} disabled={!vm.aprovacoes.vistoriasPendentes[0]?.id} onClick={() => navigate(`/agenda?compromisso=${vm.aprovacoes.vistoriasPendentes[0].id}`)}>
               <strong>{loading ? '-' : vm.aprovacoes.vistoriasPendentes.length}</strong>
               <span>Vistorias pendentes</span>
             </button>
@@ -398,7 +477,7 @@ export default function DashboardGestao() {
               <strong>{loading ? '-' : vm.aprovacoes.gastosPendentes.length}</strong>
               <span>Gastos pendentes</span>
             </button>
-            <button className={vm.aprovacoes.cronogramasTravados.length ? 'danger' : ''} onClick={() => vm.aprovacoes.cronogramasTravados[0]?.obra_id && navigate(`/obras/${vm.aprovacoes.cronogramasTravados[0].obra_id}?aba=Cronograma&cronograma=${vm.aprovacoes.cronogramasTravados[0].id}`)}>
+            <button className={vm.aprovacoes.cronogramasTravados.length ? 'danger' : ''} disabled={!vm.aprovacoes.cronogramasTravados[0]?.obra_id} onClick={() => navigate(`/obras/${vm.aprovacoes.cronogramasTravados[0].obra_id}?aba=Cronograma&cronograma=${vm.aprovacoes.cronogramasTravados[0].id}`)}>
               <strong>{loading ? '-' : vm.aprovacoes.cronogramasTravados.length}</strong>
               <span>Cronogramas travados</span>
             </button>
@@ -483,8 +562,10 @@ export default function DashboardGestao() {
         <Card title="Equipe">
           <div className="dg-team-kpis">
             <Health label="Supervisores" value={vm.equipe.supervisores} color={THEME.gold} />
-            <Health label="Montadores" value={vm.equipe.montadores} color="#1E3A5F" />
+            <Health label="Montadores" value={vm.equipe.montadores} color={THEME.blue} />
           </div>
+          <MetricLine label="Montadores em campo" value={vm.equipe.montadoresEmCampo} color={THEME.success} />
+          <MetricLine label="Check-ins hoje" value={vm.equipe.checkinsHoje} color={THEME.gold} />
           <div className="dg-mini-list">
             {vm.equipe.obrasPorSupervisor.length === 0 ? <Empty text="Sem obras por supervisor." /> : vm.equipe.obrasPorSupervisor.map(s => (
               <Line key={s.nome} title={s.nome} meta={`${s.total} obra${s.total === 1 ? '' : 's'}`} />
@@ -540,7 +621,8 @@ export default function DashboardGestao() {
           <Card title="Pendências" action="Ocorrências" onAction={() => navigate('/ocorrencias')}>
             <MetricLine label="Ocorrências abertas" value={vm.pendencias.ocorrenciasAbertas.length} color={THEME.danger} />
             <MetricLine label="Não conformidades" value={vm.pendencias.naoConformidades.length} color={THEME.warn} />
-            <MetricLine label="Tarefas atrasadas" value={vm.pendencias.tarefasAtrasadas.length} color="#1E3A5F" />
+            <MetricLine label="Checklist pendente" value={vm.pendencias.checklistPendentes.length} color={THEME.gold} />
+            <MetricLine label="Tarefas atrasadas" value={vm.pendencias.tarefasAtrasadas.length} color={THEME.blue} />
             <div className="dg-mini-list">
               {vm.pendencias.tarefasAtrasadas.slice(0, 4).map(t => <Line key={t.id} title={t.titulo || 'Tarefa atrasada'} meta={obraNome(dados.obras, t.obra_id)} />)}
             </div>
@@ -549,6 +631,7 @@ export default function DashboardGestao() {
           <Card title="Financeiro operacional" action="Gastos" onAction={() => navigate('/gastos')}>
             <div className="dg-money">{moeda(vm.financeiro.totalMes)}</div>
             <div className="dg-muted">{vm.financeiro.gastosMes.length} lançamento{vm.financeiro.gastosMes.length === 1 ? '' : 's'} no mês</div>
+            <MetricLine label="Gastos pendentes" value={vm.aprovacoes.gastosPendentes.length} color={THEME.warn} />
             <div className="dg-mini-list spaced">
               {vm.financeiro.topObras.map(o => <Line key={o.obraId} title={o.nome} meta={moeda(o.total)} />)}
             </div>
@@ -637,14 +720,16 @@ const css = `
 .dg-header h1{font-family:var(--font-serif);font-size:38px;line-height:1.05;font-weight:500;margin:0;color:${THEME.ink}}
 .dg-header p{margin:6px 0 0;font-size:13px;color:${THEME.muted}}
 .dg-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
-.dg-actions button{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:8px;padding:12px 24px;font-size:13px;font-weight:600;cursor:pointer}
+.dg-actions button{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:8px;padding:12px 24px;min-height:44px;font-size:13px;font-weight:600;cursor:pointer}
 .dg-actions .primary{background:${THEME.gold};border-color:${THEME.gold};color:${THEME.bg}}
+.dg-load-alert{max-width:1380px;margin:0 auto 12px;border:1px solid #F0C8C8;background:#FFF7F7;color:${THEME.danger};border-radius:12px;padding:11px 14px;font-size:13px;font-weight:800}
 .dg-mobile-home{display:none}
 .dg-priority-board{max-width:1380px;margin:0 auto 16px;display:grid;grid-template-columns:1.25fr 1fr 1fr 1fr;gap:12px}
 .dg-agenda-mobile{max-width:1380px;margin:0 auto 16px}
 .dg-approval-panel{max-width:1380px;margin:0 auto 16px}
 .dg-approval-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
-.dg-approval-grid button{border:1px solid ${THEME.border};background:${THEME.elevated};border-radius:14px;padding:13px;text-align:left;font-family:inherit;cursor:pointer}
+.dg-approval-grid button{border:1px solid ${THEME.border};background:${THEME.elevated};border-radius:14px;padding:13px;min-height:72px;text-align:left;font-family:inherit;cursor:pointer}
+.dg-approval-grid button:disabled{cursor:not-allowed;opacity:.5}
 .dg-approval-grid button.warn{border-color:#F2C46D;background:#FFFBF0}
 .dg-approval-grid button.hot{border-color:#E07B39;background:#FFF8F0}
 .dg-approval-grid button.danger{border-color:${THEME.danger};background:#FFF5F5}
@@ -652,7 +737,8 @@ const css = `
 .dg-approval-grid strong{display:block;font-size:26px;line-height:1;color:${THEME.ink}}
 .dg-approval-grid span{display:block;font-size:11.5px;color:${THEME.muted};font-weight:900;margin-top:7px}
 .dg-approval-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px}
-.dg-approval-list button{border:1px solid ${THEME.border};background:${THEME.elevated};border-radius:13px;padding:11px;display:flex;gap:10px;text-align:left;font-family:inherit;cursor:pointer}
+.dg-approval-list button{border:1px solid ${THEME.border};background:${THEME.elevated};border-radius:13px;padding:11px;min-height:44px;display:flex;gap:10px;text-align:left;font-family:inherit;cursor:pointer}
+.dg-approval-list button:disabled{cursor:not-allowed;opacity:.5}
 .dg-approval-list i{width:9px;height:9px;border-radius:99px;background:${THEME.warn};margin-top:5px;flex-shrink:0}
 .dg-approval-list i.blue{background:#2563EB}
 .dg-approval-list i.orange{background:${THEME.warn}}
@@ -661,7 +747,8 @@ const css = `
 .dg-approval-list button.danger i{background:${THEME.danger}}
 .dg-approval-list strong{display:block;font-size:13px;color:${THEME.ink};line-height:1.25}
 .dg-approval-list span{display:block;font-size:11.5px;color:${THEME.muted};margin-top:3px}
-.dg-priority-row{width:100%;border:0;background:transparent;border-bottom:1px solid ${THEME.border};padding:11px 0;display:flex;gap:10px;align-items:flex-start;text-align:left;cursor:pointer;font-family:inherit}
+.dg-priority-row{width:100%;border:0;background:transparent;border-bottom:1px solid ${THEME.border};padding:11px 0;min-height:44px;display:flex;gap:10px;align-items:flex-start;text-align:left;cursor:pointer;font-family:inherit}
+.dg-priority-row:disabled{cursor:not-allowed;opacity:.5}
 .dg-priority-row:last-child{border-bottom:0}
 .dg-priority-row i{width:9px;height:9px;border-radius:99px;margin-top:5px;flex-shrink:0}
 .dg-priority-row strong{display:block;font-size:13px;color:${THEME.ink};font-weight:900;line-height:1.25}

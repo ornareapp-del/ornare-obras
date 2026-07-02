@@ -69,6 +69,10 @@ function safeArray(result) {
   return result?.data || []
 }
 
+function fotoPendenteAprovacao(foto) {
+  return !(foto?.aprovada === true && foto?.aprovada_gestao === true)
+}
+
 function erroConsulta(label, result) {
   if (!result?.error) return null
   return `${label}: ${result.error.message || 'falha ao carregar'}`
@@ -241,8 +245,9 @@ export default function DashboardSupervisor() {
     const ocorrenciasCriticas = ocorrenciasAbertas.filter(o => ['alta', 'critica', 'crítica'].includes(norm(o.gravidade || o.prioridade)))
     const checklistPendentes = dados.checklist.filter(i => !i.concluido)
     const checklistConcluidos = dados.checklist.filter(i => i.concluido)
-    const fotosPendentes = dados.fotos.filter(f => f.aprovada === false || f.aprovada_gestao === false)
+    const fotosPendentes = dados.fotos.filter(fotoPendenteAprovacao)
     const fotosNaoConformidade = dados.fotos.filter(f => norm(f.categoria || f.etapa) === 'nao conformidade')
+    const fotosNaoConformidadePendentes = fotosNaoConformidade.filter(fotoPendenteAprovacao)
 
     const agendaSemana = dados.agenda.filter(item => {
       if (!item.data) return false
@@ -443,14 +448,14 @@ export default function DashboardSupervisor() {
       },
       aprovacoes: {
         fotosPendentes,
-        fotosNaoConformidade,
+        fotosNaoConformidade: fotosNaoConformidadePendentes,
         vistoriasPendentes: dados.agenda.filter(a => norm(a.tipo || a.titulo).includes('vistoria') && !['realizada', 'concluida', 'concluída'].includes(norm(a.status))),
         gastosPendentes: dados.gastos.filter(g => norm(g.status).includes('pendente')),
         cronogramasTravados: dados.cronogramas.filter(c => c.travado || norm(c.risco) === 'alto'),
       },
       atalhos: {
         primeiraFotoPendente: fotosPendentes[0],
-        primeiraNaoConformidade: fotosNaoConformidade[0],
+        primeiraNaoConformidade: fotosNaoConformidadePendentes[0] || fotosNaoConformidade[0],
         primeiroChecklistPendente: checklistPendentes[0],
         primeiraOcorrenciaAberta: ocorrenciasAbertas[0],
       },
@@ -618,23 +623,23 @@ export default function DashboardSupervisor() {
       <section className="ds-approval-panel">
         <Card title="Aprovações pendentes">
           <div className="ds-approval-grid">
-            <button className={vm.aprovacoes.fotosPendentes.length ? 'warn' : ''} onClick={() => vm.atalhos.primeiraFotoPendente?.obra_id && abrirObraOperacional(vm.atalhos.primeiraFotoPendente.obra_id, 'Fotos', { foto: vm.atalhos.primeiraFotoPendente.id })}>
+            <button className={vm.aprovacoes.fotosPendentes.length ? 'warn' : ''} onClick={() => vm.atalhos.primeiraFotoPendente?.obra_id ? abrirObraOperacional(vm.atalhos.primeiraFotoPendente.obra_id, 'Fotos', { foto: vm.atalhos.primeiraFotoPendente.id }) : navigate('/obras?filtro=fotos')}>
               <strong>{loading ? '-' : vm.aprovacoes.fotosPendentes.length}</strong>
               <span>Fotos para validar</span>
             </button>
-            <button className={vm.aprovacoes.fotosNaoConformidade.length ? 'danger' : ''} onClick={() => vm.atalhos.primeiraNaoConformidade?.obra_id && abrirObraOperacional(vm.atalhos.primeiraNaoConformidade.obra_id, 'Fotos', { foto: vm.atalhos.primeiraNaoConformidade.id })}>
+            <button className={vm.aprovacoes.fotosNaoConformidade.length ? 'danger' : ''} onClick={() => vm.atalhos.primeiraNaoConformidade?.obra_id ? abrirObraOperacional(vm.atalhos.primeiraNaoConformidade.obra_id, 'Fotos', { foto: vm.atalhos.primeiraNaoConformidade.id }) : navigate('/obras?filtro=nao-conformidade')}>
               <strong>{loading ? '-' : vm.aprovacoes.fotosNaoConformidade.length}</strong>
               <span>Não conformidades</span>
             </button>
-            <button className={vm.aprovacoes.vistoriasPendentes.length ? 'info' : ''} onClick={() => vm.aprovacoes.vistoriasPendentes[0]?.id && navigate(`/agenda?compromisso=${vm.aprovacoes.vistoriasPendentes[0].id}`)}>
+            <button className={vm.aprovacoes.vistoriasPendentes.length ? 'info' : ''} onClick={() => vm.aprovacoes.vistoriasPendentes[0]?.id ? navigate(`/agenda?compromisso=${vm.aprovacoes.vistoriasPendentes[0].id}`) : navigate('/agenda')}>
               <strong>{loading ? '-' : vm.aprovacoes.vistoriasPendentes.length}</strong>
               <span>Vistorias pendentes</span>
             </button>
-            <button className={vm.aprovacoes.gastosPendentes.length ? 'warn' : ''} onClick={() => vm.aprovacoes.gastosPendentes[0]?.obra_id && navigate(`/obras/${vm.aprovacoes.gastosPendentes[0].obra_id}?aba=Gastos&gasto=${vm.aprovacoes.gastosPendentes[0].id}`)}>
+            <button className={vm.aprovacoes.gastosPendentes.length ? 'warn' : ''} onClick={() => vm.aprovacoes.gastosPendentes[0]?.obra_id ? navigate(`/obras/${vm.aprovacoes.gastosPendentes[0].obra_id}?aba=Gastos&gasto=${vm.aprovacoes.gastosPendentes[0].id}`) : navigate('/obras?filtro=gastos')}>
               <strong>{loading ? '-' : vm.aprovacoes.gastosPendentes.length}</strong>
               <span>Gastos pendentes</span>
             </button>
-            <button className={vm.aprovacoes.cronogramasTravados.length ? 'danger' : ''} onClick={() => vm.aprovacoes.cronogramasTravados[0]?.obra_id && navigate(`/obras/${vm.aprovacoes.cronogramasTravados[0].obra_id}?aba=Cronograma&cronograma=${vm.aprovacoes.cronogramasTravados[0].id}`)}>
+            <button className={vm.aprovacoes.cronogramasTravados.length ? 'danger' : ''} onClick={() => vm.aprovacoes.cronogramasTravados[0]?.obra_id ? navigate(`/obras/${vm.aprovacoes.cronogramasTravados[0].obra_id}?aba=Cronograma&cronograma=${vm.aprovacoes.cronogramasTravados[0].id}`) : navigate('/obras?filtro=cronograma')}>
               <strong>{loading ? '-' : vm.aprovacoes.cronogramasTravados.length}</strong>
               <span>Cronogramas travados</span>
             </button>

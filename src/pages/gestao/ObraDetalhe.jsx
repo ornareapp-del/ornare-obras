@@ -72,6 +72,11 @@ const THEME = {
   gold: theme.gold,
   softGold: 'rgba(201,168,76,.16)',
   danger: theme.error,
+  success: theme.success,
+  warning: theme.warning,
+  successBg: theme.statusBg.success,
+  warningBg: theme.statusBg.warning,
+  dangerBg: theme.statusBg.danger,
   elevated: theme.surfaceElevated,
   inputBackground: theme.inputBackground,
   inputBorder: theme.inputBorder,
@@ -108,6 +113,10 @@ function rolarParaDestaque(id) {
   window.setTimeout(() => {
     document.querySelector(`[data-destaque-id="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, 120)
+}
+
+function fotoAprovadaParaCliente(foto) {
+  return Boolean(foto?.aprovada && foto?.aprovada_gestao)
 }
 
 async function criarNotificacoesObra({ obraId, tipo, titulo, descricao, prioridade = 'normal', entidadeTipo, entidadeId, rota, excluirUsuarioId }) {
@@ -2074,11 +2083,17 @@ function AbaFotos({ obraId, fotoDestaque }) {
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [erro, setErro] = useState('')
+  const [mensagem, setMensagem] = useState({ texto: '', tipo: 'ok' })
   const [preview, setPreview] = useState(null)
   const [filtroCategoria, setFiltroCategoria] = useState('')
   const [filtroAmbiente, setFiltroAmbiente] = useState('')
   const [filtroAprovacao, setFiltroAprovacao] = useState('')
   const [formFoto, setFormFoto] = useState({ categoria: '', ambiente_id: '', agenda_id: '', observacao: '', visivel_cliente: false })
+  const mostrarMensagem = (texto, tipo = 'ok') => {
+    setMensagem({ texto, tipo })
+    if (tipo === 'erro') setErro(texto)
+    else setErro('')
+  }
   async function carregar() {
     setErro('')
     const [fotosResult, ambientesResult, vistoriasResult] = await Promise.all([
@@ -2101,12 +2116,13 @@ function AbaFotos({ obraId, fotoDestaque }) {
   async function handleUpload(e) {
     const file = e.target.files[0]; if (!file) return
     if (!formFoto.categoria) {
-      window.alert('Selecione uma categoria antes de enviar a foto.')
+      mostrarMensagem('Selecione uma categoria antes de enviar a foto.', 'erro')
       e.target.value = ''
       return
     }
     setUploading(true)
     setErro('')
+    setMensagem({ texto: 'Enviando foto...', tipo: 'info' })
     const ext = file.name.split('.').pop()
     const path = obraId + '/' + Date.now() + '.' + ext
     const { error: upErr } = await supabase.storage.from('fotos-obras').upload(path, file)
@@ -2121,10 +2137,10 @@ function AbaFotos({ obraId, fotoDestaque }) {
           ambiente_id: formFoto.ambiente_id || null,
           agenda_id: formFoto.agenda_id || null,
           observacao: formFoto.observacao || file.name,
-          visivel_cliente: formFoto.visivel_cliente,
+          visivel_cliente: false,
           aprovada: false,
           aprovada_gestao: false,
-          visibilidade: formFoto.visivel_cliente ? 'cliente' : 'interna',
+          visibilidade: 'interna',
         }])
       if (insertError) {
         setErro(mensagemErro(insertError, 'A foto foi enviada, mas não foi vinculada à obra.'))
@@ -2133,16 +2149,20 @@ function AbaFotos({ obraId, fotoDestaque }) {
       }
       setFormFoto({ categoria: '', ambiente_id: '', agenda_id: '', observacao: '', visivel_cliente: false })
       await carregar()
+      mostrarMensagem('Foto enviada e aguardando aprovacao antes de liberar ao cliente.', 'ok')
     }
     setUploading(false); e.target.value = ''
   }
   async function aprovar(foto) {
     const aprovado = !foto.aprovada
     setErro('')
+    setMensagem({ texto: aprovado ? 'Aprovando foto...' : 'Movendo foto para revisao...', tipo: 'info' })
     const { error } = await supabase.from('fotos').update({
       aprovada: aprovado,
       aprovada_gestao: aprovado,
       aprovada_por: aprovado ? user?.id : null,
+      aprovada_em: aprovado ? new Date().toISOString() : null,
+      ...(!aprovado ? { visivel_cliente: false, visibilidade: 'interna' } : {}),
     }).eq('id', foto.id)
     if (error) {
       setErro(mensagemErro(error, 'Não foi possível atualizar a aprovação da foto.'))
@@ -2160,9 +2180,15 @@ function AbaFotos({ obraId, fotoDestaque }) {
       excluirUsuarioId: user?.id,
     })
     await carregar()
+    mostrarMensagem(aprovado ? 'Foto aprovada. Agora ela pode ser liberada ao cliente.' : 'Foto voltou para revisao e foi ocultada do cliente.', 'ok')
   }
   async function alternarCliente(foto) {
     setErro('')
+    if (!foto.visivel_cliente && !fotoAprovadaParaCliente(foto)) {
+      mostrarMensagem('Aprove a foto antes de liberar a visibilidade para o cliente.', 'erro')
+      return
+    }
+    setMensagem({ texto: foto.visivel_cliente ? 'Ocultando foto do cliente...' : 'Liberando foto para o cliente...', tipo: 'info' })
     const { error } = await supabase.from('fotos').update({
       visivel_cliente: !foto.visivel_cliente,
       visibilidade: !foto.visivel_cliente ? 'cliente' : 'interna',
@@ -2172,15 +2198,18 @@ function AbaFotos({ obraId, fotoDestaque }) {
       return
     }
     await carregar()
+    mostrarMensagem(foto.visivel_cliente ? 'Foto ocultada do cliente.' : 'Foto liberada no portal do cliente.', 'ok')
   }
   async function deletar(foto) {
     setErro('')
+    setMensagem({ texto: 'Excluindo foto...', tipo: 'info' })
     const { error } = await supabase.from('fotos').delete().eq('id', foto.id)
     if (error) {
       setErro(mensagemErro(error, 'Não foi possível excluir a foto.'))
       return
     }
     await carregar()
+    mostrarMensagem('Foto excluida da obra.', 'ok')
   }
   const ambienteNome = ambienteId => ambientes.find(a => a.id === ambienteId)?.nome || 'Sem ambiente'
   const filtradas = fotos.filter(f => {
@@ -2221,12 +2250,12 @@ function AbaFotos({ obraId, fotoDestaque }) {
             <input type="checkbox" checked={formFoto.visivel_cliente} onChange={e => setFormFoto(p => ({ ...p, visivel_cliente: e.target.checked }))} />
             Visível ao cliente após aprovação
           </label>
-          <label style={{ background: formFoto.categoria ? THEME.ink : '#bbb', color: '#fff', borderRadius: 9, padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: formFoto.categoria ? 'pointer' : 'not-allowed' }}>
+          <label style={{ background: formFoto.categoria ? THEME.ink : THEME.muted, color: theme.textOnAccent, borderRadius: 9, padding: '10px 18px', minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', fontSize: 13, fontWeight: 700, cursor: formFoto.categoria ? 'pointer' : 'not-allowed' }}>
             {uploading ? 'Enviando...' : 'Selecionar e enviar'}
             <input type="file" accept="image/*" onChange={handleUpload} style={{ display: 'none' }} disabled={uploading || !formFoto.categoria} />
           </label>
         </div>
-        {erro && <div style={{ color: THEME.danger, fontSize: 12, fontWeight: 700, marginTop: 10 }}>{erro}</div>}
+        {(mensagem.texto || erro) && <div style={{ color: (mensagem.tipo === 'erro' || erro) ? THEME.danger : mensagem.tipo === 'info' ? THEME.warning : THEME.success, background: (mensagem.tipo === 'erro' || erro) ? THEME.dangerBg : mensagem.tipo === 'info' ? THEME.warningBg : THEME.successBg, border: `1px solid ${(mensagem.tipo === 'erro' || erro) ? THEME.danger : mensagem.tipo === 'info' ? THEME.warning : THEME.success}`, borderRadius: 10, padding: '10px 12px', fontSize: 12, fontWeight: 800, marginTop: 10 }}>{erro || mensagem.texto}</div>}
       </Card>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, margin: '18px 0' }}>
@@ -2244,16 +2273,17 @@ function AbaFotos({ obraId, fotoDestaque }) {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14 }}>
               {grupo.fotos.map(foto => {
                 const destaque = fotoDestaque && foto.id === fotoDestaque
+                const liberavelCliente = fotoAprovadaParaCliente(foto)
                 return (
-                <div key={foto.id} data-destaque-id={foto.id} style={{ background: destaque ? '#FFFBF2' : THEME.card, border: destaque ? `2px solid ${THEME.gold}` : `1px solid ${THEME.border}`, borderRadius: 14, overflow: 'hidden', boxShadow: destaque ? '0 14px 34px rgba(184,150,94,.18)' : 'none' }}>
-                  <div onClick={() => foto.publicUrl && setPreview(foto.publicUrl)} style={{ cursor: 'zoom-in', height: 170, overflow: 'hidden', background: '#f5f5f5' }}>{foto.publicUrl && <img src={foto.publicUrl} alt={foto.observacao || foto.categoria} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}</div>
+                <div key={foto.id} data-destaque-id={foto.id} style={{ background: destaque ? theme.app.surfaceWarm : THEME.card, border: destaque ? `2px solid ${THEME.gold}` : `1px solid ${THEME.border}`, borderRadius: 14, overflow: 'hidden', boxShadow: destaque ? '0 14px 34px rgba(184,150,94,.18)' : 'none' }}>
+                  <div onClick={() => foto.publicUrl && setPreview(foto.publicUrl)} style={{ cursor: 'zoom-in', height: 170, overflow: 'hidden', background: THEME.elevated }}>{foto.publicUrl && <img src={foto.publicUrl} alt={foto.observacao || foto.categoria} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}</div>
                   <div style={{ padding: 12 }}>
                     <div style={{ fontSize: 12, color: THEME.ink, fontWeight: 700, marginBottom: 4 }}>{ambienteNome(foto.ambiente_id)}</div>
                     <div style={{ fontSize: 11, color: THEME.muted, marginBottom: 8, minHeight: 16 }}>{foto.observacao || 'Sem observação'}</div>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      <button onClick={() => aprovar(foto)} style={{ flex: '1 1 90px', padding: '7px 0', borderRadius: 7, border: 'none', fontSize: 11, cursor: 'pointer', background: foto.aprovada ? '#edf7f0' : '#f5f5f5', color: foto.aprovada ? '#3a7d4f' : '#888', fontWeight: 700 }}>{foto.aprovada ? 'Aprovada' : 'Aprovar'}</button>
-                      <button onClick={() => alternarCliente(foto)} style={{ flex: '1 1 90px', padding: '7px 0', borderRadius: 7, border: 'none', fontSize: 11, cursor: 'pointer', background: foto.visivel_cliente ? THEME.softGold : '#f5f5f5', color: foto.visivel_cliente ? THEME.gold : '#888', fontWeight: 700 }}>Cliente</button>
-                      <button onClick={() => deletar(foto)} style={{ padding: '7px 10px', borderRadius: 7, border: 'none', fontSize: 11, cursor: 'pointer', background: '#fdecea', color: '#a03030' }}>X</button>
+                      <button onClick={() => aprovar(foto)} style={{ flex: '1 1 90px', minHeight: 44, padding: '8px 10px', borderRadius: 7, border: 'none', fontSize: 11, cursor: 'pointer', background: foto.aprovada ? THEME.successBg : THEME.elevated, color: foto.aprovada ? THEME.success : THEME.muted, fontWeight: 700 }}>{foto.aprovada ? 'Aprovada' : 'Aprovar'}</button>
+                      <button onClick={() => alternarCliente(foto)} style={{ flex: '1 1 90px', minHeight: 44, padding: '8px 10px', borderRadius: 7, border: 'none', fontSize: 11, cursor: liberavelCliente || foto.visivel_cliente ? 'pointer' : 'not-allowed', background: foto.visivel_cliente ? THEME.softGold : THEME.elevated, color: foto.visivel_cliente ? THEME.gold : THEME.muted, fontWeight: 700 }}>Cliente</button>
+                      <button onClick={() => deletar(foto)} style={{ padding: '8px 12px', minHeight: 44, borderRadius: 7, border: 'none', fontSize: 11, cursor: 'pointer', background: THEME.dangerBg, color: THEME.danger, fontWeight: 900 }}>X</button>
                     </div>
                   </div>
                 </div>
