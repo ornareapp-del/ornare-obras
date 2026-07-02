@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { theme } from '../../constants/theme'
+import { criarNotificacoes } from '../../services/notificacoesService'
 
 const TIPOS = ['Apresentação','Assistência Técnica','Compromisso','Entrega','Medição','Montagem','Tarefa','Vistoria','Reunião Interna']
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
@@ -452,7 +453,7 @@ export default function Agenda() {
     }))
 
     if (registros.length) {
-      const { error } = await supabase.from('notificacoes').insert(registros)
+      const { error } = await criarNotificacoes(registros)
       if (error) setAcaoStatus('Compromisso salvo, mas não foi possível notificar a equipe: ' + error.message)
     }
   }
@@ -658,7 +659,7 @@ export default function Agenda() {
           <div style={s.modal}>
             <div style={s.modalHeader}>
               <h2 style={s.modalTitle}>{editandoId ? 'Detalhe do compromisso' : 'Novo Evento'}</h2>
-              <button style={s.btnClose} onClick={() => setModal(false)}>X</button>
+              <button style={s.btnClose} onClick={() => setModal(false)} aria-label="Fechar evento">X</button>
             </div>
             <div style={s.modalBody}>
               <div style={{ ...s.modalSummary, borderLeftColor: corTipoForm }}>
@@ -949,7 +950,7 @@ export default function Agenda() {
                     {ev.data_fim && ev.data_fim !== ev.data && <span>Até {new Date(ev.data_fim + 'T00:00:00').toLocaleDateString('pt-BR')}</span>}
                   </div>
                 </div>
-                <button onClick={e => { e.stopPropagation(); excluir(ev.id) }} style={s.btnExcluir}>X</button>
+                <button onClick={e => { e.stopPropagation(); excluir(ev.id) }} style={s.btnExcluir} aria-label="Excluir evento">X</button>
               </div>
             )
           })}

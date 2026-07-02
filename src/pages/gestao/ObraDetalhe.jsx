@@ -5,6 +5,7 @@ import { useStore } from '../../store/useStore'
 import { tarefasService } from '../../services/tarefasService'
 import { aplicarBibliotecaChecklist } from '../../services/checklistService'
 import { exportarRelatorioObra } from '../../services/pdfService'
+import { criarNotificacoes } from '../../services/notificacoesService'
 import { progressBarStyle, progressFillStyle, statusBadgeBaseStyle } from '../../utils/ui'
 import { FASES_ORNARE, faseOrnarePorKey, faseOrnarePorTexto, indiceFaseOrnare } from '../../constants/fasesOrnare'
 import { theme } from '../../constants/theme'
@@ -153,7 +154,7 @@ async function criarNotificacoesObra({ obraId, tipo, titulo, descricao, priorida
     }))
 
     if (registros.length) {
-      const { error } = await supabase.from('notificacoes').insert(registros)
+      const { error } = await criarNotificacoes(registros)
       if (error) console.error('Erro ao criar notificações da obra:', error)
     }
   } catch (error) {
@@ -363,14 +364,17 @@ export default function ObraDetalhe() {
   }
 
   async function gerarPdf() {
+    if (exportandoPdf) return
     setExportandoPdf(true)
+    mostrarToast('Gerando PDF...', 'info')
     try {
       await exportarRelatorioObra(id, tipoPdf)
       mostrarToast('PDF gerado com sucesso.')
     } catch (error) {
-      mostrarToast('Erro ao gerar PDF: ' + (error.message || 'falha inesperada'), 'erro')
+      mostrarToast(error?.message || 'Não foi possível gerar o PDF.', 'erro')
+    } finally {
+      setExportandoPdf(false)
     }
-    setExportandoPdf(false)
   }
 
   if (loading) return <div style={{ minHeight: '100vh', padding: 60, color: THEME.muted, textAlign: 'center', background: THEME.bg }}>Carregando...</div>
@@ -422,8 +426,8 @@ export default function ObraDetalhe() {
                 <option value="operacional">Operacional</option>
                 <option value="cliente">Cliente</option>
               </select>
-              <button onClick={gerarPdf} disabled={exportandoPdf} style={acaoBtn(false)}>
-                {exportandoPdf ? 'Gerando...' : 'Exportar PDF'}
+              <button onClick={gerarPdf} disabled={exportandoPdf} style={{ ...acaoBtn(false), minHeight: 44, cursor: exportandoPdf ? 'not-allowed' : 'pointer', opacity: exportandoPdf ? 0.65 : 1 }}>
+                {exportandoPdf ? 'Gerando PDF...' : 'Exportar PDF'}
               </button>
               <button onClick={() => { setEditando(!editando); setFormObra(obra) }} style={acaoBtn(true, editando)}>
                 {editando ? 'Cancelar edição' : 'Editar'}
@@ -1886,6 +1890,7 @@ function AbaOcorrencias({ obraId, ocorrenciaDestaque }) {
 }
 
 function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
+  const { user } = useStore()
   const CATS_G = [
     { value: 'combustivel', label: 'Combustível', emoji: '⛽', cor: '#E8A020' },
     { value: 'pedagio',     label: 'Pedágio',     emoji: '🛣️', cor: '#9070C0' },
@@ -2024,6 +2029,19 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
         }
         if (error) throw error
         if (!ins?.id) throw new Error('Gasto registrado sem identificador para anexar comprovante.')
+        if (precisaAprovacao) {
+          await criarNotificacoesObra({
+            obraId,
+            tipo: 'gasto_pendente',
+            titulo: 'Gasto pendente de aprovacao',
+            descricao: `${form.descricao.trim()} - R$ ${vNum.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+            prioridade: 'media',
+            entidadeTipo: 'gastos',
+            entidadeId: ins.id,
+            rota: `/obras/${obraId}?aba=Gastos&gasto=${ins.id}`,
+            excluirUsuarioId: user?.id,
+          })
+        }
         if (arquivo) {
           setAcaoGasto('Enviando comprovante...')
           const anexo = await anexarComprovante(ins.id, arquivo, ins.observacao || form.observacao || '')
@@ -2083,6 +2101,22 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
       }
       return
     }
+    if (gasto.responsavel_id && gasto.responsavel_id !== user?.id) {
+      const aprovado = status === 'aprovado'
+      const notificacao = await criarNotificacoes([{
+        usuario_id: gasto.responsavel_id,
+        obra_id: obraId,
+        tipo: aprovado ? 'gasto_aprovado' : 'gasto_recusado',
+        titulo: aprovado ? 'Gasto aprovado' : 'Gasto recusado',
+        descricao: `${gasto.descricao || 'Gasto'} - R$ ${valorSeguro(gasto.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+        prioridade: aprovado ? 'normal' : 'media',
+        status: 'nao_lida',
+        rota: `/obras/${obraId}?aba=Gastos&gasto=${gasto.id}`,
+        entidade_tipo: 'gastos',
+        entidade_id: gasto.id,
+      }])
+      if (notificacao.error) console.error('Erro ao notificar status do gasto:', notificacao.error)
+    }
     await carregar()
   }
 
@@ -2105,7 +2139,7 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
           <div style={msG.box}>
             <div style={msG.header}>
               <h2 style={msG.title}>{gastoEdit ? 'Editar Gasto' : 'Novo Gasto'}</h2>
-              <button style={msG.close} onClick={fechar}>✕</button>
+              <button style={msG.close} onClick={fechar} aria-label="Fechar gasto">✕</button>
             </div>
             <div style={msG.body}>
               {erro && <div style={{ background: '#fceee9', borderLeft: '3px solid #c4421e', color: '#5c2010', padding: '10px 14px', borderRadius: 6, fontSize: 12, marginBottom: 16 }}>{erro}</div>}
@@ -2237,8 +2271,35 @@ function AbaChat({ obraId }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { carregar() }, [])
   async function carregar() {
-    const { data } = await supabase.from('mensagens_obra').select('*, autor:profiles(full_name, role)').eq('obra_id', obraId).order('created_at', { ascending: true })
-    setMensagens(data || []); setLoading(false)
+    setErro('')
+    const { data, error } = await supabase
+      .from('mensagens_obra')
+      .select('*')
+      .eq('obra_id', obraId)
+      .order('created_at', { ascending: true })
+
+    if (error) {
+      setErro(mensagemErro(error, 'Não foi possível carregar as mensagens.'))
+      setMensagens([])
+      setLoading(false)
+      return
+    }
+
+    const autoresIds = [...new Set((data || []).map(mensagem => mensagem.user_id).filter(Boolean))]
+    const profilesResult = autoresIds.length
+      ? await supabase.from('profiles').select('id, full_name, role').in('id', autoresIds)
+      : { data: [], error: null }
+
+    if (profilesResult.error) {
+      setErro(mensagemErro(profilesResult.error, 'Mensagens carregadas sem dados dos autores.'))
+    }
+
+    const profilesPorId = new Map((profilesResult.data || []).map(profile => [profile.id, profile]))
+    setMensagens((data || []).map(mensagem => ({
+      ...mensagem,
+      autor: profilesPorId.get(mensagem.user_id) || null,
+    })))
+    setLoading(false)
   }
   async function enviar() {
     if (!texto.trim()) return
@@ -2343,7 +2404,7 @@ function AbaFotos({ obraId, fotoDestaque }) {
     if (upErr) {
       setErro(mensagemErro(upErr, 'Não foi possível enviar a foto.'))
     } else {
-      const { error: insertError } = await supabase.from('fotos').insert([{
+      const { data: fotoCriada, error: insertError } = await supabase.from('fotos').insert([{
           obra_id: obraId,
           enviada_por: user?.id || null,
           storage_path: path,
@@ -2355,12 +2416,23 @@ function AbaFotos({ obraId, fotoDestaque }) {
           aprovada: false,
           aprovada_gestao: false,
           visibilidade: formFoto.visivel_cliente ? 'cliente' : 'interna',
-        }])
+        }]).select('id, categoria, observacao').single()
       if (insertError) {
         setErro(mensagemErro(insertError, 'A foto foi enviada, mas não foi vinculada à obra.'))
         setUploading(false); e.target.value = ''
         return
       }
+      await criarNotificacoesObra({
+        obraId,
+        tipo: 'foto_pendente',
+        titulo: 'Foto pendente de aprovacao',
+        descricao: [fotoCriada?.categoria || formFoto.categoria || 'Foto', fotoCriada?.observacao || formFoto.observacao].filter(Boolean).join(' - '),
+        prioridade: 'media',
+        entidadeTipo: 'fotos',
+        entidadeId: fotoCriada?.id,
+        rota: `/obras/${obraId}?aba=Fotos${fotoCriada?.id ? `&foto=${fotoCriada.id}` : ''}`,
+        excluirUsuarioId: user?.id,
+      })
       setFormFoto({ categoria: '', ambiente_id: '', agenda_id: '', observacao: '', visivel_cliente: false })
       await carregar()
       mostrarMensagem('Foto enviada e aguardando aprovacao antes de liberar ao cliente.', 'ok')
@@ -2530,13 +2602,22 @@ function AbaHistorico({ obraId }) {
   async function carregar() {
     setErro('')
     const [historicoResult, checkinsResult] = await Promise.all([
-      supabase.from('historico_obra').select('*, profiles(full_name)').eq('obra_id', obraId).order('created_at', { ascending: false }),
+      supabase.from('historico_obra').select('*').eq('obra_id', obraId).order('created_at', { ascending: false }),
       supabase.from('checkins').select('id, user_id, entrada, saida, created_at').eq('obra_id', obraId).order('created_at', { ascending: false }),
     ])
     const falha = [historicoResult, checkinsResult].find(result => result.error)
     if (falha?.error) setErro(mensagemErro(falha.error, 'Nao foi possivel carregar todo o historico da obra.'))
+    const profileIds = [...new Set((historicoResult.data || [])
+      .map(item => item.user_id || item.profile_id || item.usuario_id)
+      .filter(Boolean))]
+    const profilesResult = profileIds.length
+      ? await supabase.from('profiles').select('id, full_name').in('id', profileIds)
+      : { data: [], error: null }
+    if (profilesResult.error) setErro(mensagemErro(profilesResult.error, 'Historico carregado sem dados dos autores.'))
+    const profilesPorId = new Map((profilesResult.data || []).map(profile => [profile.id, profile]))
     const historicoLinhas = (historicoResult.data || []).map(item => ({
       ...item,
+      profiles: profilesPorId.get(item.user_id || item.profile_id || item.usuario_id) || null,
       tipoLinha: 'Historico',
       dataLinha: item.created_at,
       tituloLinha: item.descricao || item.acao || 'Registro',
@@ -2673,7 +2754,7 @@ function AbaCliente({ obraId }) {
                 <div style={{ fontSize: 13, color: 'var(--color-ink-muted)', lineHeight: 1.5 }}>{c.mensagem}</div>
                 <div style={{ fontSize: 11, color: '#bbb', marginTop: 6 }}>{new Date(c.created_at).toLocaleDateString('pt-BR')}</div>
               </div>
-              <button onClick={() => deletarComunicado(c.id)} style={{ background: 'none', border: 'none', color: '#ccc', cursor: 'pointer', fontSize: 16, padding: 4, alignSelf: 'flex-start' }}>X</button>
+              <button onClick={() => deletarComunicado(c.id)} style={{ background: 'none', border: 'none', color: '#ccc', cursor: 'pointer', fontSize: 16, padding: 4, alignSelf: 'flex-start' }} aria-label="Excluir comunicado">X</button>
             </div>
           ))
         }
@@ -2724,7 +2805,7 @@ function AbaEquipeObra({ obraId }) {
     return error?.message || error?.details || fallback
   }
   async function notificarMontadorAlocado(montadorId) {
-    const { error } = await supabase.from('notificacoes').insert([{
+    const { error } = await criarNotificacoes([{
       usuario_id: montadorId,
       obra_id: obraId,
       tipo: 'obra_alocada',

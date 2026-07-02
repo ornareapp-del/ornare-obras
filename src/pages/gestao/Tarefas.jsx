@@ -23,10 +23,22 @@ export default function Tarefas() {
   const [tarefas, setTarefas] = useState([])
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState('todas')
+  const [erro, setErro] = useState('')
   const tarefaDestaque = new URLSearchParams(location.search).get('tarefa')
 
   async function carregar() {
-    const { data } = await supabase.from('tarefas').select('*, obras(nome), responsavel:profiles(full_name)').order('created_at', { ascending: false })
+    setErro('')
+    const { data, error } = await supabase
+      .from('tarefas')
+      .select('*, obras(nome), responsavel:profiles!tarefas_responsavel_id_fkey(full_name)')
+      .order('created_at', { ascending: false })
+    if (error) {
+      console.error('Erro ao carregar tarefas:', error)
+      setErro(error.message || 'Não foi possível carregar as tarefas.')
+      setTarefas([])
+      setLoading(false)
+      return
+    }
     setTarefas(data || [])
     setLoading(false)
   }
@@ -43,7 +55,13 @@ export default function Tarefas() {
   }, [tarefaDestaque, loading])
 
   async function mudarStatus(id, status) {
-    await supabase.from('tarefas').update({ status }).eq('id', id)
+    setErro('')
+    const { error } = await supabase.from('tarefas').update({ status }).eq('id', id)
+    if (error) {
+      console.error('Erro ao atualizar tarefa:', error)
+      setErro(error.message || 'Não foi possível atualizar a tarefa.')
+      return
+    }
     await carregar()
   }
 
@@ -56,6 +74,8 @@ export default function Tarefas() {
         title="Tarefas"
         subtitle={`${tarefas.length} tarefa${tarefas.length !== 1 ? 's' : ''} no total`}
       />
+
+      {erro && <div style={s.errorBox}>{erro}</div>}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 28 }}>
         {Object.entries(ST).map(([key, status]) => (
@@ -134,4 +154,17 @@ export default function Tarefas() {
       })}
     </div>
   )
+}
+
+const s = {
+  errorBox: {
+    background: theme.statusBg.danger,
+    border: `1px solid ${theme.error}`,
+    color: theme.error,
+    borderRadius: 10,
+    padding: '10px 12px',
+    fontSize: 12.5,
+    fontWeight: 800,
+    marginBottom: 14,
+  },
 }

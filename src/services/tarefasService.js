@@ -6,7 +6,7 @@ export const tarefasService = {
       .from('tarefas')
       .select(`
         *,
-        responsavel:profiles(id, full_name, email)
+        responsavel:profiles!tarefas_responsavel_id_fkey(id, full_name, email)
       `)
       .eq('obra_id', obraId)
       .order('created_at', { ascending: false })

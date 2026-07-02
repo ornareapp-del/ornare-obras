@@ -52,11 +52,24 @@ export default function NovaObra() {
   })
 
   useEffect(() => {
-    supabase.from('profiles')
-      .select('id, full_name, role')
-      .in('role', ['gestao', 'supervisor', 'vendedor'])
-      .order('full_name')
-      .then(({ data }) => setSupervisores(data || []))
+    let ativo = true
+    async function carregarSupervisores() {
+      const { data, error } = await supabase.from('profiles')
+        .select('id, full_name, role')
+        .in('role', ['gestao', 'supervisor', 'vendedor'])
+        .order('full_name')
+
+      if (!ativo) return
+      if (error) {
+        console.error('Erro ao carregar equipe para nova obra:', error)
+        setErro('Nao foi possivel carregar a lista de responsaveis. Voce ainda pode salvar a obra sem responsavel.')
+        setSupervisores([])
+        return
+      }
+      setSupervisores(data || [])
+    }
+    carregarSupervisores()
+    return () => { ativo = false }
   }, [])
 
   function set(k, v) { setForm(p => ({ ...p, [k]: v })) }
@@ -136,13 +149,28 @@ async function salvar() {
 
     // ── ambientes
     if (ambientesSel.length > 0) {
-      await supabase.from('obra_ambientes').insert(
+      const { error: ambientesError } = await supabase.from('obra_ambientes').insert(
         ambientesSel.map((nome, i) => ({ obra_id: data.id, nome, ordem: i, status: 'nao_iniciado' }))
       )
+      if (ambientesError) {
+        console.error('Erro ao criar ambientes da obra:', ambientesError)
+        setErro('Obra criada, mas nao foi possivel configurar os ambientes. Revise a obra criada.')
+        setSalvando(false)
+        navigate(`/obras/${data.id}`)
+        return
+      }
     }
 
     // ── copiar checklist padrao automaticamente
-    await copiarChecklistPadrao(data.id)
+    try {
+      await copiarChecklistPadrao(data.id)
+    } catch (checklistError) {
+      console.error('Erro ao copiar checklist padrao:', checklistError)
+      setErro('Obra criada, mas nao foi possivel copiar o checklist padrao. Revise a obra criada.')
+      setSalvando(false)
+      navigate(`/obras/${data.id}`)
+      return
+    }
 
     setSalvando(false)
     navigate(`/obras/${data.id}`)

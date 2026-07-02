@@ -330,7 +330,7 @@ export default function DashboardGestao() {
     const pendenciasCriticasExecutivas = [
       ...ocorrenciasAbertas.slice(0, 3).map(o => ({ id: `oc-${o.id}`, tipo: 'Ocorrencia aberta', titulo: o.titulo || o.descricao || 'Ocorrencia sem titulo', obraId: o.obra_id, detalhe: obraNome(dados.obras, o.obra_id), rota: rotaObra(o.obra_id, 'Ocorrencias', { ocorrencia: o.id }) })),
       ...checklistPendentes.slice(0, 3).map(i => ({ id: `ck-${i.id}`, tipo: 'Checklist pendente', titulo: i.descricao || 'Checklist pendente', obraId: i.obra_id, detalhe: obraNome(dados.obras, i.obra_id), rota: rotaObra(i.obra_id, 'Checklist', { checklist: i.id }) })),
-      ...tarefasAtrasadas.slice(0, 3).map(t => ({ id: `ta-${t.id}`, tipo: 'Tarefa atrasada', titulo: t.titulo || t.descricao || 'Tarefa atrasada', obraId: t.obra_id, detalhe: obraNome(dados.obras, t.obra_id), rota: t.obra_id ? `/obras/${t.obra_id}` : '' })),
+      ...tarefasAtrasadas.slice(0, 3).map(t => ({ id: `ta-${t.id}`, tipo: 'Tarefa atrasada', titulo: t.titulo || t.descricao || 'Tarefa atrasada', obraId: t.obra_id, detalhe: obraNome(dados.obras, t.obra_id), rota: `/tarefas?tarefa=${t.id}` })),
     ].slice(0, 5)
 
     return {

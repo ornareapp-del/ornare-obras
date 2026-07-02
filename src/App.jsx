@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
-import { supabase } from './lib/supabase'
+import { supabase, supabaseConfigError } from './lib/supabase'
 import { useStore } from './store/useStore'
 
 import Splash from './pages/Splash'
@@ -62,6 +62,37 @@ function LoadingAuth() {
       fontSize: 13,
     }}>
       Carregando acesso...
+    </div>
+  )
+}
+
+function ConfigError() {
+  return (
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: 'var(--color-bg, #F5F2EE)',
+      color: 'var(--color-ink, #1D1C19)',
+      fontFamily: 'var(--font-sans, sans-serif)',
+      padding: 20,
+      boxSizing: 'border-box',
+    }}>
+      <div style={{
+        width: 'min(460px, 100%)',
+        background: 'var(--color-surface, #fff)',
+        border: '1px solid var(--color-border, #E7E0D5)',
+        borderRadius: 12,
+        padding: 24,
+        boxShadow: 'var(--shadow-md, 0 18px 42px rgba(29,28,25,.12))',
+      }}>
+        <div style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--color-gold, #B8965E)', fontWeight: 800, marginBottom: 8 }}>Configuração</div>
+        <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: 30, lineHeight: 1.05, fontWeight: 500, margin: 0 }}>Supabase não configurado</h1>
+        <p style={{ color: 'var(--color-ink-muted, #5C5A54)', fontSize: 13, lineHeight: 1.5, margin: '12px 0 0' }}>
+          {supabaseConfigError.message}
+        </p>
+      </div>
     </div>
   )
 }
@@ -156,7 +187,7 @@ function RoleGuard({ allowedRoles, children }) {
 export default function App() {
   const { user, profile, setUser, setProfile } = useStore()
   const [showSplash, setShowSplash] = useState(true)
-  const [authLoading, setAuthLoading] = useState(true)
+  const [authLoading, setAuthLoading] = useState(!supabaseConfigError)
 
   const fetchProfile = useCallback(async (authUser) => {
     const { data, error } = await supabase
@@ -174,6 +205,10 @@ export default function App() {
   }, [setProfile])
 
   useEffect(() => {
+    if (supabaseConfigError) {
+      return undefined
+    }
+
     let mounted = true
 
     async function hydrateSession() {
@@ -215,6 +250,7 @@ export default function App() {
   }, [fetchProfile, setProfile, setUser])
 
   if (showSplash) return <Splash onDone={() => setShowSplash(false)} />
+  if (supabaseConfigError) return <ConfigError />
   if (authLoading) return <LoadingAuth />
 
   return (

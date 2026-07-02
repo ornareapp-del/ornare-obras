@@ -49,6 +49,15 @@ const MARCOS_CLIENTE = [
   { label: 'Entregue', fases: ['vistoria_final', 'obra_concluida'] },
 ]
 
+const OBRA_CLIENTE_SELECT = 'id, nome, cliente_nome, cidade, uf, supervisor_id, comercial_id, progresso, fase_atual, status, data_previsao, updated_at, created_at'
+const CRONOGRAMA_CLIENTE_SELECT = 'id, obra_id, supervisor_id, comercial_id, pos_venda_id, percentual_concluido, fase, data_fim_prevista, visivel_cliente, updated_at, created_at'
+const FOTO_CLIENTE_SELECT = 'id, obra_id, ambiente_id, categoria, etapa, observacao_cliente, storage_path, url, created_at, aprovada, aprovada_gestao, visivel_cliente, visibilidade'
+const AGENDA_CLIENTE_SELECT = 'id, obra_id, tipo, titulo, data, hora_inicio, hora_fim, status, observacao_publica, descricao_cliente, confirmado_cliente, visivel_cliente, visibilidade, reuniao_interna'
+const MENSAGEM_OBRA_CLIENTE_SELECT = 'id, obra_id, mensagem, conteudo, created_at, user_id, visivel_cliente, visibilidade, publico_cliente, tipo'
+const MENSAGEM_CLIENTE_SELECT = 'id, obra_id, conteudo, created_at, remetente_id, tipo, lido_cliente, visivel_cliente, visibilidade, publico_cliente'
+const DOCUMENTO_CLIENTE_SELECT = 'id, obra_id, titulo, nome, descricao, url, storage_path, tipo, created_at, visivel_cliente, visibilidade, publico_cliente'
+const CHECKLIST_CLIENTE_SELECT = 'id, obra_id, descricao, ambiente, ambiente_id, observacao_cliente, concluido, concluido_em, visivel_cliente, visibilidade, aprovado_cliente, aprovado_gestao, validado_supervisor'
+
 function safeArray(result) {
   return result?.data || []
 }
@@ -104,31 +113,32 @@ function detalheErro(error, fallback) {
   return error?.message || error?.details || fallback
 }
 
+function resultadoVazio(error = null) {
+  return { data: [], error }
+}
+
+function logFiltroCliente(secao, error) {
+  console.error(`Erro ao aplicar filtro server-side do portal cliente em ${secao}:`, error)
+}
+
 async function carregarMensagensObraCliente(obraId) {
   const publicas = await supabase
     .from('mensagens_obra')
-    .select('*')
+    .select(MENSAGEM_OBRA_CLIENTE_SELECT)
     .eq('obra_id', obraId)
     .or('visivel_cliente.eq.true,visibilidade.eq.cliente,visibilidade.eq.publica,publico_cliente.eq.true')
     .order('created_at', { ascending: false })
 
   if (!publicas.error) return publicas
 
-  console.error('Erro ao filtrar mensagens publicas da obra para cliente:', publicas.error)
-  const fallback = await supabase
-    .from('mensagens_obra')
-    .select('*')
-    .eq('obra_id', obraId)
-    .order('created_at', { ascending: false })
-
-  if (fallback.error) return publicas
-  return { ...fallback, data: safeArray(fallback).filter(isMensagemCliente) }
+  logFiltroCliente('mensagens_obra', publicas.error)
+  return resultadoVazio(publicas.error)
 }
 
 async function carregarFotosCliente(obraId) {
   const filtradas = await supabase
     .from('fotos')
-    .select('*')
+    .select(FOTO_CLIENTE_SELECT)
     .eq('obra_id', obraId)
     .eq('aprovada', true)
     .eq('aprovada_gestao', true)
@@ -137,15 +147,65 @@ async function carregarFotosCliente(obraId) {
 
   if (!filtradas.error) return filtradas
 
-  console.error('Erro ao filtrar fotos do portal cliente:', filtradas.error)
-  const fallback = await supabase
-    .from('fotos')
-    .select('*')
+  logFiltroCliente('fotos', filtradas.error)
+  return resultadoVazio(filtradas.error)
+}
+
+async function carregarAgendaCliente(obraId) {
+  const agenda = await supabase
+    .from('agenda')
+    .select(AGENDA_CLIENTE_SELECT)
     .eq('obra_id', obraId)
+    .or('visivel_cliente.eq.true,visibilidade.eq.cliente,visibilidade.eq.publica')
+    .order('data', { ascending: true })
+
+  if (!agenda.error) return { ...agenda, data: safeArray(agenda).filter(isAgendaCliente) }
+
+  logFiltroCliente('agenda', agenda.error)
+  return resultadoVazio(agenda.error)
+}
+
+async function carregarMensagensCliente(obraId) {
+  const mensagens = await supabase
+    .from('mensagens')
+    .select(MENSAGEM_CLIENTE_SELECT)
+    .eq('obra_id', obraId)
+    .or('visivel_cliente.eq.true,visibilidade.eq.cliente,visibilidade.eq.publica,publico_cliente.eq.true,tipo.eq.cliente,tipo.eq.reagendamento')
     .order('created_at', { ascending: false })
 
-  if (fallback.error) return filtradas
-  return { ...fallback, data: safeArray(fallback).filter(isFotoCliente) }
+  if (!mensagens.error) return { ...mensagens, data: safeArray(mensagens).filter(isMensagemCliente) }
+
+  logFiltroCliente('mensagens', mensagens.error)
+  return resultadoVazio(mensagens.error)
+}
+
+async function carregarChecklistCliente(obraId) {
+  const checklist = await supabase
+    .from('checklist_items')
+    .select(CHECKLIST_CLIENTE_SELECT)
+    .eq('obra_id', obraId)
+    .eq('concluido', true)
+    .or('visivel_cliente.eq.true,visibilidade.eq.cliente,visibilidade.eq.publica')
+    .order('descricao')
+
+  if (!checklist.error) return { ...checklist, data: safeArray(checklist).filter(isChecklistCliente) }
+
+  logFiltroCliente('checklist_items', checklist.error)
+  return resultadoVazio(checklist.error)
+}
+
+async function carregarDocumentosCliente(obraId) {
+  const documentos = await supabase
+    .from('documentos')
+    .select(DOCUMENTO_CLIENTE_SELECT)
+    .eq('obra_id', obraId)
+    .or('visivel_cliente.eq.true,visibilidade.eq.cliente,visibilidade.eq.publica,publico_cliente.eq.true')
+    .order('created_at', { ascending: false })
+
+  if (!documentos.error) return { ...documentos, data: safeArray(documentos).filter(isDocumentoCliente) }
+
+  if (!tabelaNaoEncontrada(documentos.error)) logFiltroCliente('documentos', documentos.error)
+  return resultadoVazio(documentos.error)
 }
 
 function tabelaNaoEncontrada(error) {
@@ -191,7 +251,7 @@ export default function PortalCliente() {
     const { data: authData } = await supabase.auth.getUser()
     setUsuario(authData?.user || null)
 
-    const obra = await supabase.from('obras').select('*').eq('id', id).single()
+    const obra = await supabase.from('obras').select(OBRA_CLIENTE_SELECT).eq('id', id).single()
     if (obra.error) {
       console.error('Erro ao carregar obra no portal cliente:', obra.error)
       setErro(detalheErro(obra.error, 'Não foi possível abrir esta obra no momento.'))
@@ -199,7 +259,7 @@ export default function PortalCliente() {
       return
     }
 
-    const cronograma = await supabase.from('obra_cronograma').select('*').eq('obra_id', id).maybeSingle()
+    const cronograma = await supabase.from('obra_cronograma').select(CRONOGRAMA_CLIENTE_SELECT).eq('obra_id', id).eq('visivel_cliente', true).maybeSingle()
     if (cronograma.error) {
       console.error('Erro ao carregar cronograma no portal cliente:', cronograma.error)
       setErro(detalheErro(cronograma.error, 'Parte das informações da obra não foi carregada.'))
@@ -227,22 +287,18 @@ export default function PortalCliente() {
     ] = await Promise.all([
       carregarFotosCliente(id),
       supabase.from('obra_ambientes').select('id, nome').eq('obra_id', id),
-      supabase.from('agenda').select('*').eq('obra_id', id).order('data', { ascending: true }),
+      carregarAgendaCliente(id),
       supabase.from('comunicados_cliente').select('*').eq('obra_id', id).order('created_at', { ascending: false }),
       carregarMensagensObraCliente(id),
-      supabase.from('mensagens').select('*').eq('obra_id', id).order('created_at', { ascending: false }),
+      carregarMensagensCliente(id),
       supabase.from('contatos_cliente').select('*').eq('obra_id', id),
       profileIds.length
         ? supabase.from('profiles').select('id, full_name, email, role, telefone').in('id', [...new Set(profileIds)])
         : Promise.resolve({ data: [], error: null }),
-      supabase.from('checklist_items').select('*').eq('obra_id', id).order('descricao'),
+      carregarChecklistCliente(id),
     ])
 
-    const documentos = await supabase
-      .from('documentos')
-      .select('*')
-      .eq('obra_id', id)
-      .order('created_at', { ascending: false })
+    const documentos = await carregarDocumentosCliente(id)
 
     if (obra.error) {
       console.error('Erro ao carregar obra no portal cliente:', obra.error)
@@ -266,14 +322,14 @@ export default function PortalCliente() {
       cronograma: cronogramaCliente,
       fotos: safeArray(fotos).filter(isFotoCliente).map(foto => ({ ...foto, publicUrl: fotoUrl(foto), categoria: foto.categoria || foto.etapa || 'Geral' })),
       ambientes: safeArray(ambientes),
-      agenda: safeArray(agenda).filter(isAgendaCliente),
+      agenda: safeArray(agenda),
       comunicados: safeArray(comunicados),
-      mensagens: safeArray(mensagens).filter(isMensagemCliente),
-      mensagensCliente: safeArray(mensagensCliente).filter(isMensagemCliente),
+      mensagens: safeArray(mensagens),
+      mensagensCliente: safeArray(mensagensCliente),
       contatos: safeArray(contatos),
       profiles: safeArray(profiles),
-      documentos: documentos.error ? [] : safeArray(documentos).filter(isDocumentoCliente),
-      checklist: safeArray(checklist).filter(isChecklistCliente),
+      documentos: safeArray(documentos),
+      checklist: safeArray(checklist),
     })
     setLoading(false)
   }
@@ -1021,7 +1077,7 @@ const css = `
   .pc-bottom-nav button.active{background:${THEME.ink};color:#fff}
   .pc-bottom-nav button.active span{color:#fff}
   .pc-alert{margin:12px 12px 0}
-  .pc-content{padding:10px 12px calc(34px + env(safe-area-inset-bottom));margin-top:0}
+  .pc-content{padding:10px 12px calc(112px + env(safe-area-inset-bottom));margin-top:0}
   .pc-card{padding:14px;border-radius:16px}
   .pc-card-head{margin-bottom:12px}
   .pc-card-head span{font-size:12px}

@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useStore } from '../../store/useStore'
 import { theme } from '../../constants/theme'
 import { isAppOffline } from '../../hooks/useOnlineStatus'
+import { criarNotificacoes } from '../../services/notificacoesService'
 
 const CATEGORIAS = [
   { value: 'combustivel',  label: 'Combustível',  emoji: '⛽', cor: '#E8A020' },
@@ -39,6 +40,24 @@ function mensagemErro(error, fallback = 'Nao foi possivel concluir a operacao.')
 function erroColunaAusente(error) {
   const texto = `${error?.code || ''} ${error?.message || ''} ${error?.details || ''}`.toLowerCase()
   return texto.includes('column') || texto.includes('schema cache') || texto.includes('42703')
+}
+
+async function notificarStatusGasto(gasto, status, usuarioAtualId) {
+  if (!gasto?.id || !gasto?.responsavel_id || gasto.responsavel_id === usuarioAtualId) return { error: null }
+  const aprovado = status === 'aprovado'
+  const { error } = await criarNotificacoes([{
+    usuario_id: gasto.responsavel_id,
+    obra_id: gasto.obra_id || null,
+    tipo: aprovado ? 'gasto_aprovado' : 'gasto_recusado',
+    titulo: aprovado ? 'Gasto aprovado' : 'Gasto recusado',
+    descricao: `${gasto.descricao || 'Gasto'} - ${moeda(gasto.valor)}`,
+    prioridade: aprovado ? 'normal' : 'media',
+    status: 'nao_lida',
+    rota: gasto.obra_id ? `/obras/${gasto.obra_id}?aba=Gastos&gasto=${gasto.id}` : `/gastos?gasto=${gasto.id}`,
+    entidade_tipo: 'gastos',
+    entidade_id: gasto.id,
+  }])
+  return { error }
 }
 
 function statusGasto(gasto) {
@@ -202,6 +221,28 @@ function Modal({ obras, profiles, todosGastos, onClose, onSaved }) {
       }
 
       if (error) throw error
+      if (precisaAprovacao && gasto?.id) {
+        const obra = obras.find(item => item.id === form.obra_id)
+        const destinatarios = new Set([obra?.supervisor_id, obra?.comercial_id].filter(Boolean))
+        profiles
+          .filter(p => ['gestao', 'supervisor'].includes(p.role))
+          .forEach(p => p.id && destinatarios.add(p.id))
+        destinatarios.delete(profile?.id)
+        const registros = [...destinatarios].map(usuario_id => ({
+          usuario_id,
+          obra_id: form.obra_id,
+          tipo: 'gasto_pendente',
+          titulo: 'Gasto pendente de aprovacao',
+          descricao: `${form.descricao.trim()} - ${moeda(valorNum)}`,
+          prioridade: 'media',
+          status: 'nao_lida',
+          rota: `/obras/${form.obra_id}?aba=Gastos&gasto=${gasto.id}`,
+          entidade_tipo: 'gastos',
+          entidade_id: gasto.id,
+        }))
+        const notificacao = await criarNotificacoes(registros)
+        if (notificacao.error) console.error('Erro ao notificar gasto pendente:', notificacao.error)
+      }
       if (form.arquivo) {
         if (!gasto?.id) throw new Error('Gasto registrado sem identificador para anexar comprovante.')
         setFeedback('Enviando comprovante...')
@@ -233,7 +274,7 @@ function Modal({ obras, profiles, todosGastos, onClose, onSaved }) {
       <div style={ms.box}>
         <div style={ms.header}>
           <h2 style={ms.title}>Novo Gasto</h2>
-          <button style={ms.close} onClick={onClose}>✕</button>
+          <button style={ms.close} onClick={onClose} aria-label="Fechar gasto">✕</button>
         </div>
 
         <div style={ms.body}>
@@ -346,6 +387,7 @@ function Modal({ obras, profiles, todosGastos, onClose, onSaved }) {
 
 // ─── MODAL APROVACAO ──────────────────────────────────────────────────────────
 function ModalAprovacao({ gasto, onClose, onAprovado }) {
+  const { profile } = useStore()
   const [justificativa, setJustificativa] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
@@ -362,6 +404,8 @@ function ModalAprovacao({ gasto, onClose, onAprovado }) {
         if (erroColunaAusente(error)) throw new Error('A tabela de gastos ainda nao possui as colunas status/observacao para registrar aprovacao.')
         throw error
       }
+      const notificacao = await notificarStatusGasto(gasto, 'aprovado', profile?.id)
+      if (notificacao.error) console.error('Erro ao notificar aprovacao do gasto:', notificacao.error)
       onAprovado()
     } catch (error) {
       setErro(mensagemErro(error, 'Nao foi possivel aprovar o gasto.'))
@@ -382,6 +426,8 @@ function ModalAprovacao({ gasto, onClose, onAprovado }) {
         if (erroColunaAusente(error)) throw new Error('A tabela de gastos ainda nao possui as colunas status/observacao para registrar recusa.')
         throw error
       }
+      const notificacao = await notificarStatusGasto(gasto, 'recusado', profile?.id)
+      if (notificacao.error) console.error('Erro ao notificar recusa do gasto:', notificacao.error)
       onAprovado()
     } catch (error) {
       setErro(mensagemErro(error, 'Nao foi possivel recusar o gasto.'))
@@ -396,7 +442,7 @@ function ModalAprovacao({ gasto, onClose, onAprovado }) {
       <div style={{ ...ms.box, maxWidth: 440 }}>
         <div style={ms.header}>
           <h2 style={ms.title}>Aprovar Gasto</h2>
-          <button style={ms.close} onClick={onClose}>✕</button>
+          <button style={ms.close} onClick={onClose} aria-label="Fechar aprovacao de gasto">✕</button>
         </div>
         <div style={{ padding: '20px 28px' }}>
           {erro && <div style={ms.erro}>{erro}</div>}
@@ -453,8 +499,8 @@ export default function Gastos() {
       supabase.from('gastos')
         .select('*, obras(nome, gasto_meta), responsavel:profiles!gastos_responsavel_id_fkey(full_name)')
         .order('created_at', { ascending: false }),
-      supabase.from('obras').select('id, nome, gasto_meta').order('nome'),
-      supabase.from('profiles').select('id, full_name').in('role', ['gestao', 'supervisor', 'montador']),
+      supabase.from('obras').select('id, nome, gasto_meta, supervisor_id, comercial_id').order('nome'),
+      supabase.from('profiles').select('id, full_name, role').in('role', ['gestao', 'supervisor', 'montador']),
     ])
     const falhas = [
       gastosResult.error && mensagemErro(gastosResult.error, 'Nao foi possivel carregar os gastos.'),

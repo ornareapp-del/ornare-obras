@@ -441,15 +441,20 @@ export default function Planejamento() {
   }
 
   async function gerarPdfPlanejamento() {
+    if (exportandoPdf) return
     setExportandoPdf(true)
+    setErro('')
+    setToast('Gerando PDF...')
     try {
       await exportarPlanejamentoPdf({ registros: vm.filtrados, agenda: vm.agendaMes, mesAtual })
-      setToast('PDF de planejamento gerado.')
+      setToast('PDF gerado com sucesso.')
       setTimeout(() => setToast(''), 3200)
     } catch (error) {
-      setErro(error.message || 'Erro ao gerar PDF de planejamento.')
+      setToast('')
+      setErro(error?.message || 'Não foi possível gerar o PDF.')
+    } finally {
+      setExportandoPdf(false)
     }
-    setExportandoPdf(false)
   }
 
   return (
@@ -477,7 +482,7 @@ export default function Planejamento() {
           <p>Central de Planejamento Operacional da Ornare</p>
         </div>
         <div className="pl-month-nav">
-          <button onClick={gerarPdfPlanejamento} disabled={exportandoPdf}>{exportandoPdf ? 'Gerando...' : 'Exportar PDF'}</button>
+          <button onClick={gerarPdfPlanejamento} disabled={exportandoPdf}>{exportandoPdf ? 'Gerando PDF...' : 'Exportar PDF'}</button>
           <button onClick={() => setMesAtual(m => addMonths(m, -1))}>Anterior</button>
           <strong>{MESES[mesAtual.getMonth()]} {mesAtual.getFullYear()}</strong>
           <button onClick={() => setMesAtual(m => addMonths(m, 1))}>Próximo</button>
@@ -683,7 +688,7 @@ function CompromissoModal({ form, setForm, obras, supervisores, montadores, vinc
             <span>Novo compromisso</span>
             <h2>Planejar dia operacional</h2>
           </div>
-          <button onClick={onClose}>X</button>
+          <button onClick={onClose} aria-label="Fechar compromisso">X</button>
         </div>
 
         <div className="pl-modal-body">
@@ -892,7 +897,7 @@ const css = `
 .pl-header p{margin:7px 0 0;font-size:13px;color:${THEME.muted}}
 .pl-month-nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .pl-month-nav strong{min-width:180px;text-align:center;font-size:14px}
-.pl-month-nav button,.pl-tabs button{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:8px;padding:12px 24px;font-size:12px;font-weight:600;cursor:pointer}
+.pl-month-nav button,.pl-tabs button{min-height:44px;border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:8px;padding:12px 24px;font-size:12px;font-weight:600;cursor:pointer}
 .pl-alert{width:100%;max-width:none;margin:0 0 14px;border:1px solid rgba(224,82,82,.34);background:rgba(224,82,82,.12);color:${THEME.danger};border-radius:12px;padding:11px 14px;font-size:13px;font-weight:700}
 .pl-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:1200;background:${THEME.ink};color:#fff;border-left:3px solid ${THEME.gold};border-radius:13px;padding:12px 18px;font-size:13px;font-weight:800;box-shadow:0 14px 34px rgba(29,28,25,.18)}
 .pl-mobile-actions{display:none}

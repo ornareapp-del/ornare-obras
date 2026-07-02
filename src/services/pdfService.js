@@ -15,8 +15,14 @@ const RELATORIOS = {
   cliente: 'Relatório do Cliente',
 }
 
+const TIPOS_RELATORIO = Object.keys(RELATORIOS)
+
 function safeArray(result) {
   return result?.data || []
+}
+
+function erroMensagem(error) {
+  return error?.message || error?.details || 'Nao foi possivel gerar o PDF.'
 }
 
 function dinheiro(value) {
@@ -51,6 +57,39 @@ function gastoRealizado(gasto) {
 
 function valorAmbiente(item, ambientesPorId) {
   return ambientesPorId.get(item.ambiente_id)?.nome || 'Geral'
+}
+
+function isClienteVisivel(item) {
+  return item?.visivel_cliente === true || item?.visibilidade === 'cliente' || item?.visibilidade === 'publica'
+}
+
+function isFotoCliente(foto) {
+  const aprovada = foto?.aprovada === true && (foto?.aprovada_gestao === true || foto?.aprovada_gestao === undefined)
+  return aprovada && isClienteVisivel(foto)
+}
+
+function isChecklistCliente(item) {
+  return item?.concluido === true && isClienteVisivel(item)
+}
+
+function isAgendaCliente(item) {
+  return !item?.reuniao_interna && isClienteVisivel(item)
+}
+
+function isOcorrenciaInterna(item) {
+  const texto = normalizar([item?.tipo, item?.categoria, item?.visibilidade, item?.observacao_interna].filter(Boolean).join(' '))
+  return item?.interno === true || texto.includes('intern')
+}
+
+function fotoReferencia(foto) {
+  if (foto?.url) return foto.url
+  if (!foto?.storage_path) return 'Imagem sem arquivo vinculado.'
+  try {
+    return supabase.storage.from('fotos-obras').getPublicUrl(foto.storage_path).data.publicUrl || 'Imagem indisponivel.'
+  } catch (error) {
+    console.error('Erro ao resolver URL publica da foto para PDF:', error)
+    return 'Imagem indisponivel.'
+  }
 }
 
 function nomeArquivo(texto) {
@@ -184,6 +223,15 @@ class PdfBuilder {
     })
   }
 
+  note(text) {
+    this.ensure(10)
+    this.doc.setTextColor(THEME.muted)
+    this.doc.setFont('helvetica', 'italic')
+    this.doc.setFontSize(7.5)
+    this.doc.text(this.fit(text, 178), 16, this.y)
+    this.y += 7
+  }
+
   fit(value, maxWidth) {
     const text = String(value ?? '-')
     return this.doc.splitTextToSize(text, maxWidth)[0] || '-'
@@ -196,8 +244,26 @@ class PdfBuilder {
 }
 
 async function criarPdf(titulo, subtitulo) {
-  const { jsPDF } = await import('jspdf')
-  return new PdfBuilder(jsPDF, titulo, subtitulo)
+  try {
+    const { jsPDF } = await import('jspdf')
+    return new PdfBuilder(jsPDF, titulo, subtitulo)
+  } catch (error) {
+    throw new Error(`Nao foi possivel carregar o gerador de PDF: ${erroMensagem(error)}`, { cause: error })
+  }
+}
+
+async function consultaSupabase(label, query, { obrigatoria = false, valorVazio = [] } = {}) {
+  try {
+    const result = await query
+    if (result.error) {
+      if (obrigatoria) throw result.error
+      return { data: valorVazio, error: result.error, label }
+    }
+    return { data: result.data ?? valorVazio, error: null, label }
+  } catch (error) {
+    if (obrigatoria) throw error
+    return { data: valorVazio, error, label }
+  }
 }
 
 async function carregarDadosObra(obraId) {
@@ -214,20 +280,18 @@ async function carregarDadosObra(obraId) {
     gastos,
     historico,
   ] = await Promise.all([
-    supabase.from('obras').select('*').eq('id', obraId).single(),
-    supabase.from('obra_cronograma').select('*').eq('obra_id', obraId).maybeSingle(),
-    supabase.from('profiles').select('id, full_name, email, role'),
-    supabase.from('obra_montadores').select('obra_id, montador_id').eq('obra_id', obraId),
-    supabase.from('obra_ambientes').select('id, nome').eq('obra_id', obraId),
-    supabase.from('checklist_items').select('*').eq('obra_id', obraId).order('descricao'),
-    supabase.from('agenda').select('*').eq('obra_id', obraId).order('data'),
-    supabase.from('fotos').select('*').eq('obra_id', obraId).order('created_at', { ascending: false }),
-    supabase.from('ocorrencias').select('*').eq('obra_id', obraId).order('created_at', { ascending: false }),
-    supabase.from('gastos').select('*').eq('obra_id', obraId).order('created_at', { ascending: false }),
-    supabase.from('historico_obra').select('*').eq('obra_id', obraId).order('created_at', { ascending: false }),
+    consultaSupabase('obra', supabase.from('obras').select('*').eq('id', obraId).single(), { obrigatoria: true, valorVazio: {} }),
+    consultaSupabase('cronograma', supabase.from('obra_cronograma').select('*').eq('obra_id', obraId).maybeSingle(), { valorVazio: {} }),
+    consultaSupabase('profiles', supabase.from('profiles').select('id, full_name, email, role')),
+    consultaSupabase('vinculos', supabase.from('obra_montadores').select('obra_id, montador_id').eq('obra_id', obraId)),
+    consultaSupabase('ambientes', supabase.from('obra_ambientes').select('id, nome').eq('obra_id', obraId)),
+    consultaSupabase('checklist', supabase.from('checklist_items').select('*').eq('obra_id', obraId).order('descricao')),
+    consultaSupabase('agenda', supabase.from('agenda').select('*').eq('obra_id', obraId).order('data')),
+    consultaSupabase('fotos', supabase.from('fotos').select('*').eq('obra_id', obraId).order('created_at', { ascending: false })),
+    consultaSupabase('ocorrencias', supabase.from('ocorrencias').select('*').eq('obra_id', obraId).order('created_at', { ascending: false })),
+    consultaSupabase('gastos', supabase.from('gastos').select('*').eq('obra_id', obraId).order('created_at', { ascending: false })),
+    consultaSupabase('historico', supabase.from('historico_obra').select('*').eq('obra_id', obraId).order('created_at', { ascending: false })),
   ])
-
-  if (obra.error) throw obra.error
 
   const profilesData = safeArray(profiles)
   const profilesPorId = new Map(profilesData.map(p => [p.id, p]))
@@ -254,6 +318,9 @@ async function carregarDadosObra(obraId) {
     ocorrencias: safeArray(ocorrencias),
     gastos: safeArray(gastos),
     historico: safeArray(historico),
+    avisos: [cronograma, profiles, vinculos, ambientes, checklist, agenda, fotos, ocorrencias, gastos, historico]
+      .filter(result => result.error)
+      .map(result => `${result.label}: ${erroMensagem(result.error)}`),
   }
 }
 
@@ -270,6 +337,18 @@ function dadosBase(ctx) {
     { label: 'Risco', value: cronograma.risco || '-' },
     { label: 'Percentual', value: `${cronograma.percentual_concluido ?? obra.progresso ?? 0}%` },
     { label: 'Pós-venda', value: nomePessoa(comercial) },
+  ]
+}
+
+function dadosCliente(ctx) {
+  const { obra, cronograma } = ctx
+  return [
+    { label: 'Cliente', value: obra.cliente_nome },
+    { label: 'Obra', value: obra.nome },
+    { label: 'Status', value: cronograma.status_operacional || obra.status },
+    { label: 'Fase atual', value: cronograma.fase || obra.status },
+    { label: 'Percentual', value: `${cronograma.percentual_concluido ?? obra.progresso ?? 0}%` },
+    { label: 'Previsao', value: dataBR(cronograma.data_fim_prevista || obra.data_previsao) },
   ]
 }
 
@@ -312,6 +391,140 @@ function adicionarChecklistPorAmbiente(pdf, ctx) {
 }
 
 export async function exportarRelatorioObra(obraId, tipo = 'executivo') {
+  if (!obraId) throw new Error('Obra nao informada para gerar o PDF.')
+  const tipoRelatorio = TIPOS_RELATORIO.includes(tipo) ? tipo : 'executivo'
+
+  try {
+    const ctx = await carregarDadosObra(obraId)
+    const titulo = RELATORIOS[tipoRelatorio]
+    const pdf = await criarPdf(titulo, ctx.obra.nome || 'Obra Ornare')
+
+    pdf.section('Identificacao')
+    pdf.grid(tipoRelatorio === 'cliente' ? dadosCliente(ctx) : dadosBase(ctx))
+
+    if (ctx.avisos.length && tipoRelatorio !== 'cliente') {
+      pdf.note('Alguns dados auxiliares nao foram carregados; o relatorio foi gerado com as informacoes disponiveis.')
+    }
+
+    if (tipoRelatorio === 'executivo') {
+      pdf.section('Resumo da obra')
+      pdf.paragraph(ctx.obra.observacoes || ctx.cronograma.observacao || 'Resumo operacional nao informado.')
+
+      pdf.section('Progresso e riscos')
+      pdf.grid([
+        { label: 'Progresso', value: `${ctx.cronograma.percentual_concluido ?? ctx.obra.progresso ?? 0}%` },
+        { label: 'Status', value: ctx.cronograma.status_operacional || ctx.obra.status },
+        { label: 'Risco', value: ctx.cronograma.risco || '-' },
+        { label: 'Prioridade', value: ctx.cronograma.prioridade || '-' },
+      ])
+
+      pdf.section('Prazos')
+      pdf.grid([
+        { label: 'Inicio previsto', value: dataBR(ctx.cronograma.data_inicio_prevista || ctx.obra.data_inicio) },
+        { label: 'Fim previsto', value: dataBR(ctx.cronograma.data_fim_prevista || ctx.obra.data_previsao) },
+        { label: 'Travado', value: ctx.cronograma.travado ? 'Sim' : 'Nao' },
+        { label: 'Acao recomendada', value: ctx.cronograma.acao_recomendada || '-' },
+      ])
+      if (ctx.cronograma.motivo_trava) pdf.paragraph(`Motivo da trava: ${ctx.cronograma.motivo_trava}`)
+
+      pdf.section('Ocorrencias relevantes')
+      pdf.list(ctx.ocorrencias.filter(o => !isOcorrenciaInterna(o)).slice(0, 10).map(o => ({
+        title: o.titulo || o.categoria || 'Ocorrencia',
+        meta: o.status || o.gravidade || dataBR(o.created_at),
+        detail: o.descricao || o.observacao || '',
+      })))
+
+      pdf.section('Financeiro')
+      adicionarResumoFinanceiro(pdf, ctx.gastos)
+    }
+
+    if (tipoRelatorio === 'operacional') {
+      pdf.section('Status da obra')
+      pdf.grid([
+        { label: 'Status', value: ctx.cronograma.status_operacional || ctx.obra.status },
+        { label: 'Fase atual', value: ctx.cronograma.fase || ctx.obra.status },
+        { label: 'Progresso', value: `${ctx.cronograma.percentual_concluido ?? ctx.obra.progresso ?? 0}%` },
+        { label: 'Risco', value: ctx.cronograma.risco || '-' },
+      ])
+
+      pdf.section('Equipe e montadores')
+      pdf.list(ctx.montadores.map(m => ({
+        title: nomePessoa(m),
+        meta: m.role || 'montador',
+        detail: m.email || '',
+      })), 'Nenhum montador vinculado.')
+
+      pdf.section('Cronograma')
+      pdf.grid([
+        { label: 'Inicio previsto', value: dataBR(ctx.cronograma.data_inicio_prevista || ctx.obra.data_inicio) },
+        { label: 'Fim previsto', value: dataBR(ctx.cronograma.data_fim_prevista || ctx.obra.data_previsao) },
+        { label: 'Acao recomendada', value: ctx.cronograma.acao_recomendada || '-' },
+        { label: 'Travado', value: ctx.cronograma.travado ? 'Sim' : 'Nao' },
+      ])
+
+      pdf.section('Checklist por ambiente')
+      adicionarChecklistPorAmbiente(pdf, ctx)
+
+      pdf.section('Agenda')
+      pdf.list(ctx.agenda.map(a => ({ title: a.titulo || a.tipo || 'Compromisso', meta: dataBR(a.data), detail: a.observacao || '' })))
+
+      pdf.section('Fotos e evidencias')
+      pdf.list(ctx.fotos.slice(0, 12).map(f => ({
+        title: f.categoria || f.etapa || 'Foto',
+        meta: dataBR(f.created_at),
+        detail: [f.observacao, f.aprovada_gestao || f.aprovada ? 'aprovada' : 'aguardando aprovacao', fotoReferencia(f)].filter(Boolean).join(' - '),
+      })), 'Nenhuma foto registrada.')
+
+      pdf.section('Ocorrencias e historico')
+      pdf.list(ctx.ocorrencias.map(o => ({ title: o.titulo || 'Ocorrencia', meta: o.status || o.gravidade || '-', detail: o.descricao || '' })))
+      pdf.list(ctx.historico.slice(0, 8).map(h => ({ title: h.titulo || h.acao || 'Historico', meta: dataBR(h.created_at), detail: h.descricao || h.observacao || '' })), 'Nenhum historico registrado.')
+
+      pdf.section('Gastos')
+      adicionarResumoFinanceiro(pdf, ctx.gastos)
+    }
+
+    if (tipoRelatorio === 'cliente') {
+      pdf.section('Andamento da obra')
+      pdf.grid([
+        { label: 'Status', value: ctx.cronograma.status_operacional || ctx.obra.status },
+        { label: 'Fase atual', value: ctx.cronograma.fase || ctx.obra.status },
+        { label: 'Percentual', value: `${ctx.cronograma.percentual_concluido ?? ctx.obra.progresso ?? 0}%` },
+        { label: 'Previsao', value: dataBR(ctx.cronograma.data_fim_prevista || ctx.obra.data_previsao) },
+      ])
+
+      pdf.section('Proximas etapas')
+      pdf.paragraph(ctx.cronograma.acao_cliente || ctx.cronograma.acao_recomendada || 'A equipe Ornare seguira acompanhando as proximas etapas da obra.')
+
+      pdf.section('Agenda liberada')
+      pdf.list(ctx.agenda.filter(isAgendaCliente).map(a => ({
+        title: a.titulo || a.tipo || 'Compromisso',
+        meta: dataBR(a.data),
+        detail: a.observacao_publica || a.descricao_cliente || '',
+      })), 'Nenhum compromisso liberado ao cliente.')
+
+      pdf.section('Checklist liberado')
+      pdf.list(ctx.checklist.filter(isChecklistCliente).map(item => ({
+        title: item.descricao || item.titulo || 'Item de checklist',
+        meta: valorAmbiente(item, ctx.ambientesPorId),
+        detail: item.observacao_cliente || 'Concluido e liberado ao cliente.',
+      })), 'Nenhum checklist liberado ao cliente.')
+
+      pdf.section('Fotos aprovadas')
+      pdf.list(ctx.fotos.filter(isFotoCliente).slice(0, 12).map(f => ({
+        title: f.categoria || f.etapa || 'Foto',
+        meta: dataBR(f.created_at),
+        detail: [f.observacao_cliente || f.observacao || '', fotoReferencia(f)].filter(Boolean).join(' - '),
+      })), 'Nenhuma foto aprovada para o cliente.')
+    }
+
+    pdf.save(`${nomeArquivo(titulo)}-${nomeArquivo(ctx.obra.nome)}.pdf`)
+  } catch (error) {
+    throw new Error(`Nao foi possivel gerar o PDF. ${erroMensagem(error)}`, { cause: error })
+  }
+}
+
+// eslint-disable-next-line no-unused-vars
+async function exportarRelatorioObraLegado(obraId, tipo = 'executivo') {
   const ctx = await carregarDadosObra(obraId)
   const titulo = RELATORIOS[tipo] || RELATORIOS.executivo
   const pdf = await criarPdf(titulo, ctx.obra.nome || 'Obra Ornare')
@@ -421,5 +634,9 @@ export async function exportarPlanejamentoPdf({ registros = [], agenda = [], mes
     detail: [a.tipo, a.supervisor?.full_name || a.supervisor?.email].filter(Boolean).join(' · '),
   })), 'Nenhum compromisso encontrado.')
 
-  pdf.save(`planejamento-ornare-${nomeArquivo(mes)}.pdf`)
+  try {
+    pdf.save(`planejamento-ornare-${nomeArquivo(mes)}.pdf`)
+  } catch (error) {
+    throw new Error(`Nao foi possivel gerar o PDF de planejamento. ${erroMensagem(error)}`, { cause: error })
+  }
 }

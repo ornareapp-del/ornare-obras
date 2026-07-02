@@ -49,7 +49,7 @@ function Modal({ obras, profiles, onClose, onSaved }) {
       <div style={ms.box}>
         <div style={ms.header}>
           <h2 style={ms.title}>Nova Ocorrência</h2>
-          <button style={ms.close} onClick={onClose}>✕</button>
+          <button style={ms.close} onClick={onClose} aria-label="Fechar ocorrencia">✕</button>
         </div>
         <div style={ms.body}>
           {erro && <div style={ms.erro}>{erro}</div>}
@@ -131,25 +131,35 @@ export default function Ocorrencias() {
   const [filtroGrav, setFiltroGrav] = useState('')
   const [filtroStatus, setFiltroStatus] = useState('')
   const [modal, setModal] = useState(false)
+  const [erro, setErro] = useState('')
 
   useEffect(() => { carregar() }, [])
 
   async function carregar() {
-    const [{ data: oc }, { data: ob }, { data: pr }] = await Promise.all([
+    setErro('')
+    const [ocResult, obResult, prResult] = await Promise.all([
       supabase.from('ocorrencias')
         .select('*, obras(nome), responsavel:profiles!ocorrencias_responsavel_id_fkey(full_name)')
         .order('created_at', { ascending: false }),
       supabase.from('obras').select('id, nome').order('nome'),
       supabase.from('profiles').select('id, full_name').in('role', ['gestao','supervisor','montador']),
     ])
-    setOcorrencias(oc || [])
-    setObras(ob || [])
-    setProfiles(pr || [])
+    const falha = [ocResult, obResult, prResult].find(result => result.error)
+    if (falha?.error) setErro(falha.error.message || 'Nao foi possivel carregar todos os dados de ocorrencias.')
+    setOcorrencias(ocResult.data || [])
+    setObras(obResult.data || [])
+    setProfiles(prResult.data || [])
     setLoading(false)
   }
 
   async function atualizarStatus(id, status) {
-    await supabase.from('ocorrencias').update({ status }).eq('id', id)
+    setErro('')
+    const { error } = await supabase.from('ocorrencias').update({ status }).eq('id', id)
+    if (error) {
+      console.error('Erro ao atualizar status da ocorrencia:', error)
+      setErro(error.message || 'Nao foi possivel atualizar o status da ocorrencia.')
+      return
+    }
     carregar()
   }
 
@@ -171,6 +181,8 @@ export default function Ocorrencias() {
           onClose={() => setModal(false)}
           onSaved={() => { setModal(false); carregar() }} />
       )}
+
+      {erro && <div style={s.erro}>{erro}</div>}
 
       <div className="oc-header" style={s.header}>
         <div>

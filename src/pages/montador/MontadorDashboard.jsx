@@ -6,6 +6,7 @@ import { CHECKLIST_MONTAGEM_GERAL } from '../../constants/checklistOrnare'
 import { faseOrnarePorKey, faseOrnarePorTexto } from '../../constants/fasesOrnare'
 import { theme } from '../../constants/theme'
 import useOnlineStatus, { isAppOffline } from '../../hooks/useOnlineStatus'
+import { criarNotificacoes } from '../../services/notificacoesService'
 
 const THEME = {
   bg: theme.background,
@@ -553,7 +554,7 @@ export default function MontadorDashboard() {
     }))
 
     if (registros.length) {
-      const { error } = await supabase.from('notificacoes').insert(registros)
+      const { error } = await criarNotificacoes(registros)
       if (error) console.error('Erro ao criar notificações operacionais:', error)
     }
   }

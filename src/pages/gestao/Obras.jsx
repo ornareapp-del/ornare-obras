@@ -52,39 +52,60 @@ export default function Obras() {
   const [filtro, setFiltro] = useState('Todas')
   const [editModal, setEditModal] = useState(null)
   const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState('')
 
   useEffect(() => { carregar() }, [])
 
   async function carregar() {
-    const [{ data }, { data: pr }] = await Promise.all([
+    setErro('')
+    const [obrasResult, profilesResult] = await Promise.all([
       supabase.from('obras').select('*').order('created_at', { ascending: false }),
       supabase.from('profiles').select('id, full_name, role'),
     ])
-    setObras(data || [])
-    setProfiles(pr || [])
+    if (obrasResult.error || profilesResult.error) {
+      const error = obrasResult.error || profilesResult.error
+      console.error('Erro ao carregar obras:', { obras: obrasResult.error, profiles: profilesResult.error })
+      setErro(error?.message || 'Não foi possível carregar as obras.')
+    }
+    setObras(obrasResult.data || [])
+    setProfiles(profilesResult.data || [])
     setLoading(false)
   }
 
   async function excluir(obra, e) {
     e.stopPropagation()
     if (!window.confirm('Excluir a obra "' + obra.nome + '"? Esta ação não pode ser desfeita.')) return
-    await supabase.from('obras').delete().eq('id', obra.id)
+    setErro('')
+    const { error } = await supabase.from('obras').delete().eq('id', obra.id)
+    if (error) {
+      console.error('Erro ao excluir obra:', error)
+      setErro(error.message || 'Não foi possível excluir a obra.')
+      return
+    }
     await carregar()
   }
 
   async function salvarEdicao() {
     setSalvando(true)
-    await supabase.from('obras').update({
-      nome: editModal.nome,
-      status: editModal.status,
-      progresso: parseInt(editModal.progresso) || 0,
-      data_previsao: editModal.data_previsao || null,
-      cliente_nome: editModal.cliente_nome,
-      observacoes: editModal.observacoes,
-    }).eq('id', editModal.id)
-    setEditModal(null)
-    await carregar()
-    setSalvando(false)
+    setErro('')
+    try {
+      const { error } = await supabase.from('obras').update({
+        nome: editModal.nome,
+        status: editModal.status,
+        progresso: parseInt(editModal.progresso) || 0,
+        data_previsao: editModal.data_previsao || null,
+        cliente_nome: editModal.cliente_nome,
+        observacoes: editModal.observacoes,
+      }).eq('id', editModal.id)
+      if (error) throw error
+      setEditModal(null)
+      await carregar()
+    } catch (error) {
+      console.error('Erro ao salvar obra:', error)
+      setErro(error.message || 'Não foi possível salvar a obra.')
+    } finally {
+      setSalvando(false)
+    }
   }
 
   const obrasFiltradas = filtro === 'Todas' ? obras : obras.filter(o => normalizar(o.status) === normalizar(filtro))
@@ -108,7 +129,7 @@ export default function Obras() {
           <div style={s.modal}>
             <div style={s.modalHeader}>
               <h2 style={s.modalTitle}>Editar Obra</h2>
-              <button style={s.btnClose} onClick={() => setEditModal(null)}>X</button>
+              <button style={s.btnClose} onClick={() => setEditModal(null)} aria-label="Fechar edicao da obra">X</button>
             </div>
             <div style={s.modalBody}>
               <div style={s.grid}>
@@ -158,6 +179,8 @@ export default function Obras() {
         </div>
         <button className="ob-new" style={s.btnNew} onClick={() => navigate('/obras/nova')}>+ Nova Obra</button>
       </div>
+
+      {erro && <div style={s.errorBox}>{erro}</div>}
 
       <div className="ob-kpis ob-kpis-desktop" style={s.kpiGrid}>
         {kpis.map(k => (
@@ -343,6 +366,7 @@ const s = {
   emptyBox: { textAlign: 'center', padding: '60px 20px', background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
   emptyIcon: { fontSize: 40, marginBottom: 12 },
   emptyTitle: { fontSize: 16, fontWeight: 600, color: 'var(--color-ink)', marginBottom: 20 },
+  errorBox: { background: theme.statusBg.danger, border: `1px solid ${theme.error}`, color: theme.error, borderRadius: 10, padding: '10px 12px', fontSize: 12.5, fontWeight: 800, marginBottom: 14 },
   modalBg: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 },
   modal: { background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, width: '100%', maxWidth: 560, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '24px 28px 0', flexShrink: 0 },

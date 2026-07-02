@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase'
 import { useStore } from '../store/useStore'
 import { theme } from '../constants/theme'
 import useOnlineStatus from '../hooks/useOnlineStatus'
+import { resolverDestinoNotificacao } from '../services/notificacoesService'
 
 const L = theme.app
 const S = theme.status
@@ -17,6 +18,7 @@ export default function Layout() {
   const [isMobile, setIsMobile]   = useState(false)
   const [notificacoes, setNotificacoes] = useState([])
   const [notificacoesAbertas, setNotificacoesAbertas] = useState(false)
+  const [erroNotificacoes, setErroNotificacoes] = useState('')
   const online = useOnlineStatus()
 
   useEffect(() => {
@@ -35,14 +37,21 @@ export default function Layout() {
 
     let ativo = true
     async function carregarNotificacoes() {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('notificacoes')
         .select('*')
         .eq('usuario_id', user.id)
         .order('created_at', { ascending: false })
         .limit(12)
 
-      if (ativo) setNotificacoes(data || [])
+      if (!ativo) return
+      if (error) {
+        console.error('Erro ao carregar notificacoes:', error)
+        setErroNotificacoes('Nao foi possivel carregar a Central de Acoes.')
+        return
+      }
+      setErroNotificacoes('')
+      setNotificacoes(data || [])
     }
 
     carregarNotificacoes()
@@ -59,61 +68,16 @@ export default function Layout() {
       const lidaEm = new Date().toISOString()
       const { error } = await supabase.from('notificacoes').update({ status: 'lida', lida_em: lidaEm }).eq('id', notificacao.id)
       if (error) {
+        setErroNotificacoes('Nao foi possivel marcar esta acao como lida.')
         console.error('Erro ao marcar notificação como lida:', error)
         return
       }
+      setErroNotificacoes('')
       setNotificacoes(lista => lista.map(item => item.id === notificacao.id ? { ...item, status: 'lida', lida_em: lidaEm } : item))
     }
     setNotificacoesAbertas(false)
     const destino = resolverDestinoNotificacao(notificacao)
     if (destino) navigate(destino)
-  }
-
-  function resolverDestinoNotificacao(notificacao) {
-    if (notificacao.rota) return notificacao.rota
-
-    const tipo = String(notificacao.entidade_tipo || notificacao.tipo || '').toLowerCase()
-    const entidadeId = notificacao.entidade_id
-    const obraId = notificacao.obra_id
-
-    if (tipo.includes('agenda') || tipo.includes('compromisso') || tipo.includes('vistoria')) {
-      return entidadeId ? `/agenda?compromisso=${entidadeId}` : '/agenda'
-    }
-
-    if (tipo.includes('checkin') || tipo.includes('checkout')) {
-      if (notificacao.rota) return notificacao.rota
-      return obraId ? `/obras/${obraId}?aba=Agenda` : '/agenda'
-    }
-
-    if (tipo.includes('foto')) {
-      return obraId ? `/obras/${obraId}?aba=Fotos${entidadeId ? `&foto=${entidadeId}` : ''}` : '/obras?filtro=fotos'
-    }
-
-    if (tipo.includes('checklist')) {
-      return obraId ? `/obras/${obraId}?aba=Checklist${entidadeId ? `&checklist=${entidadeId}` : ''}` : '/obras?filtro=checklist'
-    }
-
-    if (tipo.includes('ocorr')) {
-      return obraId ? `/obras/${obraId}?aba=Ocorrencias${entidadeId ? `&ocorrencia=${entidadeId}` : ''}` : '/ocorrencias'
-    }
-
-    if (tipo.includes('cronograma')) {
-      return obraId ? `/obras/${obraId}?aba=Cronograma${entidadeId ? `&cronograma=${entidadeId}` : ''}` : '/planejamento'
-    }
-
-    if (tipo.includes('gasto')) {
-      return obraId ? `/obras/${obraId}?aba=Gastos${entidadeId ? `&gasto=${entidadeId}` : ''}` : '/gastos'
-    }
-
-    if (tipo.includes('tarefa')) {
-      return entidadeId ? `/tarefas?tarefa=${entidadeId}` : '/tarefas'
-    }
-
-    if (tipo.includes('obra')) {
-      return obraId || entidadeId ? `/obras/${obraId || entidadeId}` : '/obras'
-    }
-
-    return obraId ? `/obras/${obraId}` : '/'
   }
 
   const pendentes = notificacoes.filter(item => item.status !== 'lida')
@@ -136,9 +100,11 @@ export default function Layout() {
     const lidaEm = new Date().toISOString()
     const { error } = await supabase.from('notificacoes').update({ status: 'lida', lida_em: lidaEm }).in('id', ids)
     if (error) {
+      setErroNotificacoes('Nao foi possivel marcar todas como lidas.')
       console.error('Erro ao marcar notificações como lidas:', error)
       return
     }
+    setErroNotificacoes('')
     setNotificacoes(lista => lista.map(item => ids.includes(item.id) ? { ...item, status: 'lida', lida_em: lidaEm } : item))
   }
 
@@ -248,7 +214,7 @@ export default function Layout() {
               <div style={{
                 position: 'absolute',
                 top: 50,
-                right: 0,
+                right: isMobile ? 14 : 24,
                 width: isMobile ? 'calc(100vw - 28px)' : 390,
                 maxHeight: isMobile ? 'calc(100vh - 96px)' : 520,
                 overflowY: 'auto',
@@ -269,10 +235,15 @@ export default function Layout() {
                       {pendentes.length}
                     </span>
                   </div>
+                  {erroNotificacoes && (
+                    <div style={{ marginTop: 12, border: '1px solid ' + S.warningDeep, background: L.surfaceWarm, color: L.ink, borderRadius: 12, padding: '10px 11px', fontSize: 12, fontWeight: 800, lineHeight: 1.35 }}>
+                      {erroNotificacoes}
+                    </div>
+                  )}
                   {pendentes.length > 0 && (
                     <button
                       onClick={marcarTodasComoLidas}
-                      style={{ marginTop: 12, width: '100%', border: '1px solid ' + L.border, background: L.surfaceMuted, color: L.muted, borderRadius: 12, padding: '9px 10px', fontSize: 12, fontWeight: 900, fontFamily: 'inherit', cursor: 'pointer' }}
+                      style={{ marginTop: 12, width: '100%', minHeight: 44, border: '1px solid ' + L.border, background: L.surfaceMuted, color: L.muted, borderRadius: 12, padding: '9px 10px', fontSize: 12, fontWeight: 900, fontFamily: 'inherit', cursor: 'pointer' }}
                     >
                       Marcar todas como lidas
                     </button>
@@ -297,6 +268,7 @@ export default function Layout() {
                         cursor: 'pointer',
                         fontFamily: 'inherit',
                         boxShadow: item.status !== 'lida' ? L.shadowSoft : 'none',
+                        minHeight: 44,
                       }}
                     >
                       <span style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', marginBottom: 6 }}>

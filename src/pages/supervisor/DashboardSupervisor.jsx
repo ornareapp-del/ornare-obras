@@ -353,6 +353,7 @@ export default function DashboardSupervisor() {
       titulo: t.titulo || t.descricao || 'Tarefa sem título',
       detalhe: `${obraPorId.get(t.obra_id)?.nome || 'Obra'} - ${dataBR(t.prazo)}`,
       obraId: t.obra_id,
+      rota: `/tarefas?tarefa=${t.id}`,
       cor: THEME.danger,
     }))
     obrasComMaisChecklist.slice(0, 4).forEach(item => acoes.push({
@@ -524,6 +525,10 @@ export default function DashboardSupervisor() {
   }
 
   function abrirAcaoOperacional(acao) {
+    if (acao?.rota) {
+      navigate(acao.rota)
+      return
+    }
     if (!acao?.obraId) return
     abrirObraOperacional(acao.obraId, acao.aba || 'Resumo', acao.params || {})
   }
