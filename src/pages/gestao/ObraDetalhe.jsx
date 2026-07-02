@@ -202,6 +202,7 @@ export default function ObraDetalhe() {
   const checklistDestaque = paramsUrl.get('checklist')
   const gastoDestaque = paramsUrl.get('gasto')
   const cronogramaDestaque = paramsUrl.get('cronograma')
+  const agendaDestaque = paramsUrl.get('compromisso')
 
   const mostrarToast = useCallback((msg, tipo = 'ok') => {
     setToast({ msg, tipo })
@@ -699,7 +700,7 @@ export default function ObraDetalhe() {
         </div>
       )}
 
-      {aba === 'Agenda' && <AbaAgenda obraId={id} />}
+      {aba === 'Agenda' && <AbaAgenda obraId={id} agendaDestaque={agendaDestaque} />}
 
       {aba === 'Tarefas' && (
         <div>
@@ -1252,7 +1253,7 @@ function CampoEdit({ label, children, full }) {
   )
 }
 
-function AbaAgenda({ obraId }) {
+function AbaAgenda({ obraId, agendaDestaque }) {
   const [agenda, setAgenda] = useState([])
   const [checklistVistoria, setChecklistVistoria] = useState([])
   const [fotosVistoria, setFotosVistoria] = useState([])
@@ -1303,6 +1304,23 @@ function AbaAgenda({ obraId }) {
 
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
   useEffect(() => { carregar() }, [])
+
+  useEffect(() => {
+    if (!agendaDestaque || agenda.length === 0) return
+    const item = agenda.find(compromisso => String(compromisso.id) === String(agendaDestaque))
+    if (!item) return
+    const timer = window.setTimeout(() => {
+      if (item.data) {
+        const data = new Date(`${item.data}T00:00:00`)
+        if (!Number.isNaN(data.getTime())) {
+          setMesCalendario(new Date(data.getFullYear(), data.getMonth(), 1))
+          setDiaSelecionado(item.data)
+        }
+      }
+      rolarParaDestaque(`agenda-${agendaDestaque}`)
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [agenda, agendaDestaque])
   function isoLocal(date) {
     const ano = date.getFullYear()
     const mes = String(date.getMonth() + 1).padStart(2, '0')
@@ -1465,7 +1483,7 @@ function AbaAgenda({ obraId }) {
 
       {agenda.length === 0 && <div style={{ textAlign: 'center', padding: '34px 0', color: '#bbb' }}>Nenhum compromisso na agenda.</div>}
       {agenda.map(item => (
-        <div key={item.id} style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: 12, padding: '14px 16px', display: 'flex', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+        <div key={item.id} data-destaque-id={`agenda-${item.id}`} style={{ background: String(item.id) === String(agendaDestaque) ? THEME.softGold : THEME.card, border: `1px solid ${String(item.id) === String(agendaDestaque) ? THEME.gold : THEME.border}`, borderRadius: 12, padding: '14px 16px', display: 'flex', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
           <div style={{ minWidth: 92 }}>
             <div style={{ fontSize: 12, color: THEME.gold, fontWeight: 800 }}>{item.data ? new Date(item.data + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}</div>
             {item.hora_inicio && <div style={{ fontSize: 12, color: THEME.muted, marginTop: 3 }}>{item.hora_inicio}</div>}

@@ -223,7 +223,7 @@ async function buscarDadosOperacionais(obraId, userId) {
     supabase.from('obra_ambientes').select('id, nome, status').eq('obra_id', obraId).order('nome'),
     supabase.from('fotos').select('*').eq('obra_id', obraId).order('created_at', { ascending: false }).limit(60),
     supabase.from('ocorrencias').select('*').eq('obra_id', obraId).order('created_at', { ascending: false }).limit(40),
-    supabase.from('agenda').select('*').eq('obra_id', obraId).or('visivel_montador.is.null,visivel_montador.eq.true').order('data').order('hora_inicio'),
+    supabase.from('agenda').select('*').eq('obra_id', obraId).eq('visivel_montador', true).order('data').order('hora_inicio'),
   ])
 
   return {
@@ -410,7 +410,7 @@ export default function MontadorDashboard() {
         .from('agenda')
         .select('*, obras(nome)')
         .in('obra_id', obraIds)
-        .or('visivel_montador.is.null,visivel_montador.eq.true')
+        .eq('visivel_montador', true)
         .order('data')
         .order('hora_inicio')
 

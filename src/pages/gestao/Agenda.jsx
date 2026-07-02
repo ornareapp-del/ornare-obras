@@ -89,6 +89,10 @@ function intervaloTemDiaNaoUtil(inicio, fim) {
   return false
 }
 
+function visivelParaMontador(form) {
+  return !form.reuniao_interna && Boolean(form.obra_id) && Boolean(form.visivel_montador)
+}
+
 export default function Agenda() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -114,7 +118,7 @@ export default function Agenda() {
     data_fim: '', hora_inicio: '08:00', hora_fim: '',
     reuniao_interna: false,
     status: 'pendente',
-    visivel_montador: true,
+    visivel_montador: false,
     visivel_cliente: false,
   })
 
@@ -145,7 +149,7 @@ export default function Agenda() {
       data_fim: '', hora_inicio: '08:00', hora_fim: '',
       reuniao_interna: false,
       status: 'pendente',
-      visivel_montador: true,
+      visivel_montador: false,
       visivel_cliente: false,
     }
   }
@@ -172,7 +176,7 @@ export default function Agenda() {
       hora_fim: ev.hora_fim ? ev.hora_fim.slice(0, 5) : '',
       reuniao_interna: Boolean(ev.reuniao_interna),
       status: ev.status || 'pendente',
-      visivel_montador: ev.visivel_montador !== false,
+      visivel_montador: !ev.reuniao_interna && Boolean(ev.obra_id) && ev.visivel_montador !== false,
       visivel_cliente: Boolean(ev.visivel_cliente),
     })
   }
@@ -400,7 +404,10 @@ export default function Agenda() {
       entidade_id: agendaId,
     }))
 
-    if (registros.length) await supabase.from('notificacoes').insert(registros)
+    if (registros.length) {
+      const { error } = await supabase.from('notificacoes').insert(registros)
+      if (error) console.error('Erro ao criar notificacoes do compromisso:', error)
+    }
   }
 
   async function salvar() {
@@ -424,7 +431,7 @@ export default function Agenda() {
       hora_fim: form.hora_fim || null,
       reuniao_interna: form.reuniao_interna,
       status: form.status || 'pendente',
-      visivel_montador: !form.reuniao_interna && Boolean(form.obra_id) && Boolean(form.visivel_montador),
+      visivel_montador: visivelParaMontador(form),
       visivel_cliente: Boolean(form.visivel_cliente),
     }
 
@@ -433,6 +440,7 @@ export default function Agenda() {
       : await supabase.from('agenda').insert([payload]).select('*').single()
 
     if (result.error) {
+      console.error('Erro ao salvar compromisso:', result.error)
       setErroModal('Não foi possível salvar este compromisso: ' + result.error.message)
       setSalvando(false)
       return
@@ -472,6 +480,7 @@ export default function Agenda() {
     setAcaoStatus('Excluindo compromisso...')
     const { error } = await supabase.from('agenda').delete().eq('id', id)
     if (error) {
+      console.error('Erro ao excluir compromisso:', error)
       setAcaoStatus('')
       setErroModal('Nao foi possivel excluir este compromisso: ' + error.message)
       return
@@ -491,6 +500,7 @@ export default function Agenda() {
     setAcaoStatus('Atualizando status...')
     const { error } = await supabase.from('agenda').update({ status }).eq('id', editandoId)
     if (error) {
+      console.error('Erro ao atualizar status do compromisso:', error)
       setAcaoStatus('Não foi possível atualizar o status.')
       return
     }
@@ -657,7 +667,7 @@ export default function Agenda() {
                 </div>
                 <div style={s.full}>
                   <L>Obra vinculada</L>
-                  <Sel value={form.obra_id} onChange={v => setForm(p => ({ ...p, obra_id: v, visivel_montador: v ? p.visivel_montador : false }))} disabled={form.reuniao_interna}>
+                  <Sel value={form.obra_id} onChange={v => setForm(p => ({ ...p, obra_id: v, visivel_montador: v ? (p.obra_id ? p.visivel_montador : true) : false }))} disabled={form.reuniao_interna}>
                     <option value="">Sem obra vinculada</option>
                     {obras.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
                   </Sel>
@@ -697,7 +707,7 @@ export default function Agenda() {
                     <button type="button" style={s.vistoriaPrimary} onClick={gerarChecklistVistoria}>Gerar checklist</button>
                     <button type="button" style={s.vistoriaButton} onClick={() => atualizarStatusCompromisso('em andamento')}>Em andamento</button>
                     <button type="button" style={s.vistoriaButton} onClick={() => atualizarStatusCompromisso('realizada')}>Marcar realizada</button>
-                    {form.obra_id && <button type="button" style={s.vistoriaButton} onClick={() => navigate('/obras/' + form.obra_id)}>Abrir obra</button>}
+                    {form.obra_id && <button type="button" style={s.vistoriaButton} onClick={() => navigate(`/obras/${form.obra_id}?aba=Agenda&compromisso=${editandoId}`)}>Abrir obra</button>}
                   </div>
                   {acaoStatus && <div style={s.vistoriaMessage}>{acaoStatus}</div>}
                 </div>
@@ -776,7 +786,7 @@ export default function Agenda() {
             </div>
             <div style={s.modalFooter}>
           {editandoId && form.obra_id && (
-            <button style={s.btnCancel} onClick={() => navigate('/obras/' + form.obra_id)}>Abrir obra</button>
+            <button style={s.btnCancel} onClick={() => navigate(`/obras/${form.obra_id}?aba=Agenda&compromisso=${editandoId}`)}>Abrir obra</button>
           )}
           {editandoId && (
             <button style={{ ...s.btnCancel, color: '#B84040', borderColor: '#F0C8C8' }} onClick={() => excluir(editandoId)}>Excluir</button>

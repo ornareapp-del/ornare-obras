@@ -137,6 +137,13 @@ function nomePessoa(profile) {
   return profile?.full_name || profile?.email || '-'
 }
 
+function montadoresNaObservacao(observacao, profiles) {
+  const linha = String(observacao || '').split('\n').find(item => norm(item).startsWith('montadores:'))
+  if (!linha) return []
+  const nomes = linha.replace(/^montadores:\s*/i, '').split(',').map(item => norm(item)).filter(Boolean)
+  return profiles.filter(profile => nomes.includes(norm(nomePessoa(profile))))
+}
+
 export default function Planejamento() {
   const navigate = useNavigate()
   const [dados, setDados] = useState({ cronogramas: [], obras: [], profiles: [], montadores: [], agenda: [] })
@@ -159,7 +166,7 @@ export default function Planejamento() {
       supabase.from('obras').select('id, nome, cliente_nome, cidade, uf, status, supervisor_id, comercial_id, data_previsao').order('nome'),
       supabase.from('profiles').select('id, full_name, email, role'),
       supabase.from('obra_montadores').select('obra_id, montador_id'),
-      supabase.from('agenda').select('id, obra_id, tipo, titulo, data, data_fim, hora_inicio, hora_fim, responsavel_id, observacao, visivel_montador').order('data'),
+      supabase.from('agenda').select('id, obra_id, tipo, titulo, data, data_fim, hora_inicio, hora_fim, responsavel_id, observacao, reuniao_interna, visivel_montador').order('data'),
     ])
 
     const falha = [cronogramas, obras, profiles, montadores, agenda].find(r => r.error)
@@ -210,8 +217,9 @@ export default function Planejamento() {
     const compromissosAgenda = dados.agenda.map(a => {
       const obra = obraPorId.get(a.obra_id) || {}
       const supervisor = profilePorId.get(a.responsavel_id || obra.supervisor_id)
+      const montadoresTexto = montadoresNaObservacao(a.observacao, dados.profiles)
       const montadorIds = montadoresPorObra.get(a.obra_id) || []
-      const montadores = montadorIds.map(id => profilePorId.get(id)).filter(Boolean)
+      const montadores = montadoresTexto.length ? montadoresTexto : montadorIds.map(id => profilePorId.get(id)).filter(Boolean)
       const inicio = dateOnly(a.data)
       const fim = dateOnly(a.data_fim) || inicio
       return {
@@ -341,8 +349,16 @@ export default function Planejamento() {
     }
   }, [dados, filtros, mesAtual])
 
-  function abrirObra(id) {
-    if (id) navigate(`/obras/${id}`)
+  function abrirObra(alvo) {
+    if (!alvo) return
+    if (typeof alvo === 'string') {
+      navigate(`/obras/${alvo}`)
+      return
+    }
+    if (!alvo.obra_id) return
+    const aba = alvo.origem === 'agenda' ? 'Agenda' : 'Cronograma'
+    const extra = alvo.origem === 'agenda' ? `&compromisso=${alvo.id}` : alvo.id ? `&cronograma=${alvo.id}` : ''
+    navigate(`/obras/${alvo.obra_id}?aba=${aba}${extra}`)
   }
 
   function abrirModalDia(data) {
@@ -368,43 +384,51 @@ export default function Planejamento() {
     }
     setSalvando(true)
     setErro('')
+    try {
+      const obra = dados.obras.find(o => o.id === modalCompromisso.obra_id)
+      const reuniaoInterna = modalCompromisso.tipo === 'Reunião' && !modalCompromisso.obra_id
+      const supervisorId = modalCompromisso.supervisor_id || obra?.supervisor_id || null
+      const montadoresSelecionados = modalCompromisso.montadores
+        .map(id => dados.profiles.find(p => p.id === id))
+        .filter(Boolean)
+        .map(nomePessoa)
+      const anexos = Array.from(modalCompromisso.anexos || []).map(a => a.name)
+      const blocosObservacao = [
+        modalCompromisso.observacao,
+        montadoresSelecionados.length ? `Montadores: ${montadoresSelecionados.join(', ')}` : '',
+        anexos.length ? `Anexos informados: ${anexos.join(', ')}` : '',
+      ].filter(Boolean)
 
-    const obra = dados.obras.find(o => o.id === modalCompromisso.obra_id)
-    const supervisorId = modalCompromisso.supervisor_id || obra?.supervisor_id || null
-    const montadoresSelecionados = modalCompromisso.montadores
-      .map(id => dados.profiles.find(p => p.id === id))
-      .filter(Boolean)
-      .map(nomePessoa)
-    const anexos = Array.from(modalCompromisso.anexos || []).map(a => a.name)
-    const blocosObservacao = [
-      modalCompromisso.observacao,
-      montadoresSelecionados.length ? `Montadores: ${montadoresSelecionados.join(', ')}` : '',
-      anexos.length ? `Anexos informados: ${anexos.join(', ')}` : '',
-    ].filter(Boolean)
+      const { error } = await supabase.from('agenda').insert([{
+        titulo: `${modalCompromisso.tipo}${obra?.nome ? ' - ' + obra.nome : ''}`,
+        tipo: modalCompromisso.tipo,
+        obra_id: reuniaoInterna ? null : (modalCompromisso.obra_id || null),
+        responsavel_id: supervisorId,
+        data: modalCompromisso.data,
+        data_fim: modalCompromisso.data_fim || modalCompromisso.data,
+        hora_inicio: '08:00',
+        hora_fim: null,
+        observacao: blocosObservacao.join('\n'),
+        reuniao_interna: reuniaoInterna,
+        visivel_montador: !reuniaoInterna && Boolean(modalCompromisso.obra_id),
+      }])
 
-    const { error } = await supabase.from('agenda').insert([{
-      titulo: `${modalCompromisso.tipo}${obra?.nome ? ' - ' + obra.nome : ''}`,
-      tipo: modalCompromisso.tipo,
-      obra_id: modalCompromisso.obra_id || null,
-      responsavel_id: supervisorId,
-      data: modalCompromisso.data,
-      data_fim: modalCompromisso.data_fim || modalCompromisso.data,
-      hora_inicio: '08:00',
-      hora_fim: null,
-      observacao: blocosObservacao.join('\n'),
-      reuniao_interna: modalCompromisso.tipo === 'Reunião' && !modalCompromisso.obra_id,
-      visivel_montador: Boolean(modalCompromisso.obra_id),
-    }])
+      if (error) {
+        console.error('Erro ao salvar compromisso no planejamento:', error)
+        setErro(error.message || 'Nao foi possivel salvar o compromisso no planejamento.')
+        return
+      }
 
-    if (error) {
-      setErro(error.message || 'Nao foi possivel salvar o compromisso no planejamento.')
-    } else {
       setToast('Compromisso criado na agenda.')
       setTimeout(() => setToast(''), 3200)
       setModalCompromisso(null)
       await carregarDados()
+    } catch (error) {
+      console.error('Erro inesperado ao salvar compromisso no planejamento:', error)
+      setErro('Nao foi possivel salvar o compromisso no planejamento. Tente novamente em instantes.')
+    } finally {
+      setSalvando(false)
     }
-    setSalvando(false)
   }
 
   async function gerarPdfPlanejamento() {
@@ -562,7 +586,7 @@ function MobileOperacional({ grupos, abrirObra }) {
             const status = statusOperacionalMobile(item)
             const tom = item.tom || tomCompromisso(item.tipoOperacional || item.compromissoTipo || item.fase)
             return (
-            <button className="pl-mobile-item" key={`${grupo.titulo}-${item.origem || 'cronograma'}-${item.id}`} onClick={() => abrirObra(item.obra_id)} style={{ borderLeftColor: tom.border }}>
+            <button className="pl-mobile-item" key={`${grupo.titulo}-${item.origem || 'cronograma'}-${item.id}`} onClick={() => abrirObra(item)} style={{ borderLeftColor: tom.border }}>
               <div>
                 <span style={{ color: tom.cor }}>{item.tipoOperacional}</span>
                 <strong>{item.obra?.nome || 'Obra'}</strong>
@@ -611,7 +635,7 @@ function Calendario({ dias, mesAtual, abrirObra, abrirModalDia }) {
               {dia.obras.slice(0, 4).map(item => (
                 <button
                   key={`${dia.key}-${item.origem}-${item.id}`}
-                  onClick={e => { e.stopPropagation(); abrirObra(item.obra_id) }}
+                  onClick={e => { e.stopPropagation(); abrirObra(item) }}
                   className={item.origem === 'agenda' ? 'agenda-item' : 'cronograma-item'}
                   style={{ borderLeftColor: item.tom?.border || item.faseCor, background: item.tom?.bg || `${item.faseCor}12` }}
                 >
@@ -633,9 +657,12 @@ function Calendario({ dias, mesAtual, abrirObra, abrirModalDia }) {
 function CompromissoModal({ form, setForm, obras, supervisores, montadores, vinculos, salvando, onClose, onSave }) {
   const obraSelecionada = obras.find(o => o.id === form.obra_id)
   const dataNaoUtil = isDiaNaoUtil(dateOnly(form.data))
+  const montadorIdsDaObra = form.obra_id
+    ? vinculos.filter(v => v.obra_id === form.obra_id).map(v => v.montador_id).filter(Boolean)
+    : []
   const montadoresDaObra = form.obra_id
-    ? montadores.filter(m => vinculos.some(v => v.obra_id === form.obra_id && v.montador_id === m.id))
-    : montadores
+    ? montadores.filter(m => montadorIdsDaObra.includes(m.id))
+    : []
   const set = (key, value) => setForm(f => ({ ...f, [key]: value }))
   const toggleMontador = id => set('montadores', form.montadores.includes(id) ? form.montadores.filter(m => m !== id) : [...form.montadores, id])
 
@@ -662,7 +689,8 @@ function CompromissoModal({ form, setForm, obras, supervisores, montadores, vinc
               <span>Obra</span>
               <select value={form.obra_id} onChange={e => {
                 const obra = obras.find(o => o.id === e.target.value)
-                setForm(f => ({ ...f, obra_id: e.target.value, supervisor_id: obra?.supervisor_id || f.supervisor_id, montadores: [] }))
+                const montadoresVinculados = vinculos.filter(v => v.obra_id === e.target.value).map(v => v.montador_id).filter(Boolean)
+                setForm(f => ({ ...f, obra_id: e.target.value, supervisor_id: obra?.supervisor_id || f.supervisor_id, montadores: montadoresVinculados }))
               }}>
                 <option value="">Sem obra vinculada</option>
                 {obras.map(obra => <option key={obra.id} value={obra.id}>{obra.nome}</option>)}
@@ -691,7 +719,9 @@ function CompromissoModal({ form, setForm, obras, supervisores, montadores, vinc
 
           <div className="pl-montadores">
             <span>Montadores</span>
-            {montadoresDaObra.length === 0 ? (
+            {!form.obra_id ? (
+              <small>Selecione uma obra para carregar os montadores vinculados.</small>
+            ) : montadoresDaObra.length === 0 ? (
               <small>Nenhum montador vinculado a esta obra.</small>
             ) : (
               <div>
@@ -779,7 +809,7 @@ function CronogramaTabela({ registros, filtros, setFiltros, supervisores, montad
           </thead>
           <tbody>
             {registros.map(r => (
-              <tr key={r.id} onClick={() => abrirObra(r.obra_id)}>
+              <tr key={r.id} onClick={() => abrirObra({ ...r, origem: 'cronograma' })}>
                 <td><strong>{r.obra.nome || '-'}</strong><small>{[r.obra.cidade, r.obra.uf].filter(Boolean).join(' / ')}</small></td>
                 <td>{r.obra.cliente_nome || '-'}</td>
                 <td>{nomePessoa(r.supervisor)}</td>
@@ -817,7 +847,7 @@ function Gantt({ registros, meses, abrirObra }) {
           const endIdxRaw = meses.findIndex(m => r.fim && m.getFullYear() === r.fim.getFullYear() && m.getMonth() === r.fim.getMonth())
           const endIdx = endIdxRaw >= 0 ? endIdxRaw : startIdx
           return (
-            <button className="pl-gantt-row" key={r.id} onClick={() => abrirObra(r.obra_id)}>
+            <button className="pl-gantt-row" key={r.id} onClick={() => abrirObra({ ...r, origem: 'cronograma' })}>
               <div className="pl-gantt-name">
                 <strong>{r.obra.nome || 'Obra'}</strong>
                 <span>{r.status_operacional || '-'}</span>
@@ -929,7 +959,7 @@ const css = `
 .pl-montadores>span{display:block;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:${THEME.gold};font-weight:900;margin-bottom:9px}
 .pl-montadores small{display:block;font-size:12px;color:${THEME.muted}}
 .pl-montadores>div{display:flex;gap:8px;flex-wrap:wrap}
-.pl-montadores button{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:999px;padding:8px 11px;font-size:12px;font-weight:800;cursor:pointer}
+.pl-montadores button{min-height:44px;border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:999px;padding:10px 13px;font-size:12px;font-weight:800;cursor:pointer}
 .pl-montadores button.active{background:${THEME.ink};border-color:${THEME.ink};color:#fff}
 .pl-montador-visibility{margin:-4px 0 16px;border:1px solid #C8E1D0;background:#F7FCF8;color:${THEME.success};border-radius:12px;padding:10px 12px;font-size:12.5px;font-weight:800;line-height:1.35}
 .pl-modal-foot{display:flex;justify-content:flex-end;gap:10px;padding:16px 24px;border-top:1px solid ${THEME.border};background:${THEME.card}}
