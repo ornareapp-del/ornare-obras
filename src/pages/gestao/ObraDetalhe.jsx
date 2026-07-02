@@ -203,6 +203,11 @@ export default function ObraDetalhe() {
   const gastoDestaque = paramsUrl.get('gasto')
   const cronogramaDestaque = paramsUrl.get('cronograma')
 
+  const mostrarToast = useCallback((msg, tipo = 'ok') => {
+    setToast({ msg, tipo })
+    window.setTimeout(() => setToast({ msg: '', tipo: 'ok' }), 3200)
+  }, [])
+
   useEffect(() => {
     const abaUrl = new URLSearchParams(location.search).get('aba')
     if (!abaUrl || !SECOES.some(secao => secao.id === abaUrl)) return undefined
@@ -211,14 +216,25 @@ export default function ObraDetalhe() {
   }, [location.search])
 
   const carregarObra = useCallback(async () => {
-    const { data } = await supabase.from('obras').select('*').eq('id', id).single()
+    const { data, error } = await supabase.from('obras').select('*').eq('id', id).single()
+    if (error) {
+      mostrarToast(mensagemErro(error, 'Nao foi possivel carregar os dados da obra.'), 'erro')
+      setObra(null)
+      setLoading(false)
+      return
+    }
     setObra(data); setFormObra(data || {}); setLoading(false)
-  }, [id])
+  }, [id, mostrarToast])
 
   const carregarProfiles = useCallback(async () => {
-    const { data } = await supabase.from('profiles').select('id, full_name, email, role')
+    const { data, error } = await supabase.from('profiles').select('id, full_name, email, role')
+    if (error) {
+      mostrarToast(mensagemErro(error, 'Nao foi possivel carregar a equipe.'), 'erro')
+      setProfiles([])
+      return
+    }
     setProfiles(data || [])
-  }, [])
+  }, [mostrarToast])
 
   const carregarTarefas = useCallback(async () => {
     const data = await tarefasService.listarPorObra(id)
@@ -228,7 +244,7 @@ export default function ObraDetalhe() {
   }, [id])
 
   const carregarResumo = useCallback(async () => {
-    const [{ data: gs }, { data: ts }, { data: ag }, { data: fotos }, { data: ocorrencias }, { data: equipe }, { data: checklist }] = await Promise.all([
+    const [gastosResult, tarefasResult, agendaResult, fotosResult, ocorrenciasResult, equipeResult, checklistResult] = await Promise.all([
       supabase.from('gastos').select('valor').eq('obra_id', id),
       supabase.from('tarefas').select('id, status').eq('obra_id', id),
       supabase.from('agenda').select('id').eq('obra_id', id),
@@ -237,6 +253,17 @@ export default function ObraDetalhe() {
       supabase.from('obra_montadores').select('montador_id').eq('obra_id', id),
       supabase.from('checklist_items').select('id, concluido').eq('obra_id', id),
     ])
+    const falhaResumo = [gastosResult, tarefasResult, agendaResult, fotosResult, ocorrenciasResult, equipeResult, checklistResult].find(result => result.error)
+    if (falhaResumo?.error) {
+      mostrarToast(mensagemErro(falhaResumo.error, 'Parte do resumo operacional nao foi carregada.'), 'erro')
+    }
+    const gs = gastosResult.data || []
+    const ts = tarefasResult.data || []
+    const ag = agendaResult.data || []
+    const fotos = fotosResult.data || []
+    const ocorrencias = ocorrenciasResult.data || []
+    const equipe = equipeResult.data || []
+    const checklist = checklistResult.data || []
     const totalGastos = (gs || []).reduce((s, g) => s + (parseFloat(g.valor) || 0), 0)
     const abertas = (ts || []).filter(t => t.status !== 'concluida').length
     const checklistPendentes = (checklist || []).filter(i => !i.concluido).length
@@ -249,12 +276,7 @@ export default function ObraDetalhe() {
       equipe: (equipe || []).length,
       checklistPendentes,
     })
-  }, [id])
-
-  function mostrarToast(msg, tipo = 'ok') {
-    setToast({ msg, tipo })
-    window.setTimeout(() => setToast({ msg: '', tipo: 'ok' }), 3200)
-  }
+  }, [id, mostrarToast])
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { carregarObra(); carregarProfiles(); carregarResumo() }, [carregarObra, carregarProfiles, carregarResumo])
@@ -1244,16 +1266,18 @@ function AbaAgenda({ obraId }) {
   })
   const [diaSelecionado, setDiaSelecionado] = useState('')
   const [loading, setLoading] = useState(true)
+  const [erro, setErro] = useState('')
   const normalizarAgenda = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 
   async function carregar() {
+    setErro('')
     const [
-      { data },
-      { data: checklist },
-      { data: fotos },
-      { data: ocorrencias },
-      { data: checkins },
-      { data: historico },
+      agendaResult,
+      checklistResult,
+      fotosResult,
+      ocorrenciasResult,
+      checkinsResult,
+      historicoResult,
     ] = await Promise.all([
       supabase.from('agenda').select('*').eq('obra_id', obraId).order('data', { ascending: true }),
       supabase.from('checklist_items').select('id, agenda_id, concluido').eq('obra_id', obraId).not('agenda_id', 'is', null),
@@ -1262,13 +1286,18 @@ function AbaAgenda({ obraId }) {
       supabase.from('checkins').select('id, user_id, entrada, saida, created_at').eq('obra_id', obraId).order('created_at', { ascending: false }),
       supabase.from('historico_obra').select('id, acao, descricao, created_at').eq('obra_id', obraId).order('created_at', { ascending: false }),
     ])
-    setAgenda(data || [])
-    setChecklistVistoria(checklist || [])
-    setFotosVistoria((fotos || []).filter(f => f.agenda_id))
-    setFotosDia(fotos || [])
-    setOcorrenciasDia(ocorrencias || [])
-    setCheckinsDia(checkins || [])
-    setHistoricoDia(historico || [])
+    const falha = [agendaResult, checklistResult, fotosResult, ocorrenciasResult, checkinsResult, historicoResult].find(result => result.error)
+    if (falha?.error) setErro(mensagemErro(falha.error, 'Parte da agenda operacional nao foi carregada.'))
+    const agendaDados = agendaResult.data || []
+    const checklist = checklistResult.data || []
+    const fotos = fotosResult.data || []
+    setAgenda(agendaDados)
+    setChecklistVistoria(checklist)
+    setFotosVistoria(fotos.filter(f => f.agenda_id))
+    setFotosDia(fotos)
+    setOcorrenciasDia(ocorrenciasResult.data || [])
+    setCheckinsDia(checkinsResult.data || [])
+    setHistoricoDia(historicoResult.data || [])
     setLoading(false)
   }
 
@@ -1360,6 +1389,7 @@ function AbaAgenda({ obraId }) {
 
   return (
     <div style={{ display: 'grid', gap: 14 }}>
+      {erro && <div style={{ background: '#FFF7F7', color: THEME.danger, border: `1px solid ${THEME.danger}`, borderRadius: 10, padding: '10px 12px', fontSize: 12.5, fontWeight: 800 }}>{erro}</div>}
       <div style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: 14, padding: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: 24 }}>
           <div>
@@ -1474,12 +1504,14 @@ function AbaChecklist({ obraId, checklistDestaque }) {
   const [filtroBiblioteca, setFiltroBiblioteca] = useState({ fase: '', ambiente: '' })
   const [mensagemBiblioteca, setMensagemBiblioteca] = useState('')
   async function carregar() {
-    const [{ data: amb }, { data: cl }] = await Promise.all([
+    const [ambientesResult, checklistResult] = await Promise.all([
       supabase.from('obra_ambientes').select('id, nome, status').eq('obra_id', obraId),
       supabase.from('checklist_items').select('id, obra_id, ambiente_id, descricao, concluido, concluido_por, concluido_em').eq('obra_id', obraId).order('descricao'),
     ])
-    setAmbientes(amb || [])
-    setItens(cl || [])
+    const falha = [ambientesResult, checklistResult].find(result => result.error)
+    if (falha?.error) setMensagemBiblioteca(mensagemErro(falha.error, 'Nao foi possivel carregar o checklist.'))
+    setAmbientes(ambientesResult.data || [])
+    setItens(checklistResult.data || [])
     setLoading(false)
   }
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
@@ -1661,7 +1693,9 @@ function AbaOcorrencias({ obraId, ocorrenciaDestaque }) {
     if (!loading && ocorrenciaDestaque) rolarParaDestaque(ocorrenciaDestaque)
   }, [loading, ocorrenciaDestaque])
   async function carregar() {
-    const { data } = await supabase.from('ocorrencias').select('*, responsavel:profiles!ocorrencias_responsavel_id_fkey(full_name)').eq('obra_id', obraId).order('created_at', { ascending: false })
+    setErro('')
+    const { data, error } = await supabase.from('ocorrencias').select('*, responsavel:profiles!ocorrencias_responsavel_id_fkey(full_name)').eq('obra_id', obraId).order('created_at', { ascending: false })
+    if (error) setErro(mensagemErro(error, 'Nao foi possivel carregar as ocorrencias da obra.'))
     setOcorrencias(data || []); setLoading(false)
   }
   async function salvar() {
@@ -2028,14 +2062,17 @@ function AbaFotos({ obraId, fotoDestaque }) {
   const [filtroAprovacao, setFiltroAprovacao] = useState('')
   const [formFoto, setFormFoto] = useState({ categoria: '', ambiente_id: '', agenda_id: '', observacao: '', visivel_cliente: false })
   async function carregar() {
-    const [{ data }, { data: amb }, { data: vistorias }] = await Promise.all([
+    setErro('')
+    const [fotosResult, ambientesResult, vistoriasResult] = await Promise.all([
       supabase.from('fotos').select('*').eq('obra_id', obraId).order('created_at', { ascending: false }),
       supabase.from('obra_ambientes').select('id, nome').eq('obra_id', obraId),
       supabase.from('agenda').select('id, titulo, tipo, data, hora_inicio, status').eq('obra_id', obraId).ilike('tipo', '%vistoria%').order('data', { ascending: false }),
     ])
-    setFotos((data || []).map(f => ({ ...f, categoria: f.categoria || 'Geral', publicUrl: fotoUrl(f) })))
-    setAmbientes(amb || [])
-    setAgendaVistorias(vistorias || [])
+    const falha = [fotosResult, ambientesResult, vistoriasResult].find(result => result.error)
+    if (falha?.error) setErro(mensagemErro(falha.error, 'Nao foi possivel carregar as fotos da obra.'))
+    setFotos((fotosResult.data || []).map(f => ({ ...f, categoria: f.categoria || 'Geral', publicUrl: fotoUrl(f) })))
+    setAmbientes(ambientesResult.data || [])
+    setAgendaVistorias(vistoriasResult.data || [])
     setLoading(false)
   }
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
@@ -2214,10 +2251,43 @@ function AbaFotos({ obraId, fotoDestaque }) {
 function AbaHistorico({ obraId }) {
   const [historico, setHistorico] = useState([])
   const [loading, setLoading] = useState(true)
+  const [erro, setErro] = useState('')
 
   async function carregar() {
-    const { data } = await supabase.from('historico_obra').select('*, profiles(full_name)').eq('obra_id', obraId).order('created_at', { ascending: false })
-    setHistorico(data || []); setLoading(false)
+    setErro('')
+    const [historicoResult, checkinsResult] = await Promise.all([
+      supabase.from('historico_obra').select('*, profiles(full_name)').eq('obra_id', obraId).order('created_at', { ascending: false }),
+      supabase.from('checkins').select('id, user_id, entrada, saida, created_at').eq('obra_id', obraId).order('created_at', { ascending: false }),
+    ])
+    const falha = [historicoResult, checkinsResult].find(result => result.error)
+    if (falha?.error) setErro(mensagemErro(falha.error, 'Nao foi possivel carregar todo o historico da obra.'))
+    const historicoLinhas = (historicoResult.data || []).map(item => ({
+      ...item,
+      tipoLinha: 'Historico',
+      dataLinha: item.created_at,
+      tituloLinha: item.descricao || item.acao || 'Registro',
+      detalheLinha: item.profiles?.full_name || '',
+    }))
+    const checkinLinhas = (checkinsResult.data || []).map(item => ({
+      id: `checkin-${item.id}`,
+      created_at: item.entrada || item.created_at,
+      descricao: item.saida ? 'Check-in e check-out registrados' : 'Check-in em aberto',
+      profiles: {
+        full_name: [
+          item.entrada ? `Entrada ${new Date(item.entrada).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : '',
+          item.saida ? `Saida ${new Date(item.saida).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : '',
+        ].filter(Boolean).join(' - '),
+      },
+      tipoLinha: 'Check-in',
+      dataLinha: item.entrada || item.created_at,
+      tituloLinha: item.saida ? 'Check-in e check-out registrados' : 'Check-in em aberto',
+      detalheLinha: [
+        item.entrada ? `Entrada ${new Date(item.entrada).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : '',
+        item.saida ? `Saida ${new Date(item.saida).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : '',
+      ].filter(Boolean).join(' - '),
+    }))
+    setHistorico([...historicoLinhas, ...checkinLinhas].sort((a, b) => new Date(b.dataLinha || 0) - new Date(a.dataLinha || 0)))
+    setLoading(false)
   }
 
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
@@ -2227,6 +2297,7 @@ function AbaHistorico({ obraId }) {
   if (historico.length === 0) return <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhum registro no histórico.</div>
   return (
     <div style={{ position: 'relative', paddingLeft: 24 }}>
+      {erro && <div style={{ background: '#FFF7F7', color: THEME.danger, border: `1px solid ${THEME.danger}`, borderRadius: 10, padding: '10px 12px', fontSize: 12.5, fontWeight: 800, marginBottom: 12 }}>{erro}</div>}
       <div style={{ position: 'absolute', left: 7, top: 0, bottom: 0, width: 2, background: 'var(--color-border)' }} />
       {historico.map(h => (
         <div key={h.id} style={{ position: 'relative', marginBottom: 20 }}>

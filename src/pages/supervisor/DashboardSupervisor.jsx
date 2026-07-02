@@ -69,6 +69,11 @@ function safeArray(result) {
   return result?.data || []
 }
 
+function erroConsulta(label, result) {
+  if (!result?.error) return null
+  return `${label}: ${result.error.message || 'falha ao carregar'}`
+}
+
 function diasDesde(value) {
   if (!value) return 0
   const data = new Date(value)
@@ -114,6 +119,7 @@ export default function DashboardSupervisor() {
     async function carregar() {
       setLoading(true)
       setErroDados('')
+      const falhas = []
 
       const obrasResult = await supabase
         .from('obras')
@@ -161,8 +167,16 @@ export default function DashboardSupervisor() {
 
       if (!ativo) return
 
-      const falhaOperacional = [agendaResult, tarefasResult, ocorrenciasResult, obraMontadoresResult, checklistResult, fotosResult, gastosResult, cronogramasResult].find(result => result.error)
-      if (falhaOperacional?.error) setErroDados(falhaOperacional.error.message || 'Alguns dados operacionais nao foram carregados.')
+      falhas.push(...[
+        erroConsulta('Agenda', agendaResult),
+        erroConsulta('Tarefas', tarefasResult),
+        erroConsulta('Ocorrencias', ocorrenciasResult),
+        erroConsulta('Equipe alocada', obraMontadoresResult),
+        erroConsulta('Checklist', checklistResult),
+        erroConsulta('Fotos', fotosResult),
+        erroConsulta('Gastos', gastosResult),
+        erroConsulta('Cronograma', cronogramasResult),
+      ].filter(Boolean))
 
       const obraMontadores = safeArray(obraMontadoresResult)
       const montadorIds = [...new Set(obraMontadores.map(m => m.montador_id).filter(Boolean))]
@@ -178,8 +192,10 @@ export default function DashboardSupervisor() {
 
       if (!ativo) return
 
-      const falhaEquipe = [profilesResult, checkinsResult].find(result => result.error)
-      if (falhaEquipe?.error) setErroDados(falhaEquipe.error.message || 'Alguns dados da equipe nao foram carregados.')
+      falhas.push(...[
+        erroConsulta('Perfis dos montadores', profilesResult),
+        erroConsulta('Check-ins', checkinsResult),
+      ].filter(Boolean))
 
       setDados({
         obras,
@@ -194,6 +210,7 @@ export default function DashboardSupervisor() {
         gastos: safeArray(gastosResult),
         cronogramas: safeArray(cronogramasResult),
       })
+      setErroDados(falhas.join(' / '))
       setLoading(false)
     }
 
@@ -225,7 +242,7 @@ export default function DashboardSupervisor() {
     const checklistPendentes = dados.checklist.filter(i => !i.concluido)
     const checklistConcluidos = dados.checklist.filter(i => i.concluido)
     const fotosPendentes = dados.fotos.filter(f => f.aprovada === false || f.aprovada_gestao === false)
-    const fotosNaoConformidade = dados.fotos.filter(f => norm(f.categoria || f.etapa).includes('conformidade'))
+    const fotosNaoConformidade = dados.fotos.filter(f => norm(f.categoria || f.etapa) === 'nao conformidade')
 
     const agendaSemana = dados.agenda.filter(item => {
       if (!item.data) return false
@@ -277,10 +294,11 @@ export default function DashboardSupervisor() {
 
     const pendenciasPorObra = new Map()
     checklistPendentes.forEach(item => {
-      pendenciasPorObra.set(item.obra_id, (pendenciasPorObra.get(item.obra_id) || 0) + 1)
+      const atual = pendenciasPorObra.get(item.obra_id) || { total: 0, itemId: item.id }
+      pendenciasPorObra.set(item.obra_id, { total: atual.total + 1, itemId: atual.itemId || item.id })
     })
     const obrasComMaisChecklist = [...pendenciasPorObra.entries()]
-      .map(([obraId, total]) => ({ obra: obraPorId.get(obraId), total }))
+      .map(([obraId, pendencia]) => ({ obra: obraPorId.get(obraId), total: pendencia.total, itemId: pendencia.itemId }))
       .filter(item => item.obra)
       .sort((a, b) => b.total - a.total)
 
@@ -298,6 +316,8 @@ export default function DashboardSupervisor() {
       titulo: oc.titulo || oc.descricao || 'Ocorrência sem título',
       detalhe: obraPorId.get(oc.obra_id)?.nome || 'Obra',
       obraId: oc.obra_id,
+      aba: 'Ocorrencias',
+      params: { ocorrencia: oc.id },
       cor: THEME.danger,
     }))
     tarefasAtrasadas.slice(0, 4).forEach(t => acoes.push({
@@ -312,6 +332,8 @@ export default function DashboardSupervisor() {
       titulo: item.obra.nome || 'Obra',
       detalhe: `${item.total} item${item.total === 1 ? '' : 's'} pendente${item.total === 1 ? '' : 's'}`,
       obraId: item.obra.id,
+      aba: 'Checklist',
+      params: item.itemId ? { checklist: item.itemId } : {},
       cor: THEME.warn,
     }))
     dados.obras.forEach(obra => {
@@ -322,6 +344,7 @@ export default function DashboardSupervisor() {
           titulo: obra.nome || 'Obra',
           detalhe: ultima ? `Última foto em ${ultima.toLocaleDateString('pt-BR')}` : 'Nenhuma foto registrada',
           obraId: obra.id,
+          aba: 'Fotos',
           cor: THEME.blue,
         })
       }
@@ -425,6 +448,12 @@ export default function DashboardSupervisor() {
         gastosPendentes: dados.gastos.filter(g => norm(g.status).includes('pendente')),
         cronogramasTravados: dados.cronogramas.filter(c => c.travado || norm(c.risco) === 'alto'),
       },
+      atalhos: {
+        primeiraFotoPendente: fotosPendentes[0],
+        primeiraNaoConformidade: fotosNaoConformidade[0],
+        primeiroChecklistPendente: checklistPendentes[0],
+        primeiraOcorrenciaAberta: ocorrenciasAbertas[0],
+      },
       obras: obrasDetalhadas,
       acoes: acoes.slice(0, 10),
       statusResumo,
@@ -466,6 +495,11 @@ export default function DashboardSupervisor() {
     navigate(`/obras/${obraId}?${query.toString()}`)
   }
 
+  function abrirAcaoOperacional(acao) {
+    if (!acao?.obraId) return
+    abrirObraOperacional(acao.obraId, acao.aba || 'Resumo', acao.params || {})
+  }
+
   return (
     <div className="ds-page">
       <style>{css}</style>
@@ -492,7 +526,7 @@ export default function DashboardSupervisor() {
             </div>
             <div className="ds-mini-list spaced">
               {loading ? <Empty text="Carregando equipe..." /> : vm.equipe.montadores.length === 0 ? <Empty text="Nenhum montador alocado." /> : vm.equipe.montadores.map(m => (
-                <button className="ds-field-person" key={m.id} onClick={() => abrirObraOperacional(m.obraAtual?.id, 'Historico')}>
+                <button className="ds-field-person" key={m.id} onClick={() => abrirObraOperacional(m.obraAtual?.id, 'Equipe')}>
                   <span className={m.emServico ? 'on' : m.entrouHoje ? 'done' : 'off'} />
                   <div>
                     <strong>{m.nome}</strong>
@@ -569,7 +603,7 @@ export default function DashboardSupervisor() {
       <section className="ds-priorities">
         <Card title="Exigem atenção agora">
           {loading ? <Empty text="Carregando prioridades..." /> : vm.acoes.length === 0 ? <Empty text="Nenhuma prioridade crítica agora." /> : vm.acoes.slice(0, 5).map((acao, i) => (
-            <button className={`ds-priority-row ${priorityClass(acao.tipo)}`} key={`${acao.tipo}-${i}`} onClick={() => acao.obraId && navigate(`/obras/${acao.obraId}`)}>
+            <button className={`ds-priority-row ${priorityClass(acao.tipo)}`} key={`${acao.tipo}-${i}`} onClick={() => abrirAcaoOperacional(acao)}>
               <i style={{ background: acao.cor }} />
               <div>
                 <span>{acao.tipo}</span>
@@ -584,11 +618,11 @@ export default function DashboardSupervisor() {
       <section className="ds-approval-panel">
         <Card title="Aprovações pendentes">
           <div className="ds-approval-grid">
-            <button className={vm.aprovacoes.fotosPendentes.length ? 'warn' : ''} onClick={() => vm.aprovacoes.fotosPendentes[0]?.obra_id && navigate(`/obras/${vm.aprovacoes.fotosPendentes[0].obra_id}?aba=Fotos&foto=${vm.aprovacoes.fotosPendentes[0].id}`)}>
+            <button className={vm.aprovacoes.fotosPendentes.length ? 'warn' : ''} onClick={() => vm.atalhos.primeiraFotoPendente?.obra_id && abrirObraOperacional(vm.atalhos.primeiraFotoPendente.obra_id, 'Fotos', { foto: vm.atalhos.primeiraFotoPendente.id })}>
               <strong>{loading ? '-' : vm.aprovacoes.fotosPendentes.length}</strong>
               <span>Fotos para validar</span>
             </button>
-            <button className={vm.aprovacoes.fotosNaoConformidade.length ? 'danger' : ''} onClick={() => vm.aprovacoes.fotosNaoConformidade[0]?.obra_id && navigate(`/obras/${vm.aprovacoes.fotosNaoConformidade[0].obra_id}?aba=Fotos&foto=${vm.aprovacoes.fotosNaoConformidade[0].id}`)}>
+            <button className={vm.aprovacoes.fotosNaoConformidade.length ? 'danger' : ''} onClick={() => vm.atalhos.primeiraNaoConformidade?.obra_id && abrirObraOperacional(vm.atalhos.primeiraNaoConformidade.obra_id, 'Fotos', { foto: vm.atalhos.primeiraNaoConformidade.id })}>
               <strong>{loading ? '-' : vm.aprovacoes.fotosNaoConformidade.length}</strong>
               <span>Não conformidades</span>
             </button>
@@ -610,7 +644,7 @@ export default function DashboardSupervisor() {
           ) : (
             <div className="ds-approval-list">
               {vm.aprovacoes.fotosNaoConformidade.slice(0, 2).map(foto => (
-                <button className="danger" key={foto.id} onClick={() => navigate(`/obras/${foto.obra_id}?aba=Fotos&foto=${foto.id}`)}>
+                <button className="danger" key={foto.id} onClick={() => abrirObraOperacional(foto.obra_id, 'Fotos', { foto: foto.id })}>
                   <i />
                   <div>
                     <strong>Não conformidade</strong>
@@ -619,7 +653,7 @@ export default function DashboardSupervisor() {
                 </button>
               ))}
               {vm.aprovacoes.fotosPendentes.slice(0, 3).map(foto => (
-                <button key={foto.id} onClick={() => navigate(`/obras/${foto.obra_id}?aba=Fotos&foto=${foto.id}`)}>
+                <button key={foto.id} onClick={() => abrirObraOperacional(foto.obra_id, 'Fotos', { foto: foto.id })}>
                   <i />
                   <div>
                     <strong>{foto.categoria || 'Foto enviada'}</strong>
@@ -745,21 +779,27 @@ export default function DashboardSupervisor() {
               value={loading ? '-' : vm.checklist.pendentes}
               suffix={vm.checklist.pendentes === 1 ? 'pendente' : 'pendentes'}
               color={THEME.warn}
-              onClick={() => navigate('/obras?filtro=checklist')}
+              onClick={() => vm.atalhos.primeiroChecklistPendente?.obra_id
+                ? abrirObraOperacional(vm.atalhos.primeiroChecklistPendente.obra_id, 'Checklist', { checklist: vm.atalhos.primeiroChecklistPendente.id })
+                : navigate('/obras?filtro=checklist')}
             />
             <CompactCard
               title="Fotos"
               value={loading ? '-' : vm.fotos.pendentes}
               suffix={vm.fotos.pendentes === 1 ? 'pendente' : 'pendentes'}
               color={THEME.gold}
-              onClick={() => navigate('/obras?filtro=fotos')}
+              onClick={() => vm.atalhos.primeiraFotoPendente?.obra_id
+                ? abrirObraOperacional(vm.atalhos.primeiraFotoPendente.obra_id, 'Fotos', { foto: vm.atalhos.primeiraFotoPendente.id })
+                : navigate('/obras?filtro=fotos')}
             />
             <CompactCard
               title="Ocorrências"
               value={loading ? '-' : vm.ocorrencias.abertas}
               suffix={vm.ocorrencias.abertas === 1 ? 'aberta' : 'abertas'}
               color={THEME.danger}
-              onClick={() => navigate('/ocorrencias')}
+              onClick={() => vm.atalhos.primeiraOcorrenciaAberta?.obra_id
+                ? abrirObraOperacional(vm.atalhos.primeiraOcorrenciaAberta.obra_id, 'Ocorrencias', { ocorrencia: vm.atalhos.primeiraOcorrenciaAberta.id })
+                : navigate('/ocorrencias')}
             />
           </div>
         </div>
@@ -867,24 +907,24 @@ const css = `
 .ds-actions button{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:8px;padding:12px 24px;font-size:13px;font-weight:600;cursor:pointer}
 .ds-actions .primary{background:${THEME.gold};border-color:${THEME.gold};color:${THEME.bg}}
 .ds-period-filter{max-width:1380px;margin:0 auto 14px;display:flex;gap:8px;flex-wrap:wrap}
-.ds-period-filter button{border:1px solid ${THEME.gold};background:${THEME.elevated};color:${THEME.ink};border-radius:999px;padding:9px 13px;font-size:12px;font-weight:900;cursor:pointer;font-family:inherit}
+.ds-period-filter button{border:1px solid ${THEME.gold};background:${THEME.elevated};color:${THEME.ink};border-radius:999px;padding:9px 13px;min-height:44px;font-size:12px;font-weight:900;cursor:pointer;font-family:inherit}
 .ds-period-filter button.active{background:${THEME.gold};color:${THEME.bg}}
 .ds-secondary-metrics{max-width:1380px;margin:0 auto 14px}
-.ds-collapse-trigger,.ds-collapsed-note,.ds-team-open{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:999px;padding:9px 13px;font-size:12px;font-weight:900;cursor:pointer;font-family:inherit}
+.ds-collapse-trigger,.ds-collapsed-note,.ds-team-open{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:999px;padding:9px 13px;min-height:44px;font-size:12px;font-weight:900;cursor:pointer;font-family:inherit}
 .ds-collapsed-note{width:100%;border-style:dashed;color:${THEME.muted};border-radius:14px;padding:18px;background:${THEME.elevated}}
 .ds-priorities{max-width:1380px;margin:0 auto 16px}
 .ds-status-flow{max-width:1380px;margin:0 auto 16px}
 .ds-load-alert{max-width:1380px;margin:0 auto 12px;border:1px solid #F0C8C8;background:#FFF7F7;color:${THEME.danger};border-radius:12px;padding:11px 14px;font-size:13px;font-weight:800}
 .ds-approval-panel{max-width:1380px;margin:0 auto 16px}
 .ds-approval-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
-.ds-approval-grid button{border:1px solid ${THEME.border};background:${THEME.elevated};border-radius:14px;padding:13px;text-align:left;font-family:inherit;cursor:pointer}
+.ds-approval-grid button{border:1px solid ${THEME.border};background:${THEME.elevated};border-radius:14px;padding:13px;min-height:72px;text-align:left;font-family:inherit;cursor:pointer}
 .ds-approval-grid button.warn{border-color:#F2C46D;background:#FFFBF0}
 .ds-approval-grid button.danger{border-color:${THEME.danger};background:#FFF5F5}
 .ds-approval-grid button.info{border-color:#2563EB;background:#F5F8FF}
 .ds-approval-grid strong{display:block;font-size:26px;line-height:1;color:${THEME.ink}}
 .ds-approval-grid span{display:block;font-size:11.5px;color:${THEME.muted};font-weight:900;margin-top:7px}
 .ds-approval-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px}
-.ds-approval-list button{border:1px solid ${THEME.border};background:${THEME.elevated};border-radius:13px;padding:11px;display:flex;gap:10px;text-align:left;font-family:inherit;cursor:pointer}
+.ds-approval-list button{border:1px solid ${THEME.border};background:${THEME.elevated};border-radius:13px;padding:11px;min-height:44px;display:flex;gap:10px;text-align:left;font-family:inherit;cursor:pointer}
 .ds-approval-list i{width:9px;height:9px;border-radius:99px;background:${THEME.warn};margin-top:5px;flex-shrink:0}
 .ds-approval-list i.blue{background:#2563EB}
 .ds-approval-list i.orange{background:${THEME.warn}}
@@ -893,7 +933,7 @@ const css = `
 .ds-approval-list strong{display:block;font-size:13px;color:${THEME.ink};line-height:1.25}
 .ds-approval-list span{display:block;font-size:11.5px;color:${THEME.muted};margin-top:3px}
 .ds-mobile-ops{display:none}
-.ds-priority-row{width:100%;border:0;border-left:4px solid transparent;background:transparent;border-bottom:1px solid ${THEME.border};padding:12px 12px;display:flex;gap:11px;align-items:flex-start;text-align:left;cursor:pointer;font-family:inherit;border-radius:12px;margin-bottom:6px}
+.ds-priority-row{width:100%;border:0;border-left:4px solid transparent;background:transparent;border-bottom:1px solid ${THEME.border};padding:12px 12px;min-height:44px;display:flex;gap:11px;align-items:flex-start;text-align:left;cursor:pointer;font-family:inherit;border-radius:12px;margin-bottom:6px}
 .ds-priority-row:last-child{border-bottom:0}
 .ds-priority-row.critical{border-left-color:${THEME.danger};background:#FFF5F5}
 .ds-priority-row.late{border-left-color:${THEME.warn};background:#FFF8F5}
@@ -912,7 +952,7 @@ const css = `
 .ds-kpi strong{display:block;font-size:34px;line-height:1;color:${THEME.ink}}
 .ds-kpi small{display:block;font-size:12px;color:${THEME.muted};margin-top:7px}
 .ds-status-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
-.ds-status-grid button{border:1px solid ${THEME.border};border-top:3px solid ${THEME.gold};background:${THEME.elevated};border-radius:13px;padding:14px 12px;text-align:left;font-family:inherit;cursor:pointer}
+.ds-status-grid button{border:1px solid ${THEME.border};border-top:3px solid ${THEME.gold};background:${THEME.elevated};border-radius:13px;padding:14px 12px;min-height:72px;text-align:left;font-family:inherit;cursor:pointer}
 .ds-status-grid button.urgent{background:#FFF5F5;border-color:#F1D3D3}
 .ds-status-grid strong{display:block;font-size:28px;line-height:1;color:${THEME.ink};margin-bottom:8px}
 .ds-status-grid span{font-size:11px;color:${THEME.muted};font-weight:900;letter-spacing:.6px;text-transform:uppercase}
@@ -923,7 +963,7 @@ const css = `
 .ds-card{background:${THEME.card};border:1px solid ${THEME.border};border-radius:12px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,.3);min-width:0}
 .ds-card-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:14px}
 .ds-card-head h2{font-size:14px;font-weight:800;margin:0;color:${THEME.ink}}
-.ds-card-head button{border:0;background:transparent;color:${THEME.gold};font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap}
+.ds-card-head button{border:0;background:transparent;color:${THEME.gold};font-size:12px;font-weight:800;cursor:pointer;min-height:44px;text-align:right}
 .ds-health,.ds-split{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .ds-split{grid-template-columns:1fr 1fr;margin-bottom:4px}
 .ds-health-item,.ds-metric{border:1px solid ${THEME.border};border-radius:12px;padding:12px;background:${THEME.elevated}}
@@ -964,11 +1004,11 @@ const css = `
 .ds-field-person>span{width:9px;height:9px;border-radius:999px;margin-top:5px;background:#CFC7BB;flex-shrink:0}
 .ds-field-person>span.on{background:${THEME.success};box-shadow:0 0 0 4px rgba(45,122,74,.08)}
 .ds-field-person>span.done{background:${THEME.gold}}
-.ds-field-person strong{display:block;font-size:13px;color:${THEME.ink};line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ds-field-person strong{display:block;font-size:13px;color:${THEME.ink};line-height:1.25;overflow-wrap:anywhere}
 .ds-field-person small{display:block;font-size:11.5px;color:${THEME.muted};margin-top:2px}
-.ds-field-work{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${THEME.gold}!important;font-weight:800}
+.ds-field-work{max-width:100%;overflow-wrap:anywhere;color:${THEME.gold}!important;font-weight:800}
 .ds-compact-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.ds-compact-card{border:1px solid ${THEME.border};background:${THEME.card};border-radius:12px;padding:20px;text-align:left;font-family:inherit;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,.3)}
+.ds-compact-card{border:1px solid ${THEME.border};background:${THEME.card};border-radius:12px;padding:20px;min-height:104px;text-align:left;font-family:inherit;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,.3)}
 .ds-compact-card span{display:block;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:${THEME.muted};font-weight:900;margin-bottom:10px}
 .ds-compact-card strong{display:block;font-size:30px;line-height:1}
 .ds-compact-card small{display:block;margin-top:6px;color:${THEME.muted};font-size:12px;font-weight:800}
@@ -981,11 +1021,11 @@ const css = `
 .ds-empty{padding:24px 0;text-align:center;color:#A79F93;font-size:13px}
 .ds-modal{position:fixed;inset:0;z-index:80;background:rgba(15,14,12,.52);display:flex;align-items:center;justify-content:center;padding:18px}
 .ds-modal-card{width:min(520px,100%);max-height:min(720px,88vh);overflow:auto;background:${THEME.card};border:1px solid ${THEME.border};border-radius:12px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,.3);position:relative}
-.ds-modal-close{position:absolute;right:14px;top:14px;border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:999px;padding:7px 10px;font-size:12px;font-weight:900;cursor:pointer}
+.ds-modal-close{position:absolute;right:14px;top:14px;border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:999px;padding:7px 10px;min-height:44px;font-size:12px;font-weight:900;cursor:pointer}
 .ds-modal-card>span{display:block;color:${THEME.gold};font-size:10px;letter-spacing:2px;text-transform:uppercase;font-weight:900;margin-bottom:7px}
 .ds-modal-card h2{font-family:var(--font-serif);font-size:27px;font-weight:500;margin:0 0 14px;color:${THEME.ink}}
 .modal-status{margin-bottom:8px}
-.ds-fab{position:fixed;right:22px;bottom:calc(92px + env(safe-area-inset-bottom));z-index:50;border:0;background:${THEME.gold};color:#fff;border-radius:999px;padding:14px 18px;font-size:13px;font-weight:950;box-shadow:0 18px 42px rgba(201,169,110,.36);cursor:pointer;font-family:inherit}
+.ds-fab{position:fixed;right:22px;bottom:calc(92px + env(safe-area-inset-bottom));z-index:50;border:0;background:${THEME.gold};color:#fff;border-radius:999px;padding:14px 18px;min-height:44px;font-size:13px;font-weight:950;box-shadow:0 18px 42px rgba(201,169,110,.36);cursor:pointer;font-family:inherit}
 @media (max-width:1100px){.ds-grid-3,.ds-main{grid-template-columns:1fr}.ds-work-row{grid-template-columns:minmax(0,1fr) 120px auto auto}.ds-status-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (max-width:760px){.ds-page{padding:22px 14px calc(128px + env(safe-area-inset-bottom));display:flex;flex-direction:column}.ds-header{display:block;margin-bottom:12px;order:0}.ds-period-filter{order:1;margin-bottom:10px}.primary-kpis{order:2}.ds-secondary-metrics{order:3}.ds-status-flow{order:4;margin-bottom:12px}.ds-priorities{order:5;margin-bottom:12px}.ds-mobile-ops{display:grid;gap:12px;order:6;margin:0 auto 12px;max-width:1380px;width:100%}.ds-main{order:7}.ds-grid-3{display:none}.ds-eyebrow{font-size:9px;letter-spacing:2px;margin-bottom:4px}.ds-header h1{font-size:28px;line-height:1.02}.ds-header p{font-size:12.5px;line-height:1.45}.ds-period-filter{overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px}.ds-period-filter button{white-space:nowrap;padding:8px 12px}.ds-kpis{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px}.ds-kpis.secondary-kpis{grid-template-columns:1fr;gap:8px}.ds-kpi{border-radius:14px;padding:10px 9px;min-width:0;border-top:3px solid rgba(184,150,94,.55)}.ds-kpi span{font-size:9px;line-height:1.1;letter-spacing:.8px;margin-bottom:7px;white-space:normal}.ds-kpi strong{font-size:24px}.ds-kpi small{font-size:10px;line-height:1.25}.ds-kpi-button{width:100%}.ds-collapse-trigger{width:100%;margin-bottom:8px}.ds-status-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.ds-status-grid button{padding:11px 10px}.ds-status-grid strong{font-size:22px;margin-bottom:5px}.ds-status-grid span{font-size:9.5px}.ds-main{gap:12px}.ds-card{padding:15px 13px;border-radius:15px}.ds-card-head h2{font-size:19px}.ds-health{grid-template-columns:1fr 1fr 1fr}.ds-work-row{display:block;padding:13px 0}.ds-work-main strong{font-size:15px;line-height:1.2;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}.ds-work-main span{font-size:12px}.ds-tags em:nth-child(n+3){display:none}.ds-progress-wrap{grid-template-columns:minmax(0,1fr) auto;margin:10px 0 9px}.ds-work-row>small{display:inline-block;white-space:nowrap;margin-right:8px}.ds-badge{display:inline-flex;align-self:flex-start}.ds-compact-grid{grid-template-columns:1fr}.ds-action-row{padding:12px 0}.ds-split{grid-template-columns:1fr 1fr}.ds-fab{right:16px;bottom:calc(88px + env(safe-area-inset-bottom));padding:13px 16px}.ds-modal{align-items:flex-end;padding:12px}.ds-modal-card{max-height:86vh;border-radius:22px 22px 16px 16px}}
 `

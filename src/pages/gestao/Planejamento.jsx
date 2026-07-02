@@ -159,11 +159,11 @@ export default function Planejamento() {
       supabase.from('obras').select('id, nome, cliente_nome, cidade, uf, status, supervisor_id, comercial_id, data_previsao').order('nome'),
       supabase.from('profiles').select('id, full_name, email, role'),
       supabase.from('obra_montadores').select('obra_id, montador_id'),
-      supabase.from('agenda').select('id, obra_id, tipo, titulo, data, data_fim, hora_inicio, hora_fim, responsavel_id, observacao').order('data'),
+      supabase.from('agenda').select('id, obra_id, tipo, titulo, data, data_fim, hora_inicio, hora_fim, responsavel_id, observacao, visivel_montador').order('data'),
     ])
 
     const falha = [cronogramas, obras, profiles, montadores, agenda].find(r => r.error)
-    if (falha?.error) setErro(falha.error.message)
+    if (falha?.error) setErro(falha.error.message || 'Nao foi possivel carregar todos os dados do planejamento.')
 
     setDados({
       cronogramas: safeArray(cronogramas),
@@ -397,7 +397,7 @@ export default function Planejamento() {
     }])
 
     if (error) {
-      setErro(error.message)
+      setErro(error.message || 'Nao foi possivel salvar o compromisso no planejamento.')
     } else {
       setToast('Compromisso criado na agenda.')
       setTimeout(() => setToast(''), 3200)
