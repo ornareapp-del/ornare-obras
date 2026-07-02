@@ -108,6 +108,13 @@ function mensagemErro(error, fallback = 'Não foi possível concluir a operaçã
   return error?.message || error?.details || fallback
 }
 
+function statusGastoFinanceiro(gasto) {
+  const status = String(gasto?.status || 'aprovado').trim()
+  if (status === 'pendente') return 'pendente_aprovacao'
+  if (['aprovado', 'pendente_aprovacao', 'recusado'].includes(status)) return status
+  return 'aprovado'
+}
+
 function rolarParaDestaque(id) {
   if (!id) return
   window.setTimeout(() => {
@@ -170,7 +177,7 @@ const textareaStyle = {
 
 function acaoBtn(primary, active = false) {
   return {
-    background: primary ? (active ? '#fdecea' : THEME.elevated) : THEME.elevated,
+    background: primary ? (active ? THEME.dangerBg : THEME.elevated) : THEME.elevated,
     color: primary ? (active ? THEME.danger : THEME.ink) : THEME.ink,
     border: `1px solid ${THEME.border}`,
     borderRadius: 10,
@@ -255,7 +262,7 @@ export default function ObraDetalhe() {
 
   const carregarResumo = useCallback(async () => {
     const [gastosResult, tarefasResult, agendaResult, fotosResult, ocorrenciasResult, equipeResult, checklistResult] = await Promise.all([
-      supabase.from('gastos').select('valor').eq('obra_id', id),
+      supabase.from('gastos').select('valor, status').eq('obra_id', id),
       supabase.from('tarefas').select('id, status').eq('obra_id', id),
       supabase.from('agenda').select('id').eq('obra_id', id),
       supabase.from('fotos').select('id').eq('obra_id', id),
@@ -274,7 +281,7 @@ export default function ObraDetalhe() {
     const ocorrencias = ocorrenciasResult.data || []
     const equipe = equipeResult.data || []
     const checklist = checklistResult.data || []
-    const totalGastos = (gs || []).reduce((s, g) => s + (parseFloat(g.valor) || 0), 0)
+    const totalGastos = (gs || []).filter(g => statusGastoFinanceiro(g) === 'aprovado').reduce((s, g) => s + (parseFloat(g.valor) || 0), 0)
     const abertas = (ts || []).filter(t => t.status !== 'concluida').length
     const checklistPendentes = (checklist || []).filter(i => !i.concluido).length
     setResumo({
@@ -384,7 +391,7 @@ export default function ObraDetalhe() {
 
       {/* Toast */}
       {toast.msg && (
-        <div style={{ position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)', background: toast.tipo === 'erro' ? '#fdecea' : THEME.ink, color: toast.tipo === 'erro' ? '#a03030' : '#fff', padding: '12px 24px', borderRadius: 10, fontSize: 13, fontWeight: 600, borderLeft: '3px solid ' + (toast.tipo === 'erro' ? '#d94a4a' : THEME.gold), zIndex: 2000, whiteSpace: 'nowrap', boxShadow: '0 4px 20px rgba(0,0,0,0.18)' }}>
+        <div style={{ position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)', background: toast.tipo === 'erro' ? THEME.elevated : THEME.ink, color: toast.tipo === 'erro' ? THEME.danger : '#fff', padding: '12px 24px', borderRadius: 10, fontSize: 13, fontWeight: 600, borderLeft: '3px solid ' + (toast.tipo === 'erro' ? THEME.danger : THEME.gold), zIndex: 2000, whiteSpace: 'nowrap', boxShadow: '0 4px 20px rgba(0,0,0,0.18)' }}>
           {toast.msg}
         </div>
       )}
@@ -444,7 +451,7 @@ export default function ObraDetalhe() {
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <span style={{ padding: '5px 14px', borderRadius: 20, background: st.bg, color: st.color, fontSize: 12, fontWeight: 500 }}>{st.label}</span>
-          <button onClick={() => { setEditando(!editando); setFormObra(obra) }} style={{ background: editando ? '#fdecea' : 'var(--color-ink)', color: editando ? '#a03030' : '#f9f7f4', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 12, cursor: 'pointer' }}>
+          <button onClick={() => { setEditando(!editando); setFormObra(obra) }} style={{ background: editando ? THEME.dangerBg : 'var(--color-ink)', color: editando ? THEME.danger : '#f9f7f4', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 12, cursor: 'pointer' }}>
             {editando ? 'Cancelar edição' : 'Editar obra'}
           </button>
         </div>
@@ -1141,14 +1148,14 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque }) {
   return (
     <div style={{ display: 'grid', gap: 16 }}>
       {destaqueCronograma && (
-        <div style={{ border: `1px solid ${THEME.gold}`, background: '#FFFBF0', color: THEME.ink, borderRadius: 12, padding: '12px 14px', fontSize: 13, fontWeight: 800 }}>
+        <div style={{ border: `1px solid ${THEME.gold}`, background: THEME.softGold, color: THEME.ink, borderRadius: 12, padding: '12px 14px', fontSize: 13, fontWeight: 800 }}>
           Cronograma aberto pela central de ações.
         </div>
       )}
       {mensagem && (
         <div style={{
           border: '1px solid ' + (mensagem.tipo === 'erro' ? '#f1c6c6' : '#c8e1d0'),
-          background: mensagem.tipo === 'erro' ? '#fff6f6' : '#f4fbf6',
+          background: mensagem.tipo === 'erro' ? THEME.dangerBg : THEME.successBg,
           color: mensagem.tipo === 'erro' ? THEME.danger : '#2D7A4A',
           borderRadius: 10,
           padding: '10px 12px',
@@ -1416,7 +1423,7 @@ function AbaAgenda({ obraId, agendaDestaque }) {
 
   return (
     <div style={{ display: 'grid', gap: 14 }}>
-      {erro && <div style={{ background: '#FFF7F7', color: THEME.danger, border: `1px solid ${THEME.danger}`, borderRadius: 10, padding: '10px 12px', fontSize: 12.5, fontWeight: 800 }}>{erro}</div>}
+      {erro && <div style={{ background: THEME.dangerBg, color: THEME.danger, border: `1px solid ${THEME.danger}`, borderRadius: 10, padding: '10px 12px', fontSize: 12.5, fontWeight: 800 }}>{erro}</div>}
       <div style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: 14, padding: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: 24 }}>
           <div>
@@ -1648,7 +1655,7 @@ function AbaChecklist({ obraId, checklistDestaque }) {
           </button>
         </div>
         {mensagemBiblioteca && (
-          <div style={{ marginTop: 12, border: `1px solid ${mensagemBiblioteca.startsWith('Erro') ? '#F0C8C8' : THEME.border}`, background: mensagemBiblioteca.startsWith('Erro') ? '#FFF7F7' : THEME.card, color: mensagemBiblioteca.startsWith('Erro') ? THEME.danger : THEME.muted, borderRadius: 10, padding: '10px 12px', fontSize: 12.5, fontWeight: 700 }}>
+          <div style={{ marginTop: 12, border: `1px solid ${mensagemBiblioteca.startsWith('Erro') ? THEME.danger : THEME.border}`, background: mensagemBiblioteca.startsWith('Erro') ? THEME.dangerBg : THEME.card, color: mensagemBiblioteca.startsWith('Erro') ? THEME.danger : THEME.muted, borderRadius: 10, padding: '10px 12px', fontSize: 12.5, fontWeight: 700 }}>
             {mensagemBiblioteca}
           </div>
         )}
@@ -1691,7 +1698,7 @@ function AbaChecklist({ obraId, checklistDestaque }) {
           : ativo.itens.map(item => {
             const destaque = checklistDestaque && item.id === checklistDestaque
             return (
-            <div key={item.id} data-destaque-id={item.id} onClick={() => toggle(item)} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 12px', border: destaque ? `2px solid ${THEME.gold}` : 'none', borderBottom: destaque ? `2px solid ${THEME.gold}` : `1px solid ${THEME.border}`, borderRadius: destaque ? 12 : 0, background: destaque ? '#FFFBF2' : 'transparent', cursor: 'pointer' }}>
+            <div key={item.id} data-destaque-id={item.id} onClick={() => toggle(item)} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 12px', border: destaque ? `2px solid ${THEME.gold}` : 'none', borderBottom: destaque ? `2px solid ${THEME.gold}` : `1px solid ${THEME.border}`, borderRadius: destaque ? 12 : 0, background: destaque ? THEME.softGold : 'transparent', cursor: 'pointer' }}>
               <div style={{ width: 22, height: 22, borderRadius: 6, border: '2px solid ' + (item.concluido ? '#5aab6e' : THEME.border), background: item.concluido ? '#5aab6e' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 {item.concluido && <span style={{ color: '#fff', fontSize: 12, fontWeight: 700 }}>v</span>}
               </div>
@@ -1759,7 +1766,7 @@ function AbaOcorrencias({ obraId, ocorrenciaDestaque }) {
         </div>
         <button onClick={() => { setErro(''); setShowForm(!showForm) }} style={{ background: 'var(--color-ink)', color: '#f9f7f4', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}>{showForm ? 'Cancelar' : '+ Nova Ocorrência'}</button>
       </div>
-      {erro && <div style={{ background: '#fdecea', color: '#a03030', borderLeft: '3px solid #d94a4a', borderRadius: 8, padding: '10px 12px', fontSize: 12, fontWeight: 700, marginBottom: 12 }}>{erro}</div>}
+      {erro && <div style={{ background: THEME.dangerBg, color: THEME.danger, borderLeft: '3px solid ' + THEME.danger, borderRadius: 8, padding: '10px 12px', fontSize: 12, fontWeight: 700, marginBottom: 12 }}>{erro}</div>}
       {showForm && (
         <div style={{ background: THEME.card, border: '1px solid ' + THEME.border, borderRadius: 12, padding: 22, marginBottom: 20 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -1806,22 +1813,40 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
     { value: 'outro',       label: 'Outros',      emoji: '📋', cor: '#AAA'    },
   ]
   const CAT_G = Object.fromEntries(CATS_G.map(c => [c.value, c]))
+  const CATS_APROVACAO = ['terceiros', 'hospedagem', 'frete']
+  const LIMITE_APROVACAO = 500
   function valorSeguro(valor) {
     const parsed = parseFloat(String(valor ?? '').replace(',', '.'))
     return Number.isFinite(parsed) ? parsed : 0
   }
+  function erroColunaAusente(error) {
+    const texto = `${error?.code || ''} ${error?.message || ''} ${error?.details || ''}`.toLowerCase()
+    return texto.includes('column') || texto.includes('schema cache') || texto.includes('42703')
+  }
+  function statusGasto(gasto) {
+    const status = String(gasto?.status || 'aprovado').trim()
+    if (status === 'pendente') return 'pendente_aprovacao'
+    if (['aprovado', 'pendente_aprovacao', 'recusado'].includes(status)) return status
+    return 'aprovado'
+  }
+  function gastoContaNoRealizado(gasto) {
+    return statusGasto(gasto) === 'aprovado'
+  }
   function comprovanteUrl(gasto) {
+    const direto = gasto?.comprovante || gasto?.comprovante_url || gasto?.url_comprovante
+    if (typeof direto === 'string' && direto.startsWith('http')) return direto
+    if (gasto?.storage_path) return supabase.storage.from('fotos-obras').getPublicUrl(gasto.storage_path).data.publicUrl
     const match = String(gasto?.observacao || '').match(/Comprovante:\s*(https?:\/\/\S+)/i)
     return match?.[1] || ''
   }
   async function anexarComprovante(gastoId, arquivoAtual, observacaoAtual = '') {
-    if (!arquivoAtual) return observacaoAtual || null
+    if (!arquivoAtual) return { observacao: observacaoAtual || null, storage_path: '', url: '' }
     const ext = arquivoAtual.name.split('.').pop() || 'bin'
     const path = `gastos/${gastoId}-${Date.now()}.${ext}`
     const { error: uploadError } = await supabase.storage.from('fotos-obras').upload(path, arquivoAtual)
     if (uploadError) throw uploadError
     const url = supabase.storage.from('fotos-obras').getPublicUrl(path).data.publicUrl
-    return [observacaoAtual, `Comprovante: ${url}`].filter(Boolean).join('\n')
+    return { observacao: [observacaoAtual, `Comprovante: ${url}`].filter(Boolean).join('\n'), storage_path: path, url }
   }
   const msG = {
     bg:      { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 },
@@ -1834,9 +1859,9 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
     input:   { background: THEME.inputBackground, border: '1px solid ' + THEME.inputBorder, color: THEME.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' },
     upload:  { display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px dashed ' + THEME.inputBorder, borderRadius: 8, padding: 16, cursor: 'pointer', background: THEME.inputBackground, width: '100%', boxSizing: 'border-box' },
     footer:  { display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '14px 26px', borderTop: '1px solid ' + THEME.border, flexShrink: 0 },
-    btnCan:  { background: THEME.elevated, border: '1px solid ' + THEME.border, borderRadius: 8, padding: '9px 18px', fontSize: 13, cursor: 'pointer', color: THEME.ink, fontFamily: 'inherit' },
-    btnSave: { background: THEME.gold, color: '#141210', border: 'none', borderRadius: 8, padding: '9px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' },
-    btnDel:  { background: '#fdecea', color: '#a03030', border: 'none', borderRadius: 8, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', marginRight: 'auto' },
+    btnCan:  { background: THEME.elevated, border: '1px solid ' + THEME.border, borderRadius: 8, padding: '9px 18px', minHeight: 44, fontSize: 13, cursor: 'pointer', color: THEME.ink, fontFamily: 'inherit' },
+    btnSave: { background: THEME.gold, color: '#141210', border: 'none', borderRadius: 8, padding: '9px 20px', minHeight: 44, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' },
+    btnDel:  { background: THEME.dangerBg, color: THEME.danger, border: 'none', borderRadius: 8, padding: '9px 16px', minHeight: 44, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', marginRight: 'auto' },
   }
 
   const hoje = new Date().toISOString().split('T')[0]
@@ -1847,6 +1872,7 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
   const [form,        setForm]        = useState({ descricao: '', valor: '', categoria: 'combustivel', data: hoje, observacao: '' })
   const [arquivo,     setArquivo]     = useState(null)
   const [salvando,    setSalvando]    = useState(false)
+  const [acaoGasto,   setAcaoGasto]   = useState('')
   const [erro,        setErro]        = useState('')
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1880,7 +1906,7 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
     setArquivo(null); setErro(''); setModalAberto(true)
   }
 
-  function fechar() { setModalAberto(false); setGastoEdit(null); setErro('') }
+  function fechar() { setModalAberto(false); setGastoEdit(null); setErro(''); setAcaoGasto('') }
 
   function setF(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
@@ -1891,30 +1917,55 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
     if (!Number.isFinite(vNum) || vNum <= 0) { setErro('Valor invalido.'); return }
     if (Number.isNaN(new Date(form.data + 'T00:00:00').getTime())) { setErro('Informe uma data valida.'); return }
     setSalvando(true)
+    setAcaoGasto(arquivo ? 'Salvando gasto e enviando comprovante...' : 'Salvando gasto...')
     setErro('')
     try {
       if (gastoEdit) {
-        const observacao = arquivo ? await anexarComprovante(gastoEdit.id, arquivo, form.observacao || gastoEdit.observacao || '') : (form.observacao || null)
+        const anexo = arquivo ? await anexarComprovante(gastoEdit.id, arquivo, form.observacao || gastoEdit.observacao || '') : { observacao: form.observacao || null }
+        const observacao = anexo.observacao
         const { error } = await supabase.from('gastos').update({ descricao: form.descricao.trim(), valor: vNum, categoria: form.categoria, data: form.data || null, observacao }).eq('id', gastoEdit.id)
         if (error) throw error
       } else {
-        const { data: ins, error } = await supabase.from('gastos').insert([{ obra_id: obraId, descricao: form.descricao.trim(), valor: vNum, categoria: form.categoria, data: form.data, observacao: form.observacao || null, status: 'aprovado' }]).select('id, observacao').single()
+        const precisaAprovacao = CATS_APROVACAO.includes(form.categoria) && vNum > LIMITE_APROVACAO
+        const payload = { obra_id: obraId, descricao: form.descricao.trim(), valor: vNum, categoria: form.categoria, data: form.data, observacao: form.observacao || null, status: precisaAprovacao ? 'pendente_aprovacao' : 'aprovado' }
+        let { data: ins, error } = await supabase.from('gastos').insert([payload]).select('id, observacao').single()
+        if (error && erroColunaAusente(error)) {
+          const payloadCompat = { ...payload }
+          delete payloadCompat.status
+          delete payloadCompat.observacao
+          const retry = await supabase.from('gastos').insert([payloadCompat]).select('id').single()
+          ins = retry.data
+          error = retry.error
+        }
         if (error) throw error
         if (!ins?.id) throw new Error('Gasto registrado sem identificador para anexar comprovante.')
         if (arquivo) {
-          const observacao = await anexarComprovante(ins.id, arquivo, ins.observacao || '')
-          const { error: uploadError } = await supabase.from('gastos').update({ observacao }).eq('id', ins.id)
+          setAcaoGasto('Enviando comprovante...')
+          const anexo = await anexarComprovante(ins.id, arquivo, ins.observacao || form.observacao || '')
+          const updates = [
+            { observacao: anexo.observacao, comprovante: anexo.url, storage_path: anexo.storage_path },
+            { observacao: anexo.observacao },
+          ]
+          let uploadError = null
+          for (const update of updates) {
+            const result = await supabase.from('gastos').update(update).eq('id', ins.id)
+            uploadError = result.error
+            if (!uploadError) break
+            if (!erroColunaAusente(uploadError)) break
+          }
           if (uploadError) {
             setErro('Gasto registrado, mas não foi possível anexar o comprovante: ' + mensagemErro(uploadError))
             setSalvando(false)
+            setAcaoGasto('')
             await carregar()
             return
           }
         }
       }
-      setSalvando(false); fechar(); carregar()
+      setSalvando(false); setAcaoGasto(''); fechar(); carregar()
     } catch (error) {
       setErro(mensagemErro(error, 'Não foi possível salvar o gasto.'))
+      setAcaoGasto('')
       setSalvando(false)
     }
   }
@@ -1932,10 +1983,35 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
     fechar(); carregar()
   }
 
-  const total    = gastos.reduce((s, g) => s + valorSeguro(g.valor), 0)
+  async function atualizarStatusGasto(gasto, status) {
+    const acao = status === 'aprovado' ? 'Aprovando gasto...' : 'Recusando gasto...'
+    setAcaoGasto(acao)
+    setErro('')
+    const observacao = [gasto.observacao, status === 'aprovado' ? 'Aprovado pela gestao' : 'Recusado pela gestao'].filter(Boolean).join(' | ')
+    const { error } = await supabase.from('gastos').update({ status, observacao }).eq('id', gasto.id)
+    setAcaoGasto('')
+    if (error) {
+      if (erroColunaAusente(error)) {
+        setErro('A tabela de gastos ainda nao possui as colunas status/observacao para registrar aprovacao ou recusa.')
+      } else {
+        setErro(mensagemErro(error, status === 'aprovado' ? 'Nao foi possivel aprovar o gasto.' : 'Nao foi possivel recusar o gasto.'))
+      }
+      return
+    }
+    await carregar()
+  }
+
+  const gastosRealizados = gastos.filter(gastoContaNoRealizado)
+  const gastosPendentes = gastos.filter(g => statusGasto(g) === 'pendente_aprovacao')
+  const total    = gastosRealizados.reduce((s, g) => s + valorSeguro(g.valor), 0)
   const meta     = valorSeguro(obraInfo?.gasto_meta)
   const pctGasto = meta > 0 ? Math.min(Math.round(total / meta * 100), 100) : 0
   const corGasto = pctGasto >= 90 ? '#d94a4a' : pctGasto >= 70 ? '#b09a7a' : '#5aab6e'
+  const statusCores = {
+    aprovado: { label: 'Aprovado', bg: THEME.successBg, color: THEME.success },
+    pendente_aprovacao: { label: 'Pendente', bg: THEME.warningBg, color: THEME.warning },
+    recusado: { label: 'Recusado', bg: THEME.dangerBg, color: THEME.danger },
+  }
 
   return (
     <>
@@ -1948,6 +2024,7 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
             </div>
             <div style={msG.body}>
               {erro && <div style={{ background: '#fceee9', borderLeft: '3px solid #c4421e', color: '#5c2010', padding: '10px 14px', borderRadius: 6, fontSize: 12, marginBottom: 16 }}>{erro}</div>}
+              {acaoGasto && <div style={{ background: THEME.warningBg, borderLeft: '3px solid ' + THEME.warning, color: THEME.warning, padding: '10px 14px', borderRadius: 6, fontSize: 12, fontWeight: 800, marginBottom: 16 }}>{acaoGasto}</div>}
               {obraInfo && (
                 <div style={{ background: '#f9f7f4', border: '1px solid #e8d9b8', borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
                   <div style={{ fontSize: 10, color: 'var(--color-gold)', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4 }}>Obra vinculada</div>
@@ -1978,7 +2055,7 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
                   <div style={{ gridColumn: '1/-1' }}>
                     <label style={msG.label}>Comprovante (foto ou PDF)</label>
                     <label style={msG.upload}>
-                      <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={e => setArquivo(e.target.files[0])} />
+                      <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={e => setArquivo(e.target.files?.[0] || null)} disabled={salvando} />
                       {arquivo ? <span style={{ color: 'var(--color-ink)', fontSize: 13 }}>📎 {arquivo.name}</span> : <span style={{ color: '#aaa', fontSize: 13 }}>📎 Toque para anexar comprovante</span>}
                     </label>
                   </div>
@@ -2003,43 +2080,59 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
             <div style={{ fontSize: 10, letterSpacing: 2, color: THEME.gold, textTransform: 'uppercase', fontWeight: 800 }}>Gastos</div>
             <div style={{ fontSize: 20, color: THEME.ink, fontWeight: 800, marginTop: 4 }}>Controle financeiro da obra</div>
           </div>
-          <button onClick={abrirNovo} style={{ background: THEME.gold, color: '#141210', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>+ Lançar Gasto</button>
+          <button onClick={abrirNovo} style={{ background: THEME.gold, color: '#141210', border: 'none', borderRadius: 8, padding: '9px 18px', minHeight: 44, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>+ Lançar Gasto</button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: meta > 0 ? '1fr 1fr 1fr' : '1fr', gap: 12, marginBottom: 20, alignItems: 'center' }}>
+        {erro && !modalAberto && <div style={{ background: THEME.dangerBg, color: THEME.danger, borderLeft: '3px solid ' + THEME.danger, borderRadius: 8, padding: '10px 12px', fontSize: 12, fontWeight: 800, marginBottom: 12 }}>{erro}</div>}
+        {acaoGasto && !modalAberto && <div style={{ background: THEME.warningBg, color: THEME.warning, borderLeft: '3px solid ' + THEME.warning, borderRadius: 8, padding: '10px 12px', fontSize: 12, fontWeight: 800, marginBottom: 12 }}>{acaoGasto}</div>}
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))', gap: 12, marginBottom: 20, alignItems: 'stretch' }}>
           <div style={{ background: THEME.card, border: '1px solid ' + THEME.border, borderRadius: 10, padding: '14px 20px' }}>
             <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 4 }}>Total gasto</div>
             <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-ink)' }}>R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
           </div>
-          {meta > 0 && (
-            <>
-              <div style={{ background: THEME.card, border: '1px solid ' + THEME.border, borderRadius: 10, padding: '14px 20px' }}>
-                <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 4 }}>Meta / Limite</div>
-                <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-ink)' }}>R$ {meta.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-              </div>
-              <div style={{ background: pctGasto >= 90 ? '#fdecea' : THEME.card, border: '1px solid ' + THEME.border, borderRadius: 10, padding: '14px 20px' }}>
-                <div style={{ fontSize: 9, letterSpacing: 2, color: pctGasto >= 90 ? '#d94a4a' : 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 4 }}>Utilizado</div>
-                <div style={{ fontSize: 22, fontWeight: 700, color: corGasto }}>{pctGasto}%</div>
-                <div style={{ height: 4, background: '#f0ece6', borderRadius: 2, marginTop: 8 }}><div style={{ height: 4, borderRadius: 2, background: corGasto, width: pctGasto + '%', transition: 'width .3s' }} /></div>
-              </div>
-            </>
-          )}
+          <div style={{ background: THEME.card, border: '1px solid ' + THEME.border, borderRadius: 10, padding: '14px 20px' }}>
+            <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 4 }}>Meta / Limite</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-ink)' }}>{meta > 0 ? 'R$ ' + meta.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'}</div>
+          </div>
+          <div style={{ background: pctGasto >= 90 ? THEME.dangerBg : THEME.card, border: '1px solid ' + THEME.border, borderRadius: 10, padding: '14px 20px' }}>
+            <div style={{ fontSize: 9, letterSpacing: 2, color: pctGasto >= 90 ? '#d94a4a' : 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 4 }}>Utilizado</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: corGasto }}>{meta > 0 ? pctGasto + '%' : '-'}</div>
+            {meta > 0 && <div style={{ height: 4, background: '#f0ece6', borderRadius: 2, marginTop: 8 }}><div style={{ height: 4, borderRadius: 2, background: corGasto, width: pctGasto + '%', transition: 'width .3s' }} /></div>}
+          </div>
+          <div style={{ background: gastosPendentes.length ? THEME.warningBg : THEME.card, border: '1px solid ' + THEME.border, borderRadius: 10, padding: '14px 20px' }}>
+            <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 4 }}>Pendentes</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: gastosPendentes.length ? THEME.warning : 'var(--color-ink)' }}>{gastosPendentes.length}</div>
+          </div>
         </div>
         {loading ? <div style={{ color: '#bbb' }}>Carregando...</div>
           : gastos.length === 0 ? <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhum gasto registrado.</div>
           : gastos.map(g => {
             const destaque = gastoDestaque && g.id === gastoDestaque
             const urlComprovante = comprovanteUrl(g)
+            const status = statusGasto(g)
+            const sc = statusCores[status] || statusCores.aprovado
             return (
-            <div id={`gasto-${g.id}`} data-destaque-id={g.id} key={g.id} onClick={() => abrirEditar(g)} style={{ background: destaque ? THEME.elevated : THEME.card, border: destaque ? `2px solid ${THEME.gold}` : '1px solid ' + THEME.border, borderRadius: 10, padding: '14px 18px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', boxShadow: destaque ? '0 16px 34px rgba(184,150,94,0.22)' : 'none' }}>
+            <div id={`gasto-${g.id}`} data-destaque-id={g.id} key={g.id} onClick={() => abrirEditar(g)} style={{ background: destaque ? THEME.elevated : THEME.card, border: destaque ? `2px solid ${THEME.gold}` : '1px solid ' + THEME.border, borderRadius: 10, padding: '14px 18px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', cursor: 'pointer', boxShadow: destaque ? '0 16px 34px rgba(184,150,94,0.22)' : 'none' }}>
               <div style={{ width: 10, height: 10, borderRadius: '50%', background: CAT_G[g.categoria]?.cor || '#ccc', flexShrink: 0 }} />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--color-ink)' }}>{g.descricao}</div>
+              <div style={{ flex: '1 1 240px', minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--color-ink)' }}>{g.descricao}</div>
+                  <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 999, background: sc.bg, color: sc.color, fontWeight: 800 }}>{sc.label}</span>
+                </div>
                 <div style={{ fontSize: 11, color: '#aaa', marginTop: 3 }}>{CAT_G[g.categoria]?.emoji} {CAT_G[g.categoria]?.label || g.categoria}{g.data ? ' · ' + new Date(g.data + 'T00:00:00').toLocaleDateString('pt-BR') : ''}</div>
                 {g.observacao && <div style={{ fontSize: 11, color: '#bbb', marginTop: 2, fontStyle: 'italic' }}>{g.observacao}</div>}
                 {urlComprovante && <a href={urlComprovante} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ display: 'inline-flex', alignItems: 'center', minHeight: 32, marginTop: 6, color: THEME.gold, fontSize: 12, fontWeight: 800, textDecoration: 'none' }}>Abrir comprovante</a>}
               </div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-ink)' }}>R$ {parseFloat(g.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-ink)' }}>R$ {parseFloat(g.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                {status === 'pendente_aprovacao' && (
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    <button onClick={e => { e.stopPropagation(); atualizarStatusGasto(g, 'recusado') }} disabled={Boolean(acaoGasto)} style={{ background: THEME.dangerBg, color: THEME.danger, border: '1px solid ' + THEME.danger, borderRadius: 8, padding: '8px 10px', minHeight: 44, fontSize: 11.5, fontWeight: 800, cursor: acaoGasto ? 'not-allowed' : 'pointer' }}>Recusar</button>
+                    <button onClick={e => { e.stopPropagation(); atualizarStatusGasto(g, 'aprovado') }} disabled={Boolean(acaoGasto)} style={{ background: THEME.gold, color: '#141210', border: 'none', borderRadius: 8, padding: '8px 10px', minHeight: 44, fontSize: 11.5, fontWeight: 800, cursor: acaoGasto ? 'not-allowed' : 'pointer' }}>Aprovar</button>
+                  </div>
+                )}
+              </div>
               <span style={{ fontSize: 12, color: '#aaa' }}>✏️</span>
             </div>
             )
@@ -2375,7 +2468,7 @@ function AbaHistorico({ obraId }) {
   if (historico.length === 0) return <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhum registro no histórico.</div>
   return (
     <div style={{ position: 'relative', paddingLeft: 24 }}>
-      {erro && <div style={{ background: '#FFF7F7', color: THEME.danger, border: `1px solid ${THEME.danger}`, borderRadius: 10, padding: '10px 12px', fontSize: 12.5, fontWeight: 800, marginBottom: 12 }}>{erro}</div>}
+      {erro && <div style={{ background: THEME.dangerBg, color: THEME.danger, border: `1px solid ${THEME.danger}`, borderRadius: 10, padding: '10px 12px', fontSize: 12.5, fontWeight: 800, marginBottom: 12 }}>{erro}</div>}
       <div style={{ position: 'absolute', left: 7, top: 0, bottom: 0, width: 2, background: 'var(--color-border)' }} />
       {historico.map(h => (
         <div key={h.id} style={{ position: 'relative', marginBottom: 20 }}>
@@ -2455,7 +2548,7 @@ function AbaCliente({ obraId }) {
         </div>
         <button onClick={() => navigator.clipboard.writeText(linkPortal)} style={{ background: 'var(--color-ink)', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 12, cursor: 'pointer', flexShrink: 0 }}>Copiar link</button>
       </div>
-      {erro && <div style={{ background: '#fdecea', color: '#a03030', borderLeft: '3px solid #d94a4a', borderRadius: 8, padding: '10px 12px', fontSize: 12, fontWeight: 700, marginBottom: 14 }}>{erro}</div>}
+      {erro && <div style={{ background: THEME.dangerBg, color: THEME.danger, borderLeft: '3px solid ' + THEME.danger, borderRadius: 8, padding: '10px 12px', fontSize: 12, fontWeight: 700, marginBottom: 14 }}>{erro}</div>}
       <div style={{ marginBottom: 28 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase' }}>Comunicados ao cliente</div>

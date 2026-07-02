@@ -34,6 +34,13 @@ const STATUS_OBRA = {
 
 const norm = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 
+function statusGasto(gasto) {
+  const status = norm(gasto?.status || 'aprovado').trim()
+  if (status === 'pendente') return 'pendente_aprovacao'
+  if (['aprovado', 'pendente_aprovacao', 'recusado'].includes(status)) return status
+  return 'aprovado'
+}
+
 const dataBR = value => value ? new Date(`${value}T00:00:00`).toLocaleDateString('pt-BR') : '-'
 
 const isConcluido = status => ['concluida', 'concluido', 'finalizada', 'finalizado'].includes(norm(status))
@@ -450,7 +457,7 @@ export default function DashboardSupervisor() {
         fotosPendentes,
         fotosNaoConformidade: fotosNaoConformidadePendentes,
         vistoriasPendentes: dados.agenda.filter(a => norm(a.tipo || a.titulo).includes('vistoria') && !['realizada', 'concluida', 'concluída'].includes(norm(a.status))),
-        gastosPendentes: dados.gastos.filter(g => norm(g.status).includes('pendente')),
+        gastosPendentes: dados.gastos.filter(g => statusGasto(g) === 'pendente_aprovacao'),
         cronogramasTravados: dados.cronogramas.filter(c => c.travado || norm(c.risco) === 'alto'),
       },
       atalhos: {

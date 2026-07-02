@@ -35,14 +35,33 @@ function mensagemErro(error, fallback = 'Nao foi possivel concluir a operacao.')
   return error?.message || error?.details || fallback
 }
 
+function erroColunaAusente(error) {
+  const texto = `${error?.code || ''} ${error?.message || ''} ${error?.details || ''}`.toLowerCase()
+  return texto.includes('column') || texto.includes('schema cache') || texto.includes('42703')
+}
+
+function statusGasto(gasto) {
+  const status = String(gasto?.status || 'aprovado').trim()
+  if (status === 'pendente') return 'pendente_aprovacao'
+  if (['aprovado', 'pendente_aprovacao', 'recusado'].includes(status)) return status
+  return 'aprovado'
+}
+
+function gastoContaNoRealizado(gasto) {
+  return statusGasto(gasto) === 'aprovado'
+}
+
 function comprovanteUrl(gasto) {
+  const direto = gasto?.comprovante || gasto?.comprovante_url || gasto?.url_comprovante
+  if (typeof direto === 'string' && direto.startsWith('http')) return direto
+  if (gasto?.storage_path) return supabase.storage.from('fotos-obras').getPublicUrl(gasto.storage_path).data.publicUrl
   const texto = gasto?.observacao || ''
   const match = texto.match(/Comprovante:\s*(https?:\/\/\S+)/i)
   return match?.[1] || ''
 }
 
 async function anexarComprovante(gastoId, arquivo, observacaoAtual = '') {
-  if (!arquivo) return { observacao: observacaoAtual || null, url: '' }
+  if (!arquivo) return { observacao: observacaoAtual || null, url: '', storage_path: '' }
   const ext = arquivo.name.split('.').pop() || 'bin'
   const path = `gastos/${gastoId}-${Date.now()}.${ext}`
   const { error: uploadError } = await supabase.storage.from('fotos-obras').upload(path, arquivo)
@@ -50,6 +69,7 @@ async function anexarComprovante(gastoId, arquivo, observacaoAtual = '') {
   const url = supabase.storage.from('fotos-obras').getPublicUrl(path).data.publicUrl
   return {
     observacao: [observacaoAtual, `Comprovante: ${url}`].filter(Boolean).join('\n'),
+    storage_path: path,
     url,
   }
 }
@@ -120,6 +140,7 @@ function Modal({ obras, profiles, todosGastos, onClose, onSaved }) {
   })
   const [saving,  setSaving]  = useState(false)
   const [erro,    setErro]    = useState('')
+  const [feedback, setFeedback] = useState('')
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
@@ -150,10 +171,11 @@ function Modal({ obras, profiles, todosGastos, onClose, onSaved }) {
     }
     setSaving(true)
     setErro('')
+    setFeedback(form.arquivo ? 'Salvando gasto e enviando comprovante...' : 'Salvando gasto...')
 
     const status = precisaAprovacao ? 'pendente_aprovacao' : 'aprovado'
     try {
-      const { data: gasto, error } = await supabase.from('gastos').insert({
+      const payload = {
         obra_id:        form.obra_id,
         categoria:      form.categoria,
         descricao:      form.descricao.trim(),
@@ -163,19 +185,40 @@ function Modal({ obras, profiles, todosGastos, onClose, onSaved }) {
         observacao:     form.observacao     || null,
         criado_por:     profile?.id,
         status,
-      }).select('id, observacao').single()
+      }
+      let { data: gasto, error } = await supabase.from('gastos').insert(payload).select('id, observacao').single()
+      if (error && erroColunaAusente(error)) {
+        const payloadCompat = { ...payload }
+        delete payloadCompat.status
+        delete payloadCompat.observacao
+        const retry = await supabase.from('gastos').insert(payloadCompat).select('id').single()
+        gasto = retry.data
+        error = retry.error
+      }
 
       if (error) throw error
       if (form.arquivo) {
         if (!gasto?.id) throw new Error('Gasto registrado sem identificador para anexar comprovante.')
+        setFeedback('Enviando comprovante...')
         const anexo = await anexarComprovante(gasto.id, form.arquivo, gasto.observacao || form.observacao)
-        const { error: updateError } = await supabase.from('gastos').update({ observacao: anexo.observacao }).eq('id', gasto.id)
-        if (updateError) throw updateError
+        const updates = [
+          { observacao: anexo.observacao, comprovante: anexo.url, storage_path: anexo.storage_path },
+          { observacao: anexo.observacao },
+        ]
+        let updateError = null
+        for (const update of updates) {
+          const result = await supabase.from('gastos').update(update).eq('id', gasto.id)
+          updateError = result.error
+          if (!updateError) break
+          if (!erroColunaAusente(updateError)) break
+        }
+        if (updateError) throw new Error('Gasto salvo, mas o upload do comprovante nao foi vinculado: ' + mensagemErro(updateError))
       }
       onSaved(precisaAprovacao, Boolean(form.arquivo))
     } catch (error) {
       setErro(mensagemErro(error, 'Nao foi possivel salvar o gasto.'))
     } finally {
+      setFeedback('')
       setSaving(false)
     }
   }
@@ -190,6 +233,7 @@ function Modal({ obras, profiles, todosGastos, onClose, onSaved }) {
 
         <div style={ms.body}>
           {erro && <div style={ms.erro}>{erro}</div>}
+          {feedback && <div style={ms.info}>{feedback}</div>}
 
           {/* seletor de obra primeiro — desbloqueia o painel */}
           <div style={{ marginBottom: 16 }}>
@@ -264,7 +308,7 @@ function Modal({ obras, profiles, todosGastos, onClose, onSaved }) {
               <label style={ms.label}>Comprovante (foto ou PDF)</label>
               <label style={ms.uploadArea}>
                 <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }}
-                  onChange={e => set('arquivo', e.target.files[0])} />
+                  onChange={e => set('arquivo', e.target.files?.[0] || null)} disabled={saving} />
                 {form.arquivo ? (
                   <span style={{ color: 'var(--color-ink)', fontSize: 13 }}>📎 {form.arquivo.name}</span>
                 ) : (
@@ -300,18 +344,24 @@ function ModalAprovacao({ gasto, onClose, onAprovado }) {
   const [justificativa, setJustificativa] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
+  const [feedback, setFeedback] = useState('')
 
   async function aprovar() {
     setSalvando(true)
     setErro('')
+    setFeedback('Aprovando gasto...')
     try {
       const observacao = [gasto.observacao, justificativa ? 'Aprovado: ' + justificativa : 'Aprovado pela gestao'].filter(Boolean).join(' | ')
       const { error } = await supabase.from('gastos').update({ status: 'aprovado', observacao }).eq('id', gasto.id)
-      if (error) throw error
+      if (error) {
+        if (erroColunaAusente(error)) throw new Error('A tabela de gastos ainda nao possui as colunas status/observacao para registrar aprovacao.')
+        throw error
+      }
       onAprovado()
     } catch (error) {
       setErro(mensagemErro(error, 'Nao foi possivel aprovar o gasto.'))
     } finally {
+      setFeedback('')
       setSalvando(false)
     }
   }
@@ -319,14 +369,19 @@ function ModalAprovacao({ gasto, onClose, onAprovado }) {
     if (!justificativa.trim()) return
     setSalvando(true)
     setErro('')
+    setFeedback('Recusando gasto...')
     try {
       const observacao = [gasto.observacao, 'Recusado: ' + justificativa.trim()].filter(Boolean).join(' | ')
       const { error } = await supabase.from('gastos').update({ status: 'recusado', observacao }).eq('id', gasto.id)
-      if (error) throw error
+      if (error) {
+        if (erroColunaAusente(error)) throw new Error('A tabela de gastos ainda nao possui as colunas status/observacao para registrar recusa.')
+        throw error
+      }
       onAprovado()
     } catch (error) {
       setErro(mensagemErro(error, 'Nao foi possivel recusar o gasto.'))
     } finally {
+      setFeedback('')
       setSalvando(false)
     }
   }
@@ -340,6 +395,7 @@ function ModalAprovacao({ gasto, onClose, onAprovado }) {
         </div>
         <div style={{ padding: '20px 28px' }}>
           {erro && <div style={ms.erro}>{erro}</div>}
+          {feedback && <div style={ms.info}>{feedback}</div>}
           <div style={{ background: '#f9f7f4', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-ink)', marginBottom: 4 }}>{gasto.descricao}</div>
             <div style={{ fontSize: 13, color: '#888', marginBottom: 8 }}>{CAT[gasto.categoria]?.emoji} {CAT[gasto.categoria]?.label} · {gasto.obras?.nome || 'Sem obra'}</div>
@@ -354,11 +410,11 @@ function ModalAprovacao({ gasto, onClose, onAprovado }) {
             onChange={e => setJustificativa(e.target.value)}
             placeholder="Comentário opcional para aprovação, obrigatório para recusa..." />
           <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={recusar} disabled={salvando || !justificativa.trim()} style={{ flex: 1, background: '#fdecea', color: '#B84040', border: 'none', borderRadius: 8, padding: '10px 0', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            <button onClick={recusar} disabled={salvando || !justificativa.trim()} style={{ flex: 1, background: theme.statusBg.danger, color: theme.error, border: 'none', borderRadius: 8, padding: '10px 0', minHeight: 44, fontSize: 13, fontWeight: 600, cursor: salvando || !justificativa.trim() ? 'not-allowed' : 'pointer', opacity: salvando || !justificativa.trim() ? 0.65 : 1 }}>
               Recusar
             </button>
-            <button onClick={aprovar} disabled={salvando} style={{ flex: 1, background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 0', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-              {salvando ? '...' : 'Aprovar'}
+            <button onClick={aprovar} disabled={salvando} style={{ flex: 1, background: 'var(--color-gold)', color: '#141210', border: 'none', borderRadius: 8, padding: '10px 0', minHeight: 44, fontSize: 13, fontWeight: 600, cursor: salvando ? 'not-allowed' : 'pointer', opacity: salvando ? 0.75 : 1 }}>
+              {salvando ? 'Processando...' : 'Aprovar'}
             </button>
           </div>
         </div>
@@ -380,12 +436,14 @@ export default function Gastos() {
   const [modal,           setModal]           = useState(false)
   const [gastoPendente,   setGastoPendente]   = useState(null) // para modal de aprovação
   const [toast,           setToast]           = useState('')
+  const [erroCarregamento, setErroCarregamento] = useState('')
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { carregar() }, [])
 
   async function carregar() {
     setLoading(true)
+    setErroCarregamento('')
     const [gastosResult, obrasResult, profilesResult] = await Promise.all([
       supabase.from('gastos')
         .select('*, obras(nome, gasto_meta), responsavel:profiles!gastos_responsavel_id_fkey(full_name)')
@@ -393,8 +451,15 @@ export default function Gastos() {
       supabase.from('obras').select('id, nome, gasto_meta').order('nome'),
       supabase.from('profiles').select('id, full_name').in('role', ['gestao', 'supervisor', 'montador']),
     ])
-    const falha = [gastosResult, obrasResult, profilesResult].find(result => result.error)
-    if (falha?.error) mostrarToast(mensagemErro(falha.error, 'Parte dos dados financeiros nao foi carregada.'))
+    const falhas = [
+      gastosResult.error && mensagemErro(gastosResult.error, 'Nao foi possivel carregar os gastos.'),
+      obrasResult.error && mensagemErro(obrasResult.error, 'Nao foi possivel carregar as obras.'),
+      profilesResult.error && mensagemErro(profilesResult.error, 'Nao foi possivel carregar os responsaveis.'),
+    ].filter(Boolean)
+    if (falhas.length) {
+      setErroCarregamento(falhas.join(' / '))
+      mostrarToast('Parte dos dados financeiros nao foi carregada.')
+    }
     setGastos(gastosResult.data || [])
     setObras(obrasResult.data || [])
     setProfiles(profilesResult.data || [])
@@ -406,22 +471,23 @@ export default function Gastos() {
     setTimeout(() => setToast(''), 3500)
   }
 
-  const pendentes = gastos.filter(g => g.status === 'pendente_aprovacao')
+  const pendentes = gastos.filter(g => statusGasto(g) === 'pendente_aprovacao')
 
   const lista = gastos
     .filter(g => !filtroObra      || g.obra_id   === filtroObra)
     .filter(g => !filtroCategoria || g.categoria === filtroCategoria)
-    .filter(g => !filtroStatus    || g.status    === filtroStatus)
+    .filter(g => !filtroStatus    || statusGasto(g) === filtroStatus)
 
-  const total = lista.reduce((s, g) => s + valorSeguro(g.valor), 0)
+  const listaRealizada = lista.filter(gastoContaNoRealizado)
+  const total = listaRealizada.reduce((s, g) => s + valorSeguro(g.valor), 0)
   const mesAtual = new Date().toISOString().slice(0, 7)
-  const gastosMes = gastos.filter(g => String(g.data || g.created_at || '').slice(0, 7) === mesAtual)
+  const gastosMes = gastos.filter(g => gastoContaNoRealizado(g) && String(g.data || g.created_at || '').slice(0, 7) === mesAtual)
   const totalMes = gastosMes.reduce((s, g) => s + valorSeguro(g.valor), 0)
-  const aprovados = gastos.filter(g => (g.status || 'aprovado') === 'aprovado')
-  const recusados = gastos.filter(g => g.status === 'recusado')
+  const aprovados = gastos.filter(g => statusGasto(g) === 'aprovado')
+  const recusados = gastos.filter(g => statusGasto(g) === 'recusado')
 
   const porCategoria = Object.entries(
-    lista.reduce((acc, g) => {
+    listaRealizada.reduce((acc, g) => {
       acc[g.categoria] = (acc[g.categoria] || 0) + valorSeguro(g.valor)
       return acc
     }, {})
@@ -474,6 +540,8 @@ export default function Gastos() {
         <button style={s.btnNew} onClick={() => setModal(true)}>+ Lançar Gasto</button>
       </div>
 
+      {erroCarregamento && <div style={s.errorBox}>{erroCarregamento}</div>}
+
       <div className="ga-mobile-summary" aria-label="Resumo financeiro">
         <button type="button" onClick={() => { setFiltroStatus(''); setFiltroObra(''); setFiltroCategoria('') }}>
           <strong>R$ {totalMes.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</strong>
@@ -504,7 +572,7 @@ export default function Gastos() {
               <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-ink)', marginRight: 8 }}>
                 R$ {parseFloat(g.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </div>
-              <button onClick={() => setGastoPendente(g)} style={{ background: 'var(--color-gold)', color: '#fff', border: 'none', borderRadius: 7, padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+              <button onClick={() => setGastoPendente(g)} style={{ background: 'var(--color-gold)', color: '#141210', border: 'none', borderRadius: 7, padding: '7px 14px', minHeight: 44, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                 Analisar
               </button>
             </div>
@@ -581,7 +649,8 @@ export default function Gastos() {
       ) : (
         <div className="ga-list" style={s.list}>
           {lista.map(g => {
-            const sc = statusCor[g.status] || statusCor.aprovado
+            const status = statusGasto(g)
+            const sc = statusCor[status] || statusCor.aprovado
             const urlComprovante = comprovanteUrl(g)
             return (
               <div key={g.id} className="ga-item" style={s.item} onClick={() => g.obra_id && navigate(`/obras/${g.obra_id}`)}>
@@ -589,7 +658,7 @@ export default function Gastos() {
                 <div style={s.itemBody}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div style={s.itemTitle}>{g.descricao}</div>
-                    {g.status && g.status !== 'aprovado' && (
+                    {status !== 'aprovado' && (
                       <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, background: sc.bg, color: sc.color, fontWeight: 600 }}>
                         {sc.label}
                       </span>
@@ -612,10 +681,10 @@ export default function Gastos() {
                   <div style={s.itemValor}>
                     {moeda(g.valor)}
                   </div>
-                  {g.status === 'pendente_aprovacao' && (
+                  {status === 'pendente_aprovacao' && (
                     <button
                       onClick={e => { e.stopPropagation(); setGastoPendente(g) }}
-                      style={{ fontSize: 10, background: '#fdf8f0', color: '#C8A86A', border: '1px solid #e8d9b8', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', fontWeight: 600 }}>
+                      style={{ fontSize: 10, background: '#fdf8f0', color: '#C8A86A', border: '1px solid #e8d9b8', borderRadius: 6, padding: '3px 8px', minHeight: 44, cursor: 'pointer', fontWeight: 600 }}>
                       Analisar
                     </button>
                   )}
@@ -669,7 +738,8 @@ const s = {
   breadcrumb:   { fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6 },
   title:        { fontFamily: 'var(--font-serif)', fontSize: 36, fontWeight: 500, color: 'var(--color-ink)', margin: 0 },
   sub:          { fontSize: 13, color: 'var(--color-ink-muted)', marginTop: 4 },
-  btnNew:       { background: theme.gold, color: theme.background, border: 'none', borderRadius: 8, padding: '12px 24px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' },
+  btnNew:       { background: theme.gold, color: theme.background, border: 'none', borderRadius: 8, padding: '12px 24px', minHeight: 44, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' },
+  errorBox:     { background: theme.statusBg.danger, border: `1px solid ${theme.error}`, color: theme.error, borderRadius: 10, padding: '10px 12px', fontSize: 12.5, fontWeight: 800, marginBottom: 14 },
   pendentesBox: { background: '#fdf8f0', border: '1px solid #e8d9b8', borderLeft: '3px solid #C8A86A', borderRadius: 12, padding: '16px 20px', marginBottom: 24 },
   statsGrid:    { display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 24 },
   stat:         { background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
@@ -718,6 +788,7 @@ const ms = {
   alertaExcede:   { background: '#fdecea', borderLeft: '3px solid #B84040', color: '#7a2020', padding: '10px 14px', borderRadius: 6, fontSize: 12, marginBottom: 16, lineHeight: 1.5 },
   alertaAprovacao:{ background: '#fdf8f0', borderLeft: '3px solid #C8A86A', color: '#7a5c20', padding: '10px 14px', borderRadius: 6, fontSize: 12, marginBottom: 16, lineHeight: 1.5 },
   footer:      { display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '16px 28px', borderTop: '1px solid #f0ece6', flexShrink: 0 },
-  btnCancel:   { background: 'none', border: '1px solid #e0dbd4', borderRadius: 8, padding: '9px 18px', fontSize: 13, cursor: 'pointer', color: '#888', fontFamily: 'inherit' },
-  btnSave:     { color: theme.background, border: 'none', borderRadius: 8, padding: '12px 24px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  info:        { background: theme.statusBg.info, borderLeft: '3px solid ' + theme.info, color: theme.textPrimary, padding: '10px 14px', borderRadius: 6, fontSize: 12, marginBottom: 16, fontWeight: 700 },
+  btnCancel:   { background: 'none', border: '1px solid #e0dbd4', borderRadius: 8, padding: '9px 18px', minHeight: 44, fontSize: 13, cursor: 'pointer', color: '#888', fontFamily: 'inherit' },
+  btnSave:     { color: theme.background, border: 'none', borderRadius: 8, padding: '12px 24px', minHeight: 44, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 }

@@ -38,6 +38,17 @@ function normalizar(value) {
   return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 }
 
+function statusGasto(gasto) {
+  const status = normalizar(gasto?.status || 'aprovado').trim()
+  if (status === 'pendente') return 'pendente_aprovacao'
+  if (['aprovado', 'pendente_aprovacao', 'recusado'].includes(status)) return status
+  return 'aprovado'
+}
+
+function gastoRealizado(gasto) {
+  return statusGasto(gasto) === 'aprovado'
+}
+
 function valorAmbiente(item, ambientesPorId) {
   return ambientesPorId.get(item.ambiente_id)?.nome || 'Geral'
 }
@@ -263,10 +274,16 @@ function dadosBase(ctx) {
 }
 
 function adicionarResumoFinanceiro(pdf, gastos) {
-  const total = gastos.reduce((sum, g) => sum + Number(g.valor || 0), 0)
+  const realizados = gastos.filter(gastoRealizado)
+  const pendentes = gastos.filter(g => statusGasto(g) === 'pendente_aprovacao')
+  const recusados = gastos.filter(g => statusGasto(g) === 'recusado')
+  const total = realizados.reduce((sum, g) => sum + Number(g.valor || 0), 0)
+  const totalPendente = pendentes.reduce((sum, g) => sum + Number(g.valor || 0), 0)
   pdf.grid([
-    { label: 'Gastos registrados', value: gastos.length },
+    { label: 'Gastos realizados', value: realizados.length },
     { label: 'Total operacional', value: dinheiro(total) },
+    { label: 'Pendentes de aprovação', value: `${pendentes.length} (${dinheiro(totalPendente)})` },
+    { label: 'Recusados', value: recusados.length },
   ])
 }
 

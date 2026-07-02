@@ -108,6 +108,17 @@ function fotoPendenteAprovacao(foto) {
   return !(foto?.aprovada === true && foto?.aprovada_gestao === true)
 }
 
+function statusGasto(gasto) {
+  const status = String(gasto?.status || 'aprovado').trim()
+  if (status === 'pendente') return 'pendente_aprovacao'
+  if (['aprovado', 'pendente_aprovacao', 'recusado'].includes(status)) return status
+  return 'aprovado'
+}
+
+function gastoContaNoRealizado(gasto) {
+  return statusGasto(gasto) === 'aprovado'
+}
+
 function rotaObra(obraId, aba, params = {}) {
   if (!obraId) return ''
   const query = new URLSearchParams({ aba })
@@ -157,7 +168,7 @@ export default function DashboardGestao() {
       supabase.from('ocorrencias').select('*').order('created_at', { ascending: false }).limit(120),
       supabase.from('checkins').select('*, obras(nome)').order('created_at', { ascending: false }).limit(200),
       supabase.from('fotos').select('*, obras(nome)').order('created_at', { ascending: false }).limit(80),
-      supabase.from('gastos').select('*, obras(nome)').order('created_at', { ascending: false }).limit(200),
+      supabase.from('gastos').select('*, obras(nome)').order('created_at', { ascending: false }),
       supabase.from('tarefas').select('*').order('prazo', { ascending: true }).limit(200),
       supabase.from('profiles').select('id, full_name, email, role'),
       supabase.from('obra_montadores').select('obra_id, montador_id, montador:profiles!obra_montadores_montador_id_fkey(full_name)'),
@@ -233,8 +244,9 @@ export default function DashboardGestao() {
       fotosPorObra.set(f.obra_id, [...(fotosPorObra.get(f.obra_id) || []), f])
     })
 
+    const gastosRealizados = dados.gastos.filter(gastoContaNoRealizado)
     const gastosPorObra = new Map()
-    dados.gastos.forEach(g => {
+    gastosRealizados.forEach(g => {
       if (!g.obra_id) return
       gastosPorObra.set(g.obra_id, (gastosPorObra.get(g.obra_id) || 0) + valorSeguro(g.valor))
     })
@@ -246,8 +258,8 @@ export default function DashboardGestao() {
     const tarefasAtrasadas = dados.tarefas.filter(t => t.prazo && t.prazo < hojeStr && !isConcluido(t.status))
     const agenda7 = dados.agenda.filter(a => a.data >= hojeStr && a.data <= em7Str)
     const tipoAgenda = termo => agenda7.filter(a => normalizar(a.tipo || a.titulo).includes(termo))
-    const gastosMes = dados.gastos.filter(g => (g.data || g.created_at || '').slice(0, 7) === mesAtual)
-    const gastosPendentes = dados.gastos.filter(g => normalizar(g.status || 'pendente').includes('pendente'))
+    const gastosMes = gastosRealizados.filter(g => (g.data || g.created_at || '').slice(0, 7) === mesAtual)
+    const gastosPendentes = dados.gastos.filter(g => statusGasto(g) === 'pendente_aprovacao')
     const checkinsHoje = dados.checkins.filter(c => {
       const base = c.entrada || c.created_at
       if (!base) return false
@@ -360,7 +372,7 @@ export default function DashboardGestao() {
       },
       financeiro: {
         totalMes: gastosMes.reduce((s, g) => s + valorSeguro(g.valor), 0),
-        totalOperacional: dados.gastos.reduce((s, g) => s + valorSeguro(g.valor), 0),
+        totalOperacional: gastosRealizados.reduce((s, g) => s + valorSeguro(g.valor), 0),
         gastosMes,
         topObras: [...gastosPorObra.entries()].map(([obraId, total]) => ({ obraId, nome: obraNome(dados.obras, obraId), total })).sort((a, b) => b.total - a.total).slice(0, 5),
         acimaMeta: dados.obras.filter(o => valorSeguro(o.gasto_meta) > 0 && (gastosPorObra.get(o.id) || 0) >= valorSeguro(o.gasto_meta) * 0.9),
