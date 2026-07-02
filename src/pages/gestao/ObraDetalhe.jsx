@@ -1270,6 +1270,7 @@ function CampoEdit({ label, children, full }) {
 }
 
 function AbaAgenda({ obraId, agendaDestaque }) {
+  const navigate = useNavigate()
   const [agenda, setAgenda] = useState([])
   const [checklistVistoria, setChecklistVistoria] = useState([])
   const [fotosVistoria, setFotosVistoria] = useState([])
@@ -1419,6 +1420,10 @@ function AbaAgenda({ obraId, agendaDestaque }) {
 
   async function alternarAgendaCliente(item) {
     setErro('')
+    if (item.reuniao_interna) {
+      setErro('Reuniões internas não podem ser liberadas ao cliente.')
+      return
+    }
     const proximo = !item.visivel_cliente
     const { error } = await supabase.from('agenda').update({
       visivel_cliente: proximo,
@@ -1434,10 +1439,29 @@ function AbaAgenda({ obraId, agendaDestaque }) {
   if (loading) return <div style={{ color: THEME.muted }}>Carregando...</div>
   const dias = diasCalendario()
   const selecionados = diaSelecionado ? eventosDoDia(diaSelecionado) : []
+  const hoje = new Date()
+  hoje.setHours(0, 0, 0, 0)
+  const limite7 = new Date(hoje)
+  limite7.setDate(limite7.getDate() + 7)
+  const proximos7 = agenda.filter(item => {
+    if (!item.data) return false
+    const data = new Date(`${item.data}T00:00:00`)
+    return !Number.isNaN(data.getTime()) && data >= hoje && data <= limite7
+  })
 
   return (
     <div style={{ display: 'grid', gap: 14 }}>
       {erro && <div style={{ background: THEME.dangerBg, color: THEME.danger, border: `1px solid ${THEME.danger}`, borderRadius: 10, padding: '10px 12px', fontSize: 12.5, fontWeight: 800 }}>{erro}</div>}
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap', background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: 14, padding: 14 }}>
+        <div>
+          <div style={{ fontSize: 10, letterSpacing: 2, color: THEME.gold, textTransform: 'uppercase', fontWeight: 900 }}>Próximos 7 dias</div>
+          <div style={{ fontSize: 18, color: THEME.ink, fontWeight: 900, marginTop: 3 }}>{proximos7.length} compromisso{proximos7.length === 1 ? '' : 's'}</div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button type="button" onClick={() => navigate(`/agenda${agendaDestaque ? `?compromisso=${agendaDestaque}` : ''}`)} style={{ border: `1px solid ${THEME.border}`, background: THEME.elevated, color: THEME.ink, borderRadius: 9, minHeight: 44, padding: '9px 12px', fontSize: 12, fontWeight: 900, cursor: 'pointer' }}>Abrir Agenda</button>
+          <button type="button" onClick={() => navigate('/planejamento')} style={{ border: `1px solid ${THEME.gold}`, background: THEME.softGold, color: THEME.gold, borderRadius: 9, minHeight: 44, padding: '9px 12px', fontSize: 12, fontWeight: 900, cursor: 'pointer' }}>Abrir Planejamento</button>
+        </div>
+      </div>
       <div style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: 14, padding: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: 24 }}>
           <div>
@@ -1535,6 +1559,8 @@ function AbaAgenda({ obraId, agendaDestaque }) {
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             {item.tipo && <span style={{ fontSize: 11, color: THEME.muted, border: `1px solid ${THEME.border}`, borderRadius: 999, padding: '5px 10px' }}>{item.tipo}</span>}
+            {item.reuniao_interna && <span style={{ fontSize: 11, color: THEME.danger, background: THEME.dangerBg, border: `1px solid ${THEME.danger}`, borderRadius: 999, padding: '5px 10px', fontWeight: 900 }}>Interno</span>}
+            {item.visivel_montador && !item.reuniao_interna && <span style={{ fontSize: 11, color: THEME.success, background: '#EAF5EE', borderRadius: 999, padding: '5px 10px', fontWeight: 900 }}>Montador</span>}
             <button type="button" onClick={() => alternarAgendaCliente(item)} style={{ border: `1px solid ${item.visivel_cliente ? THEME.gold : THEME.border}`, background: item.visivel_cliente ? THEME.softGold : THEME.elevated, color: item.visivel_cliente ? THEME.gold : THEME.muted, borderRadius: 9, padding: '9px 12px', minHeight: 44, fontSize: 12, fontWeight: 900, cursor: 'pointer' }}>
               {item.visivel_cliente ? 'Cliente: visivel' : 'Liberar ao cliente'}
             </button>
@@ -1553,6 +1579,7 @@ function AbaChecklist({ obraId, checklistDestaque }) {
   const [novoItem, setNovoItem] = useState('')
   const [ambienteSelecionado, setAmbienteSelecionado] = useState('geral')
   const [salvando, setSalvando] = useState(false)
+  const [salvandoItem, setSalvandoItem] = useState('')
   const [aplicando, setAplicando] = useState(false)
   const [filtroBiblioteca, setFiltroBiblioteca] = useState({ fase: '', ambiente: '' })
   const [mensagemBiblioteca, setMensagemBiblioteca] = useState('')
@@ -1593,8 +1620,10 @@ function AbaChecklist({ obraId, checklistDestaque }) {
     setNovoItem(''); await carregar(); setSalvando(false)
   }
   async function toggle(item) {
+    if (salvandoItem) return
     const concluindo = !item.concluido
     setMensagemBiblioteca('')
+    setSalvandoItem(item.id)
     const { error } = await supabase.from('checklist_items').update({
       concluido: concluindo,
       concluido_por: concluindo ? user?.id : null,
@@ -1602,6 +1631,7 @@ function AbaChecklist({ obraId, checklistDestaque }) {
     }).eq('id', item.id)
     if (error) {
       setMensagemBiblioteca('Erro ao atualizar checklist: ' + mensagemErro(error))
+      setSalvandoItem('')
       return
     }
     if (concluindo) {
@@ -1618,15 +1648,18 @@ function AbaChecklist({ obraId, checklistDestaque }) {
       })
     }
     await carregar()
+    setSalvandoItem('')
   }
 
   async function alternarCliente(item) {
+    if (salvandoItem) return
     setMensagemBiblioteca('')
     if (!item.concluido && !item.visivel_cliente) {
       setMensagemBiblioteca('Erro: conclua o item antes de liberar ao cliente.')
       return
     }
     const proximo = !item.visivel_cliente
+    setSalvandoItem(item.id)
     const { error } = await supabase.from('checklist_items').update({
       visivel_cliente: proximo,
       visibilidade: proximo ? 'cliente' : 'interna',
@@ -1634,9 +1667,12 @@ function AbaChecklist({ obraId, checklistDestaque }) {
     }).eq('id', item.id)
     if (error) {
       setMensagemBiblioteca('Erro ao atualizar visibilidade do checklist: ' + mensagemErro(error))
+      setSalvandoItem('')
       return
     }
     await carregar()
+    setMensagemBiblioteca(proximo ? 'Checklist liberado ao cliente.' : 'Checklist ocultado do cliente.')
+    setSalvandoItem('')
   }
 
   async function aplicarBiblioteca() {
@@ -1661,6 +1697,11 @@ function AbaChecklist({ obraId, checklistDestaque }) {
     setAplicando(false)
   }
   const concluidos = itens.filter(i => i.concluido).length
+  const naoConformidades = itens.filter(i => {
+    const criticidade = String(i.criticidade || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    const descricao = String(i.descricao || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    return ['alta', 'critica'].includes(criticidade) || descricao.includes('nao conform')
+  }).length
   const pct = itens.length > 0 ? Math.round(concluidos / itens.length * 100) : 0
   const gruposAmbientes = ambientes.map(a => ({
     id: a.id,
@@ -1704,6 +1745,7 @@ function AbaChecklist({ obraId, checklistDestaque }) {
         <KpiCard label="Progresso" value={`${pct}%`} helper={`${concluidos} de ${itens.length} itens`} />
         <KpiCard label="Ambientes" value={ambientes.length || 1} helper={ambientes.length ? 'ambientes da obra' : 'grupo geral'} />
         <KpiCard label="Pendentes" value={itens.length - concluidos} helper="itens abertos" />
+        <KpiCard label="Não conform." value={naoConformidades} helper="itens críticos" />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 18 }}>
@@ -1739,15 +1781,15 @@ function AbaChecklist({ obraId, checklistDestaque }) {
             const bloqueadoCliente = !item.concluido && !item.visivel_cliente
             return (
             <div key={item.id} data-destaque-id={item.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 12px', border: destaque ? `2px solid ${THEME.gold}` : 'none', borderBottom: destaque ? `2px solid ${THEME.gold}` : `1px solid ${THEME.border}`, borderRadius: destaque ? 12 : 0, background: destaque ? THEME.softGold : 'transparent' }}>
-              <button type="button" onClick={() => toggle(item)} style={{ width: 30, height: 30, borderRadius: 6, border: '2px solid ' + (item.concluido ? '#5aab6e' : THEME.border), background: item.concluido ? '#5aab6e' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer' }} aria-label={item.concluido ? 'Marcar item como pendente' : 'Concluir item'}>
-                {item.concluido && <span style={{ color: '#fff', fontSize: 12, fontWeight: 700 }}>v</span>}
+              <button type="button" onClick={() => toggle(item)} disabled={Boolean(salvandoItem)} style={{ width: 44, height: 44, borderRadius: 8, border: '2px solid ' + (item.concluido ? '#5aab6e' : THEME.border), background: item.concluido ? '#5aab6e' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: salvandoItem ? 'not-allowed' : 'pointer', opacity: salvandoItem && salvandoItem !== item.id ? 0.55 : 1 }} aria-label={item.concluido ? 'Marcar item como pendente' : 'Concluir item'}>
+                {salvandoItem === item.id ? <span style={{ color: item.concluido ? '#fff' : THEME.muted, fontSize: 12, fontWeight: 700 }}>...</span> : item.concluido && <span style={{ color: '#fff', fontSize: 12, fontWeight: 700 }}>v</span>}
               </button>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13.5, color: item.concluido ? '#aaa' : THEME.ink, textDecoration: item.concluido ? 'line-through' : 'none', fontWeight: 600 }}>{item.descricao}</div>
                 {item.concluido_em && <div style={{ fontSize: 11, color: THEME.muted, marginTop: 3 }}>Concluído em {new Date(item.concluido_em).toLocaleString('pt-BR')}</div>}
               </div>
-              <button type="button" onClick={() => alternarCliente(item)} disabled={bloqueadoCliente} style={{ border: `1px solid ${item.visivel_cliente ? THEME.gold : THEME.border}`, background: item.visivel_cliente ? THEME.softGold : THEME.elevated, color: item.visivel_cliente ? THEME.gold : THEME.muted, borderRadius: 9, padding: '9px 12px', minHeight: 44, fontSize: 12, fontWeight: 900, cursor: bloqueadoCliente ? 'not-allowed' : 'pointer', opacity: bloqueadoCliente ? 0.55 : 1 }}>
-                {item.visivel_cliente ? 'Cliente: visivel' : 'Liberar ao cliente'}
+              <button type="button" onClick={() => alternarCliente(item)} disabled={bloqueadoCliente || Boolean(salvandoItem)} style={{ border: `1px solid ${item.visivel_cliente ? THEME.gold : THEME.border}`, background: item.visivel_cliente ? THEME.softGold : THEME.elevated, color: item.visivel_cliente ? THEME.gold : THEME.muted, borderRadius: 9, padding: '9px 12px', minHeight: 44, fontSize: 12, fontWeight: 900, cursor: bloqueadoCliente || salvandoItem ? 'not-allowed' : 'pointer', opacity: bloqueadoCliente || (salvandoItem && salvandoItem !== item.id) ? 0.55 : 1 }}>
+                {salvandoItem === item.id ? 'Salvando...' : item.visivel_cliente ? 'Cliente: visível' : 'Liberar ao cliente'}
               </button>
             </div>
           )})
@@ -2248,6 +2290,7 @@ function AbaFotos({ obraId, fotoDestaque }) {
   const [agendaVistorias, setAgendaVistorias] = useState([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
+  const [acaoFoto, setAcaoFoto] = useState('')
   const [erro, setErro] = useState('')
   const [mensagem, setMensagem] = useState({ texto: '', tipo: 'ok' })
   const [preview, setPreview] = useState(null)
@@ -2281,6 +2324,11 @@ function AbaFotos({ obraId, fotoDestaque }) {
   }, [fotoDestaque, loading])
   async function handleUpload(e) {
     const file = e.target.files[0]; if (!file) return
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      mostrarMensagem('Sem conexão no momento. A foto não foi enviada.', 'erro')
+      e.target.value = ''
+      return
+    }
     if (!formFoto.categoria) {
       mostrarMensagem('Selecione uma categoria antes de enviar a foto.', 'erro')
       e.target.value = ''
@@ -2303,10 +2351,10 @@ function AbaFotos({ obraId, fotoDestaque }) {
           ambiente_id: formFoto.ambiente_id || null,
           agenda_id: formFoto.agenda_id || null,
           observacao: formFoto.observacao || file.name,
-          visivel_cliente: false,
+          visivel_cliente: Boolean(formFoto.visivel_cliente),
           aprovada: false,
           aprovada_gestao: false,
-          visibilidade: 'interna',
+          visibilidade: formFoto.visivel_cliente ? 'cliente' : 'interna',
         }])
       if (insertError) {
         setErro(mensagemErro(insertError, 'A foto foi enviada, mas não foi vinculada à obra.'))
@@ -2320,8 +2368,10 @@ function AbaFotos({ obraId, fotoDestaque }) {
     setUploading(false); e.target.value = ''
   }
   async function aprovar(foto) {
+    if (acaoFoto) return
     const aprovado = !foto.aprovada
     setErro('')
+    setAcaoFoto(foto.id)
     setMensagem({ texto: aprovado ? 'Aprovando foto...' : 'Movendo foto para revisao...', tipo: 'info' })
     const { error } = await supabase.from('fotos').update({
       aprovada: aprovado,
@@ -2331,6 +2381,7 @@ function AbaFotos({ obraId, fotoDestaque }) {
       ...(!aprovado ? { visivel_cliente: false, visibilidade: 'interna' } : {}),
     }).eq('id', foto.id)
     if (error) {
+      setAcaoFoto('')
       setErro(mensagemErro(error, 'Não foi possível atualizar a aprovação da foto.'))
       return
     }
@@ -2347,35 +2398,44 @@ function AbaFotos({ obraId, fotoDestaque }) {
     })
     await carregar()
     mostrarMensagem(aprovado ? 'Foto aprovada. Agora ela pode ser liberada ao cliente.' : 'Foto voltou para revisao e foi ocultada do cliente.', 'ok')
+    setAcaoFoto('')
   }
   async function alternarCliente(foto) {
+    if (acaoFoto) return
     setErro('')
     if (!foto.visivel_cliente && !fotoAprovadaParaCliente(foto)) {
       mostrarMensagem('Aprove a foto antes de liberar a visibilidade para o cliente.', 'erro')
       return
     }
+    setAcaoFoto(foto.id)
     setMensagem({ texto: foto.visivel_cliente ? 'Ocultando foto do cliente...' : 'Liberando foto para o cliente...', tipo: 'info' })
     const { error } = await supabase.from('fotos').update({
       visivel_cliente: !foto.visivel_cliente,
       visibilidade: !foto.visivel_cliente ? 'cliente' : 'interna',
     }).eq('id', foto.id)
     if (error) {
+      setAcaoFoto('')
       setErro(mensagemErro(error, 'Não foi possível atualizar a visibilidade da foto.'))
       return
     }
     await carregar()
     mostrarMensagem(foto.visivel_cliente ? 'Foto ocultada do cliente.' : 'Foto liberada no portal do cliente.', 'ok')
+    setAcaoFoto('')
   }
   async function deletar(foto) {
+    if (acaoFoto) return
     setErro('')
+    setAcaoFoto(foto.id)
     setMensagem({ texto: 'Excluindo foto...', tipo: 'info' })
     const { error } = await supabase.from('fotos').delete().eq('id', foto.id)
     if (error) {
+      setAcaoFoto('')
       setErro(mensagemErro(error, 'Não foi possível excluir a foto.'))
       return
     }
     await carregar()
     mostrarMensagem('Foto excluida da obra.', 'ok')
+    setAcaoFoto('')
   }
   const ambienteNome = ambienteId => ambientes.find(a => a.id === ambienteId)?.nome || 'Sem ambiente'
   const filtradas = fotos.filter(f => {
@@ -2447,9 +2507,9 @@ function AbaFotos({ obraId, fotoDestaque }) {
                     <div style={{ fontSize: 12, color: THEME.ink, fontWeight: 700, marginBottom: 4 }}>{ambienteNome(foto.ambiente_id)}</div>
                     <div style={{ fontSize: 11, color: THEME.muted, marginBottom: 8, minHeight: 16 }}>{foto.observacao || 'Sem observação'}</div>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      <button onClick={() => aprovar(foto)} style={{ flex: '1 1 90px', minHeight: 44, padding: '8px 10px', borderRadius: 7, border: 'none', fontSize: 11, cursor: 'pointer', background: foto.aprovada ? THEME.successBg : THEME.elevated, color: foto.aprovada ? THEME.success : THEME.muted, fontWeight: 700 }}>{foto.aprovada ? 'Aprovada' : 'Aprovar'}</button>
-                      <button onClick={() => alternarCliente(foto)} style={{ flex: '1 1 90px', minHeight: 44, padding: '8px 10px', borderRadius: 7, border: 'none', fontSize: 11, cursor: liberavelCliente || foto.visivel_cliente ? 'pointer' : 'not-allowed', background: foto.visivel_cliente ? THEME.softGold : THEME.elevated, color: foto.visivel_cliente ? THEME.gold : THEME.muted, fontWeight: 700 }}>Cliente</button>
-                      <button onClick={() => deletar(foto)} style={{ padding: '8px 12px', minHeight: 44, borderRadius: 7, border: 'none', fontSize: 11, cursor: 'pointer', background: THEME.dangerBg, color: THEME.danger, fontWeight: 900 }}>X</button>
+                      <button onClick={() => aprovar(foto)} disabled={Boolean(acaoFoto)} style={{ flex: '1 1 90px', minHeight: 44, padding: '8px 10px', borderRadius: 7, border: 'none', fontSize: 11, cursor: acaoFoto ? 'not-allowed' : 'pointer', opacity: acaoFoto && acaoFoto !== foto.id ? 0.55 : 1, background: foto.aprovada ? THEME.successBg : THEME.elevated, color: foto.aprovada ? THEME.success : THEME.muted, fontWeight: 700 }}>{acaoFoto === foto.id ? 'Salvando...' : foto.aprovada ? 'Aprovada' : 'Aprovar'}</button>
+                      <button onClick={() => alternarCliente(foto)} disabled={Boolean(acaoFoto) || (!liberavelCliente && !foto.visivel_cliente)} style={{ flex: '1 1 90px', minHeight: 44, padding: '8px 10px', borderRadius: 7, border: 'none', fontSize: 11, cursor: acaoFoto || (!liberavelCliente && !foto.visivel_cliente) ? 'not-allowed' : 'pointer', opacity: acaoFoto && acaoFoto !== foto.id ? 0.55 : 1, background: foto.visivel_cliente ? THEME.softGold : THEME.elevated, color: foto.visivel_cliente ? THEME.gold : THEME.muted, fontWeight: 700 }}>{acaoFoto === foto.id ? 'Salvando...' : foto.visivel_cliente ? 'Cliente: sim' : 'Cliente'}</button>
+                      <button onClick={() => deletar(foto)} disabled={Boolean(acaoFoto)} style={{ padding: '8px 12px', minHeight: 44, borderRadius: 7, border: 'none', fontSize: 11, cursor: acaoFoto ? 'not-allowed' : 'pointer', opacity: acaoFoto && acaoFoto !== foto.id ? 0.55 : 1, background: THEME.dangerBg, color: THEME.danger, fontWeight: 900 }}>{acaoFoto === foto.id ? '...' : 'X'}</button>
                     </div>
                   </div>
                 </div>
@@ -2676,7 +2736,7 @@ function AbaEquipeObra({ obraId }) {
       entidade_tipo: 'obra_montadores',
       entidade_id: obraId,
     }])
-    if (error) console.error('Erro ao notificar montador alocado:', error)
+    return { error }
   }
   async function carregar() {
     setLoading(true)
@@ -2743,6 +2803,7 @@ function AbaEquipeObra({ obraId }) {
       .select('obra_id, montador_id')
       .eq('obra_id', obraId)
       .eq('montador_id', selecionado)
+      .limit(1)
       .maybeSingle()
 
     if (existeError) {
@@ -2762,14 +2823,20 @@ function AbaEquipeObra({ obraId }) {
       .insert([{ obra_id: obraId, montador_id: selecionado }])
 
     if (insertError) {
+      if (insertError.code === '23505') {
+        avisar('info', 'Este montador ja esta alocado nesta obra.')
+        await carregar()
+        setAdicionando(false)
+        return
+      }
       avisar('erro', erroTexto(insertError, 'Não foi possível alocar o montador.'))
       setAdicionando(false)
       return
     }
 
-    await notificarMontadorAlocado(selecionado)
+    const notificacao = await notificarMontadorAlocado(selecionado)
     setSelecionado('')
-    avisar('sucesso', 'Montador alocado com sucesso.')
+    avisar(notificacao.error ? 'info' : 'sucesso', notificacao.error ? 'Montador alocado, mas a notificacao nao foi enviada.' : 'Montador alocado com sucesso.')
     await carregar()
     setAdicionando(false)
   }

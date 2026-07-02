@@ -125,6 +125,29 @@ async function carregarMensagensObraCliente(obraId) {
   return { ...fallback, data: safeArray(fallback).filter(isMensagemCliente) }
 }
 
+async function carregarFotosCliente(obraId) {
+  const filtradas = await supabase
+    .from('fotos')
+    .select('*')
+    .eq('obra_id', obraId)
+    .eq('aprovada', true)
+    .eq('aprovada_gestao', true)
+    .eq('visivel_cliente', true)
+    .order('created_at', { ascending: false })
+
+  if (!filtradas.error) return filtradas
+
+  console.error('Erro ao filtrar fotos do portal cliente:', filtradas.error)
+  const fallback = await supabase
+    .from('fotos')
+    .select('*')
+    .eq('obra_id', obraId)
+    .order('created_at', { ascending: false })
+
+  if (fallback.error) return filtradas
+  return { ...fallback, data: safeArray(fallback).filter(isFotoCliente) }
+}
+
 function tabelaNaoEncontrada(error) {
   if (!error) return false
   const msg = `${error.code || ''} ${error.message || ''}`.toLowerCase()
@@ -202,7 +225,7 @@ export default function PortalCliente() {
       profiles,
       checklist,
     ] = await Promise.all([
-      supabase.from('fotos').select('*').eq('obra_id', id).eq('aprovada', true).eq('aprovada_gestao', true).eq('visivel_cliente', true).order('created_at', { ascending: false }),
+      carregarFotosCliente(id),
       supabase.from('obra_ambientes').select('id, nome').eq('obra_id', id),
       supabase.from('agenda').select('*').eq('obra_id', id).order('data', { ascending: true }),
       supabase.from('comunicados_cliente').select('*').eq('obra_id', id).order('created_at', { ascending: false }),

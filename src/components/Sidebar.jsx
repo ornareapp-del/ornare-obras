@@ -43,6 +43,7 @@ const NAV_ITEMS = [
     group: 'Operação',
     color: theme.status.successDeep,
     roles: ['gestao', 'supervisor', 'pos_venda'],
+    readOnly: ['pos_venda'],
   },
   {
     to: '/tarefas',

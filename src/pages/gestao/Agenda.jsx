@@ -90,7 +90,7 @@ function intervaloTemDiaNaoUtil(inicio, fim) {
 }
 
 function visivelParaMontador(form) {
-  return !form.reuniao_interna && Boolean(form.obra_id) && Boolean(form.visivel_montador)
+  return !form.reuniao_interna && Boolean(form.obra_id) && Boolean(form.visivel_montador) && !norm(form.tipo).includes('reuniao')
 }
 
 function anexarPerfisAosCheckins(checkins, profiles) {
@@ -118,6 +118,7 @@ export default function Agenda() {
   const [checkinsLoading, setCheckinsLoading] = useState(false)
   const [campoSalvando, setCampoSalvando] = useState(false)
   const [erroModal, setErroModal] = useState('')
+  const [erroPagina, setErroPagina] = useState('')
   const [toast, setToast] = useState('')
   const hoje = new Date()
   const [form, setForm] = useState({
@@ -137,12 +138,16 @@ export default function Agenda() {
     if (!id) return
 
     async function abrirPorRota() {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('agenda')
         .select('*')
         .eq('id', id)
         .single()
 
+      if (error) {
+        setErroPagina('Não foi possível abrir o compromisso indicado no link: ' + error.message)
+        return
+      }
       if (data) abrirEditar(data)
     }
 
@@ -222,11 +227,15 @@ export default function Agenda() {
       setVistoriaStats({ checklist: 0, fotos: 0 })
       return
     }
-    const [{ count: checklistCount }, { count: fotosCount }] = await Promise.all([
+    const [checklistResult, fotosResult] = await Promise.all([
       supabase.from('checklist_items').select('id', { count: 'exact', head: true }).eq('agenda_id', agendaId),
       supabase.from('fotos').select('id', { count: 'exact', head: true }).eq('agenda_id', agendaId),
     ])
-    setVistoriaStats({ checklist: checklistCount || 0, fotos: fotosCount || 0 })
+    const falha = [checklistResult, fotosResult].find(result => result.error)
+    if (falha?.error) {
+      setAcaoStatus('Não foi possível carregar os indicadores da vistoria: ' + falha.error.message)
+    }
+    setVistoriaStats({ checklist: checklistResult.count || 0, fotos: fotosResult.count || 0 })
   }
 
   async function carregarCheckinsCompromisso(obraId, dataCompromisso, agendaId = editandoId) {
@@ -247,6 +256,7 @@ export default function Agenda() {
         setCheckinsLoading(false)
         return
       }
+      if (error) setAcaoStatus('Não foi possível carregar os check-ins vinculados: ' + error.message)
     }
 
     const inicio = new Date(`${dataCompromisso}T00:00:00`)
@@ -260,7 +270,12 @@ export default function Agenda() {
       .lt('entrada', fim.toISOString())
       .order('entrada', { ascending: false })
 
-    setCheckinsCompromisso(error ? [] : anexarPerfisAosCheckins(data, profiles))
+    if (error) {
+      setAcaoStatus('Não foi possível carregar os check-ins desta data: ' + error.message)
+      setCheckinsCompromisso([])
+    } else {
+      setCheckinsCompromisso(anexarPerfisAosCheckins(data, profiles))
+    }
     setCheckinsLoading(false)
   }
 
@@ -320,7 +335,12 @@ export default function Agenda() {
       return
     }
 
-    await supabase.from('agenda').update({ status: 'em andamento' }).eq('id', editandoId)
+    const agendaResult = await supabase.from('agenda').update({ status: 'em andamento' }).eq('id', editandoId)
+    if (agendaResult.error) {
+      setAcaoStatus('Check-in registrado, mas não foi possível atualizar a agenda: ' + agendaResult.error.message)
+      setCampoSalvando(false)
+      return
+    }
     setForm(p => ({ ...p, status: 'em andamento' }))
     await criarNotificacaoCompromisso({
       agendaId: editandoId,
@@ -359,7 +379,12 @@ export default function Agenda() {
       return
     }
 
-    await supabase.from('agenda').update({ status: 'realizada' }).eq('id', editandoId)
+    const agendaResult = await supabase.from('agenda').update({ status: 'realizada' }).eq('id', editandoId)
+    if (agendaResult.error) {
+      setAcaoStatus('Check-out registrado, mas não foi possível atualizar a agenda: ' + agendaResult.error.message)
+      setCampoSalvando(false)
+      return
+    }
     setForm(p => ({ ...p, status: 'realizada' }))
     await criarNotificacaoCompromisso({
       agendaId: editandoId,
@@ -377,14 +402,24 @@ export default function Agenda() {
   }
 
   async function carregar() {
-    const [{ data: ev }, { data: ob }, { data: pr }] = await Promise.all([
+    setErroPagina('')
+    setLoading(true)
+    const [eventosResult, obrasResult, profilesResult] = await Promise.all([
       supabase.from('agenda').select('*, obras(nome), responsavel:profiles!agenda_responsavel_id_fkey(full_name)').order('data').order('hora_inicio'),
       supabase.from('obras').select('id, nome, supervisor_id, comercial_id').order('nome'),
       supabase.from('profiles').select('id, full_name, role').order('full_name'),
     ])
-    setEventos(ev || [])
-    setObras(ob || [])
-    setProfiles(pr || [])
+    const falhas = [
+      ['agenda', eventosResult],
+      ['obras', obrasResult],
+      ['responsáveis', profilesResult],
+    ].filter(([, result]) => result.error)
+    if (falhas.length) {
+      setErroPagina('Parte da agenda não foi carregada: ' + falhas.map(([nome, result]) => `${nome} (${result.error.message})`).join('; '))
+    }
+    setEventos(eventosResult.data || [])
+    setObras(obrasResult.data || [])
+    setProfiles(profilesResult.data || [])
     setLoading(false)
   }
 
@@ -396,7 +431,11 @@ export default function Agenda() {
       .filter(p => ['gestao', 'pos_venda', 'vendedor'].includes(p.role))
       .forEach(p => p.id && destinatarios.add(p.id))
 
-    const { data: authData } = await supabase.auth.getUser()
+    const { data: authData, error: authError } = await supabase.auth.getUser()
+    if (authError) {
+      setAcaoStatus('Compromisso salvo, mas não foi possível identificar o usuário para notificações: ' + authError.message)
+      return
+    }
     if (authData?.user?.id) destinatarios.delete(authData.user.id)
 
     const registros = [...destinatarios].map(usuario_id => ({
@@ -414,7 +453,7 @@ export default function Agenda() {
 
     if (registros.length) {
       const { error } = await supabase.from('notificacoes').insert(registros)
-      if (error) console.error('Erro ao criar notificacoes do compromisso:', error)
+      if (error) setAcaoStatus('Compromisso salvo, mas não foi possível notificar a equipe: ' + error.message)
     }
   }
 
@@ -440,7 +479,7 @@ export default function Agenda() {
       reuniao_interna: form.reuniao_interna,
       status: form.status || 'pendente',
       visivel_montador: visivelParaMontador(form),
-      visivel_cliente: Boolean(form.visivel_cliente),
+      visivel_cliente: !form.reuniao_interna && Boolean(form.visivel_cliente),
     }
 
     const result = editandoId
@@ -578,11 +617,16 @@ export default function Agenda() {
       }
     }
 
-    await supabase.from('agenda').update({
+    const agendaResult = await supabase.from('agenda').update({
       checklist_gerado: true,
       checklist_gerado_em: new Date().toISOString(),
       status: form.status === 'pendente' ? 'em andamento' : form.status,
     }).eq('id', editandoId)
+    if (agendaResult.error) {
+      setAcaoStatus('Checklist gerado, mas não foi possível atualizar a agenda: ' + agendaResult.error.message)
+      await carregarVistoriaStats(editandoId)
+      return
+    }
 
     setForm(p => ({ ...p, status: p.status === 'pendente' ? 'em andamento' : p.status }))
     setAcaoStatus('Checklist de vistoria gerado.')
@@ -685,7 +729,7 @@ export default function Agenda() {
                   <textarea value={form.descricao} onChange={e => setForm(p => ({ ...p, descricao: e.target.value }))} rows={2} placeholder="Detalhes do evento..." style={{ background: theme.inputBackground, border: '1px solid ' + theme.inputBorder, color: theme.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', fontSize: 14, outline: 'none', fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }} />
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <input type="checkbox" id="ri" checked={form.reuniao_interna} onChange={e => setForm(p => ({ ...p, reuniao_interna: e.target.checked, obra_id: e.target.checked ? '' : p.obra_id, visivel_montador: e.target.checked ? false : p.visivel_montador }))} />
+                  <input type="checkbox" id="ri" checked={form.reuniao_interna} onChange={e => setForm(p => ({ ...p, reuniao_interna: e.target.checked, obra_id: e.target.checked ? '' : p.obra_id, visivel_montador: e.target.checked ? false : p.visivel_montador, visivel_cliente: e.target.checked ? false : p.visivel_cliente }))} />
                   <label htmlFor="ri" style={{ fontSize: 13, color: 'var(--color-ink-muted)', cursor: 'pointer' }}>Reunião Interna</label>
                 </div>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: 'var(--color-ink-muted)', cursor: 'pointer' }}>
@@ -693,7 +737,7 @@ export default function Agenda() {
                   Visível para montador
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: 'var(--color-ink-muted)', cursor: 'pointer' }}>
-                  <input type="checkbox" checked={form.visivel_cliente} onChange={e => setForm(p => ({ ...p, visivel_cliente: e.target.checked }))} />
+                  <input type="checkbox" checked={form.visivel_cliente && !form.reuniao_interna} disabled={form.reuniao_interna} onChange={e => setForm(p => ({ ...p, visivel_cliente: e.target.checked }))} />
                   Visível para cliente
                 </label>
               </div>
@@ -817,6 +861,8 @@ export default function Agenda() {
         <button className="ag-new" style={s.btnNew} onClick={abrirNovo}>+ Novo Evento</button>
       </div>
 
+      {erroPagina && <div style={s.alert}>{erroPagina}</div>}
+
       <div className="ag-kpis" style={s.kpiGrid}>
         {kpis.map(k => (
           <div key={k.label} style={s.kpi}>
@@ -914,8 +960,8 @@ export default function Agenda() {
 }
 
 function L({ children }) { return <div style={{ fontSize: 11, color: '#888', marginBottom: 5, fontWeight: 500 }}>{children}</div> }
-function I({ onChange, ...props }) { return <input {...props} onChange={e => onChange(e.target.value)} style={{ background: theme.inputBackground, border: '1px solid ' + theme.inputBorder, color: theme.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }} /> }
-function Sel({ onChange, children, ...props }) { return <select {...props} onChange={e => onChange(e.target.value)} style={{ background: theme.inputBackground, border: '1px solid ' + theme.inputBorder, color: theme.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}>{children}</select> }
+function I({ onChange, ...props }) { return <input {...props} onChange={e => onChange(e.target.value)} style={{ background: theme.inputBackground, border: '1px solid ' + theme.inputBorder, color: theme.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', minHeight: 44, fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }} /> }
+function Sel({ onChange, children, ...props }) { return <select {...props} onChange={e => onChange(e.target.value)} style={{ background: theme.inputBackground, border: '1px solid ' + theme.inputBorder, color: theme.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', minHeight: 44, fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}>{children}</select> }
 
 const css = `
 .ag-mobile-home{display:none}
@@ -954,6 +1000,7 @@ const css = `
 const s = {
   page: { width: '100%', padding: '32px 40px', maxWidth: 'none', margin: 0, background: theme.background, color: theme.textPrimary, fontFamily: 'Inter, sans-serif', boxSizing: 'border-box', overflowX: 'hidden' },
   toast: { position: 'fixed', left: '50%', bottom: 24, transform: 'translateX(-50%)', zIndex: 1300, background: 'var(--color-ink)', color: '#fff', borderLeft: '3px solid var(--color-gold)', borderRadius: 13, padding: '12px 18px', fontSize: 13, fontWeight: 800, boxShadow: '0 14px 34px rgba(29,28,25,.18)' },
+  alert: { marginBottom: 16, border: `1px solid ${theme.error}`, background: 'rgba(224,82,82,.12)', color: theme.error, borderRadius: 12, padding: '11px 14px', fontSize: 13, fontWeight: 800 },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 18, marginBottom: 24, boxSizing: 'border-box' },
   breadcrumb: { fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6 },
   title: { fontFamily: 'var(--font-serif)', fontSize: 36, fontWeight: 500, color: 'var(--color-ink)', margin: 0 },
@@ -989,8 +1036,8 @@ const s = {
   modalSummaryTitle: { display: 'block', marginTop: 8, fontSize: 15, color: 'var(--color-ink)' },
   modalSummaryMeta: { display: 'block', marginTop: 4, fontSize: 12, color: 'var(--color-ink-muted)', fontWeight: 700 },
   modalFooter: { display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '16px 28px', borderTop: '1px solid #f0ece6', flexShrink: 0 },
-  btnCancel: { background: 'none', border: '1px solid var(--color-border)', borderRadius: 8, padding: '9px 18px', fontSize: 13, cursor: 'pointer', color: '#888' },
-  btnSave: { background: theme.gold, color: theme.background, border: 'none', borderRadius: 8, padding: '12px 24px', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
+  btnCancel: { background: 'none', border: '1px solid var(--color-border)', borderRadius: 8, padding: '9px 18px', minHeight: 44, fontSize: 13, cursor: 'pointer', color: '#888' },
+  btnSave: { background: theme.gold, color: theme.background, border: 'none', borderRadius: 8, padding: '12px 24px', minHeight: 44, fontSize: 13, fontWeight: 600, cursor: 'pointer' },
   grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 },
   full: { gridColumn: '1/-1' },
   vistoriaBox: { marginTop: 18, border: '1px solid var(--color-border)', background: theme.surfaceElevated, borderRadius: 14, padding: 16 },

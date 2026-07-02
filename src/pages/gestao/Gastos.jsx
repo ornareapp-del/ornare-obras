@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useStore } from '../../store/useStore'
 import { theme } from '../../constants/theme'
+import { isAppOffline } from '../../hooks/useOnlineStatus'
 
 const CATEGORIAS = [
   { value: 'combustivel',  label: 'Combustível',  emoji: '⛽', cor: '#E8A020' },
@@ -154,6 +155,10 @@ function Modal({ obras, profiles, todosGastos, onClose, onSaved }) {
   const precisaAprovacao = CATS_APROVACAO.includes(form.categoria) && valorNum > LIMITE_APROVACAO
 
   async function salvar() {
+    if (isAppOffline()) {
+      setErro('Sem conexao. O gasto nao foi lancado; tente novamente quando a internet voltar.')
+      return
+    }
     if (!form.obra_id) {
       setErro('Selecione a obra vinculada ao gasto.'); return
     }

@@ -46,6 +46,7 @@ const FERIADOS_FIXOS = ['01-01', '04-21', '05-01', '09-07', '10-12', '11-02', '1
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
 const DIAS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab', 'Dom']
 const TIPOS_COMPROMISSO = ['Montagem', 'Assistência Técnica', 'Vistoria', 'Medição', 'Entrega', 'Reunião']
+const TIPOS_CAMPO = ['montagem', 'assistencia', 'vistoria', 'medicao', 'entrega']
 
 function norm(value) {
   return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
@@ -142,6 +143,11 @@ function montadoresNaObservacao(observacao, profiles) {
   if (!linha) return []
   const nomes = linha.replace(/^montadores:\s*/i, '').split(',').map(item => norm(item)).filter(Boolean)
   return profiles.filter(profile => nomes.includes(norm(nomePessoa(profile))))
+}
+
+function compromissoVisivelMontador(tipo, obraId) {
+  const texto = norm(tipo)
+  return Boolean(obraId) && TIPOS_CAMPO.some(item => texto.includes(item))
 }
 
 export default function Planejamento() {
@@ -387,6 +393,7 @@ export default function Planejamento() {
     try {
       const obra = dados.obras.find(o => o.id === modalCompromisso.obra_id)
       const reuniaoInterna = modalCompromisso.tipo === 'Reunião' && !modalCompromisso.obra_id
+      const visivelMontador = compromissoVisivelMontador(modalCompromisso.tipo, modalCompromisso.obra_id) && !reuniaoInterna
       const supervisorId = modalCompromisso.supervisor_id || obra?.supervisor_id || null
       const montadoresSelecionados = modalCompromisso.montadores
         .map(id => dados.profiles.find(p => p.id === id))
@@ -410,7 +417,9 @@ export default function Planejamento() {
         hora_fim: null,
         observacao: blocosObservacao.join('\n'),
         reuniao_interna: reuniaoInterna,
-        visivel_montador: !reuniaoInterna && Boolean(modalCompromisso.obra_id),
+        visivel_montador: visivelMontador,
+        visivel_cliente: false,
+        status: 'pendente',
       }])
 
       if (error) {
@@ -734,9 +743,15 @@ function CompromissoModal({ form, setForm, obras, supervisores, montadores, vinc
             )}
           </div>
 
-          {form.obra_id && (
+          {form.obra_id && compromissoVisivelMontador(form.tipo, form.obra_id) && (
             <div className="pl-montador-visibility">
-              Este compromisso sera exibido no painel do montador porque esta vinculado a uma obra.
+              Este compromisso será exibido no painel do montador porque é operacional e está vinculado a uma obra.
+            </div>
+          )}
+
+          {form.obra_id && !compromissoVisivelMontador(form.tipo, form.obra_id) && (
+            <div className="pl-montador-visibility muted">
+              Compromissos internos ou reuniões não serão exibidos ao montador nem ao cliente.
             </div>
           )}
 
@@ -962,6 +977,7 @@ const css = `
 .pl-montadores button{min-height:44px;border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:999px;padding:10px 13px;font-size:12px;font-weight:800;cursor:pointer}
 .pl-montadores button.active{background:${THEME.ink};border-color:${THEME.ink};color:#fff}
 .pl-montador-visibility{margin:-4px 0 16px;border:1px solid #C8E1D0;background:#F7FCF8;color:${THEME.success};border-radius:12px;padding:10px 12px;font-size:12.5px;font-weight:800;line-height:1.35}
+.pl-montador-visibility.muted{border-color:${THEME.border};background:${THEME.elevated};color:${THEME.muted}}
 .pl-modal-foot{display:flex;justify-content:flex-end;gap:10px;padding:16px 24px;border-top:1px solid ${THEME.border};background:${THEME.card}}
 .pl-modal-foot button{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:10px;padding:10px 15px;font-size:13px;font-weight:800;cursor:pointer}
 .pl-modal-foot button.primary{background:${THEME.gold};border-color:${THEME.gold};color:#fff}

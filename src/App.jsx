@@ -45,7 +45,7 @@ function homeForProfile(profile) {
     case 'cliente':
       return '/cliente/' + (profile?.obra_id || 'acesso-pendente')
     default:
-      return '/login'
+      return '/sem-acesso'
   }
 }
 
@@ -70,6 +70,41 @@ function RedirectByRole({ user, profile }) {
   if (!user) return <Navigate to="/login" replace />
   if (!profile) return <LoadingAuth />
   return <Navigate to={homeForProfile(profile)} replace />
+}
+
+function AccessBlocked() {
+  async function sair() {
+    await supabase.auth.signOut()
+    window.location.href = '/login'
+  }
+
+  return (
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: 'var(--color-bg, #F5F2EE)',
+      color: 'var(--color-ink, #1D1C19)',
+      fontFamily: 'var(--font-sans, sans-serif)',
+      padding: 20,
+      boxSizing: 'border-box',
+    }}>
+      <div style={{
+        width: 'min(420px, 100%)',
+        background: 'var(--color-surface, #fff)',
+        border: '1px solid var(--color-border, #E7E0D5)',
+        borderRadius: 12,
+        padding: 24,
+        boxShadow: 'var(--shadow-md, 0 18px 42px rgba(29,28,25,.12))',
+      }}>
+        <div style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--color-gold, #B8965E)', fontWeight: 800, marginBottom: 8 }}>Acesso pendente</div>
+        <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: 30, lineHeight: 1.05, fontWeight: 500, margin: 0 }}>Perfil não configurado</h1>
+        <p style={{ color: 'var(--color-ink-muted, #5C5A54)', fontSize: 13, lineHeight: 1.5, margin: '12px 0 18px' }}>Seu usuário existe no Auth, mas ainda não possui um perfil válido para acessar o Ornare Obras.</p>
+        <button onClick={sair} style={{ minHeight: 44, border: 0, borderRadius: 8, background: 'var(--color-ink, #1D1C19)', color: '#fff', padding: '10px 16px', fontWeight: 800, cursor: 'pointer' }}>Sair</button>
+      </div>
+    </div>
+  )
 }
 
 function PrivateLayout() {
@@ -123,14 +158,19 @@ export default function App() {
   const [showSplash, setShowSplash] = useState(true)
   const [authLoading, setAuthLoading] = useState(true)
 
-  const fetchProfile = useCallback(async (userId) => {
-    const { data } = await supabase
+  const fetchProfile = useCallback(async (authUser) => {
+    const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .eq('id', userId)
-      .single()
+      .eq('id', authUser.id)
+      .maybeSingle()
 
-    setProfile(data || null)
+    if (error || !data?.role) {
+      setProfile({ id: authUser.id, email: authUser.email, role: 'sem_acesso', ativo: false })
+      return
+    }
+
+    setProfile(data)
   }, [setProfile])
 
   useEffect(() => {
@@ -143,7 +183,7 @@ export default function App() {
 
       if (session?.user) {
         setUser(session.user)
-        await fetchProfile(session.user.id)
+        await fetchProfile(session.user)
       } else {
         setUser(null)
         setProfile(null)
@@ -159,7 +199,7 @@ export default function App() {
 
       if (session?.user) {
         setUser(session.user)
-        await fetchProfile(session.user.id)
+        await fetchProfile(session.user)
       } else {
         setUser(null)
         setProfile(null)
@@ -181,7 +221,8 @@ export default function App() {
     <BrowserRouter>
       <Suspense fallback={<LoadingAuth />}>
         <Routes>
-          <Route path="/login" element={!user ? <Login /> : <Navigate to="/" replace />} />
+          <Route path="/login" element={!user ? <Login /> : <Navigate to={profile ? homeForProfile(profile) : '/'} replace />} />
+          <Route path="/sem-acesso" element={user ? <AccessBlocked /> : <Navigate to="/login" replace />} />
           <Route path="/cliente/:id" element={<PortalCliente />} />
 
           <Route path="/" element={<RedirectByRole user={user} profile={profile} />} />

@@ -375,6 +375,7 @@ export default function DashboardGestao() {
       aprovacoes: {
         fotosPendentes,
         fotosCliente: fotosPendentes.filter(f => f.visivel_cliente),
+        checklistPendentes,
         naoConformidades,
         vistoriasPendentes: dados.agenda.filter(a => normalizar(a.tipo || a.titulo).includes('vistoria') && !isConcluido(a.status)),
         gastosPendentes,
@@ -503,6 +504,10 @@ export default function DashboardGestao() {
               <strong>{loading ? '-' : vm.aprovacoes.fotosPendentes.length}</strong>
               <span>Fotos para aprovar</span>
             </button>
+            <button className={vm.aprovacoes.checklistPendentes.length ? 'warn' : ''} disabled={!vm.aprovacoes.checklistPendentes[0]?.obra_id} onClick={() => navigate(`/obras/${vm.aprovacoes.checklistPendentes[0].obra_id}?aba=Checklist&checklist=${vm.aprovacoes.checklistPendentes[0].id}`)}>
+              <strong>{loading ? '-' : vm.aprovacoes.checklistPendentes.length}</strong>
+              <span>Checklist pendente</span>
+            </button>
             <button className={vm.aprovacoes.fotosCliente.length ? 'hot' : ''} disabled={!vm.aprovacoes.fotosCliente[0]?.obra_id} onClick={() => navigate(`/obras/${vm.aprovacoes.fotosCliente[0].obra_id}?aba=Fotos&foto=${vm.aprovacoes.fotosCliente[0].id}`)}>
               <strong>{loading ? '-' : vm.aprovacoes.fotosCliente.length}</strong>
               <span>Cliente aguardando</span>
@@ -524,7 +529,7 @@ export default function DashboardGestao() {
               <span>Cronogramas travados</span>
             </button>
           </div>
-          {vm.aprovacoes.fotosPendentes.length === 0 && vm.aprovacoes.fotosCliente.length === 0 && vm.aprovacoes.naoConformidades.length === 0 && vm.aprovacoes.vistoriasPendentes.length === 0 && vm.aprovacoes.gastosPendentes.length === 0 && vm.aprovacoes.cronogramasTravados.length === 0 ? (
+          {vm.aprovacoes.fotosPendentes.length === 0 && vm.aprovacoes.checklistPendentes.length === 0 && vm.aprovacoes.fotosCliente.length === 0 && vm.aprovacoes.naoConformidades.length === 0 && vm.aprovacoes.vistoriasPendentes.length === 0 && vm.aprovacoes.gastosPendentes.length === 0 && vm.aprovacoes.cronogramasTravados.length === 0 ? (
             <Empty text="Nada aguardando aprovação agora." />
           ) : (
             <div className="dg-approval-list">
@@ -543,6 +548,15 @@ export default function DashboardGestao() {
                   <div>
                     <strong>{foto.visivel_cliente ? 'Foto liberada ao cliente' : (foto.categoria || 'Foto enviada')}</strong>
                     <span>{foto.obras?.nome || obraNome(dados.obras, foto.obra_id)}</span>
+                  </div>
+                </button>
+              ))}
+              {vm.aprovacoes.checklistPendentes.slice(0, 3).map(item => (
+                <button key={item.id} onClick={() => navigate(`/obras/${item.obra_id}?aba=Checklist&checklist=${item.id}`)}>
+                  <i />
+                  <div>
+                    <strong>{item.descricao || 'Checklist pendente'}</strong>
+                    <span>{obraNome(dados.obras, item.obra_id)}</span>
                   </div>
                 </button>
               ))}

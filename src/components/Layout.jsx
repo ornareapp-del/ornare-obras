@@ -5,6 +5,7 @@ import Sidebar from './Sidebar'
 import { supabase } from '../lib/supabase'
 import { useStore } from '../store/useStore'
 import { theme } from '../constants/theme'
+import useOnlineStatus from '../hooks/useOnlineStatus'
 
 const L = theme.app
 const S = theme.status
@@ -16,6 +17,7 @@ export default function Layout() {
   const [isMobile, setIsMobile]   = useState(false)
   const [notificacoes, setNotificacoes] = useState([])
   const [notificacoesAbertas, setNotificacoesAbertas] = useState(false)
+  const online = useOnlineStatus()
 
   useEffect(() => {
     function check() {
@@ -343,6 +345,27 @@ export default function Layout() {
               ORNARE
             </span>
           </button>
+        )}
+
+        {!online && (
+          <div style={{
+            position: 'fixed',
+            top: user?.id ? 66 : 12,
+            left: isMobile ? 14 : (collapsed ? 76 : 244),
+            right: 14,
+            zIndex: 95,
+            maxWidth: 520,
+            border: '1px solid ' + theme.status.warning,
+            background: theme.surfaceElevated,
+            color: theme.textPrimary,
+            borderRadius: 12,
+            padding: '9px 12px',
+            fontSize: 12,
+            fontWeight: 800,
+            boxShadow: 'var(--shadow-xs)',
+          }}>
+            Sem conexão. Consultas podem mostrar dados antigos e ações de salvamento ficam indisponíveis.
+          </div>
         )}
 
         <Outlet />

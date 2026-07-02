@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
+import { useStore } from '../../store/useStore'
 import { theme } from '../../constants/theme'
 
 const ROLES = ['gestao', 'pos_venda', 'vendedor', 'supervisor', 'montador', 'cliente']
@@ -21,7 +22,16 @@ const ROLE_DESC = {
   cliente: 'Portal do cliente',
 }
 
+function detalheErro(error, fallback = 'Nao foi possivel concluir a operacao.') {
+  return error?.message || error?.details || error?.hint || fallback
+}
+
+function normalizarEmail(email) {
+  return String(email || '').trim().toLowerCase()
+}
+
 export default function Equipe() {
+  const { profile: perfilAtual } = useStore()
   const [profiles, setProfiles] = useState([])
   const [obras, setObras] = useState([])
   const [vinculos, setVinculos] = useState([])
@@ -32,6 +42,9 @@ export default function Equipe() {
   const [modal, setModal] = useState(false)
   const [salvando, setSalvando] = useState(false)
   const [toast, setToast] = useState({ msg: '', tipo: 'sucesso' })
+  const roleAtual = perfilAtual?.role === 'vendedor' ? 'pos_venda' : perfilAtual?.role
+  const supervisorAtual = roleAtual === 'supervisor'
+  const rolesDisponiveis = supervisorAtual ? ['montador'] : ROLES
 
   const mostrarToast = useCallback((msg, tipo = 'sucesso') => {
     setToast({ msg, tipo })
@@ -57,7 +70,7 @@ export default function Equipe() {
     setProfiles(profilesResult.data || [])
     setObras(obrasResult.data || [])
     setVinculos(vinculosResult.data || [])
-    setSupervisores((profilesResult.data || []).filter(p => p.role === 'supervisor'))
+    setSupervisores((profilesResult.data || []).filter(p => p.role === 'supervisor' || p.role === 'gestao'))
     setLoading(false)
   }, [mostrarToast])
 
@@ -68,23 +81,39 @@ export default function Equipe() {
 
   async function salvarEdicao() {
     if (!editando) return
-    setSalvando(true)
-    const { error } = await supabase.from('profiles').update({
-      full_name: editando.full_name,
-      role: editando.role,
-      cargo: editando.cargo || null,
-      telefone: editando.telefone || null,
-      supervisor_id: editando.role === 'montador' ? (editando.supervisor_id || null) : null,
-      ativo: editando.ativo,
-    }).eq('id', editando.id)
-
-    if (error) mostrarToast('Erro ao salvar. Tente novamente.', 'erro')
-    else {
-      mostrarToast(`Perfil de ${editando.full_name} atualizado.`)
-      setEditando(null)
-      await carregar()
+    const nome = String(editando.full_name || '').trim()
+    const role = supervisorAtual ? 'montador' : editando.role
+    if (!nome) {
+      mostrarToast('Informe o nome do usuario.', 'erro')
+      return
     }
-    setSalvando(false)
+    if (!ROLES.includes(role)) {
+      mostrarToast('Selecione um perfil valido.', 'erro')
+      return
+    }
+    setSalvando(true)
+    try {
+      const { error } = await supabase.from('profiles').update({
+        full_name: nome,
+        role,
+        cargo: editando.cargo || null,
+        telefone: editando.telefone || null,
+        supervisor_id: role === 'montador' ? (editando.supervisor_id || (supervisorAtual ? perfilAtual.id : null)) : null,
+        ativo: editando.ativo !== false,
+      }).eq('id', editando.id)
+
+      if (error) {
+        mostrarToast(detalheErro(error, 'Erro ao salvar. Tente novamente.'), 'erro')
+      } else {
+        mostrarToast(`Perfil de ${nome} atualizado.`)
+        setEditando(null)
+        await carregar()
+      }
+    } catch (error) {
+      mostrarToast(detalheErro(error, 'Erro inesperado ao salvar o perfil.'), 'erro')
+    } finally {
+      setSalvando(false)
+    }
   }
 
   async function enviarResetSenha(profile) {
@@ -97,7 +126,7 @@ export default function Equipe() {
       redirectTo: window.location.origin + '/login',
     })
 
-    if (error) mostrarToast('Não foi possível enviar o link de senha.', 'erro')
+    if (error) mostrarToast(detalheErro(error, 'Nao foi possivel enviar o link de senha.'), 'erro')
     else mostrarToast(`Link de redefinição enviado para ${profile.email}.`)
   }
 
@@ -107,21 +136,25 @@ export default function Equipe() {
 
     const { error } = await supabase.from('profiles').update({ ativo: !ativo }).eq('id', p.id)
     if (error) {
-      mostrarToast(`Não foi possível ${ativo ? 'desativar' : 'ativar'} este usuário.`, 'erro')
+      mostrarToast(detalheErro(error, `Nao foi possivel ${ativo ? 'desativar' : 'ativar'} este usuario.`), 'erro')
       return
     }
     mostrarToast(`${p.full_name || 'Usuário'} ${ativo ? 'desativado' : 'ativado'}.`)
     await carregar()
   }
 
-  const lista = filtro === 'todos' ? profiles : profiles.filter(p => p.role === filtro)
+  const profilesVisiveis = supervisorAtual
+    ? profiles.filter(p => p.role === 'montador' && (!p.supervisor_id || p.supervisor_id === perfilAtual?.id))
+    : profiles
+  const filtrosDisponiveis = supervisorAtual ? ['todos', 'montador'] : ['todos', ...ROLES]
+  const lista = filtro === 'todos' ? profilesVisiveis : profilesVisiveis.filter(p => p.role === filtro)
   const kpis = [
-    { label: 'Gestão', value: profiles.filter(p => p.role === 'gestao').length },
-    { label: 'Supervisores', value: profiles.filter(p => p.role === 'supervisor').length },
-    { label: 'Montadores', value: profiles.filter(p => p.role === 'montador').length },
-    { label: 'Pós-venda', value: profiles.filter(p => p.role === 'pos_venda').length },
-    { label: 'Vendedores', value: profiles.filter(p => p.role === 'vendedor').length },
-  ]
+    { label: 'Gestão', value: profilesVisiveis.filter(p => p.role === 'gestao').length },
+    { label: 'Supervisores', value: profilesVisiveis.filter(p => p.role === 'supervisor').length },
+    { label: 'Montadores', value: profilesVisiveis.filter(p => p.role === 'montador').length },
+    { label: 'Pós-venda', value: profilesVisiveis.filter(p => p.role === 'pos_venda').length },
+    { label: 'Vendedores', value: profilesVisiveis.filter(p => p.role === 'vendedor').length },
+  ].filter(k => !supervisorAtual || k.label === 'Montadores')
 
   function obrasVinculadas(profile) {
     if (profile.role === 'montador') {
@@ -137,32 +170,32 @@ export default function Equipe() {
     <div className="ow-page" style={s.page}>
       <style>{css}</style>
       {toast.msg && <Toast msg={toast.msg} tipo={toast.tipo} />}
-      {modal && <ModalNovoUsuario supervisores={supervisores} onClose={() => setModal(false)} onSaved={() => { setModal(false); carregar(); mostrarToast('Novo usuário criado com sucesso.') }} />}
+      {modal && <ModalNovoUsuario supervisores={supervisores} rolesDisponiveis={rolesDisponiveis} supervisorAtual={supervisorAtual ? perfilAtual : null} onClose={() => setModal(false)} onSaved={() => { setModal(false); carregar(); mostrarToast('Novo usuario criado com sucesso. A senha inicial nao sera exibida novamente.') }} />}
 
       <div className="eq-header" style={s.header}>
         <div>
           <div style={s.breadcrumb}>Gestão</div>
           <h1 style={s.title}>Central de Equipe</h1>
-          <p style={s.sub}>{profiles.length} membro{profiles.length !== 1 ? 's' : ''} · {profiles.filter(p => p.ativo !== false).length} ativos</p>
+          <p style={s.sub}>{profilesVisiveis.length} membro{profilesVisiveis.length !== 1 ? 's' : ''} · {profilesVisiveis.filter(p => p.ativo !== false).length} ativos</p>
         </div>
         <button className="eq-new" style={s.btnNew} onClick={() => setModal(true)}>+ Novo Usuário</button>
       </div>
 
       <div className="eq-mobile-summary" aria-label="Resumo da equipe">
         <button type="button" onClick={() => setFiltro('todos')}>
-          <strong>{loading ? '-' : profiles.length}</strong>
+          <strong>{loading ? '-' : profilesVisiveis.length}</strong>
           <span>total</span>
         </button>
         <button type="button" onClick={() => setFiltro('todos')}>
-          <strong>{loading ? '-' : profiles.filter(p => p.ativo !== false).length}</strong>
+          <strong>{loading ? '-' : profilesVisiveis.filter(p => p.ativo !== false).length}</strong>
           <span>ativos</span>
         </button>
         <button type="button" onClick={() => setFiltro('montador')}>
-          <strong>{loading ? '-' : profiles.filter(p => p.role === 'montador').length}</strong>
+          <strong>{loading ? '-' : profilesVisiveis.filter(p => p.role === 'montador').length}</strong>
           <span>montadores</span>
         </button>
         <button type="button" onClick={() => setFiltro('vendedor')}>
-          <strong>{loading ? '-' : profiles.filter(p => p.role === 'vendedor').length}</strong>
+          <strong>{loading ? '-' : profilesVisiveis.filter(p => p.role === 'vendedor').length}</strong>
           <span>vendedores</span>
         </button>
       </div>
@@ -177,7 +210,7 @@ export default function Equipe() {
       </div>
 
       <div className="eq-filters" style={s.filters}>
-        {['todos', ...ROLES].map(f => (
+        {filtrosDisponiveis.map(f => (
           <button key={f} onClick={() => setFiltro(f)} style={{
             ...s.filterBtn,
             background: filtro === f ? theme.gold : theme.surface,
@@ -213,6 +246,7 @@ export default function Equipe() {
                       editando={editando}
                       setEditando={setEditando}
                       supervisores={supervisores}
+                      rolesDisponiveis={rolesDisponiveis}
                       salvando={salvando}
                       onSalvar={salvarEdicao}
                       onCancelar={() => setEditando(null)}
@@ -253,7 +287,7 @@ function Toast({ msg, tipo }) {
   return <div style={{ ...s.toast, background: tipo === 'erro' ? theme.surfaceElevated : 'var(--color-ink)', color: tipo === 'erro' ? theme.error : '#fff' }}>{msg}</div>
 }
 
-function EditForm({ editando, setEditando, supervisores, salvando, onSalvar, onCancelar, onResetSenha }) {
+function EditForm({ editando, setEditando, supervisores, rolesDisponiveis, salvando, onSalvar, onCancelar, onResetSenha }) {
   const set = (k, v) => setEditando(p => ({ ...p, [k]: v }))
   return (
     <div>
@@ -264,7 +298,7 @@ function EditForm({ editando, setEditando, supervisores, salvando, onSalvar, onC
         <Field label="Telefone"><input style={s.input} value={editando.telefone || ''} onChange={e => set('telefone', e.target.value)} /></Field>
         <Field label="Perfil">
           <select style={s.input} value={editando.role} onChange={e => set('role', e.target.value)}>
-            {ROLES.map(r => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+            {rolesDisponiveis.map(r => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
           </select>
         </Field>
         {editando.role === 'montador' && (
@@ -295,37 +329,69 @@ function EditForm({ editando, setEditando, supervisores, salvando, onSalvar, onC
   )
 }
 
-function ModalNovoUsuario({ supervisores, onClose, onSaved }) {
-  const [form, setForm] = useState({ full_name: '', email: '', senha: '', role: 'montador', cargo: '', telefone: '', supervisor_id: '' })
+function ModalNovoUsuario({ supervisores, rolesDisponiveis, supervisorAtual, onClose, onSaved }) {
+  const roleInicial = rolesDisponiveis.includes('montador') ? 'montador' : rolesDisponiveis[0]
+  const [form, setForm] = useState({ full_name: '', email: '', senha: '', role: roleInicial, cargo: '', telefone: '', supervisor_id: supervisorAtual?.id || '' })
   const [saving, setSaving] = useState(false)
   const [erro, setErro] = useState('')
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
 
-  async function salvar() {
-    if (!form.full_name || !form.email || !form.senha) { setErro('Preencha nome, e-mail e senha.'); return }
-    if (form.senha.length < 6) { setErro('Senha mínima de 6 caracteres.'); return }
+  async function salvarSeguro() {
+    const fullName = String(form.full_name || '').trim()
+    const email = normalizarEmail(form.email)
+    const senha = String(form.senha || '')
+    const role = supervisorAtual ? 'montador' : form.role
+    const supervisorId = role === 'montador' ? (form.supervisor_id || supervisorAtual?.id || null) : null
+
+    if (!fullName || !email || !senha || !role) { setErro('Preencha nome, e-mail, senha inicial e perfil.'); return }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setErro('Informe um e-mail valido.'); return }
+    if (!rolesDisponiveis.includes(role)) { setErro('Selecione um perfil permitido para seu acesso.'); return }
+    if (senha.length < 6) { setErro('Senha minima de 6 caracteres.'); return }
+
     setSaving(true)
     setErro('')
-    const { data, error } = await supabase.auth.signUp({ email: form.email, password: form.senha, options: { data: { full_name: form.full_name } } })
-    if (error) { setErro(error.message); setSaving(false); return }
-    if (data?.user) {
-      await new Promise(r => setTimeout(r, 1200))
-      const { error: profileError } = await supabase.from('profiles').update({
-        full_name: form.full_name,
-        role: form.role,
+    const { data: sessionData } = await supabase.auth.getSession()
+    const sessaoAnterior = sessionData?.session
+
+    try {
+      const { data, error } = await supabase.auth.signUp({ email, password: senha, options: { data: { full_name: fullName } } })
+      if (error) { setErro(detalheErro(error, 'Nao foi possivel criar o usuario.')); return }
+      if (!data?.user?.id) { setErro('Usuario criado sem retorno de identificacao do Auth.'); return }
+
+      await new Promise(r => setTimeout(r, 900))
+      const payload = {
+        id: data.user.id,
+        email,
+        full_name: fullName,
+        role,
         cargo: form.cargo || null,
         telefone: form.telefone || null,
-        supervisor_id: form.role === 'montador' ? (form.supervisor_id || null) : null,
+        supervisor_id: supervisorId,
         ativo: true,
-      }).eq('id', data.user.id)
+      }
+      let { error: profileError } = await supabase.from('profiles').update(payload).eq('id', data.user.id)
       if (profileError) {
-        setErro('Usuário criado, mas não foi possível configurar o perfil: ' + profileError.message)
-        setSaving(false)
+        const upsertResult = await supabase.from('profiles').upsert(payload, { onConflict: 'id' })
+        profileError = upsertResult.error
+      }
+      if (profileError) {
+        setErro('Usuario criado no Auth, mas nao foi possivel configurar o perfil: ' + detalheErro(profileError))
         return
       }
+
+      setForm({ full_name: '', email: '', senha: '', role: roleInicial, cargo: '', telefone: '', supervisor_id: supervisorAtual?.id || '' })
+      onSaved()
+    } catch (error) {
+      setErro(detalheErro(error, 'Erro inesperado ao criar usuario.'))
+    } finally {
+      if (sessaoAnterior?.access_token && sessaoAnterior?.refresh_token) {
+        await supabase.auth.setSession({
+          access_token: sessaoAnterior.access_token,
+          refresh_token: sessaoAnterior.refresh_token,
+        })
+      }
+      setSaving(false)
     }
-    setSaving(false)
-    onSaved()
   }
 
   return (
@@ -345,12 +411,12 @@ function ModalNovoUsuario({ supervisores, onClose, onSaved }) {
             <Field label="Telefone"><input style={s.input} value={form.telefone} onChange={e => set('telefone', e.target.value)} /></Field>
             <Field label="Perfil">
               <select style={s.input} value={form.role} onChange={e => set('role', e.target.value)}>
-                {ROLES.map(r => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+                {rolesDisponiveis.map(r => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
               </select>
             </Field>
             {form.role === 'montador' && (
               <Field label="Supervisor responsável">
-                <select style={s.input} value={form.supervisor_id} onChange={e => set('supervisor_id', e.target.value)}>
+                <select style={s.input} value={form.supervisor_id} onChange={e => set('supervisor_id', e.target.value)} disabled={Boolean(supervisorAtual)}>
                   <option value="">Sem supervisor</option>
                   {supervisores.map(sv => <option key={sv.id} value={sv.id}>{sv.full_name}</option>)}
                 </select>
@@ -361,7 +427,7 @@ function ModalNovoUsuario({ supervisores, onClose, onSaved }) {
         </div>
         <div style={s.modalFoot}>
           <button style={s.btnEdit} onClick={onClose}>Cancelar</button>
-          <button style={{ ...s.btnEdit, background: 'var(--color-gold)', color: '#fff', borderColor: 'var(--color-gold)' }} onClick={salvar} disabled={saving}>
+          <button style={{ ...s.btnEdit, background: 'var(--color-gold)', color: '#fff', borderColor: 'var(--color-gold)' }} onClick={salvarSeguro} disabled={saving}>
             {saving ? 'Criando...' : 'Criar Usuário'}
           </button>
         </div>
