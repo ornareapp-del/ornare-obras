@@ -285,8 +285,8 @@ async function salvar() {
             {AMBIENTES_PADRAO.map(a => (
               <div key={a} onClick={() => toggleAmbiente(a)} style={{
                 ...s.ambienteTag,
-                background: ambientesSel.includes(a) ? 'var(--color-ink)' : '#fff',
-                color:      ambientesSel.includes(a) ? '#f9f7f4' : 'var(--color-ink-muted)',
+                background: ambientesSel.includes(a) ? theme.gold : theme.surfaceElevated,
+                color:      ambientesSel.includes(a) ? theme.background : theme.textSecondary,
                 border:     ambientesSel.includes(a) ? 'none' : '1px solid var(--color-border)',
               }}>
                 {a}
@@ -362,7 +362,7 @@ const s = {
   breadcrumb:   { fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6 },
   title:        { fontFamily: 'Inter, sans-serif', fontSize: 36, fontWeight: 700, color: theme.textPrimary, margin: 0 },
   sections:     { display: 'flex', flexDirection: 'column', gap: 16 },
-  erro:         { background: '#fceee9', borderLeft: '3px solid #c4421e', color: '#5c2010', padding: '10px 14px', borderRadius: 6, fontSize: 12, marginBottom: 16 },
+  erro:         { background: 'rgba(224,82,82,.12)', borderLeft: '3px solid ' + theme.error, color: theme.error, padding: '10px 14px', borderRadius: 6, fontSize: 12, marginBottom: 16 },
   ambienteGrid: { display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
   ambienteTag:  { padding: '6px 14px', borderRadius: 20, fontSize: 12, cursor: 'pointer', transition: 'all .15s' },
   textarea:     { background: theme.inputBackground, border: '1px solid ' + theme.inputBorder, color: theme.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', fontSize: 14, outline: 'none', fontFamily: 'inherit', height: 80, resize: 'vertical', boxSizing: 'border-box' },

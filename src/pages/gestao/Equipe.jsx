@@ -180,8 +180,8 @@ export default function Equipe() {
         {['todos', ...ROLES].map(f => (
           <button key={f} onClick={() => setFiltro(f)} style={{
             ...s.filterBtn,
-            background: filtro === f ? 'var(--color-ink)' : '#fff',
-            color: filtro === f ? '#f9f7f4' : 'var(--color-ink-muted)',
+            background: filtro === f ? theme.gold : theme.surface,
+            color: filtro === f ? theme.background : theme.textSecondary,
             border: filtro === f ? 'none' : '1px solid var(--color-border)',
           }}>
             {f === 'todos' ? 'Todos' : ROLE_LABEL[f]}
@@ -250,7 +250,7 @@ export default function Equipe() {
 }
 
 function Toast({ msg, tipo }) {
-  return <div style={{ ...s.toast, background: tipo === 'erro' ? '#fdecea' : 'var(--color-ink)', color: tipo === 'erro' ? '#B84040' : '#fff' }}>{msg}</div>
+  return <div style={{ ...s.toast, background: tipo === 'erro' ? theme.surfaceElevated : 'var(--color-ink)', color: tipo === 'erro' ? theme.error : '#fff' }}>{msg}</div>
 }
 
 function EditForm({ editando, setEditando, supervisores, salvando, onSalvar, onCancelar, onResetSenha }) {
@@ -440,13 +440,13 @@ const s = {
   field: { display: 'flex', flexDirection: 'column', gap: 6, fontSize: 10, letterSpacing: 1.3, textTransform: 'uppercase', color: 'var(--color-ink-muted)', fontWeight: 800 },
   input: { background: theme.inputBackground, border: '1px solid ' + theme.inputBorder, color: theme.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', minHeight: 44, fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' },
   checkLine: { display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontSize: 13, color: 'var(--color-ink-muted)' },
-  passwordBox: { marginTop: 14, background: '#F9F6F0', border: '1px solid var(--color-border)', borderRadius: 12, padding: 12, display: 'grid', gap: 7, color: 'var(--color-ink-muted)', fontSize: 12 },
+  passwordBox: { marginTop: 14, background: theme.surfaceElevated, border: '1px solid var(--color-border)', borderRadius: 12, padding: 12, display: 'grid', gap: 7, color: 'var(--color-ink-muted)', fontSize: 12 },
   toast: { position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)', padding: '12px 22px', borderRadius: 12, fontSize: 13, fontWeight: 800, borderLeft: '3px solid var(--color-gold)', zIndex: 2000, boxShadow: 'var(--shadow-md)', maxWidth: 'calc(100vw - 24px)' },
   modalBg: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.42)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 },
   modal: { background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, width: '100%', maxWidth: 620, maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
   modalHead: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '22px 24px 0' },
   modalBody: { overflowY: 'auto', padding: 24 },
   modalFoot: { display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '16px 24px', borderTop: '1px solid var(--color-border)' },
-  error: { background: '#fdecea', color: '#B84040', borderLeft: '3px solid #B84040', padding: '10px 12px', borderRadius: 8, fontSize: 12, marginBottom: 14 },
-  roleHint: { marginTop: 14, color: 'var(--color-ink-muted)', fontSize: 12, background: '#F9F6F0', border: '1px solid var(--color-border)', borderRadius: 10, padding: 12 },
+  error: { background: 'rgba(224,82,82,.12)', color: theme.error, borderLeft: '3px solid ' + theme.error, padding: '10px 12px', borderRadius: 8, fontSize: 12, marginBottom: 14 },
+  roleHint: { marginTop: 14, color: 'var(--color-ink-muted)', fontSize: 12, background: theme.surfaceElevated, border: '1px solid var(--color-border)', borderRadius: 10, padding: 12 },
 }

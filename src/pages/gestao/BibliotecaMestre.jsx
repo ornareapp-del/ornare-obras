@@ -416,7 +416,7 @@ const css = `
 .bm-header p{font-size:14px;color:${THEME.muted};margin:10px 0 0;max-width:760px;line-height:1.55}
 .bm-import{border:0;background:${THEME.ink};color:#fff;border-radius:12px;padding:12px 18px;font-family:inherit;font-size:13px;font-weight:900;cursor:pointer;white-space:nowrap}
 .bm-import:disabled{opacity:.55;cursor:not-allowed}
-.bm-alert{border:1px solid #F0C8C8;background:#FFF7F7;color:${THEME.danger};border-radius:12px;padding:11px 14px;font-size:13px;font-weight:700;margin-bottom:14px}
+.bm-alert{border:1px solid rgba(224,82,82,.34);background:rgba(224,82,82,.12);color:${THEME.danger};border-radius:12px;padding:11px 14px;font-size:13px;font-weight:700;margin-bottom:14px}
 .bm-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:1200;background:${THEME.ink};color:#fff;border-left:3px solid ${THEME.gold};border-radius:13px;padding:12px 18px;font-size:13px;font-weight:800;box-shadow:0 14px 34px rgba(29,28,25,.18)}
 .bm-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
 .bm-layout{display:grid;grid-template-columns:minmax(320px,.46fr) minmax(0,1fr);gap:16px;align-items:start}

@@ -781,8 +781,8 @@ export default function Agenda() {
                 <div style={{
                   marginTop: 14,
                   border: `1px solid ${erroModal ? '#F0C8C8' : 'var(--color-border)'}`,
-                  background: erroModal ? '#FFF7F7' : '#FFFEFC',
-                  color: erroModal ? '#B84040' : 'var(--color-ink-muted)',
+                  background: erroModal ? 'rgba(224,82,82,.12)' : theme.surfaceElevated,
+                  color: erroModal ? theme.error : theme.textSecondary,
                   borderRadius: 10,
                   padding: '10px 12px',
                   fontSize: 12,
@@ -848,8 +848,8 @@ export default function Agenda() {
         ].map(f => (
           <button key={f.id} onClick={() => setFiltro(f.id)} style={{
             ...s.filtroBtn,
-            background: filtro === f.id ? 'var(--color-ink)' : '#fff',
-            color: filtro === f.id ? '#f9f7f4' : 'var(--color-ink-muted)',
+            background: filtro === f.id ? theme.gold : theme.surface,
+            color: filtro === f.id ? theme.background : theme.textSecondary,
             border: filtro === f.id ? 'none' : '1px solid var(--color-border)',
           }}>
             {f.label}
@@ -881,8 +881,8 @@ export default function Agenda() {
             const status = statusEvento(ev, hoje_str)
             const fimSemana = ehFimDeSemana(ev.data)
             return (
-              <div key={ev.id} className="ag-card" onClick={() => abrirEditar(ev)} style={{ ...s.card, borderLeft: '4px solid ' + cor, background: fimSemana ? '#FFFBF5' : '#fff', opacity: filtro === 'passados' ? 0.7 : 1, cursor: 'pointer' }}>
-                <div className="ag-datebox" style={{ ...s.datebox, borderColor: isHoje ? cor : 'var(--color-border)', background: isHoje ? cor + '10' : '#fafaf8' }}>
+              <div key={ev.id} className="ag-card" onClick={() => abrirEditar(ev)} style={{ ...s.card, borderLeft: '4px solid ' + cor, background: fimSemana ? theme.surfaceElevated : theme.surface, opacity: filtro === 'passados' ? 0.7 : 1, cursor: 'pointer' }}>
+                <div className="ag-datebox" style={{ ...s.datebox, borderColor: isHoje ? cor : 'var(--color-border)', background: isHoje ? cor + '18' : theme.surfaceElevated }}>
                   <div style={{ fontSize: 22, fontWeight: 700, color: isHoje ? cor : 'var(--color-ink)', fontFamily: 'var(--font-serif)', lineHeight: 1 }}>{d.getDate()}</div>
                   <div style={{ fontSize: 9, color: cor, letterSpacing: 1, fontWeight: 600 }}>{MESES[d.getMonth()].slice(0, 3).toUpperCase()}</div>
                   <div style={{ fontSize: 9, color: 'var(--color-ink-muted)' }}>{DIAS[d.getDay()]}</div>
@@ -922,8 +922,8 @@ const css = `
 .ag-status{border-radius:999px;padding:3px 8px;font-size:10px;font-weight:900;line-height:1;white-space:nowrap}
 .ag-status.tone-success{background:#EAF5EE;color:#2D7A4A}
 .ag-status.tone-info{background:#EEF5FB;color:#1E5A8A}
-.ag-status.tone-warn{background:#FFF4E5;color:#9A6A22}
-.ag-status.tone-danger{background:#FFF1F1;color:#B84040}
+.ag-status.tone-warn{background:rgba(224,168,82,.13);color:${theme.warning}}
+.ag-status.tone-danger{background:rgba(224,82,82,.12);color:${theme.error}}
 .ag-vistoria-placeholder{display:none}
 @media (max-width:760px){
   .ag-header{display:grid !important;grid-template-columns:1fr auto;gap:10px;align-items:end !important;margin-bottom:13px !important;padding-right:0 !important}
@@ -993,7 +993,7 @@ const s = {
   btnSave: { background: theme.gold, color: theme.background, border: 'none', borderRadius: 8, padding: '12px 24px', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
   grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 },
   full: { gridColumn: '1/-1' },
-  vistoriaBox: { marginTop: 18, border: '1px solid #E4D7C0', background: '#FFFCF7', borderRadius: 14, padding: 16 },
+  vistoriaBox: { marginTop: 18, border: '1px solid var(--color-border)', background: theme.surfaceElevated, borderRadius: 14, padding: 16 },
   vistoriaHead: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 14 },
   vistoriaEyebrow: { fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--color-gold)', fontWeight: 900, marginBottom: 5 },
   vistoriaTitle: { display: 'block', fontSize: 15, color: 'var(--color-ink)' },
@@ -1006,7 +1006,7 @@ const s = {
   vistoriaPrimary: { background: 'var(--color-ink)', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 12px', fontSize: 12, fontWeight: 900, cursor: 'pointer', fontFamily: 'inherit' },
   vistoriaButton: { background: theme.surfaceElevated, color: 'var(--color-ink)', border: '1px solid var(--color-border)', borderRadius: 10, padding: '9px 12px', fontSize: 12, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' },
   vistoriaMessage: { marginTop: 12, borderRadius: 10, background: theme.surface, border: '1px solid var(--color-border)', padding: '9px 11px', fontSize: 12, color: 'var(--color-ink-muted)', fontWeight: 700 },
-  campoBox: { marginTop: 14, border: '1px solid #DDE7DD', background: '#FBFEFC', borderRadius: 14, padding: 16 },
+  campoBox: { marginTop: 14, border: '1px solid var(--color-border)', background: theme.surfaceElevated, borderRadius: 14, padding: 16 },
   campoStatus: { borderRadius: 999, background: '#EAF5EE', color: '#2D7A4A', padding: '6px 11px', fontSize: 11, fontWeight: 900, whiteSpace: 'nowrap' },
   campoActions: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 },
   campoAction: { background: '#2D7A4A', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 13px', fontSize: 12, fontWeight: 900, cursor: 'pointer', fontFamily: 'inherit' },
@@ -1016,7 +1016,7 @@ const s = {
   campoItem: { border: '1px solid var(--color-border)', background: theme.surface, borderRadius: 12, padding: 12 },
   campoPerson: { fontSize: 13, color: 'var(--color-ink)', fontWeight: 900, marginBottom: 9 },
   campoGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 },
-  campoInfo: { display: 'block', borderRadius: 10, background: '#F7FAF7', padding: '9px 10px', fontSize: 12, color: 'var(--color-ink)', fontWeight: 800 },
+  campoInfo: { display: 'block', borderRadius: 10, background: theme.surface, padding: '9px 10px', fontSize: 12, color: 'var(--color-ink)', fontWeight: 800 },
   campoInfoLabel: { display: 'block', fontSize: 9, letterSpacing: 1.2, textTransform: 'uppercase', color: 'var(--color-ink-muted)', marginBottom: 4 },
   localLink: { color: '#2D7A4A', fontWeight: 900, textDecoration: 'none' },
 }
