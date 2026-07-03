@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { useStore } from '../../store/useStore'
 import bgImage from '../../assets/ornare-milao-40-anos.jpg'
 import { FASES_ORNARE, faseOrnarePorKey, faseOrnarePorTexto, indiceFaseOrnare } from '../../constants/fasesOrnare'
 import { theme } from '../../constants/theme'
@@ -83,8 +84,7 @@ function fotoUrl(foto) {
 }
 
 function isAgendaCliente(item) {
-  if (item.reuniao_interna) return false
-  return item.visivel_cliente === true || item.visibilidade === 'cliente' || item.visibilidade === 'publica'
+  return item.visivel_cliente === true && item.reuniao_interna === false
 }
 
 function isMensagemCliente(item) {
@@ -94,15 +94,11 @@ function isMensagemCliente(item) {
 }
 
 function isFotoCliente(foto) {
-  const aprovada = foto.aprovada === true && (foto.aprovada_gestao === true || foto.aprovada_gestao === undefined)
-  const visivel = foto.visivel_cliente === true || foto.visibilidade === 'cliente' || foto.visibilidade === 'publica'
-  return aprovada && visivel
+  return foto.aprovada === true && foto.aprovada_gestao === true && foto.visivel_cliente === true
 }
 
 function isChecklistCliente(item) {
-  const visivel = item.visivel_cliente === true || item.visibilidade === 'cliente' || item.visibilidade === 'publica'
-  const aprovado = item.aprovado_cliente === true || item.aprovado_gestao === true || item.validado_supervisor === true || item.concluido === true
-  return item.concluido === true && visivel && aprovado
+  return item.concluido === true && item.visivel_cliente === true
 }
 
 function isDocumentoCliente(doc) {
@@ -156,7 +152,8 @@ async function carregarAgendaCliente(obraId) {
     .from('agenda')
     .select(AGENDA_CLIENTE_SELECT)
     .eq('obra_id', obraId)
-    .or('visivel_cliente.eq.true,visibilidade.eq.cliente,visibilidade.eq.publica')
+    .eq('visivel_cliente', true)
+    .eq('reuniao_interna', false)
     .order('data', { ascending: true })
 
   if (!agenda.error) return { ...agenda, data: safeArray(agenda).filter(isAgendaCliente) }
@@ -185,7 +182,7 @@ async function carregarChecklistCliente(obraId) {
     .select(CHECKLIST_CLIENTE_SELECT)
     .eq('obra_id', obraId)
     .eq('concluido', true)
-    .or('visivel_cliente.eq.true,visibilidade.eq.cliente,visibilidade.eq.publica')
+    .eq('visivel_cliente', true)
     .order('descricao')
 
   if (!checklist.error) return { ...checklist, data: safeArray(checklist).filter(isChecklistCliente) }
@@ -216,6 +213,7 @@ function tabelaNaoEncontrada(error) {
 
 export default function PortalCliente() {
   const { id } = useParams()
+  const { user, profile } = useStore()
   const [dados, setDados] = useState({
     obra: null,
     cronograma: null,
@@ -250,6 +248,13 @@ export default function PortalCliente() {
     setErro('')
     const { data: authData } = await supabase.auth.getUser()
     setUsuario(authData?.user || null)
+
+    if (!authData?.user || !user || profile?.role !== 'cliente' || !profile?.obra_id || String(profile.obra_id) !== String(id)) {
+      setDados(prev => ({ ...prev, obra: null }))
+      setErro('Acesso nao autorizado.')
+      setLoading(false)
+      return
+    }
 
     const obra = await supabase.from('obras').select(OBRA_CLIENTE_SELECT).eq('id', id).single()
     if (obra.error) {
@@ -335,7 +340,7 @@ export default function PortalCliente() {
   }
 
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
-  useEffect(() => { carregar() }, [id])
+  useEffect(() => { carregar() }, [id, user?.id, profile?.role, profile?.obra_id])
 
   const vm = useMemo(() => {
     const obra = dados.obra || {}

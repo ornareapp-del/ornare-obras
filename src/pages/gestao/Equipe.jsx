@@ -91,6 +91,10 @@ export default function Equipe() {
       mostrarToast('Selecione um perfil valido.', 'erro')
       return
     }
+    if (role === 'cliente' && !editando.obra_id) {
+      mostrarToast('Selecione a obra vinculada ao cliente.', 'erro')
+      return
+    }
     setSalvando(true)
     try {
       const { error } = await supabase.from('profiles').update({
@@ -99,6 +103,7 @@ export default function Equipe() {
         cargo: editando.cargo || null,
         telefone: editando.telefone || null,
         supervisor_id: role === 'montador' ? (editando.supervisor_id || (supervisorAtual ? perfilAtual.id : null)) : null,
+        obra_id: role === 'cliente' ? editando.obra_id : null,
         ativo: editando.ativo !== false,
       }).eq('id', editando.id)
 
@@ -163,6 +168,7 @@ export default function Equipe() {
     }
     if (profile.role === 'supervisor') return obras.filter(o => o.supervisor_id === profile.id)
     if (['pos_venda', 'vendedor'].includes(profile.role)) return obras.filter(o => o.comercial_id === profile.id)
+    if (profile.role === 'cliente') return obras.filter(o => o.id === profile.obra_id)
     return []
   }
 
@@ -170,7 +176,7 @@ export default function Equipe() {
     <div className="ow-page" style={s.page}>
       <style>{css}</style>
       {toast.msg && <Toast msg={toast.msg} tipo={toast.tipo} />}
-      {modal && <ModalNovoUsuario supervisores={supervisores} rolesDisponiveis={rolesDisponiveis} supervisorAtual={supervisorAtual ? perfilAtual : null} onClose={() => setModal(false)} onSaved={() => { setModal(false); carregar(); mostrarToast('Novo usuario criado com sucesso. A senha inicial nao sera exibida novamente.') }} />}
+      {modal && <ModalNovoUsuario obras={obras} supervisores={supervisores} rolesDisponiveis={rolesDisponiveis} supervisorAtual={supervisorAtual ? perfilAtual : null} onClose={() => setModal(false)} onSaved={() => { setModal(false); carregar(); mostrarToast('Novo usuario criado com sucesso. A senha inicial nao sera exibida novamente.') }} />}
 
       <div className="eq-header" style={s.header}>
         <div>
@@ -245,6 +251,7 @@ export default function Equipe() {
                     <EditForm
                       editando={editando}
                       setEditando={setEditando}
+                      obras={obras}
                       supervisores={supervisores}
                       rolesDisponiveis={rolesDisponiveis}
                       salvando={salvando}
@@ -287,8 +294,14 @@ function Toast({ msg, tipo }) {
   return <div style={{ ...s.toast, background: tipo === 'erro' ? theme.surfaceElevated : 'var(--color-ink)', color: tipo === 'erro' ? theme.error : '#fff' }}>{msg}</div>
 }
 
-function EditForm({ editando, setEditando, supervisores, rolesDisponiveis, salvando, onSalvar, onCancelar, onResetSenha }) {
+function EditForm({ editando, setEditando, obras, supervisores, rolesDisponiveis, salvando, onSalvar, onCancelar, onResetSenha }) {
   const set = (k, v) => setEditando(p => ({ ...p, [k]: v }))
+  const setRole = (role) => setEditando(p => ({
+    ...p,
+    role,
+    supervisor_id: role === 'montador' ? p.supervisor_id : null,
+    obra_id: role === 'cliente' ? p.obra_id : null,
+  }))
   return (
     <div>
       <div style={s.editGrid}>
@@ -297,7 +310,7 @@ function EditForm({ editando, setEditando, supervisores, rolesDisponiveis, salva
         <Field label="Cargo"><input style={s.input} value={editando.cargo || ''} onChange={e => set('cargo', e.target.value)} /></Field>
         <Field label="Telefone"><input style={s.input} value={editando.telefone || ''} onChange={e => set('telefone', e.target.value)} /></Field>
         <Field label="Perfil">
-          <select style={s.input} value={editando.role} onChange={e => set('role', e.target.value)}>
+          <select style={s.input} value={editando.role} onChange={e => setRole(e.target.value)}>
             {rolesDisponiveis.map(r => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
           </select>
         </Field>
@@ -306,6 +319,14 @@ function EditForm({ editando, setEditando, supervisores, rolesDisponiveis, salva
             <select style={s.input} value={editando.supervisor_id || ''} onChange={e => set('supervisor_id', e.target.value)}>
               <option value="">Sem supervisor</option>
               {supervisores.map(sv => <option key={sv.id} value={sv.id}>{sv.full_name}</option>)}
+            </select>
+          </Field>
+        )}
+        {editando.role === 'cliente' && (
+          <Field label="Obra vinculada">
+            <select style={s.input} value={editando.obra_id || ''} onChange={e => set('obra_id', e.target.value)}>
+              <option value="">Selecione a obra</option>
+              {obras.map(obra => <option key={obra.id} value={obra.id}>{obra.nome || obra.id}</option>)}
             </select>
           </Field>
         )}
@@ -329,12 +350,18 @@ function EditForm({ editando, setEditando, supervisores, rolesDisponiveis, salva
   )
 }
 
-function ModalNovoUsuario({ supervisores, rolesDisponiveis, supervisorAtual, onClose, onSaved }) {
+function ModalNovoUsuario({ obras, supervisores, rolesDisponiveis, supervisorAtual, onClose, onSaved }) {
   const roleInicial = rolesDisponiveis.includes('montador') ? 'montador' : rolesDisponiveis[0]
-  const [form, setForm] = useState({ full_name: '', email: '', senha: '', role: roleInicial, cargo: '', telefone: '', supervisor_id: supervisorAtual?.id || '' })
+  const [form, setForm] = useState({ full_name: '', email: '', senha: '', role: roleInicial, cargo: '', telefone: '', supervisor_id: supervisorAtual?.id || '', obra_id: '' })
   const [saving, setSaving] = useState(false)
   const [erro, setErro] = useState('')
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
+  const setRole = (role) => setForm(p => ({
+    ...p,
+    role,
+    supervisor_id: role === 'montador' ? p.supervisor_id : '',
+    obra_id: role === 'cliente' ? p.obra_id : '',
+  }))
 
   async function salvarSeguro() {
     const fullName = String(form.full_name || '').trim()
@@ -342,10 +369,12 @@ function ModalNovoUsuario({ supervisores, rolesDisponiveis, supervisorAtual, onC
     const senha = String(form.senha || '')
     const role = supervisorAtual ? 'montador' : form.role
     const supervisorId = role === 'montador' ? (form.supervisor_id || supervisorAtual?.id || null) : null
+    const obraId = role === 'cliente' ? form.obra_id : null
 
     if (!fullName || !email || !senha || !role) { setErro('Preencha nome, e-mail, senha inicial e perfil.'); return }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setErro('Informe um e-mail valido.'); return }
     if (!rolesDisponiveis.includes(role)) { setErro('Selecione um perfil permitido para seu acesso.'); return }
+    if (role === 'cliente' && !obraId) { setErro('Selecione a obra vinculada ao cliente.'); return }
     if (senha.length < 6) { setErro('Senha minima de 6 caracteres.'); return }
 
     setSaving(true)
@@ -367,6 +396,7 @@ function ModalNovoUsuario({ supervisores, rolesDisponiveis, supervisorAtual, onC
         cargo: form.cargo || null,
         telefone: form.telefone || null,
         supervisor_id: supervisorId,
+        obra_id: obraId,
         ativo: true,
       }
       let { error: profileError } = await supabase.from('profiles').update(payload).eq('id', data.user.id)
@@ -379,7 +409,7 @@ function ModalNovoUsuario({ supervisores, rolesDisponiveis, supervisorAtual, onC
         return
       }
 
-      setForm({ full_name: '', email: '', senha: '', role: roleInicial, cargo: '', telefone: '', supervisor_id: supervisorAtual?.id || '' })
+      setForm({ full_name: '', email: '', senha: '', role: roleInicial, cargo: '', telefone: '', supervisor_id: supervisorAtual?.id || '', obra_id: '' })
       onSaved()
     } catch (error) {
       setErro(detalheErro(error, 'Erro inesperado ao criar usuario.'))
@@ -410,7 +440,7 @@ function ModalNovoUsuario({ supervisores, rolesDisponiveis, supervisorAtual, onC
             <Field label="Cargo"><input style={s.input} value={form.cargo} onChange={e => set('cargo', e.target.value)} /></Field>
             <Field label="Telefone"><input style={s.input} value={form.telefone} onChange={e => set('telefone', e.target.value)} /></Field>
             <Field label="Perfil">
-              <select style={s.input} value={form.role} onChange={e => set('role', e.target.value)}>
+              <select style={s.input} value={form.role} onChange={e => setRole(e.target.value)}>
                 {rolesDisponiveis.map(r => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
               </select>
             </Field>
@@ -419,6 +449,14 @@ function ModalNovoUsuario({ supervisores, rolesDisponiveis, supervisorAtual, onC
                 <select style={s.input} value={form.supervisor_id} onChange={e => set('supervisor_id', e.target.value)} disabled={Boolean(supervisorAtual)}>
                   <option value="">Sem supervisor</option>
                   {supervisores.map(sv => <option key={sv.id} value={sv.id}>{sv.full_name}</option>)}
+                </select>
+              </Field>
+            )}
+            {form.role === 'cliente' && (
+              <Field label="Obra vinculada">
+                <select style={s.input} value={form.obra_id} onChange={e => set('obra_id', e.target.value)}>
+                  <option value="">Selecione a obra</option>
+                  {obras.map(obra => <option key={obra.id} value={obra.id}>{obra.nome || obra.id}</option>)}
                 </select>
               </Field>
             )}
