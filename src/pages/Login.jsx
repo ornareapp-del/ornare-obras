@@ -1,5 +1,6 @@
 ﻿import { useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { logError } from '../services/logService'
 import bgImage from '../assets/ornare-milao-40-anos.jpg'
 import { theme } from '../constants/theme'
 
@@ -8,14 +9,17 @@ export default function Login() {
   const [senha, setSenha] = useState('')
   const [erro, setErro] = useState('')
   const [loading, setLoading] = useState(false)
-  const [modo, setModo] = useState('login') // login | recuperar | confirmado
+  const [modo, setModo] = useState('login') // login | recuperar | magic | confirmado
 
   async function handleLogin(e) {
     e.preventDefault()
     setLoading(true)
     setErro('')
     const { error } = await supabase.auth.signInWithPassword({ email, password: senha })
-    if (error) setErro('E-mail ou senha incorretos.')
+    if (error) {
+      logError('auth.login_failed', error, { email, modo })
+      setErro('E-mail ou senha incorretos.')
+    }
     setLoading(false)
   }
 
@@ -26,8 +30,31 @@ export default function Login() {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/redefinir-senha`,
     })
-    if (error) setErro('Erro ao enviar e-mail. Verifique o endereço.')
+    if (error) {
+      logError('auth.password_reset_failed', error, { email, modo })
+      setErro('Erro ao enviar e-mail. Verifique o endereço.')
+    }
     else setModo('confirmado')
+    setLoading(false)
+  }
+
+  async function handleMagicLink(e) {
+    e.preventDefault()
+    setLoading(true)
+    setErro('')
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/login`,
+        shouldCreateUser: false,
+      },
+    })
+    if (error) {
+      logError('auth.magic_link_failed', error, { email, modo })
+      setErro('Nao foi possivel enviar o link. Confira o e-mail ou fale com a equipe Ornare.')
+    } else {
+      setModo('confirmado')
+    }
     setLoading(false)
   }
 
@@ -60,18 +87,18 @@ Ornare</h1>
             <div className="ow-login-mark">OK</div>
             <strong>E-mail enviado</strong>
             <p>
-              Verifique sua caixa de entrada e siga as instruções para redefinir sua senha.
+              Verifique sua caixa de entrada e siga as instrucoes para acessar o Ornare Works.
             </p>
             <button className="ow-login-link" onClick={() => setModo('login')}>
               Voltar ao login
             </button>
           </div>
         ) : (
-          <form className="ow-login-card" onSubmit={modo === 'login' ? handleLogin : handleRecuperar}>
+          <form className="ow-login-card" onSubmit={modo === 'login' ? handleLogin : modo === 'magic' ? handleMagicLink : handleRecuperar}>
             <div className="ow-login-head">
-              <span>{modo === 'login' ? 'Acesso seguro' : 'Recuperação de acesso'}</span>
-              <h2>{modo === 'login' ? 'Entrar no Ornare Works' : 'Redefinir senha'}</h2>
-              <p>{modo === 'login' ? 'Use seu e-mail e senha para continuar.' : 'Informe seu e-mail para receber o link de recuperação.'}</p>
+              <span>{modo === 'login' ? 'Acesso seguro' : modo === 'magic' ? 'Portal do cliente' : 'Recuperação de acesso'}</span>
+              <h2>{modo === 'login' ? 'Entrar no Ornare Works' : modo === 'magic' ? 'Receber link de acesso' : 'Redefinir senha'}</h2>
+              <p>{modo === 'login' ? 'Equipe: use e-mail e senha. Cliente: tambem pode receber um link de acesso.' : modo === 'magic' ? 'Informe o e-mail cadastrado pela equipe Ornare para entrar no portal da sua obra.' : 'Informe seu e-mail para receber o link de recuperação.'}</p>
             </div>
 
             <label className="ow-field">
@@ -107,9 +134,14 @@ Ornare</h1>
 
             <div className="ow-login-alt">
               {modo === 'login' ? (
-                <button type="button" onClick={() => { setModo('recuperar'); setErro('') }}>
-                  Esqueci minha senha
-                </button>
+                <>
+                  <button type="button" onClick={() => { setModo('magic'); setErro('') }}>
+                    Sou cliente / receber link
+                  </button>
+                  <button type="button" onClick={() => { setModo('recuperar'); setErro('') }}>
+                    Esqueci minha senha
+                  </button>
+                </>
               ) : (
                 <button type="button" onClick={() => { setModo('login'); setErro('') }}>
                   Voltar ao login
@@ -154,7 +186,7 @@ const css = `
 .ow-login-submit{width:100%;min-height:52px;border-radius:8px;background:${theme.gold};color:#0F0F0F;border:0;font-size:13px;font-weight:600;cursor:pointer;margin-top:4px;font-family:inherit;box-shadow:0 2px 12px rgba(0,0,0,.3);transition:background .18s,box-shadow .18s;padding:12px 24px}
 .ow-login-submit:hover:not(:disabled){background:${theme.goldLight};box-shadow:0 16px 36px rgba(201,168,76,.18)}
 .ow-login-submit:disabled{background:#3D3830;color:#7A746B;cursor:not-allowed}
-.ow-login-alt{text-align:center;margin-top:18px}
+.ow-login-alt{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;text-align:center;margin-top:18px}
 .ow-login-alt button,.ow-login-link{background:transparent;border:0;color:var(--color-gold);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit}
 @media (max-width:760px){
   .ow-login{align-items:flex-end;padding:0;min-height:100svh}
@@ -178,8 +210,4 @@ const css = `
   .ow-login-card{padding:18px}
 }
 `
-
-
-
-
 

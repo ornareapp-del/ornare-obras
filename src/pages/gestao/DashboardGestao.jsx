@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { EmptyState, KpiCard as DesignKpiCard, PremiumCard } from '../../components/DesignSystem'
 import { limparNome } from '../../utils/ui'
 import { theme } from '../../constants/theme'
+import { faseOrnarePorKey, faseOrnarePorTexto } from '../../constants/fasesOrnare'
 
 const THEME = {
   bg: theme.background,
@@ -60,6 +61,23 @@ function tempoRelativo(iso) {
   if (diff < 3600) return Math.floor(diff / 60) + 'min'
   if (diff < 86400) return Math.floor(diff / 3600) + 'h'
   return Math.floor(diff / 86400) + 'd'
+}
+
+function diasDesde(value) {
+  if (!value) return 999
+  const data = new Date(value)
+  if (Number.isNaN(data.getTime())) return 999
+  const hoje = new Date()
+  hoje.setHours(0, 0, 0, 0)
+  data.setHours(0, 0, 0, 0)
+  return Math.max(0, Math.floor((hoje - data) / 86400000))
+}
+
+function faseObra(obra) {
+  const fase = faseOrnarePorKey(obra?.fase)
+    || faseOrnarePorKey(obra?.fase_atual)
+    || faseOrnarePorTexto(obra?.fase || obra?.fase_atual || obra?.status)
+  return fase?.label || obra?.fase || obra?.fase_atual || obra?.status || 'Sem fase'
 }
 
 function statusBadge(status) {
@@ -280,6 +298,13 @@ export default function DashboardGestao() {
     const checkinsAbertosHoje = checkinsHoje.filter(c => !c.saida)
     const montadoresComCheckin = new Set(checkinsHoje.map(c => c.user_id).filter(Boolean))
     const montadoresEmCampo = new Set(checkinsAbertosHoje.map(c => c.user_id).filter(Boolean))
+    const checkinsPorObra = new Map()
+    dados.checkins.forEach(checkin => {
+      if (!checkin.obra_id) return
+      const data = new Date(checkin.entrada || checkin.created_at || 0)
+      const atual = checkinsPorObra.get(checkin.obra_id)
+      if (!atual || data > atual) checkinsPorObra.set(checkin.obra_id, data)
+    })
 
     const saude = ativos.map(obra => {
       const previsao = obra.data_previsao ? new Date(obra.data_previsao + 'T00:00:00') : null
@@ -302,6 +327,39 @@ export default function DashboardGestao() {
       if (previsao && previsao < hoje) motivos.push('atrasada')
       return { obra, motivos }
     }).filter(item => item.motivos.length > 0).slice(0, 7)
+
+    const obrasSemCheckinRecente = ativos
+      .map(obra => ({ obra, ultima: checkinsPorObra.get(obra.id) }))
+      .filter(item => !item.ultima || diasDesde(item.ultima) > 2)
+      .sort((a, b) => (b.ultima?.getTime() || 0) - (a.ultima?.getTime() || 0))
+
+    const checklistPorObraPendentes = [...checklistPorObra.entries()]
+      .map(([obraId, itens]) => ({
+        obraId,
+        nome: obraNome(dados.obras, obraId),
+        total: itens.filter(i => !i.concluido).length,
+        itemId: itens.find(i => !i.concluido)?.id,
+      }))
+      .filter(item => item.total > 0)
+      .sort((a, b) => b.total - a.total)
+
+    const fotosPendentesPorObra = [...fotosPorObra.entries()]
+      .map(([obraId, fotos]) => ({
+        obraId,
+        nome: obraNome(dados.obras, obraId),
+        total: fotos.filter(fotoPendenteAprovacao).length,
+        fotoId: fotos.find(fotoPendenteAprovacao)?.id,
+      }))
+      .filter(item => item.total > 0)
+      .sort((a, b) => b.total - a.total)
+
+    const atrasadasPorFase = saude
+      .filter(s => s.atrasada)
+      .reduce((acc, item) => {
+        const fase = faseObra(item.obra)
+        acc.set(fase, (acc.get(fase) || 0) + 1)
+        return acc
+      }, new Map())
 
     const fluxo = [
       { label: 'Aguardando Produção', value: dados.obras.filter(o => inStatus(o, STATUS.aguardandoProducao)).length },
@@ -339,6 +397,10 @@ export default function DashboardGestao() {
         .filter(o => inStatus(o, STATUS.travadas) || (ocorrPorObra.get(o.id) || []).some(oc => normalizar(oc.gravidade) === 'alta'))
         .slice(0, 4),
       riscoLista: saude.filter(s => s.atrasada || s.risco).map(s => s.obra).slice(0, 4),
+      obrasSemCheckinRecente,
+      checklistPorObraPendentes,
+      fotosPendentesPorObra,
+      atrasadasPorFase: [...atrasadasPorFase.entries()].map(([fase, total]) => ({ fase, total })).sort((a, b) => b.total - a.total),
       operacao: {
         andamento: ativos.length,
         producao: dados.obras.filter(o => inStatus(o, STATUS.producao)).length,
@@ -346,7 +408,7 @@ export default function DashboardGestao() {
         aguardandoCliente: dados.obras.filter(o => inStatus(o, STATUS.aguardandoCliente)).length,
         aguardandoProducao: dados.obras.filter(o => inStatus(o, STATUS.aguardandoProducao)).length,
         concluidas: dados.obras.filter(o => inStatus(o, STATUS.concluidas)).length,
-        travadas: dados.obras.filter(o => inStatus(o, STATUS.travadas) || (ocorrPorObra.get(o.id) || []).some(oc => normalizar(oc.gravidade) === 'alta')).length,
+        travadas: dados.obras.filter(o => inStatus(o, STATUS.travadas) || (ocorrPorObra.get(o.id) || []).some(oc => normalizar(oc.gravidade) === 'alta')).length + dados.cronogramas.filter(c => c.travado || normalizar(c.risco) === 'alto').length,
       },
       saude: {
         atrasadas: saude.filter(s => s.atrasada).length,
@@ -404,12 +466,12 @@ export default function DashboardGestao() {
   }, [dados])
 
   const kpisExecutivos = [
-    { label: 'Em andamento', value: vm.operacao.andamento, sub: 'operacao ativa', tone: THEME.gold },
-    { label: 'Em montagem', value: vm.operacao.montagem, sub: 'campo ativo', tone: THEME.blue },
-    { label: 'Montadores', value: vm.equipe.montadores, sub: `${vm.equipe.montadoresEmCampo} em campo`, tone: THEME.blue },
-    { label: 'Check-ins hoje', value: vm.equipe.checkinsHoje, sub: `${vm.equipe.montadoresComCheckin} montador(es)`, tone: THEME.success },
-    { label: 'Fotos pendentes', value: vm.aprovacoes.fotosPendentes.length, sub: 'aguardando validacao', tone: vm.aprovacoes.fotosPendentes.length ? THEME.warn : THEME.success },
-    { label: 'Travadas', value: vm.operacao.travadas, sub: 'acao imediata', tone: THEME.danger },
+    { label: 'Em andamento', value: vm.operacao.andamento, sub: 'operacao ativa', tone: THEME.gold, onClick: () => navigate('/obras') },
+    { label: 'Montadores em campo', value: vm.equipe.montadoresEmCampo, sub: `${vm.equipe.montadoresComCheckin} com check-in`, tone: THEME.blue, onClick: () => navigate('/dashboard?painel=equipe') },
+    { label: 'Check-ins hoje', value: vm.equipe.checkinsHoje, sub: 'movimentacoes do dia', tone: THEME.success, onClick: () => navigate('/dashboard?painel=checkins') },
+    { label: 'Sem check-in recente', value: vm.obrasSemCheckinRecente.length, sub: 'obra sem visita recente', tone: vm.obrasSemCheckinRecente.length ? THEME.warn : THEME.success, onClick: () => vm.obrasSemCheckinRecente[0]?.obra?.id ? navigate(`/obras/${vm.obrasSemCheckinRecente[0].obra.id}?aba=Equipe`) : navigate('/obras') },
+    { label: 'Fotos pendentes', value: vm.aprovacoes.fotosPendentes.length, sub: 'aguardando validacao', tone: vm.aprovacoes.fotosPendentes.length ? THEME.warn : THEME.success, onClick: () => vm.aprovacoes.fotosPendentes[0]?.obra_id ? navigate(`/obras/${vm.aprovacoes.fotosPendentes[0].obra_id}?aba=Fotos&foto=${vm.aprovacoes.fotosPendentes[0].id}`) : navigate('/obras?filtro=fotos') },
+    { label: 'Travadas', value: vm.operacao.travadas, sub: 'acao imediata', tone: THEME.danger, onClick: () => navigate('/planejamento?filtro=travadas') },
   ]
 
   return (
@@ -454,6 +516,55 @@ export default function DashboardGestao() {
 
       <section className="dg-kpis" aria-label="Indicadores operacionais">
         {kpisExecutivos.map(k => <Kpi key={k.label} {...k} loading={loading} />)}
+      </section>
+
+      <section className="dg-productivity-grid" aria-label="Produtividade operacional">
+        <Card title="Campo hoje" action="Equipe" onAction={() => navigate('/equipe')}>
+          <MetricLine label="Montadores em campo" value={vm.equipe.montadoresEmCampo} color={THEME.success} />
+          <MetricLine label="Check-ins registrados" value={vm.equipe.checkinsHoje} color={THEME.gold} />
+          <MetricLine label="Obras sem check-in recente" value={vm.obrasSemCheckinRecente.length} color={vm.obrasSemCheckinRecente.length ? THEME.warn : THEME.success} />
+          <div className="dg-mini-list">
+            {vm.obrasSemCheckinRecente.slice(0, 3).map(item => (
+              <button className="dg-line-button" key={item.obra.id} onClick={() => navigate(`/obras/${item.obra.id}?aba=Equipe`)}>
+                <span>{item.obra.nome}</span>
+                <small>{item.ultima ? `Ultimo check-in ha ${diasDesde(item.ultima)}d` : 'Sem check-in'}</small>
+              </button>
+            ))}
+          </div>
+        </Card>
+
+        <Card title="Pendencias por obra" action="Obras" onAction={() => navigate('/obras')}>
+          <MetricLine label="Fotos pendentes" value={vm.aprovacoes.fotosPendentes.length} color={THEME.warn} />
+          <MetricLine label="Checklist pendente" value={vm.aprovacoes.checklistPendentes.length} color={THEME.gold} />
+          <div className="dg-mini-list">
+            {vm.fotosPendentesPorObra.slice(0, 2).map(item => (
+              <button className="dg-line-button" key={`foto-${item.obraId}`} onClick={() => navigate(`/obras/${item.obraId}?aba=Fotos${item.fotoId ? `&foto=${item.fotoId}` : ''}`)}>
+                <span>{item.nome}</span>
+                <small>{item.total} foto{item.total === 1 ? '' : 's'}</small>
+              </button>
+            ))}
+            {vm.checklistPorObraPendentes.slice(0, 2).map(item => (
+              <button className="dg-line-button" key={`check-${item.obraId}`} onClick={() => navigate(`/obras/${item.obraId}?aba=Checklist${item.itemId ? `&checklist=${item.itemId}` : ''}`)}>
+                <span>{item.nome}</span>
+                <small>{item.total} checklist</small>
+              </button>
+            ))}
+          </div>
+        </Card>
+
+        <Card title="Atrasos e metas" action="Planejamento" onAction={() => navigate('/planejamento')}>
+          <MetricLine label="Obras atrasadas" value={vm.saude.atrasadas} color={THEME.danger} />
+          <MetricLine label="Gastos proximos/acima da meta" value={vm.financeiro.pertoMeta.length + vm.financeiro.acimaMeta.length} color={THEME.warn} />
+          <div className="dg-mini-list">
+            {vm.atrasadasPorFase.slice(0, 3).map(item => <Line key={item.fase} title={item.fase} meta={`${item.total} atrasada${item.total === 1 ? '' : 's'}`} />)}
+            {vm.financeiro.acimaMeta.slice(0, 2).map(obra => (
+              <button className="dg-line-button" key={`meta-${obra.id}`} onClick={() => navigate(`/obras/${obra.id}?aba=Gastos`)}>
+                <span>{obra.nome}</span>
+                <small>meta critica</small>
+              </button>
+            ))}
+          </div>
+        </Card>
       </section>
 
       <section className="dg-priority-board">
@@ -718,10 +829,12 @@ function obraNome(obras, id) {
   return obras.find(o => o.id === id)?.nome || 'Sem obra'
 }
 
-function Kpi({ label, value, sub, tone, loading }) {
-  return (
+function Kpi({ label, value, sub, tone, loading, onClick }) {
+  const content = (
     <DesignKpiCard label={label} value={loading ? '-' : value} helper={sub} tone={tone === THEME.danger ? 'danger' : tone === THEME.success ? 'success' : tone === THEME.warn ? 'warning' : 'gold'} />
   )
+  if (!onClick) return content
+  return <button className="dg-kpi-button" onClick={onClick}>{content}</button>
 }
 
 function Card({ title, action, onAction, children }) {
@@ -784,6 +897,7 @@ const css = `
 .dg-load-alert{width:100%;max-width:none;margin:0 0 12px;border:1px solid rgba(224,82,82,.34);background:rgba(224,82,82,.12);color:${THEME.danger};border-radius:12px;padding:11px 14px;font-size:13px;font-weight:800}
 .dg-mobile-home{display:none}
 .dg-priority-board{width:100%;max-width:none;margin:0 0 16px;display:grid;grid-template-columns:1.25fr 1fr 1fr 1fr;gap:12px}
+.dg-productivity-grid{width:100%;max-width:none;margin:0 0 16px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
 .dg-agenda-mobile{width:100%;max-width:none;margin:0 0 16px}
 .dg-approval-panel{width:100%;max-width:none;margin:0 0 16px}
 .dg-approval-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
@@ -814,6 +928,8 @@ const css = `
 .dg-priority-row span{display:block;font-size:11.5px;color:${THEME.muted};line-height:1.35;margin-top:3px}
 .dg-priority-row.compact{padding:9px 0}
 .dg-kpis{width:100%;max-width:none;margin:0 0 18px;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+.dg-kpi-button{border:0;background:transparent;padding:0;text-align:left;font-family:inherit;cursor:pointer}
+.dg-kpi-button>*{height:100%}
 .dg-kpi{background:${THEME.card};border:1px solid ${THEME.border};border-radius:12px;padding:20px;min-width:0;box-shadow:0 2px 12px rgba(0,0,0,.3)}
 .dg-kpi span{display:block;font-size:10px;letter-spacing:1.8px;text-transform:uppercase;font-weight:800;margin-bottom:9px;white-space:nowrap}
 .dg-kpi strong{display:block;font-size:34px;line-height:1;color:${THEME.ink}}
@@ -858,9 +974,12 @@ const css = `
 .dg-progress i{display:block;height:100%;border-radius:999px}
 .dg-badge{font-size:10px;font-weight:800;border-radius:999px;padding:5px 8px;white-space:nowrap}
 .dg-metric-line,.dg-line{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid ${THEME.border};align-items:center}
+.dg-line-button{width:100%;border:0;background:transparent;display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid ${THEME.border};align-items:center;text-align:left;font-family:inherit;cursor:pointer}
 .dg-metric-line span,.dg-line span{font-size:12.5px;color:${THEME.ink};font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dg-line-button span{font-size:12.5px;color:${THEME.ink};font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dg-metric-line strong{font-size:18px}
 .dg-line small{font-size:11px;color:${THEME.muted};white-space:nowrap}
+.dg-line-button small{font-size:11px;color:${THEME.muted};white-space:nowrap}
 .dg-mini-list.spaced{margin-top:12px}
 .dg-money{font-family:var(--font-serif);font-size:32px;line-height:1.05;color:${THEME.ink};margin-bottom:4px}
 .dg-alert{margin-top:12px;border:1px solid rgba(224,168,82,.4);background:rgba(224,168,82,.12);color:${THEME.warn};border-radius:11px;padding:10px 12px;font-size:12px;font-weight:800}
@@ -870,9 +989,9 @@ const css = `
 .dg-activity small{display:block;font-size:11px;color:${THEME.muted};margin-top:2px}
 .dg-activity em{font-style:normal;font-size:10px;color:#aaa}
 .dg-empty{padding:24px 0;text-align:center;color:#aaa;font-size:13px}
-@media (max-width:1100px){.dg-grid-3,.dg-main{grid-template-columns:1fr}.dg-flow{grid-template-columns:repeat(3,1fr)}.dg-flow-line{display:none}}
+@media (max-width:1100px){.dg-grid-3,.dg-main,.dg-productivity-grid{grid-template-columns:1fr}.dg-flow{grid-template-columns:repeat(3,1fr)}.dg-flow-line{display:none}}
 @media (max-width:1100px){.dg-priority-board{grid-template-columns:1fr 1fr}.dg-agenda-mobile{display:block}}
 @media (min-width:761px){.dg-agenda-mobile{display:none}}
-@media (max-width:760px){.dg-page{padding:22px 14px calc(112px + env(safe-area-inset-bottom));display:flex;flex-direction:column}.dg-header{display:block;margin-bottom:12px;order:0;padding-right:0}.dg-eyebrow{font-size:9px;letter-spacing:2px;margin-bottom:4px}.dg-header h1{font-size:28px;line-height:1.02}.dg-header p{font-size:12.5px;line-height:1.45}.dg-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;justify-content:flex-start;margin-top:10px}.dg-actions button{width:100%;padding:10px 9px;font-size:12px}.dg-mobile-home{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;order:1;margin:0 0 12px;max-width:none;width:100%}.dg-mobile-home>button{border:1px solid ${THEME.border};background:${THEME.elevated};border-radius:15px;padding:11px 9px;text-align:left;font-family:inherit;box-shadow:0 10px 26px rgba(0,0,0,.16)}.dg-mobile-home>button.warn{border-color:rgba(224,168,82,.4);background:rgba(224,168,82,.12)}.dg-mobile-home>button.critical{border-color:rgba(224,82,82,.34);background:rgba(224,82,82,.12)}.dg-mobile-home strong{display:block;font-size:24px;line-height:1;color:${THEME.ink}}.dg-mobile-home span{display:block;font-size:10.5px;color:${THEME.muted};font-weight:900;margin-top:5px}.dg-mobile-quick{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.dg-mobile-quick button{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:13px;padding:10px 8px;font-size:12px;font-weight:900}.dg-priority-board{grid-template-columns:1fr;gap:10px;margin-bottom:12px;order:2}.dg-priority-board>*:nth-child(n+2){display:none}.dg-priority-row{padding:11px 0}.dg-agenda-mobile{order:3}.dg-main{order:4}.dg-kpis{order:5;display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px}.dg-kpis>*{flex:0 0 auto;min-width:auto;max-width:none}.dg-kpi{display:flex;align-items:center;gap:7px;border-radius:999px;padding:7px 10px;min-width:auto;max-width:none;border-top:1px solid rgba(184,150,94,.22)}.dg-kpi span{white-space:nowrap;font-size:10.5px;line-height:1;letter-spacing:0;margin:0}.dg-kpi strong{font-size:15px}.dg-kpi small{display:none}.dg-grid-3,.dg-main{gap:12px}.dg-grid-3{display:none}.dg-card{padding:15px 13px;border-radius:15px}.dg-card-head h2{font-size:19px}.dg-health{grid-template-columns:1fr 1fr 1fr}.dg-flow{display:none}.dg-card:has(.dg-flow){display:none}.dg-attention,.dg-work-row{align-items:flex-start;flex-direction:column}.dg-attention strong,.dg-attention span,.dg-work-main strong,.dg-work-main span{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;white-space:normal}.dg-tags{margin-left:0;justify-content:flex-start}.dg-tags span:nth-child(n+3){display:none}.dg-progress{width:100%}.dg-activity{grid-template-columns:62px 1fr}.dg-activity em{display:none}}
+@media (max-width:760px){.dg-page{padding:22px 14px calc(112px + env(safe-area-inset-bottom));display:flex;flex-direction:column}.dg-header{display:block;margin-bottom:12px;order:0;padding-right:0}.dg-eyebrow{font-size:9px;letter-spacing:2px;margin-bottom:4px}.dg-header h1{font-size:28px;line-height:1.02}.dg-header p{font-size:12.5px;line-height:1.45}.dg-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;justify-content:flex-start;margin-top:10px}.dg-actions button{width:100%;padding:10px 9px;font-size:12px}.dg-mobile-home{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;order:1;margin:0 0 12px;max-width:none;width:100%}.dg-mobile-home>button{border:1px solid ${THEME.border};background:${THEME.elevated};border-radius:15px;padding:11px 9px;text-align:left;font-family:inherit;box-shadow:0 10px 26px rgba(0,0,0,.16)}.dg-mobile-home>button.warn{border-color:rgba(224,168,82,.4);background:rgba(224,168,82,.12)}.dg-mobile-home>button.critical{border-color:rgba(224,82,82,.34);background:rgba(224,82,82,.12)}.dg-mobile-home strong{display:block;font-size:24px;line-height:1;color:${THEME.ink}}.dg-mobile-home span{display:block;font-size:10.5px;color:${THEME.muted};font-weight:900;margin-top:5px}.dg-mobile-quick{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.dg-mobile-quick button{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:13px;padding:10px 8px;font-size:12px;font-weight:900}.dg-priority-board{grid-template-columns:1fr;gap:10px;margin-bottom:12px;order:2}.dg-priority-board>*:nth-child(n+2){display:none}.dg-productivity-grid{grid-template-columns:1fr;order:4;gap:12px}.dg-priority-row{padding:11px 0}.dg-agenda-mobile{order:3}.dg-main{order:5}.dg-kpis{order:2;display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px}.dg-kpis>*{flex:0 0 auto;min-width:auto;max-width:none}.dg-kpi{display:flex;align-items:center;gap:7px;border-radius:999px;padding:7px 10px;min-width:auto;max-width:none;border-top:1px solid rgba(184,150,94,.22)}.dg-kpi span{white-space:nowrap;font-size:10.5px;line-height:1;letter-spacing:0;margin:0}.dg-kpi strong{font-size:15px}.dg-kpi small{display:none}.dg-grid-3,.dg-main{gap:12px}.dg-grid-3{display:none}.dg-card{padding:15px 13px;border-radius:15px}.dg-card-head h2{font-size:19px}.dg-health{grid-template-columns:1fr 1fr 1fr}.dg-flow{display:none}.dg-card:has(.dg-flow){display:none}.dg-attention,.dg-work-row{align-items:flex-start;flex-direction:column}.dg-attention strong,.dg-attention span,.dg-work-main strong,.dg-work-main span{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;white-space:normal}.dg-tags{margin-left:0;justify-content:flex-start}.dg-tags span:nth-child(n+3){display:none}.dg-progress{width:100%}.dg-activity{grid-template-columns:62px 1fr}.dg-activity em{display:none}}
 @media (max-width:760px){.dg-kpis{order:2}.dg-priority-board{order:3}.dg-agenda-mobile{order:4}.dg-main{order:5}.dg-card:has(.dg-flow){display:block}.dg-flow{display:grid;grid-template-columns:1fr 1fr}.dg-flow-summary{grid-template-columns:1fr}.dg-progress-wrap{width:100%}.dg-progress-wrap b{text-align:left}.dg-work-row{gap:9px}}
 `

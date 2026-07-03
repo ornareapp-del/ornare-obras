@@ -6,9 +6,12 @@ import { tarefasService } from '../../services/tarefasService'
 import { aplicarBibliotecaChecklist } from '../../services/checklistService'
 import { exportarRelatorioObra } from '../../services/pdfService'
 import { criarNotificacoes } from '../../services/notificacoesService'
+import { logError } from '../../services/logService'
 import { progressBarStyle, progressFillStyle, statusBadgeBaseStyle } from '../../utils/ui'
+import { formatFileSize, prepararImagemUpload } from '../../utils/imageUpload'
 import { FASES_ORNARE, faseOrnarePorKey, faseOrnarePorTexto, indiceFaseOrnare } from '../../constants/fasesOrnare'
 import { theme } from '../../constants/theme'
+import ObraPdfExportControls from './components/ObraPdfExportControls'
 
 const ST = {
   'Em montagem':         { label: 'Em montagem',        bg: '#edf7f0', color: '#3a7d4f' },
@@ -208,6 +211,7 @@ export default function ObraDetalhe() {
   const [editando,  setEditando]  = useState(false)
   const [tipoPdf,   setTipoPdf]   = useState('executivo')
   const [exportandoPdf, setExportandoPdf] = useState(false)
+  const [statusPdf, setStatusPdf] = useState('')
   const [formObra,  setFormObra]  = useState({})
   const [toast,     setToast]     = useState({ msg: '', tipo: 'ok' })
   const [nova, setNova] = useState({ titulo: '', descricao: '', prioridade: 'media', prazo: '', responsavel_id: '', status: 'pendente' })
@@ -366,11 +370,24 @@ export default function ObraDetalhe() {
   async function gerarPdf() {
     if (exportandoPdf) return
     setExportandoPdf(true)
+    const nomesPdf = {
+      executivo: 'executivo',
+      operacional: 'operacional',
+      cliente: 'do cliente',
+      financeiro: 'financeiro interno',
+    }
+    setStatusPdf(`Preparando relatorio ${nomesPdf[tipoPdf] || 'executivo'}...`)
     mostrarToast('Gerando PDF...', 'info')
     try {
-      await exportarRelatorioObra(id, tipoPdf)
-      mostrarToast('PDF gerado com sucesso.')
+      const resultado = await exportarRelatorioObra(id, tipoPdf)
+      const avisos = resultado?.avisos?.length || 0
+      const mensagem = avisos
+        ? `PDF gerado com ${avisos} aviso${avisos === 1 ? '' : 's'} de dados parciais.`
+        : 'PDF gerado com sucesso.'
+      setStatusPdf(`${mensagem} Arquivo: ${resultado?.filename || 'download iniciado'}`)
+      mostrarToast(mensagem, avisos ? 'info' : 'ok')
     } catch (error) {
+      setStatusPdf(error?.message || 'Nao foi possivel gerar o PDF.')
       mostrarToast(error?.message || 'Não foi possível gerar o PDF.', 'erro')
     } finally {
       setExportandoPdf(false)
@@ -421,14 +438,16 @@ export default function ObraDetalhe() {
               <button onClick={() => { setAba('Tarefas'); carregarTarefas() }} style={acaoBtn(false)}>Tarefas</button>
               <button onClick={() => setAba('Fotos')} style={acaoBtn(false)}>Fotos</button>
               <button onClick={() => setAba('Chat')} style={acaoBtn(false)}>Chat</button>
-              <select value={tipoPdf} onChange={e => setTipoPdf(e.target.value)} style={{ background: THEME.inputBackground, border: '1px solid ' + THEME.inputBorder, color: THEME.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', fontSize: 14, outline: 'none', fontWeight: 700, fontFamily: 'inherit' }}>
-                <option value="executivo">Executivo</option>
-                <option value="operacional">Operacional</option>
-                <option value="cliente">Cliente</option>
-              </select>
-              <button onClick={gerarPdf} disabled={exportandoPdf} style={{ ...acaoBtn(false), minHeight: 44, cursor: exportandoPdf ? 'not-allowed' : 'pointer', opacity: exportandoPdf ? 0.65 : 1 }}>
-                {exportandoPdf ? 'Gerando PDF...' : 'Exportar PDF'}
-              </button>
+              <ObraPdfExportControls
+                tipoPdf={tipoPdf}
+                setTipoPdf={setTipoPdf}
+                gerarPdf={gerarPdf}
+                exportandoPdf={exportandoPdf}
+                statusPdf={statusPdf}
+                compacto={compacto}
+                acaoBtn={acaoBtn}
+                theme={THEME}
+              />
               <button onClick={() => { setEditando(!editando); setFormObra(obra) }} style={acaoBtn(true, editando)}>
                 {editando ? 'Cancelar edição' : 'Editar'}
               </button>
@@ -1931,12 +1950,14 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
   }
   async function anexarComprovante(gastoId, arquivoAtual, observacaoAtual = '') {
     if (!arquivoAtual) return { observacao: observacaoAtual || null, storage_path: '', url: '' }
-    const ext = arquivoAtual.name.split('.').pop() || 'bin'
+    const preparado = await prepararImagemUpload(arquivoAtual, { maxWidth: 1800, maxHeight: 1800, quality: 0.78 })
+    const arquivoUpload = preparado.file
+    const ext = arquivoUpload.name.split('.').pop() || 'bin'
     const path = `gastos/${gastoId}-${Date.now()}.${ext}`
-    const { error: uploadError } = await supabase.storage.from('fotos-obras').upload(path, arquivoAtual)
+    const { error: uploadError } = await supabase.storage.from('fotos-obras').upload(path, arquivoUpload)
     if (uploadError) throw uploadError
     const url = supabase.storage.from('fotos-obras').getPublicUrl(path).data.publicUrl
-    return { observacao: [observacaoAtual, `Comprovante: ${url}`].filter(Boolean).join('\n'), storage_path: path, url }
+    return { observacao: [observacaoAtual, `Comprovante: ${url}`].filter(Boolean).join('\n'), storage_path: path, url, compressed: preparado.compressed, originalSize: preparado.originalSize, finalSize: preparado.finalSize }
   }
   const msG = {
     bg:      { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 },
@@ -2043,8 +2064,11 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
           })
         }
         if (arquivo) {
-          setAcaoGasto('Enviando comprovante...')
+          setAcaoGasto('Preparando comprovante para envio...')
           const anexo = await anexarComprovante(ins.id, arquivo, ins.observacao || form.observacao || '')
+          setAcaoGasto(anexo.compressed
+            ? `Comprovante comprimido de ${formatFileSize(anexo.originalSize)} para ${formatFileSize(anexo.finalSize)}. Vinculando...`
+            : 'Enviando comprovante...')
           const updates = [
             { observacao: anexo.observacao, comprovante: anexo.url, storage_path: anexo.storage_path },
             { observacao: anexo.observacao },
@@ -2175,7 +2199,7 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
                     <label style={msG.label}>Comprovante (foto ou PDF)</label>
                     <label style={msG.upload}>
                       <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={e => setArquivo(e.target.files?.[0] || null)} disabled={salvando} />
-                      {arquivo ? <span style={{ color: 'var(--color-ink)', fontSize: 13 }}>📎 {arquivo.name}</span> : <span style={{ color: '#aaa', fontSize: 13 }}>📎 Toque para anexar comprovante</span>}
+                      {arquivo ? <span style={{ color: 'var(--color-ink)', fontSize: 13 }}>📎 {arquivo.name} ({formatFileSize(arquivo.size)})</span> : <span style={{ color: '#aaa', fontSize: 13 }}>📎 Toque para anexar comprovante</span>}
                     </label>
                   </div>
                 )}
@@ -2355,6 +2379,7 @@ function AbaFotos({ obraId, fotoDestaque }) {
   const [erro, setErro] = useState('')
   const [mensagem, setMensagem] = useState({ texto: '', tipo: 'ok' })
   const [preview, setPreview] = useState(null)
+  const [fotoSelecionada, setFotoSelecionada] = useState(null)
   const [filtroCategoria, setFiltroCategoria] = useState('')
   const [filtroAmbiente, setFiltroAmbiente] = useState('')
   const [filtroAprovacao, setFiltroAprovacao] = useState('')
@@ -2363,6 +2388,10 @@ function AbaFotos({ obraId, fotoDestaque }) {
     setMensagem({ texto, tipo })
     if (tipo === 'erro') setErro(texto)
     else setErro('')
+  }
+  function limparFotoSelecionada() {
+    if (fotoSelecionada?.previewUrl) URL.revokeObjectURL(fotoSelecionada.previewUrl)
+    setFotoSelecionada(null)
   }
   async function carregar() {
     setErro('')
@@ -2383,25 +2412,53 @@ function AbaFotos({ obraId, fotoDestaque }) {
   useEffect(() => {
     if (!loading && fotoDestaque) rolarParaDestaque(fotoDestaque)
   }, [fotoDestaque, loading])
-  async function handleUpload(e) {
-    const file = e.target.files[0]; if (!file) return
+  useEffect(() => () => {
+    if (fotoSelecionada?.previewUrl) URL.revokeObjectURL(fotoSelecionada.previewUrl)
+  }, [fotoSelecionada?.previewUrl])
+  function handleSelecionarFoto(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    limparFotoSelecionada()
+    setFotoSelecionada({
+      file,
+      previewUrl: URL.createObjectURL(file),
+      name: file.name,
+      size: file.size,
+    })
+    mostrarMensagem(`Foto selecionada: ${file.name} (${formatFileSize(file.size)}). Confira o preview antes de enviar.`, 'info')
+    e.target.value = ''
+  }
+
+  async function enviarFotoSelecionada() {
+    const file = fotoSelecionada?.file
+    if (!file) {
+      mostrarMensagem('Selecione uma foto antes de enviar.', 'erro')
+      return
+    }
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       mostrarMensagem('Sem conexão no momento. A foto não foi enviada.', 'erro')
-      e.target.value = ''
       return
     }
     if (!formFoto.categoria) {
       mostrarMensagem('Selecione uma categoria antes de enviar a foto.', 'erro')
-      e.target.value = ''
       return
     }
     setUploading(true)
     setErro('')
-    setMensagem({ texto: 'Enviando foto...', tipo: 'info' })
-    const ext = file.name.split('.').pop()
+    setMensagem({ texto: 'Preparando imagem para envio...', tipo: 'info' })
+    const imagem = await prepararImagemUpload(file, { maxWidth: 1800, maxHeight: 1800, quality: 0.78 })
+    const uploadFile = imagem.file
+    setMensagem({
+      texto: imagem.compressed
+        ? `Imagem comprimida de ${formatFileSize(imagem.originalSize)} para ${formatFileSize(imagem.finalSize)}. Enviando...`
+        : 'Enviando foto...',
+      tipo: 'info',
+    })
+    const ext = uploadFile.name.split('.').pop()
     const path = obraId + '/' + Date.now() + '.' + ext
-    const { error: upErr } = await supabase.storage.from('fotos-obras').upload(path, file)
+    const { error: upErr } = await supabase.storage.from('fotos-obras').upload(path, uploadFile)
     if (upErr) {
+      logError('upload.gestao_storage_failed', upErr, { obraId, categoria: formFoto.categoria, fileSize: uploadFile.size, fileType: uploadFile.type })
       setErro(mensagemErro(upErr, 'Não foi possível enviar a foto.'))
     } else {
       const { data: fotoCriada, error: insertError } = await supabase.from('fotos').insert([{
@@ -2418,8 +2475,9 @@ function AbaFotos({ obraId, fotoDestaque }) {
           visibilidade: formFoto.visivel_cliente ? 'cliente' : 'interna',
         }]).select('id, categoria, observacao').single()
       if (insertError) {
+        logError('upload.gestao_insert_failed', insertError, { obraId, categoria: formFoto.categoria, storagePath: path })
         setErro(mensagemErro(insertError, 'A foto foi enviada, mas não foi vinculada à obra.'))
-        setUploading(false); e.target.value = ''
+        setUploading(false)
         return
       }
       await criarNotificacoesObra({
@@ -2434,10 +2492,11 @@ function AbaFotos({ obraId, fotoDestaque }) {
         excluirUsuarioId: user?.id,
       })
       setFormFoto({ categoria: '', ambiente_id: '', agenda_id: '', observacao: '', visivel_cliente: false })
+      limparFotoSelecionada()
       await carregar()
       mostrarMensagem('Foto enviada e aguardando aprovacao antes de liberar ao cliente.', 'ok')
     }
-    setUploading(false); e.target.value = ''
+    setUploading(false)
   }
   async function aprovar(foto) {
     if (acaoFoto) return
@@ -2549,10 +2608,20 @@ function AbaFotos({ obraId, fotoDestaque }) {
             Visível ao cliente após aprovação
           </label>
           <label style={{ background: formFoto.categoria ? THEME.ink : THEME.muted, color: theme.textOnAccent, borderRadius: 9, padding: '10px 18px', minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', fontSize: 13, fontWeight: 700, cursor: formFoto.categoria ? 'pointer' : 'not-allowed' }}>
-            {uploading ? 'Enviando...' : 'Selecionar e enviar'}
-            <input type="file" accept="image/*" onChange={handleUpload} style={{ display: 'none' }} disabled={uploading || !formFoto.categoria} />
+            {fotoSelecionada ? 'Trocar foto' : 'Selecionar foto'}
+            <input type="file" accept="image/*" onChange={handleSelecionarFoto} style={{ display: 'none' }} disabled={uploading || !formFoto.categoria} />
           </label>
         </div>
+        {fotoSelecionada && (
+          <div style={{ display: 'grid', gridTemplateColumns: '86px 1fr auto', gap: 12, alignItems: 'center', background: THEME.elevated, border: '1px solid ' + THEME.border, borderRadius: 10, padding: 10, marginTop: 12 }}>
+            <img src={fotoSelecionada.previewUrl} alt="Foto selecionada para envio" style={{ width: 86, height: 86, objectFit: 'cover', borderRadius: 8, background: THEME.card }} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13, color: THEME.ink, fontWeight: 800, wordBreak: 'break-word' }}>{fotoSelecionada.name}</div>
+              <div style={{ fontSize: 12, color: THEME.muted, marginTop: 4 }}>{formatFileSize(fotoSelecionada.size)}</div>
+            </div>
+            <button type="button" onClick={enviarFotoSelecionada} disabled={uploading} style={{ background: THEME.gold, color: '#141210', border: 'none', borderRadius: 8, padding: '10px 16px', minHeight: 44, fontSize: 13, fontWeight: 800, cursor: uploading ? 'not-allowed' : 'pointer', opacity: uploading ? 0.72 : 1 }}>{uploading ? 'Enviando...' : 'Enviar'}</button>
+          </div>
+        )}
         {(mensagem.texto || erro) && <div style={{ color: (mensagem.tipo === 'erro' || erro) ? THEME.danger : mensagem.tipo === 'info' ? THEME.warning : THEME.success, background: (mensagem.tipo === 'erro' || erro) ? THEME.dangerBg : mensagem.tipo === 'info' ? THEME.warningBg : THEME.successBg, border: `1px solid ${(mensagem.tipo === 'erro' || erro) ? THEME.danger : mensagem.tipo === 'info' ? THEME.warning : THEME.success}`, borderRadius: 10, padding: '10px 12px', fontSize: 12, fontWeight: 800, marginTop: 10 }}>{erro || mensagem.texto}</div>}
       </Card>
 

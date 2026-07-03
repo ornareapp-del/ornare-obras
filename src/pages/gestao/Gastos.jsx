@@ -5,6 +5,8 @@ import { useStore } from '../../store/useStore'
 import { theme } from '../../constants/theme'
 import { isAppOffline } from '../../hooks/useOnlineStatus'
 import { criarNotificacoes } from '../../services/notificacoesService'
+import { logError } from '../../services/logService'
+import { formatFileSize, prepararImagemUpload } from '../../utils/imageUpload'
 
 const CATEGORIAS = [
   { value: 'combustivel',  label: 'Combustível',  emoji: '⛽', cor: '#E8A020' },
@@ -82,15 +84,23 @@ function comprovanteUrl(gasto) {
 
 async function anexarComprovante(gastoId, arquivo, observacaoAtual = '') {
   if (!arquivo) return { observacao: observacaoAtual || null, url: '', storage_path: '' }
-  const ext = arquivo.name.split('.').pop() || 'bin'
+  const preparado = await prepararImagemUpload(arquivo, { maxWidth: 1800, maxHeight: 1800, quality: 0.78 })
+  const arquivoUpload = preparado.file
+  const ext = arquivoUpload.name.split('.').pop() || 'bin'
   const path = `gastos/${gastoId}-${Date.now()}.${ext}`
-  const { error: uploadError } = await supabase.storage.from('fotos-obras').upload(path, arquivo)
-  if (uploadError) throw uploadError
+  const { error: uploadError } = await supabase.storage.from('fotos-obras').upload(path, arquivoUpload)
+  if (uploadError) {
+    logError('upload.gasto_comprovante_failed', uploadError, { gastoId, fileSize: arquivoUpload.size, fileType: arquivoUpload.type })
+    throw uploadError
+  }
   const url = supabase.storage.from('fotos-obras').getPublicUrl(path).data.publicUrl
   return {
     observacao: [observacaoAtual, `Comprovante: ${url}`].filter(Boolean).join('\n'),
     storage_path: path,
     url,
+    compressed: preparado.compressed,
+    originalSize: preparado.originalSize,
+    finalSize: preparado.finalSize,
   }
 }
 
@@ -245,8 +255,13 @@ function Modal({ obras, profiles, todosGastos, onClose, onSaved }) {
       }
       if (form.arquivo) {
         if (!gasto?.id) throw new Error('Gasto registrado sem identificador para anexar comprovante.')
-        setFeedback('Enviando comprovante...')
+        setFeedback('Preparando comprovante para envio...')
         const anexo = await anexarComprovante(gasto.id, form.arquivo, gasto.observacao || form.observacao)
+        if (anexo.compressed) {
+          setFeedback(`Comprovante comprimido de ${formatFileSize(anexo.originalSize)} para ${formatFileSize(anexo.finalSize)}. Vinculando...`)
+        } else {
+          setFeedback('Enviando comprovante...')
+        }
         const updates = [
           { observacao: anexo.observacao, comprovante: anexo.url, storage_path: anexo.storage_path },
           { observacao: anexo.observacao },
@@ -262,6 +277,7 @@ function Modal({ obras, profiles, todosGastos, onClose, onSaved }) {
       }
       onSaved(precisaAprovacao, Boolean(form.arquivo))
     } catch (error) {
+      logError('gastos.save_failed', error, { obraId: form.obra_id, categoria: form.categoria, temArquivo: Boolean(form.arquivo), precisaAprovacao })
       setErro(mensagemErro(error, 'Nao foi possivel salvar o gasto.'))
     } finally {
       setFeedback('')
@@ -356,7 +372,7 @@ function Modal({ obras, profiles, todosGastos, onClose, onSaved }) {
                 <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }}
                   onChange={e => set('arquivo', e.target.files?.[0] || null)} disabled={saving} />
                 {form.arquivo ? (
-                  <span style={{ color: 'var(--color-ink)', fontSize: 13 }}>📎 {form.arquivo.name}</span>
+                  <span style={{ color: 'var(--color-ink)', fontSize: 13 }}>📎 {form.arquivo.name} ({formatFileSize(form.arquivo.size)})</span>
                 ) : (
                   <span style={{ color: '#aaa', fontSize: 13 }}>📎 Toque para anexar comprovante</span>
                 )}
@@ -408,6 +424,7 @@ function ModalAprovacao({ gasto, onClose, onAprovado }) {
       if (notificacao.error) console.error('Erro ao notificar aprovacao do gasto:', notificacao.error)
       onAprovado()
     } catch (error) {
+      logError('gastos.approve_failed', error, { gastoId: gasto.id, obraId: gasto.obra_id })
       setErro(mensagemErro(error, 'Nao foi possivel aprovar o gasto.'))
     } finally {
       setFeedback('')
@@ -430,6 +447,7 @@ function ModalAprovacao({ gasto, onClose, onAprovado }) {
       if (notificacao.error) console.error('Erro ao notificar recusa do gasto:', notificacao.error)
       onAprovado()
     } catch (error) {
+      logError('gastos.reject_failed', error, { gastoId: gasto.id, obraId: gasto.obra_id })
       setErro(mensagemErro(error, 'Nao foi possivel recusar o gasto.'))
     } finally {
       setFeedback('')

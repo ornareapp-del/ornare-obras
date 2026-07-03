@@ -7,6 +7,8 @@ import { faseOrnarePorKey, faseOrnarePorTexto } from '../../constants/fasesOrnar
 import { theme } from '../../constants/theme'
 import useOnlineStatus, { isAppOffline } from '../../hooks/useOnlineStatus'
 import { criarNotificacoes } from '../../services/notificacoesService'
+import { logError } from '../../services/logService'
+import { formatFileSize, prepararImagemUpload } from '../../utils/imageUpload'
 
 const THEME = {
   bg: theme.background,
@@ -37,6 +39,7 @@ const FOTO_CATEGORIAS = [
   'Cliente',
   'Geral',
 ]
+const OFFLINE_QUEUE_KEY = 'ornare_montador_acoes_offline'
 
 const VISTORIA_CHECKLIST = [
   'Conferir acesso à obra, elevador, carga e descarga.',
@@ -60,6 +63,31 @@ function mensagemGeolocalizacao(error, acao) {
   if (error?.code === 2) return `Localizacao indisponivel. ${acao} sera registrado sem coordenadas.`
   if (error?.code === 3) return `Tempo esgotado ao buscar localizacao. ${acao} sera registrado sem coordenadas.`
   return `${acao} sera registrado sem coordenadas.`
+}
+
+function carregarAcoesOffline() {
+  if (typeof localStorage === 'undefined') return []
+  try {
+    return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]')
+  } catch {
+    return []
+  }
+}
+
+function salvarAcoesOffline(acoes) {
+  if (typeof localStorage === 'undefined') return
+  localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(acoes.slice(-30)))
+}
+
+function registrarAcaoOffline(acao) {
+  const registro = {
+    ...acao,
+    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    criado_em: new Date().toISOString(),
+  }
+  const proximas = [...carregarAcoesOffline(), registro]
+  salvarAcoesOffline(proximas)
+  return proximas
 }
 
 function isChecklistVistoriaCampo(item) {
@@ -302,7 +330,9 @@ export default function MontadorDashboard() {
   const [sucesso, setSucesso] = useState('')
   const [servicoFeedback, setServicoFeedback] = useState('')
   const [preview, setPreview] = useState(null)
+  const [fotoSelecionada, setFotoSelecionada] = useState(null)
   const [formFoto, setFormFoto] = useState({ categoria: '', ambiente_id: '', agenda_id: '', observacao: '' })
+  const [acoesOffline, setAcoesOffline] = useState(() => carregarAcoesOffline())
   const [ambienteSelecionado, setAmbienteSelecionado] = useState('geral')
   const [itemAcao, setItemAcao] = useState('')
   const [novoChecklist, setNovoChecklist] = useState('')
@@ -315,6 +345,27 @@ export default function MontadorDashboard() {
   const ocorrenciasRef = useRef(null)
   const perfilRef = useRef(null)
   const longPressRef = useRef(null)
+
+  function guardarAcaoOffline(acao) {
+    const proximas = registrarAcaoOffline({
+      ...acao,
+      obra_id: obraAtiva?.id || null,
+      obra_nome: obraAtiva?.nome || null,
+      user_id: user?.id || null,
+    })
+    setAcoesOffline(proximas)
+    return proximas
+  }
+
+  function limparAcoesOffline() {
+    salvarAcoesOffline([])
+    setAcoesOffline([])
+  }
+
+  function limparFotoSelecionada() {
+    if (fotoSelecionada?.previewUrl) URL.revokeObjectURL(fotoSelecionada.previewUrl)
+    setFotoSelecionada(null)
+  }
 
   function mostrarSucesso(msg) {
     setSucesso(msg)
@@ -498,6 +549,15 @@ export default function MontadorDashboard() {
     return () => window.clearTimeout(timer)
   }, [obraAtiva?.id])
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => setAcoesOffline(carregarAcoesOffline()), 0)
+    return () => window.clearTimeout(timer)
+  }, [online])
+
+  useEffect(() => () => {
+    if (fotoSelecionada?.previewUrl) URL.revokeObjectURL(fotoSelecionada.previewUrl)
+  }, [fotoSelecionada?.previewUrl])
+
   async function logout() {
     await supabase.auth.signOut()
     setUser(null)
@@ -562,8 +622,9 @@ export default function MontadorDashboard() {
   async function fazerCheckin() {
     if (!obraAtiva || !user) return
     if (isAppOffline()) {
-      setServicoFeedback('Sem conexao. Check-in nao registrado; tente novamente quando a internet voltar.')
-      mostrarSucesso('Sem conexao para registrar check-in.')
+      guardarAcaoOffline({ tipo: 'checkin', detalhe: 'Check-in solicitado sem conexao' })
+      setServicoFeedback('Sem conexao. Intencao de check-in guardada neste aparelho; refaca o check-in quando a internet voltar.')
+      mostrarSucesso('Check-in guardado como pendente local.')
       return
     }
     setCheckando(true)
@@ -591,6 +652,7 @@ export default function MontadorDashboard() {
     const userId = authData?.user?.id || user.id
 
     if (authError || !userId) {
+      logError('checkin.identify_user_failed', authError || new Error('Usuario sem id para check-in'), { obraId: obraAtiva.id })
       console.error('Erro ao identificar usuário para check-in:', authError)
       mostrarSucesso('Não foi possível identificar o usuário logado.')
       setCheckando(false)
@@ -617,11 +679,13 @@ export default function MontadorDashboard() {
 
     let resultado = await supabase.from('checkins').insert([payloadCompleto])
     if (resultado.error) {
+      logError('checkin.insert_full_payload_failed', resultado.error, { obraId: obraAtiva.id, agendaId: compromisso?.id || null, fallback: 'minimal_payload' })
       console.error('Erro no check-in com payload completo:', resultado.error)
       resultado = await supabase.from('checkins').insert([payloadMinimo])
     }
 
     if (resultado.error) {
+      logError('checkin.insert_failed', resultado.error, { obraId: obraAtiva.id, agendaId: compromisso?.id || null, fallback: true })
       console.error('Erro no check-in com payload mínimo:', resultado.error)
       mostrarSucesso('Não foi possível registrar o check-in. Verifique permissão de acesso à obra.')
       setCheckando(false)
@@ -650,8 +714,9 @@ export default function MontadorDashboard() {
 
   async function fazerCheckout() {
     if (isAppOffline()) {
-      setServicoFeedback('Sem conexao. Check-out nao registrado; tente novamente quando a internet voltar.')
-      mostrarSucesso('Sem conexao para registrar check-out.')
+      guardarAcaoOffline({ tipo: 'checkout', detalhe: 'Check-out solicitado sem conexao', checkin_id: checkins.find(c => !c.saida)?.id || null })
+      setServicoFeedback('Sem conexao. Intencao de check-out guardada neste aparelho; refaca o check-out quando a internet voltar.')
+      mostrarSucesso('Check-out guardado como pendente local.')
       return
     }
     setCheckando(true)
@@ -676,6 +741,7 @@ export default function MontadorDashboard() {
         saida_longitude: lng,
       }).eq('id', ultimo.id)
       if (error) {
+        logError('checkout.update_failed', error, { obraId: obraAtiva?.id, checkinId: ultimo.id })
         mostrarSucesso('Não foi possível registrar o check-out.')
         setCheckando(false)
         return
@@ -773,7 +839,8 @@ export default function MontadorDashboard() {
   async function toggleChecklist(item) {
     if (!user || checklistSalvando) return
     if (isAppOffline()) {
-      mostrarSucesso('Sem conexao para salvar o checklist.')
+      guardarAcaoOffline({ tipo: 'checklist_toggle', checklist_id: item.id, concluido: !item.concluido, descricao: item.descricao })
+      mostrarSucesso('Checklist guardado como pendente local.')
       return
     }
     const concluindo = !item.concluido
@@ -784,6 +851,7 @@ export default function MontadorDashboard() {
       concluido_em: concluindo ? new Date().toISOString() : null,
     }).eq('id', item.id)
     if (error) {
+      logError('checklist.montador_update_failed', error, { obraId: obraAtiva?.id, checklistId: item.id, concluindo })
       console.error('Erro ao salvar checklist:', { error, item })
       mostrarSucesso('Não foi possível salvar o checklist.')
       setChecklistSalvando('')
@@ -809,6 +877,7 @@ export default function MontadorDashboard() {
     if (!window.confirm('Excluir este item do checklist?')) return
     const { error } = await supabase.from('checklist_items').delete().eq('id', item.id)
     if (error) {
+      logError('checklist.montador_delete_failed', error, { obraId: obraAtiva?.id, checklistId: item.id })
       console.error('Erro ao excluir checklist:', { error, item })
       mostrarSucesso('Não foi possível excluir o item.')
       return
@@ -821,7 +890,8 @@ export default function MontadorDashboard() {
   async function adicionarChecklistItem(ambienteId) {
     if (!obraAtiva?.id || !novoChecklist.trim()) return
     if (isAppOffline()) {
-      mostrarSucesso('Sem conexao para adicionar item ao checklist.')
+      guardarAcaoOffline({ tipo: 'checklist_novo_item', ambiente_id: ambienteId, descricao: novoChecklist.trim() })
+      mostrarSucesso('Item guardado como pendente local.')
       return
     }
     setCriandoChecklist(true)
@@ -832,6 +902,7 @@ export default function MontadorDashboard() {
       concluido: false,
     }])
     if (error) {
+      logError('checklist.montador_insert_failed', error, { obraId: obraAtiva.id, ambienteId })
       console.error('Erro ao adicionar checklist:', error)
       mostrarSucesso('Não foi possível adicionar o item.')
     } else {
@@ -851,32 +922,53 @@ export default function MontadorDashboard() {
     window.clearTimeout(longPressRef.current)
   }
 
-  async function handleUpload(e) {
+  function handleSelecionarFoto(e) {
     const file = e.target.files?.[0]
     if (!file || !obraAtiva || !user) return
-    setUploadFeedback(`Arquivo selecionado: ${file.name}`)
+    limparFotoSelecionada()
+    setFotoSelecionada({
+      file,
+      previewUrl: URL.createObjectURL(file),
+      name: file.name,
+      size: file.size,
+    })
+    setUploadFeedback(`Foto selecionada: ${file.name} (${formatFileSize(file.size)}). Confira o preview antes de enviar.`)
+    e.target.value = ''
+  }
+
+  async function enviarFotoSelecionada() {
+    const file = fotoSelecionada?.file
+    if (!file || !obraAtiva || !user) {
+      setUploadFeedback('Selecione uma foto antes de enviar.')
+      return
+    }
     if (isAppOffline()) {
-      setUploadFeedback('Sem conexão no momento. A foto não foi enviada; tente novamente quando a internet voltar.')
-      mostrarSucesso('Sem conexão para enviar a foto.')
-      e.target.value = ''
+      guardarAcaoOffline({ tipo: 'foto', categoria: formFoto.categoria || '', ambiente_id: formFoto.ambiente_id || null, agenda_id: formFoto.agenda_id || null, observacao: formFoto.observacao || '', fileType: file.type, fileSize: file.size })
+      setUploadFeedback('Sem conexao. Dados da foto guardados neste aparelho; quando voltar a internet, selecione o arquivo novamente e envie.')
+      mostrarSucesso('Foto guardada como pendente local.')
       return
     }
     if (!formFoto.categoria) {
       setUploadFeedback('Escolha uma categoria obrigatória antes de enviar.')
       mostrarSucesso('Escolha uma categoria antes de enviar.')
-      e.target.value = ''
       return
     }
 
     setUploading(true)
-    setUploadFeedback('Enviando foto para o armazenamento...')
-    const ext = file.name.split('.').pop() || 'jpg'
-    const path = `${obraAtiva.id}/${Date.now()}.${ext}`
     let uploadConcluido = false
 
     try {
-      const { error: uploadError } = await supabase.storage.from('fotos-obras').upload(path, file)
+      setUploadFeedback('Preparando imagem para envio...')
+      const imagem = await prepararImagemUpload(file, { maxWidth: 1600, maxHeight: 1600, quality: 0.76 })
+      const uploadFile = imagem.file
+      const ext = uploadFile.name.split('.').pop() || 'jpg'
+      const path = `${obraAtiva.id}/${Date.now()}.${ext}`
+      setUploadFeedback(imagem.compressed
+        ? `Imagem comprimida de ${formatFileSize(imagem.originalSize)} para ${formatFileSize(imagem.finalSize)}. Enviando...`
+        : 'Enviando foto para o armazenamento...')
+      const { error: uploadError } = await supabase.storage.from('fotos-obras').upload(path, uploadFile)
       if (uploadError) {
+        logError('upload.montador_storage_failed', uploadError, { obraId: obraAtiva.id, categoria: formFoto.categoria, fileSize: uploadFile.size, fileType: uploadFile.type })
         setUploadFeedback(`Erro de upload: ${uploadError.message || 'não foi possível enviar o arquivo.'}`)
         throw uploadError
       }
@@ -897,6 +989,7 @@ export default function MontadorDashboard() {
         storage_path: path,
       }]).select('id, agenda_id, categoria').single()
       if (insertError) {
+        logError('upload.montador_insert_failed', insertError, { obraId: obraAtiva.id, categoria: formFoto.categoria, storagePath: path })
         setUploadFeedback(`Erro do Supabase: ${insertError.message || 'foto enviada, mas não vinculada à obra.'}`)
         throw insertError
       }
@@ -911,6 +1004,7 @@ export default function MontadorDashboard() {
         prioridade: formFoto.categoria === 'Não conformidade' ? 'alta' : 'normal',
       })
       setFormFoto({ categoria: '', ambiente_id: '', agenda_id: '', observacao: '' })
+      limparFotoSelecionada()
       setUploadFeedback('Foto enviada e vinculada à obra. A gestão precisa aprovar antes de liberar ao cliente.')
       mostrarSucesso('Foto enviada.')
       await carregarDadosObra()
@@ -923,7 +1017,6 @@ export default function MontadorDashboard() {
       mostrarSucesso('Não foi possível enviar a foto.')
     } finally {
       setUploading(false)
-      e.target.value = ''
     }
   }
 
@@ -1272,7 +1365,14 @@ export default function MontadorDashboard() {
       {sucesso && <div className="md-toast">{sucesso}</div>}
       {!online && (
         <div className="md-offline-alert">
-          Sem conexao. Voce pode consultar o que ja abriu, mas check-in, fotos e checklist exigem internet.
+          Sem conexao. Acoes criticas ficam guardadas neste aparelho como lembrete local e devem ser refeitas quando a internet voltar.
+          {acoesOffline.length > 0 && <strong>{acoesOffline.length} pendente{acoesOffline.length === 1 ? '' : 's'} local{acoesOffline.length === 1 ? '' : 'is'}</strong>}
+        </div>
+      )}
+      {online && acoesOffline.length > 0 && (
+        <div className="md-offline-alert online">
+          Existem {acoesOffline.length} acao{acoesOffline.length === 1 ? '' : 'es'} offline guardada{acoesOffline.length === 1 ? '' : 's'} neste aparelho. Confira check-in, fotos e checklist e refaca o que ainda nao foi enviado.
+          <button type="button" onClick={limparAcoesOffline}>Limpar lembretes</button>
         </div>
       )}
 
@@ -1503,9 +1603,19 @@ export default function MontadorDashboard() {
           </select>
           <input value={formFoto.observacao} onChange={e => setFormFoto(p => ({ ...p, observacao: e.target.value }))} placeholder="Observação opcional" />
           <label className={formFoto.categoria ? 'md-file' : 'md-file disabled'}>
-            {uploading ? 'Enviando...' : 'Selecionar e enviar foto'}
-            <input type="file" accept="image/*" capture="environment" onChange={handleUpload} disabled={uploading || !formFoto.categoria} />
+            {fotoSelecionada ? 'Trocar foto selecionada' : 'Selecionar foto'}
+            <input type="file" accept="image/*" capture="environment" onChange={handleSelecionarFoto} disabled={uploading || !formFoto.categoria} />
           </label>
+          {fotoSelecionada && (
+            <div className="md-upload-preview">
+              <img src={fotoSelecionada.previewUrl} alt="Foto selecionada para envio" />
+              <div>
+                <strong>{fotoSelecionada.name}</strong>
+                <span>{formatFileSize(fotoSelecionada.size)}</span>
+              </div>
+              <button type="button" onClick={enviarFotoSelecionada} disabled={uploading}>{uploading ? 'Enviando...' : 'Enviar foto'}</button>
+            </div>
+          )}
           {uploadFeedback && <div className="md-upload-feedback">{uploadFeedback}</div>}
         </div>
         {fotos.length === 0 ? <Empty text="Nenhuma foto enviada ainda." /> : vm.fotosGrupos.map(grupo => (
@@ -1745,6 +1855,13 @@ const css = `
 .md-file{display:block;min-height:48px;box-sizing:border-box;background:${THEME.ink};color:#fff;border-radius:14px;padding:15px;text-align:center;font-size:14px;font-weight:900;cursor:pointer}
 .md-file.disabled{opacity:1;background:#2A2620;color:#6D675E;cursor:not-allowed}
 .md-file input{display:none}
+.md-upload-preview{display:grid;grid-template-columns:74px 1fr;gap:10px;align-items:center;border:1px solid ${THEME.border};background:${THEME.elevated};border-radius:12px;padding:10px}
+.md-upload-preview img{width:74px;height:74px;object-fit:cover;border-radius:8px;background:${THEME.card}}
+.md-upload-preview strong,.md-upload-preview span{display:block;word-break:break-word}
+.md-upload-preview strong{font-size:12px;color:${THEME.ink};margin-bottom:4px}
+.md-upload-preview span{font-size:11px;color:${THEME.muted};font-weight:800}
+.md-upload-preview button{grid-column:1/-1;min-height:42px;border:0;border-radius:10px;background:${THEME.gold};color:#141210;font-size:13px;font-weight:900;font-family:inherit;cursor:pointer}
+.md-upload-preview button:disabled{opacity:.7;cursor:not-allowed}
 .md-upload-feedback{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.muted};border-radius:12px;padding:10px 12px;font-size:12px;font-weight:800;line-height:1.35}
 .md-photo-group{margin-top:16px}
 .md-photo-group h3{font-size:10px;letter-spacing:1.8px;text-transform:uppercase;color:${THEME.gold};font-weight:900;margin:0 0 9px}
@@ -1768,6 +1885,9 @@ const css = `
 .md-empty-card p{margin:0;color:${THEME.muted};font-size:13px;line-height:1.45}
 .md-toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:${THEME.ink};color:#fff;border-left:3px solid ${THEME.gold};border-radius:13px;padding:12px 18px;font-size:13px;font-weight:800;z-index:1000;white-space:nowrap;max-width:calc(100vw - 28px);box-sizing:border-box}
 .md-offline-alert{position:sticky;top:8px;z-index:650;border:1px solid ${THEME.warn};background:${THEME.elevated};color:${THEME.ink};border-radius:13px;padding:10px 12px;margin:0 0 12px;font-size:12px;font-weight:900;line-height:1.35;box-shadow:0 10px 28px rgba(0,0,0,.18)}
+.md-offline-alert.online{border-color:${THEME.success};background:#EAF5EE}
+.md-offline-alert strong{display:block;margin-top:4px;color:${THEME.gold}}
+.md-offline-alert button{margin-top:7px;border:1px solid ${THEME.border};background:${THEME.card};color:${THEME.ink};border-radius:999px;padding:7px 10px;min-height:34px;font-size:11px;font-weight:900;font-family:inherit}
 .md-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:800;display:flex;align-items:flex-end;justify-content:center;padding:14px}
 .md-modal{width:100%;max-width:500px;background:${THEME.card};border:1px solid ${THEME.border};border-radius:12px;padding:20px;box-sizing:border-box;box-shadow:0 2px 12px rgba(0,0,0,.3)}
 .md-modal.calendar{max-height:88vh;overflow:auto}

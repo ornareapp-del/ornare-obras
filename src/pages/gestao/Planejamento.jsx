@@ -908,7 +908,7 @@ const css = `
 .pl-kpi.danger span{color:${THEME.danger}}
 .pl-kpi strong{display:block;font-size:32px;line-height:1;color:${THEME.ink}}
 .pl-tabs{width:100%;max-width:none;margin:0 0 16px;display:flex;gap:8px;overflow-x:auto;padding-bottom:2px}
-.pl-tabs button.active{background:${THEME.ink};border-color:${THEME.ink};color:#fff}
+.pl-tabs button.active{background:${THEME.gold};border-color:${THEME.gold};color:${THEME.bg}}
 .pl-attention{width:100%;max-width:none;margin:0 0 16px;background:${THEME.card};border:1px solid ${THEME.border};border-radius:12px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,.3)}
 .pl-attention-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .pl-attention-list button{border:1px solid ${THEME.border};background:${THEME.elevated};border-radius:13px;padding:12px;text-align:left;display:flex;gap:10px;align-items:flex-start;cursor:pointer;font-family:inherit}

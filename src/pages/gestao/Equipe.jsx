@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useStore } from '../../store/useStore'
 import { theme } from '../../constants/theme'
+import { logError } from '../../services/logService'
 
 const ROLES = ['gestao', 'pos_venda', 'vendedor', 'supervisor', 'montador', 'cliente']
 const ROLE_LABEL = { gestao: 'Gestão', pos_venda: 'Pós-venda', vendedor: 'Vendedor', supervisor: 'Supervisor', montador: 'Montador', cliente: 'Cliente' }
@@ -28,6 +29,26 @@ function detalheErro(error, fallback = 'Nao foi possivel concluir a operacao.') 
 
 function normalizarEmail(email) {
   return String(email || '').trim().toLowerCase()
+}
+
+function redirectAcesso() {
+  return `${window.location.origin}/login`
+}
+
+function gerarSenhaTemporaria() {
+  const base = Math.random().toString(36).slice(2, 10)
+  const extra = Date.now().toString(36).slice(-4)
+  return `Ornare-${base}${extra}!`
+}
+
+async function enviarMagicLinkCliente(email) {
+  return supabase.auth.signInWithOtp({
+    email,
+    options: {
+      emailRedirectTo: redirectAcesso(),
+      shouldCreateUser: false,
+    },
+  })
 }
 
 export default function Equipe() {
@@ -127,8 +148,23 @@ export default function Equipe() {
       return
     }
 
+    if (profile.role === 'cliente') {
+      if (!profile.obra_id) {
+        mostrarToast('Vincule uma obra antes de enviar acesso ao cliente.', 'erro')
+        return
+      }
+      const { error } = await enviarMagicLinkCliente(profile.email)
+      if (error) {
+        logError('auth.cliente_magic_link_failed', error, { profileId: profile.id, obraId: profile.obra_id, email: profile.email })
+        mostrarToast(detalheErro(error, 'Nao foi possivel enviar o link de acesso ao cliente.'), 'erro')
+      } else {
+        mostrarToast(`Link de acesso ao portal enviado para ${profile.email}.`)
+      }
+      return
+    }
+
     const { error } = await supabase.auth.resetPasswordForEmail(profile.email, {
-      redirectTo: window.location.origin + '/login',
+      redirectTo: redirectAcesso(),
     })
 
     if (error) mostrarToast(detalheErro(error, 'Nao foi possivel enviar o link de senha.'), 'erro')
@@ -176,7 +212,7 @@ export default function Equipe() {
     <div className="ow-page" style={s.page}>
       <style>{css}</style>
       {toast.msg && <Toast msg={toast.msg} tipo={toast.tipo} />}
-      {modal && <ModalNovoUsuario obras={obras} supervisores={supervisores} rolesDisponiveis={rolesDisponiveis} supervisorAtual={supervisorAtual ? perfilAtual : null} onClose={() => setModal(false)} onSaved={() => { setModal(false); carregar(); mostrarToast('Novo usuario criado com sucesso. A senha inicial nao sera exibida novamente.') }} />}
+      {modal && <ModalNovoUsuario obras={obras} supervisores={supervisores} rolesDisponiveis={rolesDisponiveis} supervisorAtual={supervisorAtual ? perfilAtual : null} onClose={() => setModal(false)} onSaved={(role) => { setModal(false); carregar(); mostrarToast(role === 'cliente' ? 'Cliente criado, vinculado a obra e convidado por e-mail.' : 'Novo usuario criado com sucesso. A senha inicial nao sera exibida novamente.') }} />}
 
       <div className="eq-header" style={s.header}>
         <div>
@@ -277,6 +313,7 @@ export default function Equipe() {
                     <div className="eq-detail" style={s.detailLine}>{obrasPessoa.length ? `${obrasPessoa.length} obra${obrasPessoa.length === 1 ? '' : 's'} vinculada${obrasPessoa.length === 1 ? '' : 's'}` : 'Sem obras vinculadas'}</div>
                     <div className="eq-actions" style={s.actions}>
                       <button style={s.btnEdit} onClick={() => setEditando({ ...p })}>Editar</button>
+                      {p.role === 'cliente' && <button style={s.btnEdit} onClick={() => enviarResetSenha(p)}>Reenviar acesso</button>}
                       <button style={s.btnEdit} onClick={() => alterarAtivo(p)}>{ativo ? 'Desativar' : 'Ativar'}</button>
                     </div>
                   </>
@@ -336,7 +373,7 @@ function EditForm({ editando, setEditando, obras, supervisores, rolesDisponiveis
         Usuário ativo
       </label>
       <div style={s.passwordBox}>
-        <strong>Senha</strong>
+        <strong>{editando.role === 'cliente' ? 'Acesso do cliente' : 'Senha'}</strong>
         <span>Por segurança, a senha atual não pode ser visualizada. Envie um link para o usuário criar uma nova senha.</span>
         <button type="button" style={s.btnEdit} onClick={onResetSenha}>Enviar redefinição de senha</button>
       </div>
@@ -371,11 +408,11 @@ function ModalNovoUsuario({ obras, supervisores, rolesDisponiveis, supervisorAtu
     const supervisorId = role === 'montador' ? (form.supervisor_id || supervisorAtual?.id || null) : null
     const obraId = role === 'cliente' ? form.obra_id : null
 
-    if (!fullName || !email || !senha || !role) { setErro('Preencha nome, e-mail, senha inicial e perfil.'); return }
+    if (!fullName || !email || !role) { setErro('Preencha nome, e-mail e perfil.'); return }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setErro('Informe um e-mail valido.'); return }
     if (!rolesDisponiveis.includes(role)) { setErro('Selecione um perfil permitido para seu acesso.'); return }
     if (role === 'cliente' && !obraId) { setErro('Selecione a obra vinculada ao cliente.'); return }
-    if (senha.length < 6) { setErro('Senha minima de 6 caracteres.'); return }
+    if (role !== 'cliente' && senha.length < 6) { setErro('Senha minima de 6 caracteres.'); return }
 
     setSaving(true)
     setErro('')
@@ -383,7 +420,8 @@ function ModalNovoUsuario({ obras, supervisores, rolesDisponiveis, supervisorAtu
     const sessaoAnterior = sessionData?.session
 
     try {
-      const { data, error } = await supabase.auth.signUp({ email, password: senha, options: { data: { full_name: fullName } } })
+      const senhaAuth = role === 'cliente' && !senha ? gerarSenhaTemporaria() : senha
+      const { data, error } = await supabase.auth.signUp({ email, password: senhaAuth, options: { data: { full_name: fullName } } })
       if (error) { setErro(detalheErro(error, 'Nao foi possivel criar o usuario.')); return }
       if (!data?.user?.id) { setErro('Usuario criado sem retorno de identificacao do Auth.'); return }
 
@@ -409,8 +447,17 @@ function ModalNovoUsuario({ obras, supervisores, rolesDisponiveis, supervisorAtu
         return
       }
 
+      if (role === 'cliente') {
+        const convite = await enviarMagicLinkCliente(email)
+        if (convite.error) {
+          logError('auth.cliente_invite_failed', convite.error, { profileId: data.user.id, obraId, email })
+          setErro('Cliente criado e vinculado a obra, mas nao foi possivel enviar o link de acesso: ' + detalheErro(convite.error))
+          return
+        }
+      }
+
       setForm({ full_name: '', email: '', senha: '', role: roleInicial, cargo: '', telefone: '', supervisor_id: supervisorAtual?.id || '', obra_id: '' })
-      onSaved()
+      onSaved(role)
     } catch (error) {
       setErro(detalheErro(error, 'Erro inesperado ao criar usuario.'))
     } finally {
@@ -436,7 +483,7 @@ function ModalNovoUsuario({ obras, supervisores, rolesDisponiveis, supervisorAtu
           <div style={s.editGrid}>
             <Field label="Nome completo"><input style={s.input} value={form.full_name} onChange={e => set('full_name', e.target.value)} /></Field>
             <Field label="E-mail"><input style={s.input} type="email" value={form.email} onChange={e => set('email', e.target.value)} /></Field>
-            <Field label="Senha inicial"><input style={s.input} type="password" autoComplete="new-password" value={form.senha} onChange={e => set('senha', e.target.value)} /></Field>
+            <Field label={form.role === 'cliente' ? 'Senha inicial opcional' : 'Senha inicial'}><input style={s.input} type="password" autoComplete="new-password" value={form.senha} onChange={e => set('senha', e.target.value)} placeholder={form.role === 'cliente' ? 'Cliente recebera link de acesso' : ''} /></Field>
             <Field label="Cargo"><input style={s.input} value={form.cargo} onChange={e => set('cargo', e.target.value)} /></Field>
             <Field label="Telefone"><input style={s.input} value={form.telefone} onChange={e => set('telefone', e.target.value)} /></Field>
             <Field label="Perfil">
@@ -461,12 +508,12 @@ function ModalNovoUsuario({ obras, supervisores, rolesDisponiveis, supervisorAtu
               </Field>
             )}
           </div>
-          <div style={s.roleHint}>{ROLE_DESC[form.role]}</div>
+          <div style={s.roleHint}>{form.role === 'cliente' ? 'Cliente precisa ter uma obra vinculada e recebera um link de acesso ao portal.' : ROLE_DESC[form.role]}</div>
         </div>
         <div style={s.modalFoot}>
           <button style={s.btnEdit} onClick={onClose}>Cancelar</button>
           <button style={{ ...s.btnEdit, background: 'var(--color-gold)', color: '#fff', borderColor: 'var(--color-gold)' }} onClick={salvarSeguro} disabled={saving}>
-            {saving ? 'Criando...' : 'Criar Usuário'}
+            {saving ? 'Criando...' : form.role === 'cliente' ? 'Criar e enviar convite' : 'Criar Usuario'}
           </button>
         </div>
       </div>

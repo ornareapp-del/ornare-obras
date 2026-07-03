@@ -15,6 +15,8 @@ const RELATORIOS = {
   cliente: 'Relatório do Cliente',
 }
 
+RELATORIOS.financeiro = 'Relatorio Financeiro Interno'
+
 const TIPOS_RELATORIO = Object.keys(RELATORIOS)
 
 function safeArray(result) {
@@ -28,6 +30,11 @@ function erroMensagem(error) {
 function dinheiro(value) {
   const n = Number(value || 0)
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
+function numero(value) {
+  const n = Number(String(value ?? '').replace(',', '.'))
+  return Number.isFinite(n) ? n : 0
 }
 
 function dataBR(value) {
@@ -53,6 +60,13 @@ function statusGasto(gasto) {
 
 function gastoRealizado(gasto) {
   return statusGasto(gasto) === 'aprovado'
+}
+
+function labelStatusGasto(gasto) {
+  const status = statusGasto(gasto)
+  if (status === 'pendente_aprovacao') return 'Pendente'
+  if (status === 'recusado') return 'Recusado'
+  return 'Aprovado'
 }
 
 function valorAmbiente(item, ambientesPorId) {
@@ -85,10 +99,10 @@ function fotoReferencia(foto) {
   if (foto?.url) return foto.url
   if (!foto?.storage_path) return 'Imagem sem arquivo vinculado.'
   try {
-    return supabase.storage.from('fotos-obras').getPublicUrl(foto.storage_path).data.publicUrl || 'Imagem indisponivel.'
+    return supabase.storage.from('fotos-obras').getPublicUrl(foto.storage_path).data.publicUrl || 'Imagem indisponivel; PDF gerado sem bloquear.'
   } catch (error) {
     console.error('Erro ao resolver URL publica da foto para PDF:', error)
-    return 'Imagem indisponivel.'
+    return 'Imagem indisponivel; PDF gerado sem bloquear.'
   }
 }
 
@@ -345,8 +359,8 @@ function dadosCliente(ctx) {
   return [
     { label: 'Cliente', value: obra.cliente_nome },
     { label: 'Obra', value: obra.nome },
-    { label: 'Status', value: cronograma.status_operacional || obra.status },
-    { label: 'Fase atual', value: cronograma.fase || obra.status },
+    { label: 'Status', value: obra.status_cliente || obra.status },
+    { label: 'Fase atual', value: obra.fase_cliente || obra.fase_atual || cronograma.fase_cliente || obra.status },
     { label: 'Percentual', value: `${cronograma.percentual_concluido ?? obra.progresso ?? 0}%` },
     { label: 'Previsao', value: dataBR(cronograma.data_fim_prevista || obra.data_previsao) },
   ]
@@ -356,14 +370,62 @@ function adicionarResumoFinanceiro(pdf, gastos) {
   const realizados = gastos.filter(gastoRealizado)
   const pendentes = gastos.filter(g => statusGasto(g) === 'pendente_aprovacao')
   const recusados = gastos.filter(g => statusGasto(g) === 'recusado')
-  const total = realizados.reduce((sum, g) => sum + Number(g.valor || 0), 0)
-  const totalPendente = pendentes.reduce((sum, g) => sum + Number(g.valor || 0), 0)
+  const total = realizados.reduce((sum, g) => sum + numero(g.valor), 0)
+  const totalPendente = pendentes.reduce((sum, g) => sum + numero(g.valor), 0)
   pdf.grid([
     { label: 'Gastos realizados', value: realizados.length },
     { label: 'Total operacional', value: dinheiro(total) },
     { label: 'Pendentes de aprovação', value: `${pendentes.length} (${dinheiro(totalPendente)})` },
     { label: 'Recusados', value: recusados.length },
   ])
+}
+
+function adicionarFinanceiroInterno(pdf, ctx) {
+  const gastos = ctx.gastos || []
+  const aprovados = gastos.filter(gastoRealizado)
+  const pendentes = gastos.filter(g => statusGasto(g) === 'pendente_aprovacao')
+  const recusados = gastos.filter(g => statusGasto(g) === 'recusado')
+  const totalAprovado = aprovados.reduce((sum, g) => sum + numero(g.valor), 0)
+  const totalPendente = pendentes.reduce((sum, g) => sum + numero(g.valor), 0)
+  const meta = numero(ctx.obra.gasto_meta || ctx.cronograma.gasto_meta)
+  const usoMeta = meta > 0 ? Math.round((totalAprovado / meta) * 100) : null
+
+  pdf.grid([
+    { label: 'Total aprovado', value: dinheiro(totalAprovado) },
+    { label: 'Pendente aprovacao', value: dinheiro(totalPendente) },
+    { label: 'Lancamentos', value: gastos.length },
+    { label: 'Uso da meta', value: usoMeta === null ? 'Meta nao cadastrada' : `${usoMeta}%` },
+  ])
+
+  pdf.section('Resumo por status')
+  pdf.list([
+    { title: 'Aprovados', meta: `${aprovados.length} lancamento${aprovados.length === 1 ? '' : 's'}`, detail: dinheiro(totalAprovado) },
+    { title: 'Pendentes', meta: `${pendentes.length} lancamento${pendentes.length === 1 ? '' : 's'}`, detail: dinheiro(totalPendente) },
+    { title: 'Recusados', meta: `${recusados.length} lancamento${recusados.length === 1 ? '' : 's'}`, detail: dinheiro(recusados.reduce((sum, g) => sum + numero(g.valor), 0)) },
+  ])
+
+  const porCategoria = gastos.reduce((acc, gasto) => {
+    const categoria = gasto.categoria || gasto.tipo || 'Sem categoria'
+    const atual = acc.get(categoria) || { total: 0, count: 0 }
+    acc.set(categoria, { total: atual.total + numero(gasto.valor), count: atual.count + 1 })
+    return acc
+  }, new Map())
+
+  pdf.section('Categorias')
+  pdf.list([...porCategoria.entries()]
+    .sort((a, b) => b[1].total - a[1].total)
+    .map(([categoria, resumo]) => ({
+      title: categoria,
+      meta: `${resumo.count} lancamento${resumo.count === 1 ? '' : 's'}`,
+      detail: dinheiro(resumo.total),
+    })), 'Nenhum gasto categorizado.')
+
+  pdf.section('Lancamentos internos')
+  pdf.list(gastos.slice(0, 40).map(g => ({
+    title: g.descricao || g.categoria || 'Gasto',
+    meta: `${labelStatusGasto(g)} - ${dataBR(g.data || g.created_at)}`,
+    detail: [dinheiro(g.valor), g.observacao, g.comprovante_url || g.comprovante_path ? 'com comprovante' : 'sem comprovante'].filter(Boolean).join(' - '),
+  })), 'Nenhum gasto registrado.')
 }
 
 function adicionarChecklistPorAmbiente(pdf, ctx) {
@@ -486,14 +548,14 @@ export async function exportarRelatorioObra(obraId, tipo = 'executivo') {
     if (tipoRelatorio === 'cliente') {
       pdf.section('Andamento da obra')
       pdf.grid([
-        { label: 'Status', value: ctx.cronograma.status_operacional || ctx.obra.status },
-        { label: 'Fase atual', value: ctx.cronograma.fase || ctx.obra.status },
+        { label: 'Status', value: ctx.obra.status_cliente || ctx.obra.status },
+        { label: 'Fase atual', value: ctx.obra.fase_cliente || ctx.obra.fase_atual || ctx.cronograma.fase_cliente || ctx.obra.status },
         { label: 'Percentual', value: `${ctx.cronograma.percentual_concluido ?? ctx.obra.progresso ?? 0}%` },
         { label: 'Previsao', value: dataBR(ctx.cronograma.data_fim_prevista || ctx.obra.data_previsao) },
       ])
 
       pdf.section('Proximas etapas')
-      pdf.paragraph(ctx.cronograma.acao_cliente || ctx.cronograma.acao_recomendada || 'A equipe Ornare seguira acompanhando as proximas etapas da obra.')
+      pdf.paragraph(ctx.cronograma.acao_cliente || ctx.obra.mensagem_cliente || 'A equipe Ornare seguira acompanhando as proximas etapas da obra.')
 
       pdf.section('Agenda liberada')
       pdf.list(ctx.agenda.filter(isAgendaCliente).map(a => ({
@@ -513,11 +575,25 @@ export async function exportarRelatorioObra(obraId, tipo = 'executivo') {
       pdf.list(ctx.fotos.filter(isFotoCliente).slice(0, 12).map(f => ({
         title: f.categoria || f.etapa || 'Foto',
         meta: dataBR(f.created_at),
-        detail: [f.observacao_cliente || f.observacao || '', fotoReferencia(f)].filter(Boolean).join(' - '),
+        detail: [f.observacao_cliente || '', fotoReferencia(f)].filter(Boolean).join(' - '),
       })), 'Nenhuma foto aprovada para o cliente.')
     }
 
-    pdf.save(`${nomeArquivo(titulo)}-${nomeArquivo(ctx.obra.nome)}.pdf`)
+    if (tipoRelatorio === 'financeiro') {
+      pdf.section('Resumo financeiro interno')
+      adicionarFinanceiroInterno(pdf, ctx)
+
+      pdf.section('Pendencias financeiras')
+      pdf.list(ctx.gastos.filter(g => statusGasto(g) === 'pendente_aprovacao').slice(0, 15).map(g => ({
+        title: g.descricao || g.categoria || 'Gasto pendente',
+        meta: dinheiro(g.valor),
+        detail: [dataBR(g.data || g.created_at), g.observacao].filter(Boolean).join(' - '),
+      })), 'Nenhum gasto pendente de aprovacao.')
+    }
+
+    const filename = `${nomeArquivo(titulo)}-${nomeArquivo(ctx.obra.nome)}.pdf`
+    pdf.save(filename)
+    return { filename, tipo: tipoRelatorio, titulo, avisos: ctx.avisos }
   } catch (error) {
     throw new Error(`Nao foi possivel gerar o PDF. ${erroMensagem(error)}`, { cause: error })
   }

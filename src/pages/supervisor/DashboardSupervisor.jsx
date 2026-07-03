@@ -47,6 +47,11 @@ const isConcluido = status => ['concluida', 'concluido', 'finalizada', 'finaliza
 
 const obraStatus = status => STATUS_OBRA[status] || { bg: '#F5F1EA', color: THEME.muted, label: status || '-' }
 
+function valorSeguro(valor) {
+  const parsed = parseFloat(String(valor ?? '').replace(',', '.'))
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
 const agendaTipo = item => {
   const tipo = norm(item.tipo || item.titulo || item.descricao)
   if (tipo.includes('vistoria')) return 'vistorias'
@@ -97,6 +102,13 @@ function faseKeyObra(obra) {
     || faseOrnarePorKey(obra?.fase_atual)
     || faseOrnarePorTexto(obra?.fase || obra?.fase_atual || obra?.status)
   return fase?.key || null
+}
+
+function faseLabelObra(obra) {
+  const fase = faseOrnarePorKey(obra?.fase)
+    || faseOrnarePorKey(obra?.fase_atual)
+    || faseOrnarePorTexto(obra?.fase || obra?.fase_atual || obra?.status)
+  return fase?.label || obra?.fase || obra?.fase_atual || obra?.status || 'Sem fase'
 }
 
 function criarDadosVazios(overrides = {}) {
@@ -338,6 +350,55 @@ export default function DashboardSupervisor() {
       if (!atual || data > atual) fotosPorObra.set(foto.obra_id, data)
     })
 
+    const checkinsPorObra = new Map()
+    dados.checkins.forEach(checkin => {
+      if (!checkin.obra_id) return
+      const data = new Date(checkin.entrada || checkin.created_at || 0)
+      const atual = checkinsPorObra.get(checkin.obra_id)
+      if (!atual || data > atual) checkinsPorObra.set(checkin.obra_id, data)
+    })
+
+    const obrasSemCheckinRecente = dados.obras
+      .filter(obra => !isConcluido(obra.status))
+      .map(obra => ({ obra, ultima: checkinsPorObra.get(obra.id) }))
+      .filter(item => !item.ultima || diasDesde(item.ultima) > 2)
+      .sort((a, b) => (b.ultima?.getTime() || 0) - (a.ultima?.getTime() || 0))
+
+    const fotosPendentesPorObra = [...new Set(fotosPendentes.map(f => f.obra_id).filter(Boolean))]
+      .map(obraId => ({
+        obraId,
+        obra: obraPorId.get(obraId),
+        total: fotosPendentes.filter(f => f.obra_id === obraId).length,
+        fotoId: fotosPendentes.find(f => f.obra_id === obraId)?.id,
+      }))
+      .filter(item => item.obra)
+      .sort((a, b) => b.total - a.total)
+
+    const atrasadasPorFase = dados.obras
+      .filter(obra => saudeObra(obra, hoje) === 'atrasada')
+      .reduce((acc, obra) => {
+        const fase = faseLabelObra(obra)
+        acc.set(fase, (acc.get(fase) || 0) + 1)
+        return acc
+      }, new Map())
+
+    const gastoRealizadoPorObra = new Map()
+    dados.gastos
+      .filter(gasto => statusGasto(gasto) === 'aprovado')
+      .forEach(gasto => {
+        if (!gasto.obra_id) return
+        gastoRealizadoPorObra.set(gasto.obra_id, (gastoRealizadoPorObra.get(gasto.obra_id) || 0) + valorSeguro(gasto.valor))
+      })
+
+    const gastosProximosMeta = dados.obras
+      .map(obra => {
+        const meta = valorSeguro(obra.gasto_meta)
+        const realizado = gastoRealizadoPorObra.get(obra.id) || 0
+        return { obra, meta, realizado }
+      })
+      .filter(item => item.meta > 0 && item.realizado >= item.meta * 0.7)
+      .sort((a, b) => (b.realizado / b.meta) - (a.realizado / a.meta))
+
     const acoes = []
     ocorrenciasCriticas.slice(0, 4).forEach(oc => acoes.push({
       tipo: 'Ocorrência crítica',
@@ -443,6 +504,9 @@ export default function DashboardSupervisor() {
         pendencias: tarefasAbertas.length + ocorrenciasAbertas.length + checklistPendentes.length,
         fotosPendentes: fotosPendentes.length,
         checkinsHoje: checkinsHoje.length,
+        montadoresEmCampo: emServicoIds.size,
+        obrasSemCheckinRecente: obrasSemCheckinRecente.length,
+        gastosProximosMeta: gastosProximosMeta.length,
       },
       saude,
       agenda,
@@ -455,6 +519,12 @@ export default function DashboardSupervisor() {
         pendentes: checklistPendentes.length,
         concluidos: checklistConcluidos.length,
         obras: obrasComMaisChecklist,
+      },
+      produtividade: {
+        obrasSemCheckinRecente,
+        fotosPendentesPorObra,
+        atrasadasPorFase: [...atrasadasPorFase.entries()].map(([fase, total]) => ({ fase, total })).sort((a, b) => b.total - a.total),
+        gastosProximosMeta,
       },
       equipe: {
         montadores: obrasPorMontador,
@@ -491,15 +561,18 @@ export default function DashboardSupervisor() {
   }, [dados, periodo])
 
   const kpisPrincipais = [
-    { label: 'Obras ativas', value: vm.kpis.minhasObras, sub: 'sob responsabilidade', tone: THEME.gold },
-    { label: 'Pendências', value: vm.kpis.pendencias, sub: 'tarefas, ocorrências e checklist', tone: vm.kpis.pendencias ? THEME.warn : THEME.success },
+    { label: 'Obras ativas', value: vm.kpis.minhasObras, sub: 'sob responsabilidade', tone: THEME.gold, onClick: () => navigate('/obras') },
+    { label: 'Montadores em campo', value: vm.kpis.montadoresEmCampo, sub: `${vm.checkins.entraram} entraram hoje`, tone: THEME.success, onClick: () => setEquipeAberta(true) },
+    { label: 'Pendências', value: vm.kpis.pendencias, sub: 'tarefas, ocorrências e checklist', tone: vm.kpis.pendencias ? THEME.warn : THEME.success, onClick: () => navigate('/tarefas') },
     { label: 'Travadas', value: vm.statusResumo.travadas, sub: 'ação imediata', tone: vm.statusResumo.travadas ? THEME.danger : THEME.success, onClick: () => navigate('/obras?status=travada') },
   ]
 
   const kpisSecundarios = [
-    { label: 'Fotos pendentes', value: vm.kpis.fotosPendentes, sub: 'aguardando validação', tone: vm.kpis.fotosPendentes ? THEME.warn : THEME.success },
-    { label: 'Check-ins hoje', value: vm.kpis.checkinsHoje, sub: 'movimentações de equipe', tone: THEME.gold },
-    { label: 'Em montagem', value: vm.kpis.emMontagem, sub: 'operação ativa', tone: THEME.blue },
+    { label: 'Fotos pendentes', value: vm.kpis.fotosPendentes, sub: 'aguardando validação', tone: vm.kpis.fotosPendentes ? THEME.warn : THEME.success, onClick: () => vm.atalhos.primeiraFotoPendente?.obra_id ? abrirObraOperacional(vm.atalhos.primeiraFotoPendente.obra_id, 'Fotos', { foto: vm.atalhos.primeiraFotoPendente.id }) : navigate('/obras?filtro=fotos') },
+    { label: 'Check-ins hoje', value: vm.kpis.checkinsHoje, sub: 'movimentações de equipe', tone: THEME.gold, onClick: () => setEquipeAberta(true) },
+    { label: 'Sem check-in recente', value: vm.kpis.obrasSemCheckinRecente, sub: 'obra sem visita recente', tone: vm.kpis.obrasSemCheckinRecente ? THEME.warn : THEME.success, onClick: () => vm.produtividade.obrasSemCheckinRecente[0]?.obra?.id ? abrirObraOperacional(vm.produtividade.obrasSemCheckinRecente[0].obra.id, 'Equipe') : navigate('/obras') },
+    { label: 'Em montagem', value: vm.kpis.emMontagem, sub: 'operação ativa', tone: THEME.blue, onClick: () => navigate('/obras?status=em-montagem') },
+    { label: 'Gastos perto da meta', value: vm.kpis.gastosProximosMeta, sub: '70% ou mais da meta', tone: vm.kpis.gastosProximosMeta ? THEME.warn : THEME.success, onClick: () => vm.produtividade.gastosProximosMeta[0]?.obra?.id ? abrirObraOperacional(vm.produtividade.gastosProximosMeta[0].obra.id, 'Gastos') : navigate('/gastos') },
   ]
 
   const statusCards = [
@@ -606,6 +679,60 @@ export default function DashboardSupervisor() {
             {kpisSecundarios.map(kpi => <Kpi key={kpi.label} {...kpi} loading={loading} />)}
           </div>
         )}
+      </section>
+
+      <section className="ds-productivity-grid" aria-label="Produtividade da carteira">
+        <Card title="Campo hoje" action="Equipe" onAction={() => setEquipeAberta(true)}>
+          <MetricLine label="Montadores em campo" value={vm.kpis.montadoresEmCampo} color={THEME.success} loading={loading} />
+          <MetricLine label="Check-ins registrados" value={vm.kpis.checkinsHoje} color={THEME.gold} loading={loading} />
+          <MetricLine label="Obras sem check-in recente" value={vm.kpis.obrasSemCheckinRecente} color={vm.kpis.obrasSemCheckinRecente ? THEME.warn : THEME.success} loading={loading} />
+          <div className="ds-mini-list spaced">
+            {vm.produtividade.obrasSemCheckinRecente.slice(0, 3).map(item => (
+              <button className="ds-line" key={item.obra.id} onClick={() => abrirObraOperacional(item.obra.id, 'Equipe')}>
+                <span>{item.obra.nome}</span>
+                <small>{item.ultima ? `Ultimo check-in ha ${diasDesde(item.ultima)}d` : 'Sem check-in'}</small>
+              </button>
+            ))}
+          </div>
+        </Card>
+
+        <Card title="Fotos e checklist" action="Obras" onAction={() => navigate('/obras')}>
+          <MetricLine label="Fotos pendentes" value={vm.fotos.pendentes} color={THEME.warn} loading={loading} />
+          <MetricLine label="Checklist pendente" value={vm.checklist.pendentes} color={THEME.gold} loading={loading} />
+          <div className="ds-mini-list spaced">
+            {vm.produtividade.fotosPendentesPorObra.slice(0, 2).map(item => (
+              <button className="ds-line" key={`foto-${item.obraId}`} onClick={() => abrirObraOperacional(item.obraId, 'Fotos', item.fotoId ? { foto: item.fotoId } : {})}>
+                <span>{item.obra.nome}</span>
+                <small>{item.total} foto{item.total === 1 ? '' : 's'}</small>
+              </button>
+            ))}
+            {vm.checklist.obras.slice(0, 2).map(item => (
+              <button className="ds-line" key={`check-${item.obra.id}`} onClick={() => abrirObraOperacional(item.obra.id, 'Checklist', item.itemId ? { checklist: item.itemId } : {})}>
+                <span>{item.obra.nome}</span>
+                <small>{item.total} checklist</small>
+              </button>
+            ))}
+          </div>
+        </Card>
+
+        <Card title="Atrasos e metas" action="Planejamento" onAction={() => navigate('/planejamento')}>
+          <MetricLine label="Obras atrasadas" value={vm.kpis.atrasadas} color={THEME.danger} loading={loading} />
+          <MetricLine label="Gastos perto/acima da meta" value={vm.kpis.gastosProximosMeta} color={THEME.warn} loading={loading} />
+          <div className="ds-mini-list spaced">
+            {vm.produtividade.atrasadasPorFase.slice(0, 3).map(item => (
+              <div className="ds-line" key={item.fase}>
+                <span>{item.fase}</span>
+                <small>{item.total} atrasada{item.total === 1 ? '' : 's'}</small>
+              </div>
+            ))}
+            {vm.produtividade.gastosProximosMeta.slice(0, 2).map(item => (
+              <button className="ds-line" key={`meta-${item.obra.id}`} onClick={() => abrirObraOperacional(item.obra.id, 'Gastos')}>
+                <span>{item.obra.nome}</span>
+                <small>{Math.round((item.realizado / item.meta) * 100)}% da meta</small>
+              </button>
+            ))}
+          </div>
+        </Card>
       </section>
 
       <section className="ds-status-flow">
@@ -946,6 +1073,7 @@ const css = `
 .ds-collapse-trigger,.ds-collapsed-note,.ds-team-open{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:999px;padding:9px 13px;min-height:44px;font-size:12px;font-weight:900;cursor:pointer;font-family:inherit}
 .ds-collapsed-note{width:100%;border-style:dashed;color:${THEME.muted};border-radius:14px;padding:18px;background:${THEME.elevated}}
 .ds-priorities{width:100%;max-width:none;margin:0 0 16px}
+.ds-productivity-grid{width:100%;max-width:none;margin:0 0 16px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
 .ds-status-flow{width:100%;max-width:none;margin:0 0 16px}
 .ds-load-alert{width:100%;max-width:none;margin:0 0 12px;border:1px solid rgba(224,82,82,.34);background:rgba(224,82,82,.12);color:${THEME.danger};border-radius:12px;padding:11px 14px;font-size:13px;font-weight:800}
 .ds-approval-panel{width:100%;max-width:none;margin:0 0 16px}
@@ -976,8 +1104,8 @@ const css = `
 .ds-priority-row span{display:block;font-size:10px;letter-spacing:1.4px;text-transform:uppercase;color:${THEME.gold};font-weight:900;margin-bottom:4px}
 .ds-priority-row strong{display:block;font-size:14px;color:${THEME.ink};line-height:1.25}
 .ds-priority-row small{display:block;font-size:12px;color:${THEME.muted};line-height:1.35;margin-top:3px}
-.ds-kpis{width:100%;max-width:none;margin:0 0 18px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.ds-kpis.secondary-kpis{grid-template-columns:repeat(3,minmax(0,1fr));margin-top:10px;margin-bottom:0}
+.ds-kpis{width:100%;max-width:none;margin:0 0 18px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.ds-kpis.secondary-kpis{grid-template-columns:repeat(5,minmax(0,1fr));margin-top:10px;margin-bottom:0}
 .ds-kpi-button{border:0;background:transparent;padding:0;text-align:left;font-family:inherit;cursor:pointer}
 .ds-kpi-button>*{height:100%}
 .ds-kpi{background:${THEME.card};border:1px solid ${THEME.border};border-radius:12px;padding:20px;min-width:0;box-shadow:0 2px 12px rgba(0,0,0,.3)}
@@ -1059,6 +1187,6 @@ const css = `
 .ds-modal-card h2{font-family:var(--font-serif);font-size:27px;font-weight:500;margin:0 0 14px;color:${THEME.ink}}
 .modal-status{margin-bottom:8px}
 .ds-fab{position:fixed;right:22px;bottom:calc(92px + env(safe-area-inset-bottom));z-index:50;border:0;background:${THEME.gold};color:#fff;border-radius:999px;padding:14px 18px;min-height:44px;font-size:13px;font-weight:950;box-shadow:0 18px 42px rgba(201,169,110,.36);cursor:pointer;font-family:inherit}
-@media (max-width:1100px){.ds-grid-3,.ds-main{grid-template-columns:1fr}.ds-work-row{grid-template-columns:minmax(0,1fr) 120px auto auto}.ds-status-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media (max-width:760px){.ds-page{padding:22px 14px calc(128px + env(safe-area-inset-bottom));display:flex;flex-direction:column}.ds-header{display:block;margin-bottom:12px;order:0}.ds-period-filter{order:1;margin-bottom:10px}.primary-kpis{order:2}.ds-secondary-metrics{order:3}.ds-status-flow{order:4;margin-bottom:12px}.ds-priorities{order:5;margin-bottom:12px}.ds-mobile-ops{display:grid;gap:12px;order:6;margin:0 0 12px;max-width:none;width:100%}.ds-main{order:7}.ds-grid-3{display:none}.ds-eyebrow{font-size:9px;letter-spacing:2px;margin-bottom:4px}.ds-header h1{font-size:28px;line-height:1.02}.ds-header p{font-size:12.5px;line-height:1.45}.ds-period-filter{overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px}.ds-period-filter button{white-space:nowrap;padding:8px 12px}.ds-kpis{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px}.ds-kpis.secondary-kpis{grid-template-columns:1fr;gap:8px}.ds-kpi{border-radius:14px;padding:10px 9px;min-width:0;border-top:3px solid rgba(184,150,94,.55)}.ds-kpi span{font-size:9px;line-height:1.1;letter-spacing:.8px;margin-bottom:7px;white-space:normal}.ds-kpi strong{font-size:24px}.ds-kpi small{font-size:10px;line-height:1.25}.ds-kpi-button{width:100%}.ds-collapse-trigger{width:100%;margin-bottom:8px}.ds-status-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.ds-status-grid button{padding:11px 10px}.ds-status-grid strong{font-size:22px;margin-bottom:5px}.ds-status-grid span{font-size:9.5px}.ds-main{gap:12px}.ds-card{padding:15px 13px;border-radius:15px}.ds-card-head h2{font-size:19px}.ds-health{grid-template-columns:1fr 1fr 1fr}.ds-work-row{display:block;padding:13px 0}.ds-work-main strong{font-size:15px;line-height:1.2;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}.ds-work-main span{font-size:12px}.ds-tags em:nth-child(n+3){display:none}.ds-progress-wrap{grid-template-columns:minmax(0,1fr) auto;margin:10px 0 9px}.ds-work-row>small{display:inline-block;white-space:nowrap;margin-right:8px}.ds-badge{display:inline-flex;align-self:flex-start}.ds-compact-grid{grid-template-columns:1fr}.ds-action-row{padding:12px 0}.ds-split{grid-template-columns:1fr 1fr}.ds-fab{right:16px;bottom:calc(88px + env(safe-area-inset-bottom));padding:13px 16px}.ds-modal{align-items:flex-end;padding:12px}.ds-modal-card{max-height:86vh;border-radius:22px 22px 16px 16px}}
+@media (max-width:1100px){.ds-grid-3,.ds-main,.ds-productivity-grid{grid-template-columns:1fr}.ds-work-row{grid-template-columns:minmax(0,1fr) 120px auto auto}.ds-status-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.ds-kpis,.ds-kpis.secondary-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:760px){.ds-page{padding:22px 14px calc(128px + env(safe-area-inset-bottom));display:flex;flex-direction:column}.ds-header{display:block;margin-bottom:12px;order:0}.ds-period-filter{order:1;margin-bottom:10px}.primary-kpis{order:2}.ds-secondary-metrics{order:3}.ds-productivity-grid{grid-template-columns:1fr;order:4;gap:12px}.ds-status-flow{order:5;margin-bottom:12px}.ds-priorities{order:6;margin-bottom:12px}.ds-mobile-ops{display:grid;gap:12px;order:7;margin:0 0 12px;max-width:none;width:100%}.ds-main{order:8}.ds-grid-3{display:none}.ds-eyebrow{font-size:9px;letter-spacing:2px;margin-bottom:4px}.ds-header h1{font-size:28px;line-height:1.02}.ds-header p{font-size:12.5px;line-height:1.45}.ds-period-filter{overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px}.ds-period-filter button{white-space:nowrap;padding:8px 12px}.ds-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:10px}.ds-kpis.secondary-kpis{grid-template-columns:1fr;gap:8px}.ds-kpi{border-radius:14px;padding:10px 9px;min-width:0;border-top:3px solid rgba(184,150,94,.55)}.ds-kpi span{font-size:9px;line-height:1.1;letter-spacing:.8px;margin-bottom:7px;white-space:normal}.ds-kpi strong{font-size:24px}.ds-kpi small{font-size:10px;line-height:1.25}.ds-kpi-button{width:100%}.ds-collapse-trigger{width:100%;margin-bottom:8px}.ds-status-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.ds-status-grid button{padding:11px 10px}.ds-status-grid strong{font-size:22px;margin-bottom:5px}.ds-status-grid span{font-size:9.5px}.ds-main{gap:12px}.ds-card{padding:15px 13px;border-radius:15px}.ds-card-head h2{font-size:19px}.ds-health{grid-template-columns:1fr 1fr 1fr}.ds-work-row{display:block;padding:13px 0}.ds-work-main strong{font-size:15px;line-height:1.2;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}.ds-work-main span{font-size:12px}.ds-tags em:nth-child(n+3){display:none}.ds-progress-wrap{grid-template-columns:minmax(0,1fr) auto;margin:10px 0 9px}.ds-work-row>small{display:inline-block;white-space:nowrap;margin-right:8px}.ds-badge{display:inline-flex;align-self:flex-start}.ds-compact-grid{grid-template-columns:1fr}.ds-action-row{padding:12px 0}.ds-split{grid-template-columns:1fr 1fr}.ds-fab{right:16px;bottom:calc(88px + env(safe-area-inset-bottom));padding:13px 16px}.ds-modal{align-items:flex-end;padding:12px}.ds-modal-card{max-height:86vh;border-radius:22px 22px 16px 16px}}
 `
