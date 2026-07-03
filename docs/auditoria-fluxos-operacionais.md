@@ -7,11 +7,22 @@
 Ordem esperada de leitura:
 
 1. Exigem atencao agora.
-2. Obras ao vivo.
-3. Indicadores operacionais.
-4. Campo hoje, pendencias por obra, atrasos e metas.
-5. Aprovacoes pendentes.
-6. Saude, agenda, equipe, fluxo, operacao, financeiro e atividade recente.
+2. Indicadores operacionais.
+3. Campo hoje, pendencias por obra, atrasos e metas.
+4. Aprovacoes pendentes.
+5. Saude, agenda, equipe, fluxo, operacao, financeiro e atividade recente.
+
+### Obras ao vivo
+
+`Obras ao vivo` agora e uma pagina separada no menu da Gestao, antes de `Dashboard`.
+
+Objetivo da tela:
+
+1. Mostrar cada obra ativa como um card operacional.
+2. Destacar obra travada, critica, em atencao, sem check-in recente ou com montador em campo.
+3. Exibir inicio, termino, prazo, check-in, progresso, proximo compromisso e fase atual.
+4. Permitir filtros rapidos por todas, em campo, atencao, criticas e sem check-in.
+5. Abrir o detalhe da obra ao clicar no card.
 
 ### Cliques principais
 
@@ -24,7 +35,8 @@ Ordem esperada de leitura:
 - `Vistorias pendentes` abre a Agenda no compromisso.
 - `Gastos pendentes` abre Gastos da obra ou a tela de Gastos.
 - `Cronogramas travados` abre Cronograma da obra.
-- `Obras ao vivo` abre a obra e resume status, montador, check-in, inicio, termino, prazo, progresso, proximo compromisso e pendencias.
+- Menu `Obras ao vivo` abre a pagina operacional em tempo real.
+- Card de `Obras ao vivo` abre a obra e resume status, montador, check-in, inicio, termino, prazo, progresso, proximo compromisso e pendencias.
 
 ### Vistoria
 

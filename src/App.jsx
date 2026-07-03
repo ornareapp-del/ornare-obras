@@ -9,6 +9,7 @@ const Login = lazy(() => import('./pages/Login'))
 const PortalCliente = lazy(() => import('./pages/cliente/PortalCliente'))
 const Layout = lazy(() => import('./components/Layout'))
 const DashboardGestao = lazy(() => import('./pages/gestao/DashboardGestao'))
+const ObrasAoVivo = lazy(() => import('./pages/gestao/ObrasAoVivo'))
 const Obras = lazy(() => import('./pages/gestao/Obras'))
 const ObraDetalhe = lazy(() => import('./pages/gestao/ObraDetalhe'))
 const NovaObra = lazy(() => import('./pages/gestao/NovaObra'))
@@ -324,6 +325,15 @@ export default function App() {
           />
 
           <Route element={<PrivateLayout />}>
+            <Route
+              path="/obras-ao-vivo"
+              element={
+                <RoleGuard allowedRoles={['gestao']}>
+                  <ObrasAoVivo />
+                </RoleGuard>
+              }
+            />
+
             <Route
               path="/dashboard"
               element={

@@ -3,10 +3,10 @@ import { useStore } from '../store/useStore'
 
 const ITEMS = {
   gestao: [
+    { label: 'Ao vivo', to: '/obras-ao-vivo', icon: IconLive },
     { label: 'Início', to: '/dashboard', icon: IconHome },
     { label: 'Obras', to: '/obras', icon: IconClipboard },
     { label: 'Agenda', to: '/agenda', icon: IconCalendar },
-    { label: 'Planejamento', to: '/planejamento', icon: IconChart },
   ],
   supervisor: [
     { label: 'Início', to: '/supervisor', icon: IconHome },
@@ -62,6 +62,10 @@ export default function BottomNavigation({ onMore }) {
 
 function IconHome() {
   return <svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10.5V20h14v-9.5"/><path d="M10 20v-5h4v5"/></svg>
+}
+
+function IconLive() {
+  return <svg viewBox="0 0 24 24"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 15l3-3 3 2 5-7"/><circle cx="8" cy="15" r="1"/><circle cx="14" cy="14" r="1"/><circle cx="19" cy="7" r="1"/></svg>
 }
 
 function IconClipboard() {
