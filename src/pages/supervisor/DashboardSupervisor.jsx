@@ -41,6 +41,11 @@ function statusGasto(gasto) {
   return 'aprovado'
 }
 
+function compromissoConcluido(status) {
+  const atual = norm(status)
+  return ['realizada', 'realizado', 'concluida', 'concluido', 'finalizada', 'finalizado'].includes(atual)
+}
+
 const dataBR = value => value ? new Date(`${value}T00:00:00`).toLocaleDateString('pt-BR') : '-'
 
 const isConcluido = status => ['concluida', 'concluido', 'finalizada', 'finalizado'].includes(norm(status))
@@ -543,7 +548,7 @@ export default function DashboardSupervisor() {
       aprovacoes: {
         fotosPendentes,
         fotosNaoConformidade: fotosNaoConformidadePendentes,
-        vistoriasPendentes: dados.agenda.filter(a => norm(a.tipo || a.titulo).includes('vistoria') && !['realizada', 'concluida', 'concluída'].includes(norm(a.status))),
+        vistoriasPendentes: dados.agenda.filter(a => norm(a.tipo || a.titulo).includes('vistoria') && !compromissoConcluido(a.status)),
         gastosPendentes: dados.gastos.filter(g => statusGasto(g) === 'pendente_aprovacao'),
         cronogramasTravados: dados.cronogramas.filter(c => c.travado || norm(c.risco) === 'alto'),
       },
@@ -690,7 +695,7 @@ export default function DashboardSupervisor() {
             {vm.produtividade.obrasSemCheckinRecente.slice(0, 3).map(item => (
               <button className="ds-line" key={item.obra.id} onClick={() => abrirObraOperacional(item.obra.id, 'Equipe')}>
                 <span>{item.obra.nome}</span>
-                <small>{item.ultima ? `Ultimo check-in ha ${diasDesde(item.ultima)}d` : 'Sem check-in'}</small>
+                <small>{item.ultima ? `Último check-in há ${diasDesde(item.ultima)}d` : 'Sem check-in'}</small>
               </button>
             ))}
           </div>
@@ -822,7 +827,7 @@ export default function DashboardSupervisor() {
                 </button>
               ))}
               {vm.aprovacoes.vistoriasPendentes.slice(0, 2).map(item => (
-                <button key={item.id} onClick={() => navigate(`/agenda?compromisso=${item.id}`)}>
+                <button className="info" key={item.id} onClick={() => navigate(`/agenda?compromisso=${item.id}`)}>
                   <i className="blue" />
                   <div>
                     <strong>{item.titulo || 'Vistoria pendente'}</strong>
@@ -1079,20 +1084,29 @@ const css = `
 .ds-approval-panel{width:100%;max-width:none;margin:0 0 16px}
 .ds-approval-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
 .ds-approval-grid button{border:1px solid ${THEME.border};background:${THEME.elevated};border-radius:14px;padding:13px;min-height:72px;text-align:left;font-family:inherit;cursor:pointer}
-.ds-approval-grid button.warn{border-color:rgba(224,168,82,.5);background:rgba(224,168,82,.13)}
-.ds-approval-grid button.danger{border-color:${THEME.danger};background:rgba(224,82,82,.12)}
-.ds-approval-grid button.info{border-color:#2563EB;background:#F5F8FF}
+.ds-approval-grid button.warn{border-color:#B98226;background:#2F2416}
+.ds-approval-grid button.danger{border-color:${THEME.danger};background:#351A1A}
+.ds-approval-grid button.info{border-color:#4A90E2;background:#12335D}
 .ds-approval-grid strong{display:block;font-size:26px;line-height:1;color:${THEME.ink}}
 .ds-approval-grid span{display:block;font-size:11.5px;color:${THEME.muted};font-weight:900;margin-top:7px}
+.ds-approval-grid button.warn strong,.ds-approval-grid button.danger strong,.ds-approval-grid button.info strong{color:#fff}
+.ds-approval-grid button.warn span{color:#FFE7B0}
+.ds-approval-grid button.danger span{color:#FFD5D5}
+.ds-approval-grid button.info span{color:#D7E9FF}
 .ds-approval-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px}
 .ds-approval-list button{border:1px solid ${THEME.border};background:${THEME.elevated};border-radius:13px;padding:11px;min-height:44px;display:flex;gap:10px;text-align:left;font-family:inherit;cursor:pointer}
 .ds-approval-list i{width:9px;height:9px;border-radius:99px;background:${THEME.warn};margin-top:5px;flex-shrink:0}
 .ds-approval-list i.blue{background:#2563EB}
 .ds-approval-list i.orange{background:${THEME.warn}}
-.ds-approval-list button.danger{border-color:${THEME.danger};background:rgba(224,82,82,.12)}
+.ds-approval-list button.info{border-color:#4A90E2;background:#12335D}
+.ds-approval-list button.danger{border-color:${THEME.danger};background:#351A1A}
 .ds-approval-list button.danger i{background:${THEME.danger}}
+.ds-approval-list button.info i{background:#62A7FF}
 .ds-approval-list strong{display:block;font-size:13px;color:${THEME.ink};line-height:1.25}
 .ds-approval-list span{display:block;font-size:11.5px;color:${THEME.muted};margin-top:3px}
+.ds-approval-list button.info strong,.ds-approval-list button.danger strong{color:#fff}
+.ds-approval-list button.info span{color:#D7E9FF}
+.ds-approval-list button.danger span{color:#FFD5D5}
 .ds-mobile-ops{display:none}
 .ds-priority-row{width:100%;border:0;border-left:4px solid transparent;background:transparent;border-bottom:1px solid ${THEME.border};padding:12px 12px;min-height:44px;display:flex;gap:11px;align-items:flex-start;text-align:left;cursor:pointer;font-family:inherit;border-radius:12px;margin-bottom:6px}
 .ds-priority-row:last-child{border-bottom:0}
@@ -1149,8 +1163,8 @@ const css = `
 .ds-work-row>small{font-size:11px;color:${THEME.muted};white-space:nowrap}
 .ds-badge{font-size:10px;font-weight:800;border-radius:999px;padding:5px 8px;white-space:nowrap}
 .ds-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-.ds-tags em{font-style:normal;background:#F7EFE4;color:${THEME.warn};border-radius:999px;padding:4px 8px;font-size:10px;font-weight:800}
-.ds-tags em.ok{background:#EAF5EE;color:${THEME.success}}
+.ds-tags em{font-style:normal;background:#3A2B16;color:#FFE7B0;border:1px solid #B98226;border-radius:999px;padding:4px 8px;font-size:10px;font-weight:900;box-shadow:inset 0 0 0 1px rgba(255,255,255,.04)}
+.ds-tags em.ok{background:#18311F;color:#CFF3DA;border-color:#2D7A4A}
 .ds-action-row{width:100%;border:0;background:transparent;border-bottom:1px solid ${THEME.border};padding:11px 0;display:flex;gap:10px;align-items:flex-start;text-align:left;cursor:pointer;font-family:inherit}
 .ds-action-row>span{width:8px;height:8px;border-radius:99px;margin-top:5px;flex-shrink:0}
 .ds-action-row strong{display:block;font-size:13px;color:${THEME.ink};font-weight:800}

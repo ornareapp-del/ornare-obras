@@ -55,7 +55,7 @@ const MONTAGEM_CHECKLIST = CHECKLIST_MONTAGEM_GERAL
 const safeArray = result => result?.data || []
 const norm = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 const VISTORIA_CHECKLIST_NORMALIZADO = new Set(VISTORIA_CHECKLIST.map(norm))
-const isConcluido = status => ['concluida', 'concluido', 'finalizada', 'finalizado'].includes(norm(status))
+const isConcluido = status => ['concluida', 'concluido', 'finalizada', 'finalizado', 'realizada', 'realizado'].includes(norm(status))
 const isAberta = status => !isConcluido(status) && !['fechada', 'resolvida', 'cancelada'].includes(norm(status))
 
 function mensagemGeolocalizacao(error, acao) {

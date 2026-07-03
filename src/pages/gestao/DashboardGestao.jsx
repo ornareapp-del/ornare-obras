@@ -73,6 +73,32 @@ function diasDesde(value) {
   return Math.max(0, Math.floor((hoje - data) / 86400000))
 }
 
+function diasAte(value) {
+  if (!value) return null
+  const data = new Date(`${String(value).slice(0, 10)}T00:00:00`)
+  if (Number.isNaN(data.getTime())) return null
+  const hoje = new Date()
+  hoje.setHours(0, 0, 0, 0)
+  return Math.ceil((data - hoje) / 86400000)
+}
+
+function prazoTexto(value) {
+  const dias = diasAte(value)
+  if (dias === null) return 'Sem data'
+  if (dias < 0) return `${Math.abs(dias)}d atrasada`
+  if (dias === 0) return 'Hoje'
+  if (dias === 1) return 'Amanhã'
+  return `em ${dias}d`
+}
+
+function inicioObra(obra) {
+  return obra?.data_inicio_real || obra?.data_inicio_prevista || obra?.data_previsao_inicio || obra?.data_inicio || null
+}
+
+function fimObra(obra) {
+  return obra?.data_fim_prevista || obra?.data_previsao || obra?.data_previsao_entrega || obra?.data_previsao_fim || null
+}
+
 function faseObra(obra) {
   const fase = faseOrnarePorKey(obra?.fase)
     || faseOrnarePorKey(obra?.fase_atual)
@@ -130,7 +156,7 @@ function criarDadosVazios() {
 }
 
 function isConcluido(status) {
-  return ['concluida', 'concluido', 'finalizada', 'finalizado', 'resolvida', 'resolvido'].includes(normalizar(status))
+  return ['concluida', 'concluido', 'finalizada', 'finalizado', 'resolvida', 'resolvido', 'realizada', 'realizado'].includes(normalizar(status))
 }
 
 function isAberto(status) {
@@ -299,12 +325,33 @@ export default function DashboardGestao() {
     const montadoresComCheckin = new Set(checkinsHoje.map(c => c.user_id).filter(Boolean))
     const montadoresEmCampo = new Set(checkinsAbertosHoje.map(c => c.user_id).filter(Boolean))
     const checkinsPorObra = new Map()
+    const ultimoCheckinPorObra = new Map()
     dados.checkins.forEach(checkin => {
       if (!checkin.obra_id) return
       const data = new Date(checkin.entrada || checkin.created_at || 0)
       const atual = checkinsPorObra.get(checkin.obra_id)
-      if (!atual || data > atual) checkinsPorObra.set(checkin.obra_id, data)
+      if (!atual || data > atual) {
+        checkinsPorObra.set(checkin.obra_id, data)
+        ultimoCheckinPorObra.set(checkin.obra_id, checkin)
+      }
     })
+    const checkinsAbertosPorObra = new Map()
+    checkinsAbertosHoje.forEach(checkin => {
+      if (!checkin.obra_id) return
+      checkinsAbertosPorObra.set(checkin.obra_id, [...(checkinsAbertosPorObra.get(checkin.obra_id) || []), checkin])
+    })
+    const montadoresPorObra = new Map()
+    dados.montadores.forEach(vinculo => {
+      if (!vinculo.obra_id) return
+      const nome = limparNome(vinculo.montador?.full_name) || 'Montador'
+      montadoresPorObra.set(vinculo.obra_id, [...(montadoresPorObra.get(vinculo.obra_id) || []), nome])
+    })
+    const agendaPorObra = new Map()
+    dados.agenda
+      .filter(item => item.obra_id && item.data >= hojeStr && !isConcluido(item.status))
+      .forEach(item => {
+        agendaPorObra.set(item.obra_id, [...(agendaPorObra.get(item.obra_id) || []), item])
+      })
 
     const saude = ativos.map(obra => {
       const previsao = obra.data_previsao ? new Date(obra.data_previsao + 'T00:00:00') : null
@@ -391,6 +438,40 @@ export default function DashboardGestao() {
       ...tarefasAtrasadas.slice(0, 3).map(t => ({ id: `ta-${t.id}`, tipo: 'Tarefa atrasada', titulo: t.titulo || t.descricao || 'Tarefa atrasada', obraId: t.obra_id, detalhe: obraNome(dados.obras, t.obra_id), rota: `/tarefas?tarefa=${t.id}` })),
     ].slice(0, 5)
 
+    const obrasAoVivo = ativos.map(obra => {
+      const abertos = checkinsAbertosPorObra.get(obra.id) || []
+      const ultimoCheckin = ultimoCheckinPorObra.get(obra.id)
+      const pendenciasObra = [
+        (ocorrPorObra.get(obra.id) || []).length ? 'Ocorrência' : null,
+        (checklistPorObra.get(obra.id) || []).some(item => !item.concluido) ? 'Checklist' : null,
+        (fotosPorObra.get(obra.id) || []).some(fotoPendenteAprovacao) ? 'Fotos' : null,
+      ].filter(Boolean)
+      const fim = fimObra(obra)
+      const inicio = inicioObra(obra)
+      const diasFim = diasAte(fim)
+      const travada = inStatus(obra, STATUS.travadas) || (ocorrPorObra.get(obra.id) || []).some(oc => normalizar(oc.gravidade) === 'alta')
+      const semCheckin = !ultimoCheckin || diasDesde(ultimoCheckin.entrada || ultimoCheckin.created_at) > 2
+      const proximo = (agendaPorObra.get(obra.id) || [])[0]
+      let situacao = 'ok'
+      if (travada || (diasFim !== null && diasFim < 0)) situacao = 'danger'
+      else if (semCheckin || pendenciasObra.length > 0 || (diasFim !== null && diasFim <= 3)) situacao = 'warn'
+      return {
+        obra,
+        situacao,
+        inicio,
+        fim,
+        proximo,
+        montadores: montadoresPorObra.get(obra.id) || [],
+        emCampo: abertos.map(c => limparNome(c.profiles?.full_name) || 'Montador'),
+        ultimoCheckin,
+        pendencias: pendenciasObra,
+        travada,
+      }
+    }).sort((a, b) => {
+      const peso = { danger: 0, warn: 1, ok: 2 }
+      return peso[a.situacao] - peso[b.situacao]
+    }).slice(0, 8)
+
     return {
       hojeStr,
       travadasLista: dados.obras
@@ -459,6 +540,7 @@ export default function DashboardGestao() {
       fluxo,
       atencao,
       atividade,
+      obrasAoVivo,
       obrasOperacionais: ativos.slice(0, 8),
       pendenciasCriticasExecutivas,
       ocorrPorObra,
@@ -608,6 +690,47 @@ export default function DashboardGestao() {
         </Card>
       </section>
 
+      <section className="dg-live-panel" aria-label="Obras ao vivo">
+        <Card title="Obras ao vivo" action="Ver todas" onAction={() => navigate('/obras')}>
+          {vm.obrasAoVivo.length === 0 ? <Empty text="Nenhuma obra ativa agora." /> : (
+            <div className="dg-live-grid">
+              {vm.obrasAoVivo.map(item => {
+                const obra = item.obra
+                const status = statusBadge(obra.status)
+                const ultimo = item.ultimoCheckin?.entrada || item.ultimoCheckin?.created_at
+                return (
+                  <button className={`dg-live-card ${item.situacao}`} key={obra.id} onClick={() => navigate(`/obras/${obra.id}`)}>
+                    <div className="dg-live-head">
+                      <div>
+                        <strong>{obra.nome}</strong>
+                        <span>{obra.cliente_nome || obra.cidade || 'Cliente não informado'}</span>
+                      </div>
+                      <em style={{ background: status.bg, color: status.color }}>{status.label}</em>
+                    </div>
+                    <div className="dg-live-status">
+                      <b>{item.emCampo.length ? 'Montador em campo' : item.travada ? 'Obra travada' : item.pendencias.length ? 'Atenção pendente' : 'Sem alerta crítico'}</b>
+                      <small>{item.emCampo[0] || item.montadores[0] || 'Sem montador alocado'}</small>
+                    </div>
+                    <div className="dg-live-metrics">
+                      <span><small>Início</small><b>{item.inicio ? dataBR(item.inicio) : '-'}</b></span>
+                      <span><small>Término</small><b>{item.fim ? dataBR(item.fim) : '-'}</b></span>
+                      <span><small>Prazo</small><b>{prazoTexto(item.fim)}</b></span>
+                      <span><small>Check-in</small><b>{ultimo ? `${diasDesde(ultimo)}d` : 'Nunca'}</b></span>
+                      <span><small>Progresso</small><b>{obra.progresso || 0}%</b></span>
+                      <span><small>Próximo</small><b>{item.proximo?.data ? dataBR(item.proximo.data) : '-'}</b></span>
+                    </div>
+                    <div className="dg-live-foot">
+                      <div className="dg-live-progress"><i style={{ width: `${Math.min(100, Math.max(0, obra.progresso || 0))}%` }} /></div>
+                      <div>{item.pendencias.length ? item.pendencias.map(p => <span key={p}>{p}</span>) : <span className="ok">OK</span>}</div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </Card>
+      </section>
+
       <section className="dg-approval-panel">
         <Card title="Aprovações pendentes" action="Fotos" onAction={() => navigate('/obras')}>
           <div className="dg-approval-grid">
@@ -672,7 +795,7 @@ export default function DashboardGestao() {
                 </button>
               ))}
               {vm.aprovacoes.vistoriasPendentes.slice(0, 2).map(item => (
-                <button key={item.id} onClick={() => navigate(`/agenda?compromisso=${item.id}`)}>
+                <button className="info" key={item.id} onClick={() => navigate(`/agenda?compromisso=${item.id}`)}>
                   <i className="blue" />
                   <div>
                     <strong>{item.titulo || 'Vistoria pendente'}</strong>
@@ -897,29 +1020,40 @@ const css = `
 .dg-load-alert{width:100%;max-width:none;margin:0 0 12px;border:1px solid rgba(224,82,82,.34);background:rgba(224,82,82,.12);color:${THEME.danger};border-radius:12px;padding:11px 14px;font-size:13px;font-weight:800}
 .dg-mobile-home{display:none}
 .dg-priority-board{width:100%;max-width:none;margin:0 0 16px;display:grid;grid-template-columns:1.35fr .95fr 1.1fr .95fr;gap:12px;order:2}
-.dg-productivity-grid{width:100%;max-width:none;margin:0 0 16px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;order:4}
-.dg-agenda-mobile{width:100%;max-width:none;margin:0 0 16px;order:6}
-.dg-approval-panel{width:100%;max-width:none;margin:0 0 16px;order:5}
+.dg-live-panel{width:100%;max-width:none;margin:0 0 16px;order:3}
+.dg-productivity-grid{width:100%;max-width:none;margin:0 0 16px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;order:5}
+.dg-agenda-mobile{width:100%;max-width:none;margin:0 0 16px;order:7}
+.dg-approval-panel{width:100%;max-width:none;margin:0 0 16px;order:6}
 .dg-approval-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
 .dg-approval-grid button{border:1px solid ${THEME.border};background:${THEME.elevated};border-radius:14px;padding:13px;min-height:72px;text-align:left;font-family:inherit;cursor:pointer}
 .dg-approval-grid button:disabled{cursor:not-allowed;opacity:.5}
-.dg-approval-grid button.warn{border-color:rgba(224,168,82,.5);background:rgba(224,168,82,.13)}
-.dg-approval-grid button.hot{border-color:rgba(224,123,57,.55);background:rgba(224,123,57,.12)}
-.dg-approval-grid button.danger{border-color:${THEME.danger};background:rgba(224,82,82,.12)}
-.dg-approval-grid button.info{border-color:#2563EB;background:#F5F8FF}
+.dg-approval-grid button.warn{border-color:#B98226;background:#2F2416}
+.dg-approval-grid button.hot{border-color:#C7642B;background:#321F16}
+.dg-approval-grid button.danger{border-color:${THEME.danger};background:#351A1A}
+.dg-approval-grid button.info{border-color:#4A90E2;background:#12335D}
 .dg-approval-grid strong{display:block;font-size:26px;line-height:1;color:${THEME.ink}}
 .dg-approval-grid span{display:block;font-size:11.5px;color:${THEME.muted};font-weight:900;margin-top:7px}
+.dg-approval-grid button.warn strong,.dg-approval-grid button.hot strong,.dg-approval-grid button.danger strong,.dg-approval-grid button.info strong{color:#fff}
+.dg-approval-grid button.warn span,.dg-approval-grid button.hot span{color:#FFE7B0}
+.dg-approval-grid button.danger span{color:#FFD5D5}
+.dg-approval-grid button.info span{color:#D7E9FF}
 .dg-approval-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px}
 .dg-approval-list button{border:1px solid ${THEME.border};background:${THEME.elevated};border-radius:13px;padding:11px;min-height:44px;display:flex;gap:10px;text-align:left;font-family:inherit;cursor:pointer}
 .dg-approval-list button:disabled{cursor:not-allowed;opacity:.5}
 .dg-approval-list i{width:9px;height:9px;border-radius:99px;background:${THEME.warn};margin-top:5px;flex-shrink:0}
 .dg-approval-list i.blue{background:#2563EB}
 .dg-approval-list i.orange{background:${THEME.warn}}
-.dg-approval-list button.hot{border-color:rgba(224,123,57,.55);background:rgba(224,123,57,.12)}
-.dg-approval-list button.danger{border-color:${THEME.danger};background:rgba(224,82,82,.12)}
+.dg-approval-list button.hot{border-color:#C7642B;background:#321F16}
+.dg-approval-list button.info{border-color:#4A90E2;background:#12335D}
+.dg-approval-list button.danger{border-color:${THEME.danger};background:#351A1A}
 .dg-approval-list button.danger i{background:${THEME.danger}}
+.dg-approval-list button.info i{background:#62A7FF}
 .dg-approval-list strong{display:block;font-size:13px;color:${THEME.ink};line-height:1.25}
 .dg-approval-list span{display:block;font-size:11.5px;color:${THEME.muted};margin-top:3px}
+.dg-approval-list button.hot strong,.dg-approval-list button.info strong,.dg-approval-list button.danger strong{color:#fff}
+.dg-approval-list button.hot span{color:#FFE0C2}
+.dg-approval-list button.info span{color:#D7E9FF}
+.dg-approval-list button.danger span{color:#FFD5D5}
 .dg-priority-row{width:100%;border:0;background:transparent;border-bottom:1px solid ${THEME.border};padding:11px 0;min-height:44px;display:flex;gap:10px;align-items:flex-start;text-align:left;cursor:pointer;font-family:inherit}
 .dg-priority-row:disabled{cursor:not-allowed;opacity:.5}
 .dg-priority-row:last-child{border-bottom:0}
@@ -927,7 +1061,7 @@ const css = `
 .dg-priority-row strong{display:block;font-size:13px;color:${THEME.ink};font-weight:900;line-height:1.25}
 .dg-priority-row span{display:block;font-size:11.5px;color:${THEME.muted};line-height:1.35;margin-top:3px}
 .dg-priority-row.compact{padding:9px 0}
-.dg-kpis{width:100%;max-width:none;margin:0 0 16px;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;order:3}
+.dg-kpis{width:100%;max-width:none;margin:0 0 16px;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;order:4}
 .dg-kpi-button{border:0;background:transparent;padding:0;text-align:left;font-family:inherit;cursor:pointer}
 .dg-kpi-button>*{height:100%}
 .dg-kpi{background:${THEME.card};border:1px solid ${THEME.border};border-radius:12px;padding:20px;min-width:0;box-shadow:0 2px 12px rgba(0,0,0,.3)}
@@ -936,8 +1070,8 @@ const css = `
 .dg-kpi small{display:block;font-size:12px;color:${THEME.muted};margin-top:7px}
 .dg-grid-3,.dg-main{width:100%;max-width:none;margin:0 0 16px;display:grid;gap:16px}
 .dg-grid-3{grid-template-columns:1fr 1.15fr 1fr}
-.dg-grid-3{order:7}
-.dg-main{grid-template-columns:minmax(0,1.35fr) minmax(340px,.8fr);order:8;align-items:start}
+.dg-grid-3{order:8}
+.dg-main{grid-template-columns:minmax(0,1.35fr) minmax(340px,.8fr);order:9;align-items:start}
 .dg-stack{display:flex;flex-direction:column;gap:16px}
 .dg-card{background:${THEME.card};border:1px solid ${THEME.border};border-radius:12px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,.3);min-width:0}
 .dg-card-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:14px}
@@ -961,13 +1095,34 @@ const css = `
 .dg-flow-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .dg-flow-summary span{border:1px solid ${THEME.border};background:${THEME.elevated};border-radius:13px;padding:13px;font-size:11px;color:${THEME.muted};font-weight:800}
 .dg-flow-summary strong{display:block;font-size:24px;line-height:1;color:${THEME.ink};margin-bottom:7px}
+.dg-live-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px}
+.dg-live-card{border:1px solid ${THEME.border};border-left:4px solid ${THEME.success};background:${THEME.elevated};border-radius:13px;padding:13px;min-height:188px;text-align:left;font-family:inherit;color:${THEME.ink};cursor:pointer;display:flex;flex-direction:column;gap:11px}
+.dg-live-card.warn{border-left-color:${THEME.warn};background:#211B14}
+.dg-live-card.danger{border-left-color:${THEME.danger};background:#251717}
+.dg-live-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.dg-live-head strong{display:block;font-size:14px;line-height:1.2;color:${THEME.ink};font-weight:950;overflow:hidden;text-overflow:ellipsis}
+.dg-live-head span{display:block;font-size:11.5px;color:${THEME.muted};margin-top:4px;line-height:1.3}
+.dg-live-head em{font-style:normal;border-radius:999px;padding:5px 8px;font-size:10px;font-weight:900;white-space:nowrap}
+.dg-live-status{border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.035);border-radius:11px;padding:9px 10px}
+.dg-live-status b{display:block;font-size:13px;color:${THEME.ink};line-height:1.2}
+.dg-live-status small{display:block;font-size:11.5px;color:${THEME.muted};margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dg-live-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.dg-live-metrics span{border:1px solid ${THEME.border};background:${THEME.card};border-radius:10px;padding:8px;min-width:0}
+.dg-live-metrics small{display:block;font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:${THEME.muted};font-weight:900;margin-bottom:4px}
+.dg-live-metrics b{display:block;font-size:12px;color:${THEME.ink};line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dg-live-foot{margin-top:auto;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center}
+.dg-live-progress{height:6px;background:#E8E4DE;border-radius:999px;overflow:hidden}
+.dg-live-progress i{display:block;height:100%;background:${THEME.gold};border-radius:999px}
+.dg-live-foot>div:last-child{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}
+.dg-live-foot span{background:#3A2B16;color:#FFE7B0;border:1px solid #B98226;border-radius:999px;padding:4px 7px;font-size:9.5px;font-weight:900}
+.dg-live-foot span.ok{background:#18311F;color:#CFF3DA;border-color:#2D7A4A}
 .dg-attention,.dg-work-row{width:100%;border:0;background:transparent;border-bottom:1px solid ${THEME.border};padding:12px 0;display:flex;gap:12px;align-items:center;text-align:left;cursor:pointer;font-family:inherit}
 .dg-attention-priority{align-items:flex-start}
 .dg-attention strong,.dg-work-row strong{display:block;font-size:13.5px;color:${THEME.ink};margin-bottom:3px}
 .dg-attention span,.dg-work-row span,.dg-muted{font-size:12px;color:${THEME.muted}}
 .dg-attention strong,.dg-attention span,.dg-work-main strong,.dg-work-main span{overflow:hidden;text-overflow:ellipsis}
 .dg-tags{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
-.dg-tags span{background:#F7EFE4;color:${THEME.warn};border-radius:999px;padding:4px 8px;font-size:10px;font-weight:800}
+.dg-tags span{background:#3A2B16;color:#FFE7B0;border:1px solid #B98226;border-radius:999px;padding:4px 8px;font-size:10px;font-weight:900;box-shadow:inset 0 0 0 1px rgba(255,255,255,.04)}
 .dg-work-main{flex:1;min-width:0}
 .dg-progress-wrap{width:118px;display:flex;align-items:center;gap:8px;flex-shrink:0}
 .dg-progress-wrap b{font-size:11px;color:${THEME.muted};font-weight:900;min-width:30px;text-align:right}
@@ -996,4 +1151,5 @@ const css = `
 @media (min-width:761px){.dg-agenda-mobile{display:none}}
 @media (max-width:760px){.dg-page{padding:22px 14px calc(112px + env(safe-area-inset-bottom));display:flex;flex-direction:column}.dg-header{display:block;margin-bottom:12px;order:0;padding-right:0}.dg-eyebrow{font-size:9px;letter-spacing:2px;margin-bottom:4px}.dg-header h1{font-size:28px;line-height:1.02}.dg-header p{font-size:12.5px;line-height:1.45}.dg-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;justify-content:flex-start;margin-top:10px}.dg-actions button{width:100%;padding:10px 9px;font-size:12px}.dg-mobile-home{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;order:1;margin:0 0 12px;max-width:none;width:100%}.dg-mobile-home>button{border:1px solid ${THEME.border};background:${THEME.elevated};border-radius:15px;padding:11px 9px;text-align:left;font-family:inherit;box-shadow:0 10px 26px rgba(0,0,0,.16)}.dg-mobile-home>button.warn{border-color:rgba(224,168,82,.4);background:rgba(224,168,82,.12)}.dg-mobile-home>button.critical{border-color:rgba(224,82,82,.34);background:rgba(224,82,82,.12)}.dg-mobile-home strong{display:block;font-size:24px;line-height:1;color:${THEME.ink}}.dg-mobile-home span{display:block;font-size:10.5px;color:${THEME.muted};font-weight:900;margin-top:5px}.dg-mobile-quick{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.dg-mobile-quick button{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:13px;padding:10px 8px;font-size:12px;font-weight:900}.dg-priority-board{grid-template-columns:1fr;gap:10px;margin-bottom:12px;order:2}.dg-priority-board>*:nth-child(n+2){display:none}.dg-productivity-grid{grid-template-columns:1fr;order:4;gap:12px}.dg-priority-row{padding:11px 0}.dg-agenda-mobile{order:3}.dg-main{order:5}.dg-kpis{order:2;display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px}.dg-kpis>*{flex:0 0 auto;min-width:auto;max-width:none}.dg-kpi{display:flex;align-items:center;gap:7px;border-radius:999px;padding:7px 10px;min-width:auto;max-width:none;border-top:1px solid rgba(184,150,94,.22)}.dg-kpi span{white-space:nowrap;font-size:10.5px;line-height:1;letter-spacing:0;margin:0}.dg-kpi strong{font-size:15px}.dg-kpi small{display:none}.dg-grid-3,.dg-main{gap:12px}.dg-grid-3{display:none}.dg-card{padding:15px 13px;border-radius:15px}.dg-card-head h2{font-size:19px}.dg-health{grid-template-columns:1fr 1fr 1fr}.dg-flow{display:none}.dg-card:has(.dg-flow){display:none}.dg-attention,.dg-work-row{align-items:flex-start;flex-direction:column}.dg-attention strong,.dg-attention span,.dg-work-main strong,.dg-work-main span{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;white-space:normal}.dg-tags{margin-left:0;justify-content:flex-start}.dg-tags span:nth-child(n+3){display:none}.dg-progress{width:100%}.dg-activity{grid-template-columns:62px 1fr}.dg-activity em{display:none}}
 @media (max-width:760px){.dg-kpis{order:2}.dg-priority-board{order:3}.dg-agenda-mobile{order:4}.dg-main{order:5}.dg-card:has(.dg-flow){display:block}.dg-flow{display:grid;grid-template-columns:1fr 1fr}.dg-flow-summary{grid-template-columns:1fr}.dg-progress-wrap{width:100%}.dg-progress-wrap b{text-align:left}.dg-work-row{gap:9px}}
+@media (max-width:760px){.dg-live-panel{order:4}.dg-productivity-grid{order:5}.dg-approval-panel{order:6}.dg-agenda-mobile{order:7}.dg-main{order:8}.dg-live-grid{grid-template-columns:1fr}.dg-live-card{min-height:0}.dg-live-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.dg-live-head{display:block}.dg-live-head em{display:inline-flex;margin-top:9px}.dg-live-foot{grid-template-columns:1fr}.dg-live-foot>div:last-child{justify-content:flex-start}}
 `
