@@ -466,12 +466,12 @@ export default function DashboardGestao() {
   }, [dados])
 
   const kpisExecutivos = [
-    { label: 'Em andamento', value: vm.operacao.andamento, sub: 'operacao ativa', tone: THEME.gold, onClick: () => navigate('/obras') },
+    { label: 'Em andamento', value: vm.operacao.andamento, sub: 'operação ativa', tone: THEME.gold, onClick: () => navigate('/obras') },
     { label: 'Montadores em campo', value: vm.equipe.montadoresEmCampo, sub: `${vm.equipe.montadoresComCheckin} com check-in`, tone: THEME.blue, onClick: () => navigate('/dashboard?painel=equipe') },
-    { label: 'Check-ins hoje', value: vm.equipe.checkinsHoje, sub: 'movimentacoes do dia', tone: THEME.success, onClick: () => navigate('/dashboard?painel=checkins') },
+    { label: 'Check-ins hoje', value: vm.equipe.checkinsHoje, sub: 'movimentações do dia', tone: THEME.success, onClick: () => navigate('/dashboard?painel=checkins') },
     { label: 'Sem check-in recente', value: vm.obrasSemCheckinRecente.length, sub: 'obra sem visita recente', tone: vm.obrasSemCheckinRecente.length ? THEME.warn : THEME.success, onClick: () => vm.obrasSemCheckinRecente[0]?.obra?.id ? navigate(`/obras/${vm.obrasSemCheckinRecente[0].obra.id}?aba=Equipe`) : navigate('/obras') },
-    { label: 'Fotos pendentes', value: vm.aprovacoes.fotosPendentes.length, sub: 'aguardando validacao', tone: vm.aprovacoes.fotosPendentes.length ? THEME.warn : THEME.success, onClick: () => vm.aprovacoes.fotosPendentes[0]?.obra_id ? navigate(`/obras/${vm.aprovacoes.fotosPendentes[0].obra_id}?aba=Fotos&foto=${vm.aprovacoes.fotosPendentes[0].id}`) : navigate('/obras?filtro=fotos') },
-    { label: 'Travadas', value: vm.operacao.travadas, sub: 'acao imediata', tone: THEME.danger, onClick: () => navigate('/planejamento?filtro=travadas') },
+    { label: 'Fotos pendentes', value: vm.aprovacoes.fotosPendentes.length, sub: 'aguardando validação', tone: vm.aprovacoes.fotosPendentes.length ? THEME.warn : THEME.success, onClick: () => vm.aprovacoes.fotosPendentes[0]?.obra_id ? navigate(`/obras/${vm.aprovacoes.fotosPendentes[0].obra_id}?aba=Fotos&foto=${vm.aprovacoes.fotosPendentes[0].id}`) : navigate('/obras?filtro=fotos') },
+    { label: 'Travadas', value: vm.operacao.travadas, sub: 'ação imediata', tone: THEME.danger, onClick: () => navigate('/planejamento?filtro=travadas') },
   ]
 
   return (
@@ -492,7 +492,7 @@ export default function DashboardGestao() {
         </div>
       </header>
 
-      {erroDados && <div className="dg-load-alert">Parte dos dados nao foi carregada: {erroDados}</div>}
+      {erroDados && <div className="dg-load-alert">Parte dos dados não foi carregada: {erroDados}</div>}
 
       <section className="dg-mobile-home" aria-label="Resumo executivo">
         <button className={vm.operacao.travadas ? 'critical' : ''} onClick={() => navigate('/obras')}>
@@ -527,13 +527,13 @@ export default function DashboardGestao() {
             {vm.obrasSemCheckinRecente.slice(0, 3).map(item => (
               <button className="dg-line-button" key={item.obra.id} onClick={() => navigate(`/obras/${item.obra.id}?aba=Equipe`)}>
                 <span>{item.obra.nome}</span>
-                <small>{item.ultima ? `Ultimo check-in ha ${diasDesde(item.ultima)}d` : 'Sem check-in'}</small>
+                <small>{item.ultima ? `Último check-in há ${diasDesde(item.ultima)}d` : 'Sem check-in'}</small>
               </button>
             ))}
           </div>
         </Card>
 
-        <Card title="Pendencias por obra" action="Obras" onAction={() => navigate('/obras')}>
+        <Card title="Pendências por obra" action="Obras" onAction={() => navigate('/obras')}>
           <MetricLine label="Fotos pendentes" value={vm.aprovacoes.fotosPendentes.length} color={THEME.warn} />
           <MetricLine label="Checklist pendente" value={vm.aprovacoes.checklistPendentes.length} color={THEME.gold} />
           <div className="dg-mini-list">
@@ -554,13 +554,13 @@ export default function DashboardGestao() {
 
         <Card title="Atrasos e metas" action="Planejamento" onAction={() => navigate('/planejamento')}>
           <MetricLine label="Obras atrasadas" value={vm.saude.atrasadas} color={THEME.danger} />
-          <MetricLine label="Gastos proximos/acima da meta" value={vm.financeiro.pertoMeta.length + vm.financeiro.acimaMeta.length} color={THEME.warn} />
+          <MetricLine label="Gastos próximos/acima da meta" value={vm.financeiro.pertoMeta.length + vm.financeiro.acimaMeta.length} color={THEME.warn} />
           <div className="dg-mini-list">
             {vm.atrasadasPorFase.slice(0, 3).map(item => <Line key={item.fase} title={item.fase} meta={`${item.total} atrasada${item.total === 1 ? '' : 's'}`} />)}
             {vm.financeiro.acimaMeta.slice(0, 2).map(obra => (
               <button className="dg-line-button" key={`meta-${obra.id}`} onClick={() => navigate(`/obras/${obra.id}?aba=Gastos`)}>
                 <span>{obra.nome}</span>
-                <small>meta critica</small>
+                <small>meta crítica</small>
               </button>
             ))}
           </div>
@@ -800,8 +800,8 @@ export default function DashboardGestao() {
             <div className="dg-muted">{vm.financeiro.gastosMes.length} lançamento{vm.financeiro.gastosMes.length === 1 ? '' : 's'} no mês</div>
             <MetricLine label="Total operacional" value={moeda(vm.financeiro.totalOperacional)} color={THEME.gold} />
             <MetricLine label="Gastos pendentes" value={vm.aprovacoes.gastosPendentes.length} color={THEME.warn} />
-            <MetricLine label="Obras proximas da meta" value={vm.financeiro.pertoMeta.length} color={THEME.warn} />
-            <MetricLine label="Obras criticas/acima da meta" value={vm.financeiro.acimaMeta.length} color={THEME.danger} />
+            <MetricLine label="Obras próximas da meta" value={vm.financeiro.pertoMeta.length} color={THEME.warn} />
+            <MetricLine label="Obras críticas/acima da meta" value={vm.financeiro.acimaMeta.length} color={THEME.danger} />
             <div className="dg-mini-list spaced">
               {vm.financeiro.topObras.map(o => <Line key={o.obraId} title={o.nome} meta={moeda(o.total)} />)}
             </div>
@@ -886,8 +886,8 @@ function Empty({ text }) {
 }
 
 const css = `
-.dg-page{min-height:100vh;background:${THEME.bg};padding:30px 34px 52px;color:${THEME.ink};font-family:var(--font-sans);box-sizing:border-box}
-.dg-header{width:100%;max-width:none;margin:0 0 24px;display:flex;justify-content:space-between;gap:18px;align-items:flex-start;box-sizing:border-box}
+.dg-page{min-height:100vh;background:${THEME.bg};padding:30px 34px 52px;color:${THEME.ink};font-family:var(--font-sans);box-sizing:border-box;display:flex;flex-direction:column}
+.dg-header{width:100%;max-width:none;margin:0 0 20px;display:flex;justify-content:space-between;gap:18px;align-items:flex-start;box-sizing:border-box;order:0}
 .dg-eyebrow{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:${THEME.gold};font-weight:800;margin-bottom:7px}
 .dg-header h1{font-family:var(--font-serif);font-size:38px;line-height:1.05;font-weight:500;margin:0;color:${THEME.ink}}
 .dg-header p{margin:6px 0 0;font-size:13px;color:${THEME.muted}}
@@ -896,10 +896,10 @@ const css = `
 .dg-actions .primary{background:${THEME.gold};border-color:${THEME.gold};color:${THEME.bg}}
 .dg-load-alert{width:100%;max-width:none;margin:0 0 12px;border:1px solid rgba(224,82,82,.34);background:rgba(224,82,82,.12);color:${THEME.danger};border-radius:12px;padding:11px 14px;font-size:13px;font-weight:800}
 .dg-mobile-home{display:none}
-.dg-priority-board{width:100%;max-width:none;margin:0 0 16px;display:grid;grid-template-columns:1.25fr 1fr 1fr 1fr;gap:12px}
-.dg-productivity-grid{width:100%;max-width:none;margin:0 0 16px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
-.dg-agenda-mobile{width:100%;max-width:none;margin:0 0 16px}
-.dg-approval-panel{width:100%;max-width:none;margin:0 0 16px}
+.dg-priority-board{width:100%;max-width:none;margin:0 0 16px;display:grid;grid-template-columns:1.35fr .95fr 1.1fr .95fr;gap:12px;order:2}
+.dg-productivity-grid{width:100%;max-width:none;margin:0 0 16px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;order:4}
+.dg-agenda-mobile{width:100%;max-width:none;margin:0 0 16px;order:6}
+.dg-approval-panel{width:100%;max-width:none;margin:0 0 16px;order:5}
 .dg-approval-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
 .dg-approval-grid button{border:1px solid ${THEME.border};background:${THEME.elevated};border-radius:14px;padding:13px;min-height:72px;text-align:left;font-family:inherit;cursor:pointer}
 .dg-approval-grid button:disabled{cursor:not-allowed;opacity:.5}
@@ -927,7 +927,7 @@ const css = `
 .dg-priority-row strong{display:block;font-size:13px;color:${THEME.ink};font-weight:900;line-height:1.25}
 .dg-priority-row span{display:block;font-size:11.5px;color:${THEME.muted};line-height:1.35;margin-top:3px}
 .dg-priority-row.compact{padding:9px 0}
-.dg-kpis{width:100%;max-width:none;margin:0 0 18px;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+.dg-kpis{width:100%;max-width:none;margin:0 0 16px;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;order:3}
 .dg-kpi-button{border:0;background:transparent;padding:0;text-align:left;font-family:inherit;cursor:pointer}
 .dg-kpi-button>*{height:100%}
 .dg-kpi{background:${THEME.card};border:1px solid ${THEME.border};border-radius:12px;padding:20px;min-width:0;box-shadow:0 2px 12px rgba(0,0,0,.3)}
@@ -936,7 +936,8 @@ const css = `
 .dg-kpi small{display:block;font-size:12px;color:${THEME.muted};margin-top:7px}
 .dg-grid-3,.dg-main{width:100%;max-width:none;margin:0 0 16px;display:grid;gap:16px}
 .dg-grid-3{grid-template-columns:1fr 1.15fr 1fr}
-.dg-main{grid-template-columns:minmax(0,1.45fr) minmax(340px,.75fr)}
+.dg-grid-3{order:7}
+.dg-main{grid-template-columns:minmax(0,1.35fr) minmax(340px,.8fr);order:8;align-items:start}
 .dg-stack{display:flex;flex-direction:column;gap:16px}
 .dg-card{background:${THEME.card};border:1px solid ${THEME.border};border-radius:12px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,.3);min-width:0}
 .dg-card-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:14px}
@@ -988,6 +989,7 @@ const css = `
 .dg-activity strong{display:block;font-size:12.5px;color:${THEME.ink};font-weight:700}
 .dg-activity small{display:block;font-size:11px;color:${THEME.muted};margin-top:2px}
 .dg-activity em{font-style:normal;font-size:10px;color:#aaa}
+.dg-stack:last-child .ow-premium-card:last-child{max-height:540px;overflow:auto}
 .dg-empty{padding:24px 0;text-align:center;color:#aaa;font-size:13px}
 @media (max-width:1100px){.dg-grid-3,.dg-main,.dg-productivity-grid{grid-template-columns:1fr}.dg-flow{grid-template-columns:repeat(3,1fr)}.dg-flow-line{display:none}}
 @media (max-width:1100px){.dg-priority-board{grid-template-columns:1fr 1fr}.dg-agenda-mobile{display:block}}
