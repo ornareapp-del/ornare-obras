@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { obraColor } from '../../utils/obraColor'
 import { progressBarStyle, progressFillStyle, statusBadgeBaseStyle } from '../../utils/ui'
 import { theme } from '../../constants/theme'
 
@@ -225,12 +226,23 @@ export default function Obras() {
         <div className="ob-list" style={s.list}>
           {obrasFiltradas.map(obra => {
             const st = getStatus(obra.status)
+            const cor = obraColor(obra)
             const cidadeUf = [obra.cidade, obra.uf].filter(Boolean).join(' • ') || 'Sem cidade'
             const progresso = Number(obra.progresso || 0)
             return (
-              <div key={obra.id} className="ob-card" style={s.card}
+              <div
+                key={obra.id}
+                className="ob-card"
+                style={{
+                  ...s.card,
+                  '--obra-accent': cor.accent,
+                  '--obra-soft': cor.soft,
+                  '--obra-border': cor.border,
+                  '--obra-ink': cor.ink,
+                }}
                 onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.07)'}
-                onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}>
+                onMouseLeave={e => e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.3)'}
+              >
                 <button className="ob-app-card" onClick={() => navigate('/obras/' + obra.id)}>
                   <div className="ob-app-head">
                     <div>
@@ -248,7 +260,7 @@ export default function Obras() {
                   </div>
                 </button>
                 <div className="ob-card-main" onClick={() => navigate('/obras/' + obra.id)} style={s.cardMain}>
-                  <div style={{ ...s.dot, background: st.dot }} />
+                  <div style={{ ...s.dot, background: cor.accent }} />
                   <div style={s.cardInfo}>
                     <div style={s.cardTop}>
                       <span style={s.cardNome}>{titleCase(obra.nome)}</span>
@@ -272,7 +284,7 @@ export default function Obras() {
                     <div className="ob-progress" style={s.progressWrap}>
                       <div style={s.progressPct}>{obra.progresso}%</div>
                       <div style={s.progressBar}>
-                        <div style={{ ...s.progressFill, width: obra.progresso + '%' }} />
+                        <div style={{ ...s.progressFill, background: cor.accent, width: obra.progresso + '%' }} />
                       </div>
                     </div>
                   )}
@@ -316,7 +328,7 @@ const css = `
   .ob-filters{display:flex !important;overflow-x:auto !important;gap:8px !important;flex-wrap:nowrap !important;margin-bottom:14px !important;padding-bottom:3px}
   .ob-filters button{flex:0 0 auto !important;white-space:nowrap !important}
   .ob-list{gap:10px !important}
-  .ob-card{border-radius:18px !important;box-shadow:0 14px 34px rgba(0,0,0,.18) !important;border:1px solid ${theme.border} !important;background:${theme.surface} !important}
+  .ob-card{border-radius:18px !important;box-shadow:0 14px 34px rgba(0,0,0,.18) !important;border:1px solid var(--obra-border) !important;background:linear-gradient(135deg,var(--obra-soft),${theme.surface} 42%) !important}
   .ob-card-main{display:none !important}
   .ob-card-actions{display:none !important}
   .ob-app-card{display:block;width:100%;border:0;background:transparent;text-align:left;font-family:inherit;padding:15px 15px 14px;cursor:pointer}
@@ -325,7 +337,7 @@ const css = `
   .ob-app-head span{display:block;margin-top:4px;font-size:12.5px;line-height:1.25;color:var(--color-ink-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px}
   .ob-app-head small{flex:0 0 auto;color:var(--color-gold);font-size:20px;line-height:1;font-weight:900}
   .ob-app-progress{height:5px;background:#EEE8DE;border-radius:999px;overflow:hidden;margin:13px 0 10px}
-  .ob-app-progress i{display:block;height:100%;background:var(--color-gold);border-radius:999px}
+  .ob-app-progress i{display:block;height:100%;background:var(--obra-accent);border-radius:999px}
   .ob-app-foot{display:flex;align-items:center;justify-content:space-between;gap:10px}
   .ob-app-foot span{border-radius:999px;padding:5px 10px;font-size:11px;line-height:1;font-weight:900;white-space:nowrap}
   .ob-app-foot em{font-style:normal;font-size:12px;color:var(--color-ink-muted);white-space:nowrap}
@@ -346,7 +358,7 @@ const s = {
   filtros: { display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' },
   filtroBtn: { padding: '6px 16px', borderRadius: 20, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' },
   list: { display: 'flex', flexDirection: 'column', gap: 10 },
-  card: { background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
+  card: { background: 'linear-gradient(135deg,var(--obra-soft),var(--color-surface) 42%)', border: '1px solid var(--obra-border)', borderLeft: '7px solid var(--obra-accent)', borderRadius: 12, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
   cardMain: { display: 'flex', alignItems: 'center', gap: 16, padding: '18px 20px', cursor: 'pointer' },
   dot: { width: 10, height: 10, borderRadius: '50%', flexShrink: 0 },
   cardInfo: { flex: 1, minWidth: 0 },

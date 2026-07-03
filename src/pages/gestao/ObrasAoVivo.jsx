@@ -4,6 +4,7 @@ import { EmptyState, PremiumCard } from '../../components/DesignSystem'
 import { faseOrnarePorKey, faseOrnarePorTexto } from '../../constants/fasesOrnare'
 import { theme } from '../../constants/theme'
 import { supabase } from '../../lib/supabase'
+import { obraColor } from '../../utils/obraColor'
 import { limparNome } from '../../utils/ui'
 
 const THEME = {
@@ -379,6 +380,7 @@ export default function ObrasAoVivo() {
 function LiveCard({ item, onOpen }) {
   const obra = item.obra
   const status = statusBadge(obra.status)
+  const cor = obraColor(obra)
   const ultimo = item.ultimoCheckin?.entrada || item.ultimoCheckin?.created_at
   const progresso = Math.min(100, Math.max(0, obra.progresso || 0))
   const alerta = item.emCampo.length
@@ -392,7 +394,16 @@ function LiveCard({ item, onOpen }) {
           : 'Sem alerta crítico'
 
   return (
-    <button className={`oa-live-card ${item.situacao}`} onClick={onOpen}>
+    <button
+      className={`oa-live-card ${item.situacao}`}
+      onClick={onOpen}
+      style={{
+        '--obra-accent': cor.accent,
+        '--obra-soft': cor.soft,
+        '--obra-border': cor.border,
+        '--obra-ink': cor.ink,
+      }}
+    >
       <div className="oa-live-head">
         <div>
           <strong>{obra.nome}</strong>
@@ -417,7 +428,7 @@ function LiveCard({ item, onOpen }) {
 
       <div className="oa-live-flow">
         <div>
-          <small>Fase atual</small>
+          <small><i />Fase atual</small>
           <b>{faseObra(obra)}</b>
         </div>
         <div className="oa-live-progress"><i style={{ width: `${progresso}%` }} /></div>
@@ -447,9 +458,9 @@ const css = `
 .oa-summary strong{display:block;font-size:28px;line-height:1;color:${THEME.ink}}
 .oa-summary span{display:block;font-size:11.5px;color:${THEME.muted};font-weight:900;margin-top:8px}
 .oa-live-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
-.oa-live-card{border:1px solid ${THEME.border};border-left:4px solid ${THEME.success};background:${THEME.elevated};border-radius:13px;padding:14px;min-height:250px;text-align:left;font-family:inherit;color:${THEME.ink};cursor:pointer;display:flex;flex-direction:column;gap:12px}
-.oa-live-card.warn{border-left-color:${THEME.warn};background:#211B14}
-.oa-live-card.danger{border-left-color:${THEME.danger};background:#251717}
+.oa-live-card{border:1px solid var(--obra-border);border-left:7px solid var(--obra-accent);background:linear-gradient(135deg,var(--obra-soft),${THEME.elevated} 38%);border-radius:13px;padding:14px;min-height:250px;text-align:left;font-family:inherit;color:${THEME.ink};cursor:pointer;display:flex;flex-direction:column;gap:12px;box-shadow:inset 0 1px 0 rgba(255,255,255,.035)}
+.oa-live-card.warn{background:linear-gradient(135deg,var(--obra-soft),#211B14 42%)}
+.oa-live-card.danger{background:linear-gradient(135deg,var(--obra-soft),#251717 42%)}
 .oa-live-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
 .oa-live-head strong{display:block;font-size:15px;line-height:1.16;color:${THEME.ink};font-weight:950;overflow:hidden;text-overflow:ellipsis}
 .oa-live-head span{display:block;font-size:11.5px;color:${THEME.muted};margin-top:5px;line-height:1.35}
@@ -462,8 +473,10 @@ const css = `
 .oa-live-metrics small,.oa-live-flow small{display:block;font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:${THEME.muted};font-weight:900;margin-bottom:4px}
 .oa-live-metrics b,.oa-live-flow b{display:block;font-size:12px;color:${THEME.ink};line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .oa-live-flow{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;margin-top:auto}
+.oa-live-flow small{display:flex;align-items:center;gap:6px}
+.oa-live-flow small i{width:8px;height:8px;border-radius:999px;background:var(--obra-accent);box-shadow:0 0 0 3px var(--obra-soft)}
 .oa-live-progress{height:7px;background:#E8E4DE;border-radius:999px;overflow:hidden}
-.oa-live-progress i{display:block;height:100%;background:${THEME.gold};border-radius:999px}
+.oa-live-progress i{display:block;height:100%;background:var(--obra-accent);border-radius:999px}
 .oa-live-foot{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-start}
 .oa-live-foot span{background:#3A2B16;color:#FFE7B0;border:1px solid #B98226;border-radius:999px;padding:4px 7px;font-size:9.5px;font-weight:900}
 .oa-live-foot span.ok{background:#18311F;color:#CFF3DA;border-color:#2D7A4A}
