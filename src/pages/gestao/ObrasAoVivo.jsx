@@ -369,7 +369,14 @@ export default function ObrasAoVivo() {
           <EmptyState title={loading ? 'Carregando obras...' : 'Nenhuma obra neste filtro.'} />
         ) : (
           <div className="oa-live-grid">
-            {obrasFiltradas.map(item => <LiveCard key={item.obra.id} item={item} onOpen={() => navigate(`/obras/${item.obra.id}`)} />)}
+            {obrasFiltradas.map(item => (
+              <LiveCard
+                key={item.obra.id}
+                item={item}
+                onOpen={() => navigate(`/obras/${item.obra.id}`)}
+                onRoute={rota => navigate(rota)}
+              />
+            ))}
           </div>
         )}
       </PremiumCard>
@@ -377,7 +384,7 @@ export default function ObrasAoVivo() {
   )
 }
 
-function LiveCard({ item, onOpen }) {
+function LiveCard({ item, onOpen, onRoute }) {
   const obra = item.obra
   const status = statusBadge(obra.status)
   const cor = obraColor(obra)
@@ -392,11 +399,25 @@ function LiveCard({ item, onOpen }) {
         : item.pendencias.length
           ? 'Atenção pendente'
           : 'Sem alerta crítico'
+  const rotaObra = aba => `/obras/${obra.id}?aba=${aba}`
+  const irPara = (event, rota) => {
+    event.stopPropagation()
+    onRoute(rota)
+  }
+  const keyOpen = event => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      onOpen()
+    }
+  }
 
   return (
-    <button
+    <article
+      role="button"
+      tabIndex={0}
       className={`oa-live-card ${item.situacao}`}
       onClick={onOpen}
+      onKeyDown={keyOpen}
       style={{
         '--obra-accent': cor.accent,
         '--obra-soft': cor.soft,
@@ -412,33 +433,43 @@ function LiveCard({ item, onOpen }) {
         <em style={{ background: status.bg, color: status.color }}>{status.label}</em>
       </div>
 
-      <div className="oa-live-status">
+      <button className="oa-live-status oa-live-action" onClick={event => irPara(event, rotaObra(item.emCampo.length || item.semCheckin ? 'Equipe' : item.travada ? 'Ocorrencias' : item.pendencias.length ? abaPendencia(item.pendencias[0]) : 'Resumo'))}>
         <b>{alerta}</b>
         <small>{item.emCampo[0] || item.montadores[0] || 'Sem montador alocado'}</small>
-      </div>
+      </button>
 
       <div className="oa-live-metrics">
-        <span><small>Início</small><b>{item.inicio ? dataBR(item.inicio) : '-'}</b></span>
-        <span><small>Término</small><b>{item.fim ? dataBR(item.fim) : '-'}</b></span>
-        <span><small>Prazo</small><b>{prazoTexto(item.fim)}</b></span>
-        <span><small>Check-in</small><b>{ultimo ? `${diasDesde(ultimo)}d` : 'Nunca'}</b></span>
-        <span><small>Progresso</small><b>{progresso}%</b></span>
-        <span><small>Próximo</small><b>{item.proximo?.data ? dataBR(item.proximo.data) : '-'}</b></span>
+        <button onClick={event => irPara(event, rotaObra('Cronograma'))}><small>Início</small><b>{item.inicio ? dataBR(item.inicio) : '-'}</b></button>
+        <button onClick={event => irPara(event, rotaObra('Cronograma'))}><small>Término</small><b>{item.fim ? dataBR(item.fim) : '-'}</b></button>
+        <button onClick={event => irPara(event, rotaObra('Cronograma'))}><small>Prazo</small><b>{prazoTexto(item.fim)}</b></button>
+        <button onClick={event => irPara(event, rotaObra('Equipe'))}><small>Check-in</small><b>{ultimo ? `${diasDesde(ultimo)}d` : 'Nunca'}</b></button>
+        <button onClick={event => irPara(event, rotaObra('Cronograma'))}><small>Progresso</small><b>{progresso}%</b></button>
+        <button onClick={event => irPara(event, item.proximo?.id ? `${rotaObra('Agenda')}&compromisso=${item.proximo.id}` : rotaObra('Agenda'))}><small>Próximo</small><b>{item.proximo?.data ? dataBR(item.proximo.data) : '-'}</b></button>
       </div>
 
       <div className="oa-live-flow">
-        <div>
+        <button onClick={event => irPara(event, rotaObra('Cronograma'))}>
           <small><i />Fase atual</small>
           <b>{faseObra(obra)}</b>
-        </div>
+        </button>
         <div className="oa-live-progress"><i style={{ width: `${progresso}%` }} /></div>
       </div>
 
       <div className="oa-live-foot">
-        {item.pendencias.length ? item.pendencias.map(p => <span key={p}>{p}</span>) : <span className="ok">OK</span>}
+        {item.pendencias.length ? item.pendencias.map(p => (
+          <button key={p} onClick={event => irPara(event, rotaObra(abaPendencia(p)))}>{p}</button>
+        )) : <button className="ok" onClick={event => irPara(event, `/obras/${obra.id}`)}>OK</button>}
       </div>
-    </button>
+    </article>
   )
+}
+
+function abaPendencia(pendencia) {
+  const texto = normalizar(pendencia)
+  if (texto.includes('ocorrencia')) return 'Ocorrencias'
+  if (texto.includes('foto')) return 'Fotos'
+  if (texto.includes('checklist')) return 'Checklist'
+  return 'Resumo'
 }
 
 const css = `
@@ -461,25 +492,31 @@ const css = `
 .oa-live-card{border:1px solid var(--obra-border);border-left:7px solid var(--obra-accent);background:linear-gradient(135deg,var(--obra-soft),${THEME.elevated} 38%);border-radius:13px;padding:14px;min-height:250px;text-align:left;font-family:inherit;color:${THEME.ink};cursor:pointer;display:flex;flex-direction:column;gap:12px;box-shadow:inset 0 1px 0 rgba(255,255,255,.035)}
 .oa-live-card.warn{background:linear-gradient(135deg,var(--obra-soft),#211B14 42%)}
 .oa-live-card.danger{background:linear-gradient(135deg,var(--obra-soft),#251717 42%)}
+.oa-live-card button{font-family:inherit}
+.oa-live-card:focus-visible,.oa-live-card button:focus-visible{outline:2px solid var(--obra-accent);outline-offset:2px}
 .oa-live-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
 .oa-live-head strong{display:block;font-size:15px;line-height:1.16;color:${THEME.ink};font-weight:950;overflow:hidden;text-overflow:ellipsis}
 .oa-live-head span{display:block;font-size:11.5px;color:${THEME.muted};margin-top:5px;line-height:1.35}
 .oa-live-head em{font-style:normal;border-radius:999px;padding:5px 8px;font-size:10px;font-weight:900;white-space:nowrap}
-.oa-live-status{border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.035);border-radius:11px;padding:10px 11px}
+.oa-live-status{width:100%;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.035);border-radius:11px;padding:10px 11px;text-align:left;color:inherit;cursor:pointer}
+.oa-live-status:hover{border-color:var(--obra-border);background:rgba(255,255,255,.06)}
 .oa-live-status b{display:block;font-size:13.5px;color:${THEME.ink};line-height:1.2}
 .oa-live-status small{display:block;font-size:11.5px;color:${THEME.muted};margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .oa-live-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-.oa-live-metrics span{border:1px solid ${THEME.border};background:${THEME.card};border-radius:10px;padding:8px;min-width:0}
+.oa-live-metrics button{border:1px solid ${THEME.border};background:${THEME.card};border-radius:10px;padding:8px;min-width:0;text-align:left;color:inherit;cursor:pointer}
+.oa-live-metrics button:hover{border-color:var(--obra-border);background:var(--obra-soft)}
 .oa-live-metrics small,.oa-live-flow small{display:block;font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:${THEME.muted};font-weight:900;margin-bottom:4px}
 .oa-live-metrics b,.oa-live-flow b{display:block;font-size:12px;color:${THEME.ink};line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .oa-live-flow{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;margin-top:auto}
+.oa-live-flow button{border:0;background:transparent;padding:0;text-align:left;color:inherit;cursor:pointer}
 .oa-live-flow small{display:flex;align-items:center;gap:6px}
 .oa-live-flow small i{width:8px;height:8px;border-radius:999px;background:var(--obra-accent);box-shadow:0 0 0 3px var(--obra-soft)}
 .oa-live-progress{height:7px;background:#E8E4DE;border-radius:999px;overflow:hidden}
 .oa-live-progress i{display:block;height:100%;background:var(--obra-accent);border-radius:999px}
 .oa-live-foot{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-start}
-.oa-live-foot span{background:#3A2B16;color:#FFE7B0;border:1px solid #B98226;border-radius:999px;padding:4px 7px;font-size:9.5px;font-weight:900}
-.oa-live-foot span.ok{background:#18311F;color:#CFF3DA;border-color:#2D7A4A}
+.oa-live-foot button{background:#3A2B16;color:#FFE7B0;border:1px solid #B98226;border-radius:999px;padding:4px 7px;font-size:9.5px;font-weight:900;cursor:pointer}
+.oa-live-foot button:hover{border-color:var(--obra-border);background:var(--obra-soft);color:var(--obra-ink)}
+.oa-live-foot button.ok{background:#18311F;color:#CFF3DA;border-color:#2D7A4A}
 @media (max-width:980px){.oa-summary{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (max-width:760px){.oa-page{padding:22px 14px calc(112px + env(safe-area-inset-bottom))}.oa-header{display:block;margin-bottom:14px}.oa-eyebrow{font-size:9px;letter-spacing:2px;margin-bottom:4px}.oa-header h1{font-size:30px}.oa-header p{font-size:12.5px}.oa-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;justify-content:flex-start;margin-top:12px}.oa-actions button{padding:10px 9px;font-size:12px}.oa-summary{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.oa-summary button{min-height:72px;padding:12px}.oa-live-grid{grid-template-columns:1fr}.oa-live-card{min-height:0}.oa-live-head{display:block}.oa-live-head em{display:inline-flex;margin-top:9px}.oa-live-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
 `
