@@ -160,7 +160,7 @@ export default function Sidebar({ collapsed, setCollapsed, isMobile }) {
             <img
               src="/logo-ornare.png"
               alt="Ornare Works"
-              style={{ width: 150, height: 150, objectFit: 'contain', objectPosition: 'center', filter: 'brightness(0) invert(1)', flexShrink: 0, transform: 'translateX(-48px)', transformOrigin: 'center' }}
+              style={{ width: 160, height: 160, objectFit: 'contain', objectPosition: 'center', filter: 'brightness(0) invert(1)', flexShrink: 0 }}
               onError={e => e.target.style.display = 'none'}
             />
           </div>
