@@ -148,18 +148,19 @@ export default function Sidebar({ collapsed, setCollapsed, isMobile }) {
 
       {/* Logo */}
       <div style={{
-        padding: collapsed && !isMobile ? '18px 0' : '22px 16px 18px',
+        padding: collapsed && !isMobile ? '18px 0' : '14px 16px 12px',
         borderBottom: '1px solid ' + C.divider,
         display: 'flex', alignItems: 'center',
         justifyContent: collapsed && !isMobile ? 'center' : 'space-between',
-        gap: 8, minHeight: collapsed && !isMobile ? 64 : 92,
+        gap: 8, minHeight: 72,
+        overflow: 'hidden',
       }}>
         {(!collapsed || isMobile) && (
-          <div style={{ display: 'flex', alignItems: 'center', overflow: 'visible', minWidth: 0, flex: 1, height: 44 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', overflow: 'hidden', minWidth: 0, flex: 1, height: 42 }}>
             <img
               src="/logo-ornare.png"
               alt="Ornare Works"
-              style={{ width: 210, height: 210, objectFit: 'contain', objectPosition: 'center', filter: 'brightness(0) invert(1)', flexShrink: 0, transform: 'translate(-80px, -1px) scale(1.08)', transformOrigin: 'center' }}
+              style={{ width: 150, height: 150, objectFit: 'contain', objectPosition: 'center', filter: 'brightness(0) invert(1)', flexShrink: 0, transform: 'translateX(-48px)', transformOrigin: 'center' }}
               onError={e => e.target.style.display = 'none'}
             />
           </div>
