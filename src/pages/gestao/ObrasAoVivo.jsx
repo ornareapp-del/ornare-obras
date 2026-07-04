@@ -25,6 +25,7 @@ const STATUS = {
   producao: ['Em produção', 'Em producao'],
   montagem: ['Em montagem', 'Montagem agendada'],
   concluidas: ['Concluída', 'Concluida'],
+  canceladas: ['Cancelada'],
   travadas: ['Pausada', 'Cancelada'],
 }
 
@@ -211,7 +212,7 @@ export default function ObrasAoVivo() {
     const hojeStr = hoje.toISOString().split('T')[0]
     const amanha = new Date(hoje)
     amanha.setDate(amanha.getDate() + 1)
-    const ativos = dados.obras.filter(o => !inStatus(o, STATUS.concluidas) && !inStatus(o, STATUS.travadas))
+    const ativos = dados.obras.filter(o => !inStatus(o, STATUS.concluidas) && !inStatus(o, STATUS.canceladas))
 
     const ocorrPorObra = new Map()
     dados.ocorrencias.filter(o => isAberto(o.status)).forEach(o => {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Outlet, useNavigate } from 'react-router-dom'
 import BottomNavigation from './BottomNavigation'
 import Sidebar from './Sidebar'
@@ -19,6 +19,7 @@ export default function Layout() {
   const [notificacoes, setNotificacoes] = useState([])
   const [notificacoesAbertas, setNotificacoesAbertas] = useState(false)
   const [erroNotificacoes, setErroNotificacoes] = useState('')
+  const notificacoesRef = useRef(null)
   const online = useOnlineStatus()
 
   useEffect(() => {
@@ -61,6 +62,26 @@ export default function Layout() {
       window.clearInterval(timer)
     }
   }, [user?.id])
+
+  useEffect(() => {
+    if (!notificacoesAbertas) return undefined
+
+    function fecharAoClicarFora(event) {
+      if (notificacoesRef.current?.contains(event.target)) return
+      setNotificacoesAbertas(false)
+    }
+
+    function fecharComEsc(event) {
+      if (event.key === 'Escape') setNotificacoesAbertas(false)
+    }
+
+    document.addEventListener('pointerdown', fecharAoClicarFora)
+    document.addEventListener('keydown', fecharComEsc)
+    return () => {
+      document.removeEventListener('pointerdown', fecharAoClicarFora)
+      document.removeEventListener('keydown', fecharComEsc)
+    }
+  }, [notificacoesAbertas])
 
   async function abrirNotificacao(notificacao) {
     if (!notificacao) return
@@ -142,7 +163,7 @@ export default function Layout() {
       <main className="ow-app-main" style={{ flex: '1 1 auto', minWidth: 0, width: '100%', overflowY: 'auto', overflowX: 'hidden', transition: 'all 0.25s', background: theme.background, paddingTop: user?.id ? 60 : 0, boxSizing: 'border-box' }}>
 
         {user?.id && (
-          <div style={{ position: 'fixed', top: 0, right: 0, left: isMobile ? 0 : (collapsed ? 56 : 224), height: 60, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 24px', gap: 12, background: theme.background, borderBottom: '1px solid ' + theme.border, pointerEvents: 'none', boxSizing: 'border-box' }}>
+          <div ref={notificacoesRef} style={{ position: 'fixed', top: 0, right: 0, left: isMobile ? 0 : (collapsed ? 56 : 224), height: 60, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 24px', gap: 12, background: theme.background, borderBottom: '1px solid ' + theme.border, pointerEvents: 'none', boxSizing: 'border-box' }}>
             {temPendencias && !isMobile && (
               <button
                 onClick={() => setNotificacoesAbertas(v => !v)}
