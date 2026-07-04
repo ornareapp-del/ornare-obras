@@ -155,17 +155,13 @@ export default function Sidebar({ collapsed, setCollapsed, isMobile }) {
         gap: 8, minHeight: 64,
       }}>
         {(!collapsed || isMobile) && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', overflow: 'hidden', minWidth: 0 }}>
             <img
               src="/logo-ornare.png"
-              alt="Ornare"
-              style={{ height: 22, objectFit: 'contain', filter: 'brightness(10)', flexShrink: 0 }}
+              alt="Ornare Works"
+              style={{ width: 112, height: 'auto', maxHeight: 34, objectFit: 'contain', filter: 'brightness(0) invert(1)', flexShrink: 0 }}
               onError={e => e.target.style.display = 'none'}
             />
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: C.text, letterSpacing: 3 }}>ORNARE</div>
-              <div style={{ fontSize: 8, color: C.gold, letterSpacing: 2, marginTop: 1 }}>WORKS</div>
-            </div>
           </div>
         )}
 
