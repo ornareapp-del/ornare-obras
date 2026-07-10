@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useStore } from '../../store/useStore'
@@ -33,8 +33,8 @@ const FOTO_CATEGORIAS = [
   'Antes da montagem',
   'Durante a montagem',
   'Finalizado',
-  'Não conformidade',
-  'Técnica',
+  'NÃ£o conformidade',
+  'TÃ©cnica',
   'Entrega',
   'Cliente',
   'Geral',
@@ -42,12 +42,12 @@ const FOTO_CATEGORIAS = [
 const OFFLINE_QUEUE_KEY = 'ornare_montador_acoes_offline'
 
 const VISTORIA_CHECKLIST = [
-  'Conferir acesso à obra, elevador, carga e descarga.',
-  'Conferir pontos elétricos, hidráulicos e interferências aparentes.',
-  'Confirmar se a obra está apta para montagem.',
+  'Conferir acesso Ã  obra, elevador, carga e descarga.',
+  'Conferir pontos elÃ©tricos, hidrÃ¡ulicos e interferÃªncias aparentes.',
+  'Confirmar se a obra estÃ¡ apta para montagem.',
   'Registrar fotos de vistoria por ambiente.',
-  'Sinalizar pendências que podem impedir início.',
-  'Validar se ambientes estão limpos e desimpedidos.',
+  'Sinalizar pendÃªncias que podem impedir inÃ­cio.',
+  'Validar se ambientes estÃ£o limpos e desimpedidos.',
 ]
 
 const MONTAGEM_CHECKLIST = CHECKLIST_MONTAGEM_GERAL
@@ -154,17 +154,17 @@ function coordenadaCurta(value) {
 }
 
 function localizacaoCheckin(checkin) {
-  if (!checkin?.latitude || !checkin?.longitude) return 'Localização não registrada'
+  if (!checkin?.latitude || !checkin?.longitude) return 'LocalizaÃ§Ã£o nÃ£o registrada'
   const lat = coordenadaCurta(checkin.latitude)
   const lng = coordenadaCurta(checkin.longitude)
-  return lat && lng ? `Localização salva (${lat}, ${lng})` : 'Localização salva'
+  return lat && lng ? `LocalizaÃ§Ã£o salva (${lat}, ${lng})` : 'LocalizaÃ§Ã£o salva'
 }
 
 function statusAgenda(item) {
   const statusOriginal = item?.status || item?.situacao || item?.situacao_agenda
   if (statusOriginal) {
     const n = norm(statusOriginal)
-    if (n.includes('conclu') || n.includes('realiz')) return { label: 'Concluída', tone: 'success' }
+    if (n.includes('conclu') || n.includes('realiz')) return { label: 'ConcluÃ­da', tone: 'success' }
     if (n.includes('andamento')) return { label: 'Em andamento', tone: 'info' }
     if (n.includes('atras')) return { label: 'Atrasada', tone: 'danger' }
     if (n.includes('pend')) return { label: 'Pendente', tone: 'warn' }
@@ -181,19 +181,19 @@ function statusAgenda(item) {
 }
 
 function cidadeBairro(obra) {
-  if (!obra) return 'Local não informado'
-  return [obra.cidade, obra.bairro || obra.uf].filter(Boolean).join(' · ') || obra.cidade || obra.uf || 'Local não informado'
+  if (!obra) return 'Local nÃ£o informado'
+  return [obra.cidade, obra.bairro || obra.uf].filter(Boolean).join(' Â· ') || obra.cidade || obra.uf || 'Local nÃ£o informado'
 }
 
 function tipoAgenda(item) {
-  if (item.origem === 'inicio_previsto') return 'Início previsto'
-  if (item.origem === 'fim_previsto') return 'Previsão de término'
+  if (item.origem === 'inicio_previsto') return 'InÃ­cio previsto'
+  if (item.origem === 'fim_previsto') return 'PrevisÃ£o de tÃ©rmino'
   const tipo = norm(item.tipo || item.titulo || item.observacao || item.descricao)
   if (tipo.includes('vistoria')) return 'Vistoria'
-  if (tipo.includes('assist')) return 'Assistência técnica'
-  if (tipo.includes('medicao') || tipo.includes('medi')) return 'Medição'
+  if (tipo.includes('assist')) return 'AssistÃªncia tÃ©cnica'
+  if (tipo.includes('medicao') || tipo.includes('medi')) return 'MediÃ§Ã£o'
   if (tipo.includes('entrega')) return 'Entrega'
-  if (tipo.includes('reuniao') || tipo.includes('reuni')) return 'Reunião'
+  if (tipo.includes('reuniao') || tipo.includes('reuni')) return 'ReuniÃ£o'
   return 'Montagem'
 }
 
@@ -224,15 +224,15 @@ function faseObraMontador(obra) {
   const fase = faseOrnarePorKey(obra?.fase) || faseOrnarePorKey(obra?.fase_atual) || faseOrnarePorTexto(obra?.fase || obra?.fase_atual || obra?.status)
   const key = fase?.key
   const status = norm(obra?.status)
-  if (status.includes('conclu')) return { key: 'obra_concluida', label: 'Concluída', bg: '#EAF5EE', color: THEME.success, border: THEME.success }
+  if (status.includes('conclu')) return { key: 'obra_concluida', label: 'ConcluÃ­da', bg: '#EAF5EE', color: THEME.success, border: THEME.success }
   if (status.includes('em montagem')) return { key: 'montagem', label: 'Em montagem', bg: '#EAF5EE', color: THEME.success, border: THEME.success, andamento: true }
-  if (status.includes('aguardando montagem')) return { key, label: 'Aguardando liberação', bg: '#FFF7E8', color: '#9A6A22', border: '#E8A020' }
-  if (status.includes('aguardando inicio') && ['producao', 'executivo', 'vistoria_medida'].includes(key)) return { key, label: 'Em produção', bg: 'rgba(255,255,255,.15)', color: '#FFFFFF', border: 'rgba(255,255,255,.28)', producao: true }
-  if (key === 'vistoria_tecnica' || key === 'entrega_moveis') return { key, label: 'Aguardando liberação', bg: '#FFF7E8', color: '#9A6A22', border: '#E8A020' }
+  if (status.includes('aguardando montagem')) return { key, label: 'Aguardando liberaÃ§Ã£o', bg: '#FFF7E8', color: '#9A6A22', border: '#E8A020' }
+  if (status.includes('aguardando inicio') && ['producao', 'executivo', 'vistoria_medida'].includes(key)) return { key, label: 'Em produÃ§Ã£o', bg: 'rgba(255,255,255,.15)', color: '#FFFFFF', border: 'rgba(255,255,255,.28)', producao: true }
+  if (key === 'vistoria_tecnica' || key === 'entrega_moveis') return { key, label: 'Aguardando liberaÃ§Ã£o', bg: '#FFF7E8', color: '#9A6A22', border: '#E8A020' }
   if (key === 'montagem') return { key, label: 'Em montagem', bg: '#EAF5EE', color: THEME.success, border: THEME.success, andamento: true }
   if (key === 'montagem_finalizada') return { key, label: 'Montagem finalizada', bg: '#EEF5FF', color: '#2563EB', border: '#2563EB', solicitarVistoria: true }
   if (key === 'vistoria_final') return { key, label: 'Vistoria final pendente', bg: '#FFF8EC', color: THEME.gold, border: THEME.gold }
-  return { key: key || 'aguardando', label: 'Aguardando início', bg: '#F3F1ED', color: '#8A8175', border: '#9E9E9E' }
+  return { key: key || 'aguardando', label: 'Aguardando inÃ­cio', bg: '#F3F1ED', color: '#8A8175', border: '#9E9E9E' }
 }
 
 function diasEmAndamento(obra) {
@@ -363,7 +363,13 @@ export default function MontadorDashboard() {
   }
 
   function limparFotoSelecionada() {
-    if (fotoSelecionada?.previewUrl) URL.revokeObjectURL(fotoSelecionada.previewUrl)
+    if (fotoSelecionada?.files?.length) {
+      fotoSelecionada.files.forEach(item => {
+        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl)
+      })
+    } else if (fotoSelecionada?.previewUrl) {
+      URL.revokeObjectURL(fotoSelecionada.previewUrl)
+    }
     setFotoSelecionada(null)
   }
 
@@ -441,7 +447,7 @@ export default function MontadorDashboard() {
       setAgenda(agendaMontador(dados.agendaResult))
     } catch (error) {
       console.error('Erro inesperado ao recarregar dados da obra:', error)
-      mostrarSucesso('Não foi possível atualizar os dados da obra.')
+      mostrarSucesso('NÃ£o foi possÃ­vel atualizar os dados da obra.')
     } finally {
       setLoadingObra(false)
     }
@@ -459,8 +465,8 @@ export default function MontadorDashboard() {
         .eq('montador_id', user.id)
 
       if (vinculosResult.error) {
-        console.error('Erro ao carregar vínculos do montador:', vinculosResult.error)
-        mostrarSucesso('Não foi possível carregar suas obras.')
+        console.error('Erro ao carregar vÃ­nculos do montador:', vinculosResult.error)
+        mostrarSucesso('NÃ£o foi possÃ­vel carregar suas obras.')
       }
 
       if (!ativo) return
@@ -528,7 +534,7 @@ export default function MontadorDashboard() {
         setAgenda(agendaMontador(dados.agendaResult))
       } catch (error) {
         console.error('Erro inesperado ao carregar dados da obra ativa:', error)
-        if (ativo) mostrarSucesso('Não foi possível carregar os dados da obra.')
+        if (ativo) mostrarSucesso('NÃ£o foi possÃ­vel carregar os dados da obra.')
       } finally {
         if (ativo) setLoadingObra(false)
       }
@@ -555,8 +561,14 @@ export default function MontadorDashboard() {
   }, [online])
 
   useEffect(() => () => {
-    if (fotoSelecionada?.previewUrl) URL.revokeObjectURL(fotoSelecionada.previewUrl)
-  }, [fotoSelecionada?.previewUrl])
+    if (fotoSelecionada?.files?.length) {
+      fotoSelecionada.files.forEach(item => {
+        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl)
+      })
+    } else if (fotoSelecionada?.previewUrl) {
+      URL.revokeObjectURL(fotoSelecionada.previewUrl)
+    }
+  }, [fotoSelecionada])
 
   async function logout() {
     await supabase.auth.signOut()
@@ -586,7 +598,7 @@ export default function MontadorDashboard() {
       .in('role', ['gestao', 'pos_venda', 'vendedor'])
 
     if (gestoresError) {
-      console.error('Erro ao buscar destinatários das notificações:', gestoresError)
+      console.error('Erro ao buscar destinatÃ¡rios das notificaÃ§Ãµes:', gestoresError)
     }
 
     ;(gestores || []).forEach(p => p.id && destinatarios.add(p.id))
@@ -615,7 +627,7 @@ export default function MontadorDashboard() {
 
     if (registros.length) {
       const { error } = await criarNotificacoes(registros)
-      if (error) console.error('Erro ao criar notificações operacionais:', error)
+      if (error) console.error('Erro ao criar notificaÃ§Ãµes operacionais:', error)
     }
   }
 
@@ -642,9 +654,9 @@ export default function MontadorDashboard() {
       lng = pos.coords.longitude
       localizacaoAutorizada = true
     } catch (error) {
-      console.warn('Check-in sem localização disponível:', error)
+      console.warn('Check-in sem localizaÃ§Ã£o disponÃ­vel:', error)
       setServicoFeedback(mensagemGeolocalizacao(error, 'Check-in'))
-      // O check-in continua mesmo se a localização não estiver disponível.
+      // O check-in continua mesmo se a localizaÃ§Ã£o nÃ£o estiver disponÃ­vel.
     }
 
     const compromisso = compromissoAtual()
@@ -653,8 +665,8 @@ export default function MontadorDashboard() {
 
     if (authError || !userId) {
       logError('checkin.identify_user_failed', authError || new Error('Usuario sem id para check-in'), { obraId: obraAtiva.id })
-      console.error('Erro ao identificar usuário para check-in:', authError)
-      mostrarSucesso('Não foi possível identificar o usuário logado.')
+      console.error('Erro ao identificar usuÃ¡rio para check-in:', authError)
+      mostrarSucesso('NÃ£o foi possÃ­vel identificar o usuÃ¡rio logado.')
       setCheckando(false)
       return
     }
@@ -686,8 +698,8 @@ export default function MontadorDashboard() {
 
     if (resultado.error) {
       logError('checkin.insert_failed', resultado.error, { obraId: obraAtiva.id, agendaId: compromisso?.id || null, fallback: true })
-      console.error('Erro no check-in com payload mínimo:', resultado.error)
-      mostrarSucesso('Não foi possível registrar o check-in. Verifique permissão de acesso à obra.')
+      console.error('Erro no check-in com payload mÃ­nimo:', resultado.error)
+      mostrarSucesso('NÃ£o foi possÃ­vel registrar o check-in. Verifique permissÃ£o de acesso Ã  obra.')
       setCheckando(false)
       return
     }
@@ -702,7 +714,7 @@ export default function MontadorDashboard() {
     await criarNotificacoesOperacionais({
       tipo: 'checkin',
       titulo: 'Montador fez check-in',
-      descricao: `${profile?.full_name || 'Montador'} iniciou serviço em ${obraAtiva.nome || 'obra'}.`,
+      descricao: `${profile?.full_name || 'Montador'} iniciou serviÃ§o em ${obraAtiva.nome || 'obra'}.`,
       entidadeTipo: 'checkin',
       entidadeId: null,
       agendaId: compromisso?.id,
@@ -731,7 +743,7 @@ export default function MontadorDashboard() {
         lat = pos.coords.latitude
         lng = pos.coords.longitude
       } catch (error) {
-        console.warn('Check-out sem localização disponível:', error)
+        console.warn('Check-out sem localizaÃ§Ã£o disponÃ­vel:', error)
         setServicoFeedback(mensagemGeolocalizacao(error, 'Check-out'))
         // Check-out continua mesmo sem localizacao.
       }
@@ -742,14 +754,14 @@ export default function MontadorDashboard() {
       }).eq('id', ultimo.id)
       if (error) {
         logError('checkout.update_failed', error, { obraId: obraAtiva?.id, checkinId: ultimo.id })
-        mostrarSucesso('Não foi possível registrar o check-out.')
+        mostrarSucesso('NÃ£o foi possÃ­vel registrar o check-out.')
         setCheckando(false)
         return
       }
       await criarNotificacoesOperacionais({
         tipo: 'checkout',
         titulo: 'Montador fez check-out',
-        descricao: `${profile?.full_name || 'Montador'} finalizou serviço em ${obraAtiva.nome || 'obra'}.`,
+        descricao: `${profile?.full_name || 'Montador'} finalizou serviÃ§o em ${obraAtiva.nome || 'obra'}.`,
         entidadeTipo: 'checkin',
         entidadeId: ultimo.id,
         agendaId: ultimo.agenda_id,
@@ -788,7 +800,7 @@ export default function MontadorDashboard() {
       ambiente_id: null,
       descricao,
       concluido: false,
-      fase: 'Pré-Montagem',
+      fase: 'PrÃ©-Montagem',
       responsavel_perfil: 'montador',
       responsavel_id: user?.id || null,
       status: 'pendente',
@@ -805,14 +817,14 @@ export default function MontadorDashboard() {
     const { error } = await supabase.from('tarefas').update({ status }).eq('id', id)
     if (error) {
       console.error('Erro ao atualizar tarefa:', error)
-      mostrarSucesso('Não foi possível atualizar a tarefa.')
+      mostrarSucesso('NÃ£o foi possÃ­vel atualizar a tarefa.')
       return
     }
     if (status === 'em_andamento') await gerarChecklistVistoriaTarefa(tarefa)
     if (status === 'em_andamento' || status === 'concluida') {
       await criarNotificacoesOperacionais({
         tipo: status === 'concluida' ? 'tarefa_concluida' : 'tarefa_iniciada',
-        titulo: status === 'concluida' ? 'Tarefa concluída' : 'Tarefa iniciada',
+        titulo: status === 'concluida' ? 'Tarefa concluÃ­da' : 'Tarefa iniciada',
         descricao: `${profile?.full_name || 'Montador'} ${status === 'concluida' ? 'concluiu' : 'iniciou'} ${tarefa?.titulo || tarefa?.descricao || 'uma tarefa operacional'}.`,
         entidadeTipo: 'tarefas',
         entidadeId: id,
@@ -827,11 +839,11 @@ export default function MontadorDashboard() {
     if (!tarefaAberta?.id) return
     const { error } = await supabase.from('tarefas').update({ observacao: observacaoTarefa }).eq('id', tarefaAberta.id)
     if (error) {
-      console.error('Erro ao salvar observação da tarefa:', error)
-      mostrarSucesso('Não foi possível salvar a observação.')
+      console.error('Erro ao salvar observaÃ§Ã£o da tarefa:', error)
+      mostrarSucesso('NÃ£o foi possÃ­vel salvar a observaÃ§Ã£o.')
       return
     }
-    mostrarSucesso('Observação salva.')
+    mostrarSucesso('ObservaÃ§Ã£o salva.')
     setTarefaAberta(p => p ? { ...p, observacao: observacaoTarefa } : p)
     await carregarDadosObra()
   }
@@ -853,14 +865,14 @@ export default function MontadorDashboard() {
     if (error) {
       logError('checklist.montador_update_failed', error, { obraId: obraAtiva?.id, checklistId: item.id, concluindo })
       console.error('Erro ao salvar checklist:', { error, item })
-      mostrarSucesso('Não foi possível salvar o checklist.')
+      mostrarSucesso('NÃ£o foi possÃ­vel salvar o checklist.')
       setChecklistSalvando('')
       return
     }
     if (concluindo) {
       await criarNotificacoesOperacionais({
         tipo: 'checklist',
-        titulo: 'Item de checklist concluído',
+        titulo: 'Item de checklist concluÃ­do',
         descricao: item.descricao || 'Checklist atualizado pelo montador.',
         entidadeTipo: 'checklist_items',
         entidadeId: item.id,
@@ -879,11 +891,11 @@ export default function MontadorDashboard() {
     if (error) {
       logError('checklist.montador_delete_failed', error, { obraId: obraAtiva?.id, checklistId: item.id })
       console.error('Erro ao excluir checklist:', { error, item })
-      mostrarSucesso('Não foi possível excluir o item.')
+      mostrarSucesso('NÃ£o foi possÃ­vel excluir o item.')
       return
     }
     setItemAcao('')
-    mostrarSucesso('Item excluído.')
+    mostrarSucesso('Item excluÃ­do.')
     await carregarDadosObra()
   }
 
@@ -904,7 +916,7 @@ export default function MontadorDashboard() {
     if (error) {
       logError('checklist.montador_insert_failed', error, { obraId: obraAtiva.id, ambienteId })
       console.error('Erro ao adicionar checklist:', error)
-      mostrarSucesso('Não foi possível adicionar o item.')
+      mostrarSucesso('NÃ£o foi possÃ­vel adicionar o item.')
     } else {
       setNovoChecklist('')
       mostrarSucesso('Item adicionado ao checklist.')
@@ -923,99 +935,138 @@ export default function MontadorDashboard() {
   }
 
   function handleSelecionarFoto(e) {
-    const file = e.target.files?.[0]
-    if (!file || !obraAtiva || !user) return
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0 || !obraAtiva || !user) return
     limparFotoSelecionada()
-    setFotoSelecionada({
+    const selecionadas = files.map(file => ({
       file,
       previewUrl: URL.createObjectURL(file),
       name: file.name,
       size: file.size,
+    }))
+    const totalSize = files.reduce((total, file) => total + file.size, 0)
+    setFotoSelecionada({
+      files: selecionadas,
+      previewUrl: selecionadas[0]?.previewUrl,
+      name: files.length === 1 ? files[0].name : `${files.length} fotos selecionadas`,
+      size: totalSize,
     })
-    setUploadFeedback(`Foto selecionada: ${file.name} (${formatFileSize(file.size)}). Confira o preview antes de enviar.`)
+    setUploadFeedback(files.length === 1
+      ? `Foto selecionada: ${files[0].name} (${formatFileSize(files[0].size)}). Confira o preview antes de enviar.`
+      : `${files.length} fotos selecionadas (${formatFileSize(totalSize)}). Elas serÃ£o enviadas uma por uma e ficarÃ£o disponÃ­veis para aprovaÃ§Ã£o do supervisor.`)
     e.target.value = ''
   }
 
   async function enviarFotoSelecionada() {
-    const file = fotoSelecionada?.file
-    if (!file || !obraAtiva || !user) {
-      setUploadFeedback('Selecione uma foto antes de enviar.')
+    const arquivos = fotoSelecionada?.files?.length
+      ? fotoSelecionada.files
+      : fotoSelecionada?.file
+        ? [fotoSelecionada]
+        : []
+
+    if (!arquivos.length || !obraAtiva || !user) {
+      setUploadFeedback('Selecione uma ou mais fotos antes de enviar.')
       return
     }
+
     if (isAppOffline()) {
-      guardarAcaoOffline({ tipo: 'foto', categoria: formFoto.categoria || '', ambiente_id: formFoto.ambiente_id || null, agenda_id: formFoto.agenda_id || null, observacao: formFoto.observacao || '', fileType: file.type, fileSize: file.size })
-      setUploadFeedback('Sem conexao. Dados da foto guardados neste aparelho; quando voltar a internet, selecione o arquivo novamente e envie.')
-      mostrarSucesso('Foto guardada como pendente local.')
+      guardarAcaoOffline({
+        tipo: 'foto',
+        categoria: formFoto.categoria || '',
+        ambiente_id: formFoto.ambiente_id || null,
+        agenda_id: formFoto.agenda_id || null,
+        observacao: formFoto.observacao || '',
+        quantidade: arquivos.length,
+        totalSize: arquivos.reduce((total, item) => total + (item.file?.size || item.size || 0), 0),
+      })
+      setUploadFeedback('Sem conexao. A intencao de envio foi guardada; quando a internet voltar, selecione as fotos novamente e envie.')
+      mostrarSucesso('Envio de fotos guardado como pendente local.')
       return
     }
+
     if (!formFoto.categoria) {
-      setUploadFeedback('Escolha uma categoria obrigatória antes de enviar.')
+      setUploadFeedback('Escolha uma categoria obrigatoria antes de enviar.')
       mostrarSucesso('Escolha uma categoria antes de enviar.')
       return
     }
 
     setUploading(true)
-    let uploadConcluido = false
+    let enviados = 0
+    let erroParcial = null
 
     try {
-      setUploadFeedback('Preparando imagem para envio...')
-      const imagem = await prepararImagemUpload(file, { maxWidth: 1600, maxHeight: 1600, quality: 0.76 })
-      const uploadFile = imagem.file
-      const ext = uploadFile.name.split('.').pop() || 'jpg'
-      const path = `${obraAtiva.id}/${Date.now()}.${ext}`
-      setUploadFeedback(imagem.compressed
-        ? `Imagem comprimida de ${formatFileSize(imagem.originalSize)} para ${formatFileSize(imagem.finalSize)}. Enviando...`
-        : 'Enviando foto para o armazenamento...')
-      const { error: uploadError } = await supabase.storage.from('fotos-obras').upload(path, uploadFile)
-      if (uploadError) {
-        logError('upload.montador_storage_failed', uploadError, { obraId: obraAtiva.id, categoria: formFoto.categoria, fileSize: uploadFile.size, fileType: uploadFile.type })
-        setUploadFeedback(`Erro de upload: ${uploadError.message || 'não foi possível enviar o arquivo.'}`)
-        throw uploadError
-      }
-      uploadConcluido = true
-      setUploadFeedback('Upload concluído. Vinculando foto à obra no Supabase...')
+      for (const [index, item] of arquivos.entries()) {
+        const file = item.file || item
+        setUploadFeedback(`Preparando foto ${index + 1} de ${arquivos.length} para envio...`)
 
-      const { data: fotoCriada, error: insertError } = await supabase.from('fotos').insert([{
-        obra_id: obraAtiva.id,
-        enviada_por: user.id,
-        categoria: formFoto.categoria,
-        ambiente_id: formFoto.ambiente_id || null,
-        agenda_id: formFoto.agenda_id || null,
-        aprovada: false,
-        aprovada_gestao: false,
-        visivel_cliente: false,
-        visibilidade: 'interna',
-        observacao: formFoto.observacao || file.name,
-        storage_path: path,
-      }]).select('id, agenda_id, categoria').single()
-      if (insertError) {
-        logError('upload.montador_insert_failed', insertError, { obraId: obraAtiva.id, categoria: formFoto.categoria, storagePath: path })
-        setUploadFeedback(`Erro do Supabase: ${insertError.message || 'foto enviada, mas não vinculada à obra.'}`)
-        throw insertError
+        const imagem = await prepararImagemUpload(file, { maxWidth: 1600, maxHeight: 1600, quality: 0.76 })
+        const uploadFile = imagem.file
+        const ext = uploadFile.name.split('.').pop() || 'jpg'
+        const path = `${obraAtiva.id}/${Date.now()}-${index}.${ext}`
+
+        setUploadFeedback(imagem.compressed
+          ? `Foto ${index + 1}/${arquivos.length}: comprimida de ${formatFileSize(imagem.originalSize)} para ${formatFileSize(imagem.finalSize)}. Enviando...`
+          : `Enviando foto ${index + 1} de ${arquivos.length} para o armazenamento...`)
+
+        const { error: uploadError } = await supabase.storage.from('fotos-obras').upload(path, uploadFile)
+        if (uploadError) {
+          logError('upload.montador_storage_failed', uploadError, { obraId: obraAtiva.id, categoria: formFoto.categoria, fileSize: uploadFile.size, fileType: uploadFile.type, index })
+          setUploadFeedback(`Erro de upload na foto ${index + 1}: ${uploadError.message || 'nao foi possivel enviar o arquivo.'}`)
+          throw uploadError
+        }
+
+        setUploadFeedback(`Foto ${index + 1}/${arquivos.length} enviada. Vinculando a obra...`)
+        const { data: fotoCriada, error: insertError } = await supabase.from('fotos').insert([{
+          obra_id: obraAtiva.id,
+          enviada_por: user.id,
+          categoria: formFoto.categoria,
+          ambiente_id: formFoto.ambiente_id || null,
+          agenda_id: formFoto.agenda_id || null,
+          aprovada: false,
+          aprovada_gestao: false,
+          visivel_cliente: false,
+          visibilidade: 'interna',
+          observacao: formFoto.observacao || file.name,
+          storage_path: path,
+        }]).select('id, agenda_id, categoria').single()
+
+        if (insertError) {
+          logError('upload.montador_insert_failed', insertError, { obraId: obraAtiva.id, categoria: formFoto.categoria, storagePath: path, index })
+          setUploadFeedback(`Erro do Supabase na foto ${index + 1}: ${insertError.message || 'foto enviada, mas nao vinculada a obra.'}`)
+          throw insertError
+        }
+
+        enviados += 1
+        await criarNotificacoesOperacionais({
+          tipo: 'foto',
+          titulo: 'Foto aguardando aprovacao',
+          descricao: `${profile?.full_name || 'Montador'} enviou foto de ${fotoCriada?.categoria || formFoto.categoria}.`,
+          entidadeTipo: 'fotos',
+          entidadeId: fotoCriada?.id,
+          agendaId: fotoCriada?.agenda_id || formFoto.agenda_id,
+          prioridade: formFoto.categoria === 'Nao conformidade' ? 'alta' : 'normal',
+        })
       }
 
-      await criarNotificacoesOperacionais({
-        tipo: 'foto',
-        titulo: 'Foto aguardando aprovação',
-        descricao: `${profile?.full_name || 'Montador'} enviou foto de ${fotoCriada?.categoria || formFoto.categoria}.`,
-        entidadeTipo: 'fotos',
-        entidadeId: fotoCriada?.id,
-        agendaId: fotoCriada?.agenda_id || formFoto.agenda_id,
-        prioridade: formFoto.categoria === 'Não conformidade' ? 'alta' : 'normal',
-      })
-      setFormFoto({ categoria: '', ambiente_id: '', agenda_id: '', observacao: '' })
+      setFormFoto(p => ({ ...p, observacao: '' }))
       limparFotoSelecionada()
-      setUploadFeedback('Foto enviada e vinculada à obra. A gestão precisa aprovar antes de liberar ao cliente.')
-      mostrarSucesso('Foto enviada.')
+      setUploadFeedback(enviados === 1
+        ? 'Foto enviada. Ela fica interna para aprovacao do supervisor; voce pode enviar mais fotos agora.'
+        : `${enviados} fotos enviadas. Elas ficam internas para aprovacao do supervisor; voce pode enviar mais fotos agora.`)
+      mostrarSucesso(enviados === 1 ? 'Foto enviada.' : `${enviados} fotos enviadas.`)
       await carregarDadosObra()
     } catch (error) {
+      erroParcial = error
       console.error('Erro ao enviar foto do montador:', error)
-      if (uploadConcluido) {
-        mostrarSucesso('Foto enviada, mas nao foi vinculada a obra.')
-        return
+      if (enviados > 0) {
+        setUploadFeedback(`${enviados} foto(s) enviada(s), mas uma foto falhou: ${error?.message || 'erro desconhecido'}. As enviadas ficam internas para aprovacao.`)
+        mostrarSucesso('Envio parcial de fotos.')
+        await carregarDadosObra()
+      } else {
+        mostrarSucesso('Nao foi possivel enviar as fotos.')
       }
-      mostrarSucesso('Não foi possível enviar a foto.')
     } finally {
+      if (!erroParcial || enviados > 0) limparFotoSelecionada()
       setUploading(false)
     }
   }
@@ -1031,7 +1082,7 @@ export default function MontadorDashboard() {
     const { data: ocorrenciaCriada, error } = await supabase.from('ocorrencias').insert([{
       obra_id: obraAtiva.id,
       criado_por: user.id,
-      tipo: 'Problema técnico',
+      tipo: 'Problema tÃ©cnico',
       titulo: modalProblema?.titulo || 'Problema reportado pelo montador',
       descricao: problema.trim(),
       gravidade: 'media',
@@ -1040,14 +1091,14 @@ export default function MontadorDashboard() {
 
     if (error) {
       console.error('Erro ao registrar problema do montador:', error)
-      mostrarSucesso('Não foi possível registrar o problema.')
+      mostrarSucesso('NÃ£o foi possÃ­vel registrar o problema.')
       setSalvandoProblema(false)
       return
     }
 
     await criarNotificacoesOperacionais({
       tipo: 'ocorrencia',
-      titulo: 'Ocorrência criada',
+      titulo: 'OcorrÃªncia criada',
       descricao: ocorrenciaCriada?.titulo || 'Problema reportado pelo montador.',
       entidadeTipo: 'ocorrencias',
       entidadeId: ocorrenciaCriada?.id,
@@ -1101,8 +1152,8 @@ export default function MontadorDashboard() {
         obra_nome: obra.nome || 'Obra',
         data: dataInicioPrevistaObra(obra),
         hora_inicio: '',
-        tipo: 'Início previsto',
-        titulo: 'Início previsto',
+        tipo: 'InÃ­cio previsto',
+        titulo: 'InÃ­cio previsto',
         origem: 'inicio_previsto',
       }))
       .filter(item => item.data)
@@ -1113,8 +1164,8 @@ export default function MontadorDashboard() {
         obra_nome: obra.nome || 'Obra',
         data: dataFimPrevistaObra(obra),
         hora_inicio: '',
-        tipo: 'Previsão de término',
-        titulo: 'Previsão de término',
+        tipo: 'PrevisÃ£o de tÃ©rmino',
+        titulo: 'PrevisÃ£o de tÃ©rmino',
         origem: 'fim_previsto',
       }))
       .filter(item => item.data)
@@ -1172,7 +1223,7 @@ export default function MontadorDashboard() {
       })),
       ...checklistConcluidos.slice(0, 4).map(i => ({
         id: `checklist-${i.id}`,
-        tipo: 'Checklist concluído',
+        tipo: 'Checklist concluÃ­do',
         detalhe: i.descricao,
         data: i.concluido_em,
       })),
@@ -1238,7 +1289,7 @@ export default function MontadorDashboard() {
     return (
       <div className="md-page">
         <style>{css}</style>
-        <div className="md-loading">Carregando sua operação...</div>
+        <div className="md-loading">Carregando sua operaÃ§Ã£o...</div>
       </div>
     )
   }
@@ -1250,12 +1301,12 @@ export default function MontadorDashboard() {
         <header className="md-top">
           <div>
             <span style={{ color: '#E8C96A' }}>Ornare Works</span>
-            <h1>Olá, {profile?.full_name?.split(' ')[0] || 'Montador'}</h1>
+            <h1>OlÃ¡, {profile?.full_name?.split(' ')[0] || 'Montador'}</h1>
           </div>
         </header>
         <section className="md-empty-card">
           <strong>Nenhuma obra alocada</strong>
-          <p>Aguarde seu supervisor vincular você a uma obra.</p>
+          <p>Aguarde seu supervisor vincular vocÃª a uma obra.</p>
           <button className="md-profile-logout" onClick={logout}>Sair da conta</button>
         </section>
       </div>
@@ -1278,7 +1329,7 @@ export default function MontadorDashboard() {
         <div className="md-modal-bg" onClick={e => e.target === e.currentTarget && setModalProblema(null)}>
           <div className="md-modal">
             <h2>Relatar problema</h2>
-            <p>{typeof modalProblema === 'string' ? modalProblema : modalProblema.titulo || 'Ocorrência da obra'}</p>
+            <p>{typeof modalProblema === 'string' ? modalProblema : modalProblema.titulo || 'OcorrÃªncia da obra'}</p>
             <textarea value={problema} onChange={e => setProblema(e.target.value)} placeholder="Descreva o que aconteceu..." rows={4} />
             <div className="md-modal-actions">
               <button onClick={() => { setModalProblema(null); setProblema('') }}>Cancelar</button>
@@ -1316,10 +1367,10 @@ export default function MontadorDashboard() {
             <div className="md-task-photo-actions">
               <button onClick={() => { setFormFoto(p => ({ ...p, categoria: 'Vistoria' })); setTarefaAberta(null); setTelaAtiva('fotos') }}>Tirar/enviar foto</button>
             </div>
-            <textarea value={observacaoTarefa} onChange={e => setObservacaoTarefa(e.target.value)} placeholder="Observação da tarefa..." rows={4} />
+            <textarea value={observacaoTarefa} onChange={e => setObservacaoTarefa(e.target.value)} placeholder="ObservaÃ§Ã£o da tarefa..." rows={4} />
             <div className="md-modal-actions">
               <button onClick={() => setTarefaAberta(null)}>Fechar</button>
-              <button className="gold" onClick={salvarObservacaoTarefa}>Salvar observação</button>
+              <button className="gold" onClick={salvarObservacaoTarefa}>Salvar observaÃ§Ã£o</button>
             </div>
           </div>
         </div>
@@ -1334,7 +1385,7 @@ export default function MontadorDashboard() {
               <button onClick={() => mudarMesCalendario(1)}>{'>'}</button>
             </div>
             <div className="md-calendar-week">
-              {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(dia => <span key={dia}>{dia}</span>)}
+              {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'SÃ¡b'].map(dia => <span key={dia}>{dia}</span>)}
             </div>
             <div className="md-calendar-grid">
               {diasCalendario.map(dia => (
@@ -1379,7 +1430,7 @@ export default function MontadorDashboard() {
       <header className="md-top" ref={perfilRef}>
         <div>
           <span>Ornare Works</span>
-          <h1>Olá, {profile?.full_name?.split(' ')[0] || 'Montador'}</h1>
+          <h1>OlÃ¡, {profile?.full_name?.split(' ')[0] || 'Montador'}</h1>
           <small>{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</small>
         </div>
         <div className="md-top-actions">
@@ -1418,13 +1469,13 @@ export default function MontadorDashboard() {
         <p>{cidadeBairro(obraAtiva)}</p>
         <div className="md-progress"><i style={{ width: `${obraAtiva.progresso || 0}%` }} /></div>
         <div className="md-obra-dates">
-          <small>Início previsto: {obraAtiva.data_previsao_inicio ? dataBR(obraAtiva.data_previsao_inicio) : dataBR(obraAtiva.data_inicio)}</small>
-          <small>Previsão de término: {previsao ? dataBR(previsao) : 'não informada'}</small>
+          <small>InÃ­cio previsto: {obraAtiva.data_previsao_inicio ? dataBR(obraAtiva.data_previsao_inicio) : dataBR(obraAtiva.data_inicio)}</small>
+          <small>PrevisÃ£o de tÃ©rmino: {previsao ? dataBR(previsao) : 'nÃ£o informada'}</small>
         </div>
         {(() => {
           const faseMontador = faseObraMontador(obraAtiva)
           if (obraAguardandoInicio(obraAtiva)) {
-            return <div className="md-work-day muted">Aguardando liberação para montagem</div>
+            return <div className="md-work-day muted">Aguardando liberaÃ§Ã£o para montagem</div>
           }
           if (faseMontador.solicitarVistoria) {
             return <button className="md-start-work secondary" onClick={() => setModalProblema({ titulo: 'Solicitar vistoria final', agenda_id: null })}>Solicitar vistoria final</button>
@@ -1433,7 +1484,7 @@ export default function MontadorDashboard() {
             return <div className="md-work-day gold">Vistoria final pendente</div>
           }
           if (faseMontador.andamento || norm(obraAtiva.status).includes('montagem')) {
-            return <div className="md-work-day">Em andamento · Dia {diasEmAndamento(obraAtiva) || 1}</div>
+            return <div className="md-work-day">Em andamento Â· Dia {diasEmAndamento(obraAtiva) || 1}</div>
           }
           return <div className="md-work-day muted">{faseMontador.label}</div>
         })()}
@@ -1444,8 +1495,8 @@ export default function MontadorDashboard() {
           <span>Hoje - {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
           {obraAguardandoInicio(obraAtiva) ? (
             <>
-              <p className="md-check-primary">Obra ainda não iniciada</p>
-              <small>Inicie a obra antes de registrar presença em campo.</small>
+              <p className="md-check-primary">Obra ainda nÃ£o iniciada</p>
+              <small>Inicie a obra antes de registrar presenÃ§a em campo.</small>
             </>
           ) : vm.registrosHoje.length > 0 ? (
             <>
@@ -1463,7 +1514,7 @@ export default function MontadorDashboard() {
             </>
           ) : (
             <>
-              <p className="md-check-primary">Fora de serviço · Sem registro hoje</p>
+              <p className="md-check-primary">Fora de serviÃ§o Â· Sem registro hoje</p>
               <small>Obra: {obraAtiva.nome || 'Obra ativa'}</small>
             </>
           )}
@@ -1505,7 +1556,7 @@ export default function MontadorDashboard() {
         <div className="md-card-head compact">
           <div>
             <h2>Checklist do dia</h2>
-            <small className="md-card-sub">{vm.checklistConcluidos.length} de {checklist.length} itens concluídos</small>
+            <small className="md-card-sub">{vm.checklistConcluidos.length} de {checklist.length} itens concluÃ­dos</small>
           </div>
           <span>{vm.pctChecklist}%</span>
         </div>
@@ -1516,7 +1567,7 @@ export default function MontadorDashboard() {
       <section className="md-card" ref={checklistRef} style={telaAtiva === 'checklist' ? undefined : { display: 'none' }}>
         <div className="md-card-head">
           <div>
-            <h2>Checklist · Selecione o ambiente</h2>
+            <h2>Checklist Â· Selecione o ambiente</h2>
             <small className="md-card-sub">{vm.checklistConcluidos.length} de {checklist.length} itens</small>
           </div>
           <span>{vm.pctChecklist}%</span>
@@ -1524,8 +1575,8 @@ export default function MontadorDashboard() {
         <div className="md-progress soft"><i style={{ width: `${vm.pctChecklist}%` }} /></div>
         <div className="md-next-dates">
           <div className="md-card-head">
-            <h2>Próximas datas</h2>
-            <button onClick={() => setCalendarioAberto(true)}>Ver calendário completo {'>'}</button>
+            <h2>PrÃ³ximas datas</h2>
+            <button onClick={() => setCalendarioAberto(true)}>Ver calendÃ¡rio completo {'>'}</button>
           </div>
           {vm.proximasDatas.length === 0 ? (
             <div className="md-empty-compact">Nenhuma data programada</div>
@@ -1590,7 +1641,7 @@ export default function MontadorDashboard() {
         </div>
         <div className="md-upload">
           <select value={formFoto.categoria} onChange={e => setFormFoto(p => ({ ...p, categoria: e.target.value }))}>
-            <option value="">Categoria obrigatória</option>
+            <option value="">Categoria obrigatÃ³ria</option>
             {FOTO_CATEGORIAS.map(categoria => <option key={categoria} value={categoria}>{categoria}</option>)}
           </select>
           <select value={formFoto.ambiente_id} onChange={e => setFormFoto(p => ({ ...p, ambiente_id: e.target.value }))}>
@@ -1601,19 +1652,25 @@ export default function MontadorDashboard() {
             <option value="">Sem compromisso vinculado</option>
             {(formFoto.categoria === 'Vistoria' ? vistoriasAgenda : agenda).map(item => <option key={item.id} value={item.id}>{item.titulo || item.tipo || 'Compromisso'}{item.data ? ` - ${dataBR(item.data)}` : ''}</option>)}
           </select>
-          <input value={formFoto.observacao} onChange={e => setFormFoto(p => ({ ...p, observacao: e.target.value }))} placeholder="Observação opcional" />
+          <input value={formFoto.observacao} onChange={e => setFormFoto(p => ({ ...p, observacao: e.target.value }))} placeholder="ObservaÃ§Ã£o opcional" />
           <label className={formFoto.categoria ? 'md-file' : 'md-file disabled'}>
-            {fotoSelecionada ? 'Trocar foto selecionada' : 'Selecionar foto'}
-            <input type="file" accept="image/*" capture="environment" onChange={handleSelecionarFoto} disabled={uploading || !formFoto.categoria} />
+            {fotoSelecionada ? 'Trocar fotos selecionadas' : 'Selecionar fotos'}
+            <input type="file" accept="image/*" capture="environment" multiple onChange={handleSelecionarFoto} disabled={uploading || !formFoto.categoria} />
           </label>
+          <small className="md-upload-hint">Envie quantas fotos precisar. Elas ficam internas ate a aprovacao do supervisor.</small>
           {fotoSelecionada && (
             <div className="md-upload-preview">
               <img src={fotoSelecionada.previewUrl} alt="Foto selecionada para envio" />
               <div>
                 <strong>{fotoSelecionada.name}</strong>
                 <span>{formatFileSize(fotoSelecionada.size)}</span>
+                {fotoSelecionada.files?.length > 1 && (
+                  <small>{fotoSelecionada.files.slice(0, 3).map(item => item.name).join(', ')}{fotoSelecionada.files.length > 3 ? ` +${fotoSelecionada.files.length - 3}` : ''}</small>
+                )}
               </div>
-              <button type="button" onClick={enviarFotoSelecionada} disabled={uploading}>{uploading ? 'Enviando...' : 'Enviar foto'}</button>
+              <button type="button" onClick={enviarFotoSelecionada} disabled={uploading}>
+                {uploading ? 'Enviando...' : fotoSelecionada.files?.length > 1 ? `Enviar ${fotoSelecionada.files.length} fotos` : 'Enviar foto'}
+              </button>
             </div>
           )}
           {uploadFeedback && <div className="md-upload-feedback">{uploadFeedback}</div>}
@@ -1626,6 +1683,9 @@ export default function MontadorDashboard() {
                 <button key={foto.id} className="md-photo" onClick={() => foto.publicUrl && setPreview(foto.publicUrl)}>
                   {foto.publicUrl && <img src={foto.publicUrl} alt={foto.observacao || foto.categoria} />}
                   <span>{ambienteNome(foto.ambiente_id)}</span>
+                  <small className={foto.aprovada || foto.aprovada_gestao ? 'approved' : ''}>
+                    {foto.aprovada || foto.aprovada_gestao ? 'Aprovada' : 'Aguardando supervisor'}
+                  </small>
                 </button>
               ))}
             </div>
@@ -1637,14 +1697,14 @@ export default function MontadorDashboard() {
       {telaAtiva === 'ocorrencias' && (
       <section className="md-card" ref={ocorrenciasRef}>
         <div className="md-card-head">
-          <h2>Ocorrências</h2>
-          <button onClick={() => setModalProblema('Ocorrência geral')}>Relatar</button>
+          <h2>OcorrÃªncias</h2>
+          <button onClick={() => setModalProblema('OcorrÃªncia geral')}>Relatar</button>
         </div>
-        {vm.ocorrenciasAbertas.length === 0 ? <Empty text="Nenhuma ocorrência aberta." /> : vm.ocorrenciasAbertas.map(oc => (
+        {vm.ocorrenciasAbertas.length === 0 ? <Empty text="Nenhuma ocorrÃªncia aberta." /> : vm.ocorrenciasAbertas.map(oc => (
           <article className="md-occ" key={oc.id}>
-            <strong>{oc.titulo || 'Ocorrência'}</strong>
+            <strong>{oc.titulo || 'OcorrÃªncia'}</strong>
             {oc.descricao && <p>{oc.descricao}</p>}
-            <small>{oc.gravidade === 'media' ? 'Média' : oc.gravidade || 'sem gravidade'} · {oc.status || 'Aberta'}</small>
+            <small>{oc.gravidade === 'media' ? 'MÃ©dia' : oc.gravidade || 'sem gravidade'} Â· {oc.status || 'Aberta'}</small>
           </article>
         ))}
       </section>
@@ -1657,7 +1717,7 @@ export default function MontadorDashboard() {
             <h2>Perfil do montador</h2>
             <small className="md-card-sub">{profile?.role || 'montador'}</small>
           </div>
-          <span>{vm.emServico ? 'Em serviço' : 'Disponível'}</span>
+          <span>{vm.emServico ? 'Em serviÃ§o' : 'DisponÃ­vel'}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 13, border: `1px solid ${THEME.border}`, background: THEME.card, borderRadius: 15, padding: 13, marginBottom: 12 }}>
           <div style={{ width: 52, height: 52, borderRadius: 999, background: vm.emServico ? '#EAF5EE' : '#fff', border: `1px solid ${vm.emServico ? '#C8E1D0' : THEME.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: vm.emServico ? THEME.success : THEME.gold, fontSize: 20, fontWeight: 900, flexShrink: 0 }}>
@@ -1665,24 +1725,24 @@ export default function MontadorDashboard() {
           </div>
           <div>
             <strong style={{ display: 'block', fontSize: 15, color: THEME.ink, marginBottom: 4 }}>{profile?.full_name || 'Montador'}</strong>
-            <span style={{ display: 'block', fontSize: 12, color: THEME.muted, fontWeight: 800, lineHeight: 1.35, wordBreak: 'break-word' }}>{user?.email || profile?.email || 'E-mail não informado'}</span>
+            <span style={{ display: 'block', fontSize: 12, color: THEME.muted, fontWeight: 800, lineHeight: 1.35, wordBreak: 'break-word' }}>{user?.email || profile?.email || 'E-mail nÃ£o informado'}</span>
           </div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9, marginBottom: 12 }}>
           <div style={{ border: `1px solid ${THEME.border}`, background: THEME.elevated, borderRadius: 13, padding: 11 }}><strong style={{ display: 'block', fontSize: 10, letterSpacing: 1.1, textTransform: 'uppercase', color: THEME.gold, fontWeight: 900, marginBottom: 5 }}>Obra ativa</strong><span style={{ display: 'block', fontSize: 12.5, color: THEME.ink, fontWeight: 800, lineHeight: 1.35 }}>{obraAtiva.nome || 'Obra sem nome'}</span></div>
           <div style={{ border: `1px solid ${THEME.border}`, background: THEME.elevated, borderRadius: 13, padding: 11 }}><strong style={{ display: 'block', fontSize: 10, letterSpacing: 1.1, textTransform: 'uppercase', color: THEME.gold, fontWeight: 900, marginBottom: 5 }}>Status</strong><span style={{ display: 'block', fontSize: 12.5, color: THEME.ink, fontWeight: 800, lineHeight: 1.35 }}>{faseObraMontador(obraAtiva).label}</span></div>
-          <div style={{ border: `1px solid ${THEME.border}`, background: THEME.elevated, borderRadius: 13, padding: 11 }}><strong style={{ display: 'block', fontSize: 10, letterSpacing: 1.1, textTransform: 'uppercase', color: THEME.gold, fontWeight: 900, marginBottom: 5 }}>Último registro</strong><span style={{ display: 'block', fontSize: 12.5, color: THEME.ink, fontWeight: 800, lineHeight: 1.35 }}>{vm.ultimoServico ? `${horaBR(vm.ultimoServico.entrada || vm.ultimoServico.created_at)}${vm.ultimoServico.saida ? ` - ${horaBR(vm.ultimoServico.saida)}` : ''}` : 'Sem check-in'}</span></div>
+          <div style={{ border: `1px solid ${THEME.border}`, background: THEME.elevated, borderRadius: 13, padding: 11 }}><strong style={{ display: 'block', fontSize: 10, letterSpacing: 1.1, textTransform: 'uppercase', color: THEME.gold, fontWeight: 900, marginBottom: 5 }}>Ãšltimo registro</strong><span style={{ display: 'block', fontSize: 12.5, color: THEME.ink, fontWeight: 800, lineHeight: 1.35 }}>{vm.ultimoServico ? `${horaBR(vm.ultimoServico.entrada || vm.ultimoServico.created_at)}${vm.ultimoServico.saida ? ` - ${horaBR(vm.ultimoServico.saida)}` : ''}` : 'Sem check-in'}</span></div>
           <div style={{ border: `1px solid ${THEME.border}`, background: THEME.elevated, borderRadius: 13, padding: 11 }}><strong style={{ display: 'block', fontSize: 10, letterSpacing: 1.1, textTransform: 'uppercase', color: THEME.gold, fontWeight: 900, marginBottom: 5 }}>Checklist</strong><span style={{ display: 'block', fontSize: 12.5, color: THEME.ink, fontWeight: 800, lineHeight: 1.35 }}>{vm.checklistConcluidos.length}/{checklist.length} itens</span></div>
         </div>
         <button className="md-profile-logout" onClick={logout}>Sair da conta</button>
       </section>
       )}
 
-      <nav className="md-bottom-nav" aria-label="Navegação do montador">
+      <nav className="md-bottom-nav" aria-label="NavegaÃ§Ã£o do montador">
         <button className={telaAtiva === 'hoje' ? 'active' : ''} onClick={() => setTelaAtiva('hoje')}><IconHome />Hoje</button>
         <button className={telaAtiva === 'checklist' ? 'active' : ''} onClick={() => setTelaAtiva('checklist')}><IconCheck />Checklist</button>
         <button className={telaAtiva === 'fotos' ? 'active' : ''} onClick={() => setTelaAtiva('fotos')}><IconCamera />Fotos</button>
-        <button className={telaAtiva === 'ocorrencias' ? 'active' : ''} onClick={() => setTelaAtiva('ocorrencias')}><IconAlert />Ocorrências</button>
+        <button className={telaAtiva === 'ocorrencias' ? 'active' : ''} onClick={() => setTelaAtiva('ocorrencias')}><IconAlert />OcorrÃªncias</button>
         <button className={telaAtiva === 'perfil' ? 'active' : ''} onClick={() => setTelaAtiva('perfil')}><IconUser />Perfil</button>
       </nav>
     </div>
@@ -1855,11 +1915,13 @@ const css = `
 .md-file{display:block;min-height:48px;box-sizing:border-box;background:${THEME.ink};color:#fff;border-radius:14px;padding:15px;text-align:center;font-size:14px;font-weight:900;cursor:pointer}
 .md-file.disabled{opacity:1;background:#2A2620;color:#6D675E;cursor:not-allowed}
 .md-file input{display:none}
+.md-upload-hint{display:block;color:${THEME.muted};font-size:11px;font-weight:800;line-height:1.35;margin-top:-3px}
 .md-upload-preview{display:grid;grid-template-columns:74px 1fr;gap:10px;align-items:center;border:1px solid ${THEME.border};background:${THEME.elevated};border-radius:12px;padding:10px}
 .md-upload-preview img{width:74px;height:74px;object-fit:cover;border-radius:8px;background:${THEME.card}}
-.md-upload-preview strong,.md-upload-preview span{display:block;word-break:break-word}
+.md-upload-preview strong,.md-upload-preview span,.md-upload-preview small{display:block;word-break:break-word}
 .md-upload-preview strong{font-size:12px;color:${THEME.ink};margin-bottom:4px}
 .md-upload-preview span{font-size:11px;color:${THEME.muted};font-weight:800}
+.md-upload-preview small{font-size:10px;color:${THEME.muted};line-height:1.3;margin-top:4px}
 .md-upload-preview button{grid-column:1/-1;min-height:42px;border:0;border-radius:10px;background:${THEME.gold};color:#141210;font-size:13px;font-weight:900;font-family:inherit;cursor:pointer}
 .md-upload-preview button:disabled{opacity:.7;cursor:not-allowed}
 .md-upload-feedback{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.muted};border-radius:12px;padding:10px 12px;font-size:12px;font-weight:800;line-height:1.35}
@@ -1870,6 +1932,8 @@ const css = `
 .md-photo{position:relative;aspect-ratio:1;min-height:44px;border:0;border-radius:13px;overflow:hidden;background:#F0ECE6;padding:0;cursor:pointer}
 .md-photo img{width:100%;height:100%;object-fit:cover;display:block}
 .md-photo span{position:absolute;left:5px;right:5px;bottom:5px;background:rgba(29,28,25,.72);color:#fff;border-radius:8px;padding:4px 5px;font-size:9px;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.md-photo small{position:absolute;left:5px;right:5px;top:5px;background:rgba(29,28,25,.78);color:#F4C66A;border-radius:999px;padding:4px 5px;font-size:8px;line-height:1.1;font-weight:900;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.md-photo small.approved{color:#A7E3BC}
 .md-occ{border:1px solid ${THEME.border};border-radius:14px;padding:12px;margin-bottom:9px;background:${THEME.card}}
 .md-occ strong{font-size:13.5px;color:${THEME.ink}}
 .md-occ p{font-size:12px;color:${THEME.muted};line-height:1.4;margin:6px 0}
