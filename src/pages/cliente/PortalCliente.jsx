@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useStore } from '../../store/useStore'
 import bgImage from '../../assets/ornare-milao-40-anos.jpg'
-import { FASES_ORNARE, faseOrnarePorKey, faseOrnarePorTexto, indiceFaseOrnare } from '../../constants/fasesOrnare'
+import { resolverOperacaoObra } from '../../utils/obraOperacional'
 import { theme } from '../../constants/theme'
 
 const THEME = {
@@ -349,13 +349,7 @@ export default function PortalCliente() {
     const ambientesPorId = new Map(dados.ambientes.map(a => [a.id, a]))
     const supervisor = profilesPorId.get(cronograma.supervisor_id || obra.supervisor_id)
     const posVenda = profilesPorId.get(cronograma.pos_venda_id || cronograma.comercial_id || obra.comercial_id)
-    const progresso = Math.max(0, Math.min(100, Number(cronograma.percentual_concluido ?? obra.progresso ?? 0)))
-    const faseInterna = cronograma.fase || obra.fase_atual || obra.status || ''
-    const faseAtualObj = faseOrnarePorKey(faseInterna) || faseOrnarePorTexto(faseInterna) || FASES_ORNARE[0]
-    const faseIndex = Math.max(0, indiceFaseOrnare(faseAtualObj.key))
-    const proximaFaseObj = FASES_ORNARE[Math.min(faseIndex + 1, FASES_ORNARE.length - 1)]
-    const faseAtual = faseAtualObj.label_cliente
-    const proximaEtapa = proximaFaseObj?.key === faseAtualObj.key ? 'Obra entregue' : proximaFaseObj.label_cliente
+    const operacao = resolverOperacaoObra(obra, dados.cronograma)
     const fotos = dados.fotos.filter(f => {
       const porAmbiente = !filtrosFoto.ambiente || f.ambiente_id === filtrosFoto.ambiente
       const porCategoria = !filtrosFoto.categoria || f.categoria === filtrosFoto.categoria
@@ -375,12 +369,12 @@ export default function PortalCliente() {
       cronograma,
       supervisor,
       posVenda,
-      progresso,
-      faseAtual,
-      faseAtualKey: faseAtualObj.key,
-      faseAtualIndex: faseIndex,
-      proximaEtapa,
-      previsao: dataBR(cronograma.data_fim_prevista || obra.data_previsao),
+      progresso: operacao.progresso,
+      faseAtual: operacao.faseCliente,
+      faseAtualKey: operacao.faseKey,
+      faseAtualIndex: operacao.fase?.id ? operacao.fase.id - 1 : 0,
+      proximaEtapa: operacao.proximaFaseCliente,
+      previsao: dataBR(operacao.fimPrevisto),
       ultimaAtualizacao: dataBR(atualizacoes[0]),
       fotos,
       categorias: [...new Set(dados.fotos.map(f => f.categoria).filter(Boolean))].sort(),

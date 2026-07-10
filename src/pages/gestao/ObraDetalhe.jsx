@@ -2513,13 +2513,31 @@ function AbaFotos({ obraId, fotoDestaque }) {
     }
     setUploading(false)
   }
+  async function atualizarFotoComFallback(fotoId, payload) {
+    let dadosUpdate = { ...payload }
+    const colunasOpcionais = new Set(['aprovada_por', 'aprovada_em', 'status_aprovacao', 'motivo_recusa'])
+
+    for (let tentativa = 0; tentativa < 5; tentativa += 1) {
+      const { error } = await supabase.from('fotos').update(dadosUpdate).eq('id', fotoId)
+      if (!error) return { error: null }
+
+      const texto = `${error?.message || ''} ${error?.details || ''}`.toLowerCase()
+      const coluna = [...colunasOpcionais].find(nome => texto.includes(nome))
+      if (!coluna || !(texto.includes('schema cache') || texto.includes('column'))) return { error }
+
+      delete dadosUpdate[coluna]
+      colunasOpcionais.delete(coluna)
+    }
+
+    return { error: new Error('Nao foi possivel atualizar a foto com as colunas disponiveis.') }
+  }
   async function aprovar(foto) {
     if (acaoFoto) return
     const aprovado = !foto.aprovada
     setErro('')
     setAcaoFoto(foto.id)
     setMensagem({ texto: aprovado ? 'Aprovando foto...' : 'Movendo foto para revisao...', tipo: 'info' })
-    const { error } = await supabase.from('fotos').update({
+    const { error } = await atualizarFotoComFallback(foto.id, {
       aprovada: aprovado,
       aprovada_gestao: aprovado,
       aprovada_por: aprovado ? user?.id : null,
@@ -2527,7 +2545,7 @@ function AbaFotos({ obraId, fotoDestaque }) {
       status_aprovacao: aprovado ? 'aprovada' : 'pendente',
       motivo_recusa: null,
       ...(!aprovado ? { visivel_cliente: false, visibilidade: 'interna' } : {}),
-    }).eq('id', foto.id)
+    })
     if (error) {
       setAcaoFoto('')
       setErro(mensagemErro(error, 'Não foi possível atualizar a aprovação da foto.'))
@@ -2555,7 +2573,7 @@ function AbaFotos({ obraId, fotoDestaque }) {
     setErro('')
     setAcaoFoto(foto.id)
     setMensagem({ texto: 'Recusando foto...', tipo: 'info' })
-    const { error } = await supabase.from('fotos').update({
+    const { error } = await atualizarFotoComFallback(foto.id, {
       aprovada: false,
       aprovada_gestao: false,
       aprovada_por: null,
@@ -2564,7 +2582,7 @@ function AbaFotos({ obraId, fotoDestaque }) {
       visibilidade: 'interna',
       status_aprovacao: 'recusada',
       motivo_recusa: motivo || null,
-    }).eq('id', foto.id)
+    })
     if (error) {
       setAcaoFoto('')
       setErro(erroColunaFotoAprovacaoAusente(error)
