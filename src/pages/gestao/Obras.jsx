@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { obraColor } from '../../utils/obraColor'
+import { mapearCronogramasPorObra, resolverOperacaoObra } from '../../utils/obraOperacional'
 import { progressBarStyle, progressFillStyle, statusBadgeBaseStyle } from '../../utils/ui'
 import { theme } from '../../constants/theme'
 
@@ -48,6 +49,7 @@ function dataCurta(data) {
 export default function Obras() {
   const navigate = useNavigate()
   const [obras, setObras] = useState([])
+  const [cronogramas, setCronogramas] = useState([])
   const [profiles, setProfiles] = useState([])
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState('Todas')
@@ -59,16 +61,18 @@ export default function Obras() {
 
   async function carregar() {
     setErro('')
-    const [obrasResult, profilesResult] = await Promise.all([
+    const [obrasResult, cronogramasResult, profilesResult] = await Promise.all([
       supabase.from('obras').select('*').order('created_at', { ascending: false }),
+      supabase.from('obra_cronograma').select('*').limit(300),
       supabase.from('profiles').select('id, full_name, role'),
     ])
-    if (obrasResult.error || profilesResult.error) {
-      const error = obrasResult.error || profilesResult.error
-      console.error('Erro ao carregar obras:', { obras: obrasResult.error, profiles: profilesResult.error })
+    if (obrasResult.error || cronogramasResult.error || profilesResult.error) {
+      const error = obrasResult.error || cronogramasResult.error || profilesResult.error
+      console.error('Erro ao carregar obras:', { obras: obrasResult.error, cronogramas: cronogramasResult.error, profiles: profilesResult.error })
       setErro(error?.message || 'Não foi possível carregar as obras.')
     }
     setObras(obrasResult.data || [])
+    setCronogramas(cronogramasResult.data || [])
     setProfiles(profilesResult.data || [])
     setLoading(false)
   }
@@ -111,13 +115,18 @@ export default function Obras() {
 
   const obrasFiltradas = filtro === 'Todas' ? obras : obras.filter(o => normalizar(o.status) === normalizar(filtro))
   const profilePorId = new Map(profiles.map(p => [p.id, p]))
+  const cronogramasPorObra = mapearCronogramasPorObra(cronogramas)
+  const operacaoDaObra = obra => resolverOperacaoObra(obra, cronogramasPorObra.get(obra.id))
   const isStatus = (obra, termos) => termos.some(t => normalizar(obra.status).includes(t))
   const kpis = [
     { label: 'Obras Ativas', value: obras.filter(o => !isStatus(o, ['concluida', 'cancelada'])).length },
-    { label: 'Em Produção', value: obras.filter(o => isStatus(o, ['producao'])).length },
-    { label: 'Em Montagem', value: obras.filter(o => isStatus(o, ['montagem'])).length },
-    { label: 'Aguard. Produção', value: obras.filter(o => isStatus(o, ['aguardando inicio', 'medicao', 'conferencia'])).length },
-    { label: 'Travadas', value: obras.filter(o => isStatus(o, ['pausada', 'cancelada'])).length },
+    { label: 'Em Produção', value: obras.filter(o => operacaoDaObra(o).faseKey === 'producao').length },
+    { label: 'Em Montagem', value: obras.filter(o => ['montagem', 'montagem_finalizada'].includes(operacaoDaObra(o).faseKey)).length },
+    { label: 'Aguard. Produção', value: obras.filter(o => ['vistoria_medida', 'executivo', 'vistoria_tecnica', 'entrega_moveis'].includes(operacaoDaObra(o).faseKey)).length },
+    { label: 'Travadas', value: obras.filter(o => {
+      const operacao = operacaoDaObra(o)
+      return isStatus(o, ['pausada', 'cancelada']) || operacao.travado || ['alto', 'critico', 'critica'].includes(normalizar(operacao.risco))
+    }).length },
     { label: 'Concluídas', value: obras.filter(o => isStatus(o, ['concluida'])).length },
   ]
 
@@ -228,7 +237,9 @@ export default function Obras() {
             const st = getStatus(obra.status)
             const cor = obraColor(obra)
             const cidadeUf = [obra.cidade, obra.uf].filter(Boolean).join(' • ') || 'Sem cidade'
-            const progresso = Number(obra.progresso || 0)
+            const operacao = operacaoDaObra(obra)
+            const progresso = operacao.progresso
+            const previsao = operacao.fimPrevisto
             return (
               <div
                 key={obra.id}
@@ -256,7 +267,7 @@ export default function Obras() {
                   </div>
                   <div className="ob-app-foot">
                       <span style={{ background: st.bg, color: st.color }}>{st.label}</span>
-                    <em>Previsão {dataCurta(obra.data_previsao)}</em>
+                    <em>Previsão {dataCurta(previsao)}</em>
                   </div>
                 </button>
                 <div className="ob-card-main" onClick={() => navigate('/obras/' + obra.id)} style={s.cardMain}>
@@ -271,20 +282,21 @@ export default function Obras() {
                     </div>
                     <div className="ob-card-details" style={s.cardDetails}>
                       <span>Supervisor: {profilePorId.get(obra.supervisor_id)?.full_name || 'Não definido'}</span>
-                      <span>Fase: {obra.fase || obra.etapa || obra.status || '-'}</span>
-                      <span>{obra.data_previsao ? 'Previsão: ' + new Date(obra.data_previsao + 'T00:00:00').toLocaleDateString('pt-BR') : 'Sem previsão'}</span>
+                      <span>Fase: {operacao.faseLabel}</span>
+                      <span>Próxima: {operacao.proximaFaseLabel}</span>
+                      <span>{previsao ? 'Previsão: ' + new Date(previsao + 'T00:00:00').toLocaleDateString('pt-BR') : 'Sem previsão'}</span>
                       {obra.numero_contrato && <span>Contrato {obra.numero_contrato}</span>}
                     </div>
                     <div className="ob-mobile-summary">
-                      <span>{obra.data_previsao ? new Date(obra.data_previsao + 'T00:00:00').toLocaleDateString('pt-BR') : 'Sem previsão'}</span>
-                      <strong>{obra.progresso || 0}%</strong>
+                      <span>{previsao ? new Date(previsao + 'T00:00:00').toLocaleDateString('pt-BR') : 'Sem previsão'}</span>
+                      <strong>{progresso}%</strong>
                     </div>
                   </div>
-                  {obra.progresso > 0 && (
+                  {progresso > 0 && (
                     <div className="ob-progress" style={s.progressWrap}>
-                      <div style={s.progressPct}>{obra.progresso}%</div>
+                      <div style={s.progressPct}>{progresso}%</div>
                       <div style={s.progressBar}>
-                        <div style={{ ...s.progressFill, background: cor.accent, width: obra.progresso + '%' }} />
+                        <div style={{ ...s.progressFill, background: cor.accent, width: progresso + '%' }} />
                       </div>
                     </div>
                   )}

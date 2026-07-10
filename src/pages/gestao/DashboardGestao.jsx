@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { EmptyState, KpiCard as DesignKpiCard, PremiumCard } from '../../components/DesignSystem'
 import { limparNome } from '../../utils/ui'
 import { theme } from '../../constants/theme'
-import { faseOrnarePorKey, faseOrnarePorTexto } from '../../constants/fasesOrnare'
+import { mapearCronogramasPorObra, resolverOperacaoObra } from '../../utils/obraOperacional'
 
 const THEME = {
   bg: theme.background,
@@ -21,11 +21,11 @@ const THEME = {
 }
 
 const STATUS = {
-  producao: ['Em produção', 'Em producao'],
+  producao: ['Em produ??o', 'Em producao'],
   montagem: ['Em montagem', 'Montagem agendada'],
   aguardandoCliente: ['Aguardando cliente'],
-  aguardandoProducao: ['Aguardando início', 'Aguardando inicio', 'Em medição', 'Em medicao', 'Medição agendada', 'Medicao agendada', 'Projeto em conferência', 'Projeto em conferencia'],
-  concluidas: ['Concluída', 'Concluida'],
+  aguardandoProducao: ['Aguardando in?cio', 'Aguardando inicio', 'Em medi??o', 'Em medicao', 'Medi??o agendada', 'Medicao agendada', 'Projeto em confer?ncia', 'Projeto em conferencia'],
+  concluidas: ['Conclu?da', 'Concluida'],
   travadas: ['Pausada', 'Cancelada'],
   producaoFinalizada: ['Pronta para entrega'],
   aguardandoAgendamento: ['Aguardando montagem'],
@@ -42,7 +42,13 @@ function inStatus(obra, lista) {
 
 function dataBR(data) {
   if (!data) return '-'
-  return new Date(data + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+  return new Date(`${String(data).slice(0, 10)}T00:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+}
+
+function dataOperacional(data) {
+  if (!data) return null
+  const parsed = new Date(`${String(data).slice(0, 10)}T00:00:00`)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
 }
 
 function moeda(valor) {
@@ -71,13 +77,6 @@ function diasDesde(value) {
   hoje.setHours(0, 0, 0, 0)
   data.setHours(0, 0, 0, 0)
   return Math.max(0, Math.floor((hoje - data) / 86400000))
-}
-
-function faseObra(obra) {
-  const fase = faseOrnarePorKey(obra?.fase)
-    || faseOrnarePorKey(obra?.fase_atual)
-    || faseOrnarePorTexto(obra?.fase || obra?.fase_atual || obra?.status)
-  return fase?.label || obra?.fase || obra?.fase_atual || obra?.status || 'Sem fase'
 }
 
 function statusBadge(status) {
@@ -198,7 +197,7 @@ export default function DashboardGestao() {
         supabase.from('profiles').select('id, full_name, email, role'),
         supabase.from('obra_montadores').select('obra_id, montador_id, montador:profiles!obra_montadores_montador_id_fkey(full_name)'),
         supabase.from('checklist_items').select('id, obra_id, descricao, concluido, concluido_em').limit(500),
-        supabase.from('obra_cronograma').select('id, obra_id, fase, travado, motivo_trava, risco, updated_at').limit(300),
+        supabase.from('obra_cronograma').select('*').limit(300),
       ])
 
       const falhas = [
@@ -255,6 +254,10 @@ export default function DashboardGestao() {
     amanha.setDate(amanha.getDate() + 1)
     const mesAtual = hoje.toISOString().slice(0, 7)
     const ativos = dados.obras.filter(o => !inStatus(o, STATUS.concluidas) && !inStatus(o, STATUS.travadas))
+    const cronogramasPorObra = mapearCronogramasPorObra(dados.cronogramas)
+    const operacaoPorObra = new Map(dados.obras.map(obra => [obra.id, resolverOperacaoObra(obra, cronogramasPorObra.get(obra.id))]))
+    const operacaoObra = obra => operacaoPorObra.get(obra.id) || resolverOperacaoObra(obra, cronogramasPorObra.get(obra.id))
+    const riscoAlto = operacao => ['alto', 'critico', 'critica'].includes(normalizar(operacao?.risco))
 
     const ocorrenciasAbertas = dados.ocorrencias.filter(o => isAberto(o.status))
     const ocorrPorObra = new Map()
@@ -312,11 +315,12 @@ export default function DashboardGestao() {
       }
     })
     const saude = ativos.map(obra => {
-      const previsao = obra.data_previsao ? new Date(obra.data_previsao + 'T00:00:00') : null
-      const temOcAlta = (ocorrPorObra.get(obra.id) || []).some(o => ['alta', 'critica', 'crítica'].includes(normalizar(o.gravidade)))
+      const operacao = operacaoObra(obra)
+      const previsao = dataOperacional(operacao.fimPrevisto)
+      const temOcAlta = (ocorrPorObra.get(obra.id) || []).some(o => ['alta', 'critica', 'cr?tica'].includes(normalizar(o.gravidade)))
       const atrasada = previsao && previsao < hoje
-      const risco = temOcAlta || (previsao && (previsao - hoje) / 86400000 <= 7)
-      return { obra, atrasada, risco }
+      const risco = temOcAlta || operacao.travado || riscoAlto(operacao) || (previsao && (previsao - hoje) / 86400000 <= 7)
+      return { obra, operacao, atrasada, risco, temOcAlta }
     })
 
     const atencao = ativos.map(obra => {
@@ -325,12 +329,15 @@ export default function DashboardGestao() {
       const fotos = fotosPorObra.get(obra.id) || []
       const ultimaFoto = fotos[0]?.created_at ? new Date(fotos[0].created_at) : null
       const semFotoRecente = !ultimaFoto || (agoraMs - ultimaFoto.getTime()) / 86400000 > 7
-      const previsao = obra.data_previsao ? new Date(obra.data_previsao + 'T00:00:00') : null
-      if ((ocorrPorObra.get(obra.id) || []).length > 0) motivos.push('ocorrência aberta')
+      const operacao = operacaoObra(obra)
+      const previsao = dataOperacional(operacao.fimPrevisto)
+      if (operacao.travado) motivos.push('cronograma travado')
+      if (riscoAlto(operacao)) motivos.push('risco alto')
+      if ((ocorrPorObra.get(obra.id) || []).length > 0) motivos.push('ocorr?ncia aberta')
       if (itens.some(i => !i.concluido)) motivos.push('checklist pendente')
       if (semFotoRecente) motivos.push('sem fotos recentes')
       if (previsao && previsao < hoje) motivos.push('atrasada')
-      return { obra, motivos }
+      return { obra, motivos, operacao }
     }).filter(item => item.motivos.length > 0).slice(0, 7)
 
     const obrasSemCheckinRecente = ativos
@@ -361,18 +368,18 @@ export default function DashboardGestao() {
     const atrasadasPorFase = saude
       .filter(s => s.atrasada)
       .reduce((acc, item) => {
-        const fase = faseObra(item.obra)
+        const fase = item.operacao.faseLabel
         acc.set(fase, (acc.get(fase) || 0) + 1)
         return acc
       }, new Map())
 
     const fluxo = [
-      { label: 'Aguardando Produção', value: dados.obras.filter(o => inStatus(o, STATUS.aguardandoProducao)).length },
-      { label: 'Em Produção', value: dados.obras.filter(o => inStatus(o, STATUS.producao)).length },
-      { label: 'Produção Finalizada', value: dados.obras.filter(o => inStatus(o, STATUS.producaoFinalizada)).length },
-      { label: 'Aguardando Agendamento', value: dados.obras.filter(o => inStatus(o, STATUS.aguardandoAgendamento)).length },
-      { label: 'Em Montagem', value: dados.obras.filter(o => inStatus(o, STATUS.montagem)).length },
-      { label: 'Concluída', value: dados.obras.filter(o => inStatus(o, STATUS.concluidas)).length },
+      { label: 'Pré-produção', value: dados.obras.filter(o => ['vistoria_medida', 'executivo'].includes(operacaoObra(o).faseKey)).length },
+      { label: 'Em Produção', value: dados.obras.filter(o => operacaoObra(o).faseKey === 'producao').length },
+      { label: 'Liberação técnica', value: dados.obras.filter(o => operacaoObra(o).faseKey === 'vistoria_tecnica').length },
+      { label: 'Entrega dos Móveis', value: dados.obras.filter(o => operacaoObra(o).faseKey === 'entrega_moveis').length },
+      { label: 'Em Montagem', value: dados.obras.filter(o => ['montagem', 'montagem_finalizada'].includes(operacaoObra(o).faseKey)).length },
+      { label: 'Concluída', value: dados.obras.filter(o => operacaoObra(o).faseKey === 'obra_concluida' || inStatus(o, STATUS.concluidas)).length },
     ]
 
     const obrasPorSupervisor = dados.profiles
@@ -384,10 +391,10 @@ export default function DashboardGestao() {
 
     const atividade = [
       ...dados.fotos.slice(0, 8).map(f => ({ tipo: 'Foto', texto: f.categoria || 'Nova foto enviada', sub: f.obras?.nome || obraNome(dados.obras, f.obra_id), ts: f.created_at })),
-      ...dados.ocorrencias.slice(0, 8).map(o => ({ tipo: 'Ocorrência', texto: o.titulo || o.descricao || 'Ocorrência registrada', sub: obraNome(dados.obras, o.obra_id), ts: o.created_at })),
-      ...dados.checklist.filter(i => i.concluido && i.concluido_em).slice(0, 8).map(i => ({ tipo: 'Checklist', texto: i.descricao || 'Item concluído', sub: obraNome(dados.obras, i.obra_id), ts: i.concluido_em })),
+      ...dados.ocorrencias.slice(0, 8).map(o => ({ tipo: 'Ocorr?ncia', texto: o.titulo || o.descricao || 'Ocorr?ncia registrada', sub: obraNome(dados.obras, o.obra_id), ts: o.created_at })),
+      ...dados.checklist.filter(i => i.concluido && i.concluido_em).slice(0, 8).map(i => ({ tipo: 'Checklist', texto: i.descricao || 'Item conclu?do', sub: obraNome(dados.obras, i.obra_id), ts: i.concluido_em })),
       ...dados.checkins.slice(0, 8).map(c => ({ tipo: 'Equipe', texto: `${limparNome(c.profiles?.full_name) || 'Equipe'} fez ${c.saida ? 'check-out' : 'check-in'}`, sub: obraNome(dados.obras, c.obra_id), ts: c.created_at })),
-      ...dados.gastos.slice(0, 8).map(g => ({ tipo: 'Gasto', texto: g.descricao || 'Gasto lançado', sub: `${g.obras?.nome || obraNome(dados.obras, g.obra_id)} - ${moeda(g.valor)}`, ts: g.created_at })),
+      ...dados.gastos.slice(0, 8).map(g => ({ tipo: 'Gasto', texto: g.descricao || 'Gasto lan?ado', sub: `${g.obras?.nome || obraNome(dados.obras, g.obra_id)} - ${moeda(g.valor)}`, ts: g.created_at })),
     ].sort((a, b) => new Date(b.ts) - new Date(a.ts)).slice(0, 10)
 
     const pendenciasCriticasExecutivas = [
@@ -399,21 +406,22 @@ export default function DashboardGestao() {
     return {
       hojeStr,
       travadasLista: dados.obras
-        .filter(o => inStatus(o, STATUS.travadas) || (ocorrPorObra.get(o.id) || []).some(oc => normalizar(oc.gravidade) === 'alta'))
+        .filter(o => inStatus(o, STATUS.travadas) || operacaoObra(o).travado || (ocorrPorObra.get(o.id) || []).some(oc => normalizar(oc.gravidade) === 'alta'))
+        .map(obra => ({ obra, operacao: operacaoObra(obra) }))
         .slice(0, 4),
-      riscoLista: saude.filter(s => s.atrasada || s.risco).map(s => s.obra).slice(0, 4),
+      riscoLista: saude.filter(s => s.atrasada || s.risco).slice(0, 4),
       obrasSemCheckinRecente,
       checklistPorObraPendentes,
       fotosPendentesPorObra,
       atrasadasPorFase: [...atrasadasPorFase.entries()].map(([fase, total]) => ({ fase, total })).sort((a, b) => b.total - a.total),
       operacao: {
         andamento: ativos.length,
-        producao: dados.obras.filter(o => inStatus(o, STATUS.producao)).length,
-        montagem: dados.obras.filter(o => inStatus(o, STATUS.montagem)).length,
+        producao: dados.obras.filter(o => operacaoObra(o).faseKey === 'producao').length,
+        montagem: dados.obras.filter(o => ['montagem', 'montagem_finalizada'].includes(operacaoObra(o).faseKey)).length,
         aguardandoCliente: dados.obras.filter(o => inStatus(o, STATUS.aguardandoCliente)).length,
-        aguardandoProducao: dados.obras.filter(o => inStatus(o, STATUS.aguardandoProducao)).length,
-        concluidas: dados.obras.filter(o => inStatus(o, STATUS.concluidas)).length,
-        travadas: dados.obras.filter(o => inStatus(o, STATUS.travadas) || (ocorrPorObra.get(o.id) || []).some(oc => normalizar(oc.gravidade) === 'alta')).length + dados.cronogramas.filter(c => c.travado || normalizar(c.risco) === 'alto').length,
+        aguardandoProducao: dados.obras.filter(o => ['vistoria_medida', 'executivo', 'vistoria_tecnica', 'entrega_moveis'].includes(operacaoObra(o).faseKey)).length,
+        concluidas: dados.obras.filter(o => operacaoObra(o).faseKey === 'obra_concluida' || inStatus(o, STATUS.concluidas)).length,
+        travadas: dados.obras.filter(o => inStatus(o, STATUS.travadas) || operacaoObra(o).travado || (ocorrPorObra.get(o.id) || []).some(oc => normalizar(oc.gravidade) === 'alta')).length,
       },
       saude: {
         atrasadas: saude.filter(s => s.atrasada).length,
@@ -446,7 +454,7 @@ export default function DashboardGestao() {
         naoConformidades,
         vistoriasPendentes: dados.agenda.filter(a => normalizar(a.tipo || a.titulo).includes('vistoria') && !isConcluido(a.status)),
         gastosPendentes,
-        cronogramasTravados: dados.cronogramas.filter(c => c.travado || normalizar(c.risco) === 'alto'),
+        cronogramasTravados: dados.cronogramas.filter(c => c.travado || ['alto', 'critico', 'critica'].includes(normalizar(c.risco))),
         naoConformidadesPendentes,
       },
       financeiro: {
@@ -464,19 +472,19 @@ export default function DashboardGestao() {
       fluxo,
       atencao,
       atividade,
-      obrasOperacionais: ativos.slice(0, 8),
+      obrasOperacionais: ativos.map(obra => ({ obra, operacao: operacaoObra(obra) })).slice(0, 8),
       pendenciasCriticasExecutivas,
       ocorrPorObra,
     }
   }, [dados])
 
   const kpisExecutivos = [
-    { label: 'Em andamento', value: vm.operacao.andamento, sub: 'operação ativa', tone: THEME.gold, onClick: () => navigate('/obras') },
+    { label: 'Em andamento', value: vm.operacao.andamento, sub: 'opera??o ativa', tone: THEME.gold, onClick: () => navigate('/obras') },
     { label: 'Montadores em campo', value: vm.equipe.montadoresEmCampo, sub: `${vm.equipe.montadoresComCheckin} com check-in`, tone: THEME.blue, onClick: () => navigate('/dashboard?painel=equipe') },
-    { label: 'Check-ins hoje', value: vm.equipe.checkinsHoje, sub: 'movimentações do dia', tone: THEME.success, onClick: () => navigate('/dashboard?painel=checkins') },
+    { label: 'Check-ins hoje', value: vm.equipe.checkinsHoje, sub: 'movimenta??es do dia', tone: THEME.success, onClick: () => navigate('/dashboard?painel=checkins') },
     { label: 'Sem check-in recente', value: vm.obrasSemCheckinRecente.length, sub: 'obra sem visita recente', tone: vm.obrasSemCheckinRecente.length ? THEME.warn : THEME.success, onClick: () => vm.obrasSemCheckinRecente[0]?.obra?.id ? navigate(`/obras/${vm.obrasSemCheckinRecente[0].obra.id}?aba=Equipe`) : navigate('/obras') },
-    { label: 'Fotos pendentes', value: vm.aprovacoes.fotosPendentes.length, sub: 'aguardando validação', tone: vm.aprovacoes.fotosPendentes.length ? THEME.warn : THEME.success, onClick: () => vm.aprovacoes.fotosPendentes[0]?.obra_id ? navigate(`/obras/${vm.aprovacoes.fotosPendentes[0].obra_id}?aba=Fotos&foto=${vm.aprovacoes.fotosPendentes[0].id}`) : navigate('/obras?filtro=fotos') },
-    { label: 'Travadas', value: vm.operacao.travadas, sub: 'ação imediata', tone: THEME.danger, onClick: () => navigate('/planejamento?filtro=travadas') },
+    { label: 'Fotos pendentes', value: vm.aprovacoes.fotosPendentes.length, sub: 'aguardando valida??o', tone: vm.aprovacoes.fotosPendentes.length ? THEME.warn : THEME.success, onClick: () => vm.aprovacoes.fotosPendentes[0]?.obra_id ? navigate(`/obras/${vm.aprovacoes.fotosPendentes[0].obra_id}?aba=Fotos&foto=${vm.aprovacoes.fotosPendentes[0].id}`) : navigate('/obras?filtro=fotos') },
+    { label: 'Travadas', value: vm.operacao.travadas, sub: 'a??o imediata', tone: THEME.danger, onClick: () => navigate('/planejamento?filtro=travadas') },
   ]
 
   return (
@@ -485,8 +493,8 @@ export default function DashboardGestao() {
 
       <header className="dg-header">
         <div>
-          <div className="dg-eyebrow">Gestão Ornare</div>
-          <h1>Central de Gestão</h1>
+          <div className="dg-eyebrow">Gest?o Ornare</div>
+          <h1>Central de Gest?o</h1>
           <p>{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
         </div>
         <div className="dg-actions">
@@ -497,7 +505,7 @@ export default function DashboardGestao() {
         </div>
       </header>
 
-      {erroDados && <div className="dg-load-alert">Parte dos dados não foi carregada: {erroDados}</div>}
+      {erroDados && <div className="dg-load-alert">Parte dos dados n?o foi carregada: {erroDados}</div>}
 
       <section className="dg-mobile-home" aria-label="Resumo executivo">
         <button className={vm.operacao.travadas ? 'critical' : ''} onClick={() => navigate('/obras')}>
@@ -506,7 +514,7 @@ export default function DashboardGestao() {
         </button>
         <button className={vm.pendenciasCriticasExecutivas.length ? 'warn' : ''} onClick={() => navigate('/ocorrencias')}>
           <strong>{loading ? '-' : vm.pendenciasCriticasExecutivas.length}</strong>
-          <span>pendências</span>
+          <span>pend?ncias</span>
         </button>
         <button className={vm.saude.risco ? 'warn' : ''} onClick={() => navigate('/planejamento')}>
           <strong>{loading ? '-' : vm.saude.risco}</strong>
@@ -538,7 +546,7 @@ export default function DashboardGestao() {
           </div>
         </Card>
 
-        <Card title="Pendências por obra" action="Obras" onAction={() => navigate('/obras')}>
+        <Card title="Pend?ncias por obra" action="Obras" onAction={() => navigate('/obras')}>
           <MetricLine label="Fotos pendentes" value={vm.aprovacoes.fotosPendentes.length} color={THEME.warn} />
           <MetricLine label="Checklist pendente" value={vm.aprovacoes.checklistPendentes.length} color={THEME.gold} />
           <div className="dg-mini-list">
@@ -559,13 +567,13 @@ export default function DashboardGestao() {
 
         <Card title="Atrasos e metas" action="Planejamento" onAction={() => navigate('/planejamento')}>
           <MetricLine label="Obras atrasadas" value={vm.saude.atrasadas} color={THEME.danger} />
-          <MetricLine label="Gastos próximos/acima da meta" value={vm.financeiro.pertoMeta.length + vm.financeiro.acimaMeta.length} color={THEME.warn} />
+          <MetricLine label="Gastos pr?ximos/acima da meta" value={vm.financeiro.pertoMeta.length + vm.financeiro.acimaMeta.length} color={THEME.warn} />
           <div className="dg-mini-list">
             {vm.atrasadasPorFase.slice(0, 3).map(item => <Line key={item.fase} title={item.fase} meta={`${item.total} atrasada${item.total === 1 ? '' : 's'}`} />)}
             {vm.financeiro.acimaMeta.slice(0, 2).map(obra => (
               <button className="dg-line-button" key={`meta-${obra.id}`} onClick={() => navigate(`/obras/${obra.id}?aba=Gastos`)}>
                 <span>{obra.nome}</span>
-                <small>meta crítica</small>
+                <small>meta cr?tica</small>
               </button>
             ))}
           </div>
@@ -573,8 +581,8 @@ export default function DashboardGestao() {
       </section>
 
       <section className="dg-priority-board">
-        <Card title="Exigem atenção agora" action="Abrir obras" onAction={() => navigate('/obras')}>
-          {vm.atencao.length === 0 ? <Empty text="Nenhuma pendência crítica." /> : vm.atencao.slice(0, 4).map(item => (
+        <Card title="Exigem aten??o agora" action="Abrir obras" onAction={() => navigate('/obras')}>
+          {vm.atencao.length === 0 ? <Empty text="Nenhuma pend?ncia cr?tica." /> : vm.atencao.slice(0, 4).map(item => (
             <button className="dg-attention dg-attention-priority" key={item.obra.id} onClick={() => navigate(`/obras/${item.obra.id}`)}>
               <div>
                 <strong>{item.obra.nome}</strong>
@@ -586,35 +594,35 @@ export default function DashboardGestao() {
         </Card>
 
         <Card title="Obras travadas">
-          {vm.travadasLista.length === 0 ? <Empty text="Nenhuma obra travada." /> : vm.travadasLista.map(obra => (
+          {vm.travadasLista.length === 0 ? <Empty text="Nenhuma obra travada." /> : vm.travadasLista.map(({ obra, operacao }) => (
             <button className="dg-priority-row compact" key={obra.id} onClick={() => navigate(`/obras/${obra.id}`)}>
               <i style={{ background: THEME.danger }} />
-              <div><strong>{obra.nome}</strong><span>{obra.status || 'Ação imediata'}</span></div>
+              <div><strong>{obra.nome}</strong><span>{operacao.cronograma?.motivo_trava || operacao.faseLabel || obra.status || 'Ação imediata'}</span></div>
             </button>
           ))}
         </Card>
 
-        <Card title="Pendências críticas">
-          {vm.pendenciasCriticasExecutivas.length === 0 ? <Empty text="Nenhuma pendência crítica." /> : vm.pendenciasCriticasExecutivas.map(item => (
+        <Card title="Pend?ncias cr?ticas">
+          {vm.pendenciasCriticasExecutivas.length === 0 ? <Empty text="Nenhuma pend?ncia cr?tica." /> : vm.pendenciasCriticasExecutivas.map(item => (
             <button className="dg-priority-row compact" key={item.id} disabled={!item.rota && !item.obraId} onClick={() => navigate(item.rota || `/obras/${item.obraId}`)}>
               <i style={{ background: THEME.warn }} />
-              <div><strong>{item.titulo}</strong><span>{item.tipo} · {item.detalhe}</span></div>
+              <div><strong>{item.titulo}</strong><span>{item.tipo} ? {item.detalhe}</span></div>
             </button>
           ))}
         </Card>
 
         <Card title="Obras em risco">
-          {vm.riscoLista.length === 0 ? <Empty text="Nenhuma obra em risco." /> : vm.riscoLista.map(obra => (
-            <button className="dg-priority-row compact" key={obra.id} onClick={() => navigate(`/obras/${obra.id}`)}>
+          {vm.riscoLista.length === 0 ? <Empty text="Nenhuma obra em risco." /> : vm.riscoLista.map(({ obra, operacao, atrasada }) => (
+            <button className="dg-priority-row compact" key={obra.id} onClick={() => navigate(`/obras/${obra.id}?aba=Cronograma`)}>
               <i style={{ background: THEME.warn }} />
-              <div><strong>{obra.nome}</strong><span>{obra.data_previsao ? `Prev. ${dataBR(obra.data_previsao)}` : 'Sem previsão'}</span></div>
+              <div><strong>{obra.nome}</strong><span>{[operacao.faseLabel, operacao.fimPrevisto ? `Prev. ${dataBR(operacao.fimPrevisto)}` : 'Sem previsão', atrasada ? 'atrasada' : null].filter(Boolean).join(' · ')}</span></div>
             </button>
           ))}
         </Card>
       </section>
 
       <section className="dg-approval-panel">
-        <Card title="Aprovações pendentes" action="Fotos" onAction={() => navigate('/obras')}>
+        <Card title="Aprova??es pendentes" action="Fotos" onAction={() => navigate('/obras')}>
           <div className="dg-approval-grid">
             <button className={vm.aprovacoes.fotosPendentes.length ? 'warn' : ''} disabled={!vm.aprovacoes.fotosPendentes[0]?.obra_id} onClick={() => navigate(`/obras/${vm.aprovacoes.fotosPendentes[0].obra_id}?aba=Fotos&foto=${vm.aprovacoes.fotosPendentes[0].id}`)}>
               <strong>{loading ? '-' : vm.aprovacoes.fotosPendentes.length}</strong>
@@ -630,7 +638,7 @@ export default function DashboardGestao() {
             </button>
             <button className={vm.aprovacoes.naoConformidades.length ? 'danger' : ''} disabled={!vm.aprovacoes.naoConformidades[0]?.obra_id} onClick={() => navigate(`/obras/${vm.aprovacoes.naoConformidades[0].obra_id}?aba=Fotos&foto=${vm.aprovacoes.naoConformidades[0].id}`)}>
               <strong>{loading ? '-' : vm.aprovacoes.naoConformidades.length}</strong>
-              <span>Não conformidades</span>
+              <span>N?o conformidades</span>
             </button>
             <button className={vm.aprovacoes.vistoriasPendentes.length ? 'info' : ''} disabled={!vm.aprovacoes.vistoriasPendentes[0]?.id} onClick={() => navigate(`/agenda?compromisso=${vm.aprovacoes.vistoriasPendentes[0].id}`)}>
               <strong>{loading ? '-' : vm.aprovacoes.vistoriasPendentes.length}</strong>
@@ -646,14 +654,14 @@ export default function DashboardGestao() {
             </button>
           </div>
           {vm.aprovacoes.fotosPendentes.length === 0 && vm.aprovacoes.checklistPendentes.length === 0 && vm.aprovacoes.fotosCliente.length === 0 && vm.aprovacoes.naoConformidades.length === 0 && vm.aprovacoes.vistoriasPendentes.length === 0 && vm.aprovacoes.gastosPendentes.length === 0 && vm.aprovacoes.cronogramasTravados.length === 0 ? (
-            <Empty text="Nada aguardando aprovação agora." />
+            <Empty text="Nada aguardando aprova??o agora." />
           ) : (
             <div className="dg-approval-list">
               {vm.aprovacoes.naoConformidades.slice(0, 2).map(foto => (
                 <button className="danger" key={foto.id} onClick={() => navigate(`/obras/${foto.obra_id}?aba=Fotos&foto=${foto.id}`)}>
                   <i />
                   <div>
-                    <strong>Não conformidade</strong>
+                    <strong>N?o conformidade</strong>
                     <span>{foto.obras?.nome || obraNome(dados.obras, foto.obra_id)}</span>
                   </div>
                 </button>
@@ -709,15 +717,15 @@ export default function DashboardGestao() {
       </section>
 
       <section className="dg-agenda-mobile">
-        <Card title="Agenda dos próximos dias" action="Agenda" onAction={() => navigate('/agenda')}>
+        <Card title="Agenda dos pr?ximos dias" action="Agenda" onAction={() => navigate('/agenda')}>
           <MiniAgenda label="Montagens" itens={vm.agenda7.montagens} />
           <MiniAgenda label="Vistorias" itens={vm.agenda7.vistorias} />
-          <MiniAgenda label="Assist. técnicas" itens={vm.agenda7.assistencias} />
+          <MiniAgenda label="Assist. t?cnicas" itens={vm.agenda7.assistencias} />
         </Card>
       </section>
 
       <section className="dg-grid-3">
-        <Card title="Saúde operacional" action="Ver obras" onAction={() => navigate('/obras')}>
+        <Card title="Sa?de operacional" action="Ver obras" onAction={() => navigate('/obras')}>
           <div className="dg-health">
             <Health label="Atrasadas" value={vm.saude.atrasadas} color={THEME.danger} />
             <Health label="Em risco" value={vm.saude.risco} color={THEME.warn} />
@@ -725,10 +733,10 @@ export default function DashboardGestao() {
           </div>
         </Card>
 
-        <Card title="Próximos 7 dias" action="Agenda" onAction={() => navigate('/agenda')}>
+        <Card title="Pr?ximos 7 dias" action="Agenda" onAction={() => navigate('/agenda')}>
           <MiniAgenda label="Montagens" itens={vm.agenda7.montagens} />
           <MiniAgenda label="Vistorias" itens={vm.agenda7.vistorias} />
-          <MiniAgenda label="Assist. técnicas" itens={vm.agenda7.assistencias} />
+          <MiniAgenda label="Assist. t?cnicas" itens={vm.agenda7.assistencias} />
         </Card>
 
         <Card title="Equipe">
@@ -768,19 +776,19 @@ export default function DashboardGestao() {
             )}
           </Card>
 
-          <Card title="Operação em andamento" action="Ver todas" onAction={() => navigate('/obras')}>
-            {vm.obrasOperacionais.length === 0 ? <Empty text="Sem obras operacionais." /> : vm.obrasOperacionais.map(obra => {
+          <Card title="Opera??o em andamento" action="Ver todas" onAction={() => navigate('/obras')}>
+            {vm.obrasOperacionais.length === 0 ? <Empty text="Sem obras operacionais." /> : vm.obrasOperacionais.map(({ obra, operacao }) => {
               const st = statusBadge(obra.status)
               const temOc = (vm.ocorrPorObra.get(obra.id) || []).length > 0
               return (
                 <button className="dg-work-row" key={obra.id} onClick={() => navigate(`/obras/${obra.id}`)}>
                   <div className="dg-work-main">
                     <strong>{obra.nome}</strong>
-                    <span>{[obra.cliente_nome, obra.cidade, obra.data_previsao ? `Prev. ${dataBR(obra.data_previsao)}` : null].filter(Boolean).join(' · ')}</span>
+                    <span>{[obra.cliente_nome, obra.cidade, operacao.faseLabel, operacao.fimPrevisto ? `Prev. ${dataBR(operacao.fimPrevisto)}` : null].filter(Boolean).join(' · ')}</span>
                   </div>
                   <div className="dg-progress-wrap">
-                    <div className="dg-progress"><i style={{ width: `${obra.progresso || 0}%`, background: temOc ? THEME.danger : THEME.gold }} /></div>
-                    <b>{obra.progresso || 0}%</b>
+                    <div className="dg-progress"><i style={{ width: `${operacao.progresso}%`, background: temOc || operacao.travado ? THEME.danger : THEME.gold }} /></div>
+                    <b>{operacao.progresso}%</b>
                   </div>
                   <span className="dg-badge" style={{ background: st.bg, color: st.color }}>{st.label}</span>
                 </button>
@@ -790,9 +798,9 @@ export default function DashboardGestao() {
         </div>
 
         <div className="dg-stack">
-          <Card title="Pendências" action="Ocorrências" onAction={() => navigate('/ocorrencias')}>
-            <MetricLine label="Ocorrências abertas" value={vm.pendencias.ocorrenciasAbertas.length} color={THEME.danger} />
-            <MetricLine label="Não conformidades" value={vm.pendencias.naoConformidades.length} color={THEME.warn} />
+          <Card title="Pend?ncias" action="Ocorr?ncias" onAction={() => navigate('/ocorrencias')}>
+            <MetricLine label="Ocorr?ncias abertas" value={vm.pendencias.ocorrenciasAbertas.length} color={THEME.danger} />
+            <MetricLine label="N?o conformidades" value={vm.pendencias.naoConformidades.length} color={THEME.warn} />
             <MetricLine label="Checklist pendente" value={vm.pendencias.checklistPendentes.length} color={THEME.gold} />
             <MetricLine label="Tarefas atrasadas" value={vm.pendencias.tarefasAtrasadas.length} color={THEME.blue} />
             <div className="dg-mini-list">
@@ -802,11 +810,11 @@ export default function DashboardGestao() {
 
           <Card title="Financeiro operacional" action="Gastos" onAction={() => navigate('/gastos')}>
             <div className="dg-money">{moeda(vm.financeiro.totalMes)}</div>
-            <div className="dg-muted">{vm.financeiro.gastosMes.length} lançamento{vm.financeiro.gastosMes.length === 1 ? '' : 's'} no mês</div>
+            <div className="dg-muted">{vm.financeiro.gastosMes.length} lan?amento{vm.financeiro.gastosMes.length === 1 ? '' : 's'} no m?s</div>
             <MetricLine label="Total operacional" value={moeda(vm.financeiro.totalOperacional)} color={THEME.gold} />
             <MetricLine label="Gastos pendentes" value={vm.aprovacoes.gastosPendentes.length} color={THEME.warn} />
-            <MetricLine label="Obras próximas da meta" value={vm.financeiro.pertoMeta.length} color={THEME.warn} />
-            <MetricLine label="Obras críticas/acima da meta" value={vm.financeiro.acimaMeta.length} color={THEME.danger} />
+            <MetricLine label="Obras pr?ximas da meta" value={vm.financeiro.pertoMeta.length} color={THEME.warn} />
+            <MetricLine label="Obras cr?ticas/acima da meta" value={vm.financeiro.acimaMeta.length} color={THEME.danger} />
             <div className="dg-mini-list spaced">
               {vm.financeiro.topObras.map(o => <Line key={o.obraId} title={o.nome} meta={moeda(o.total)} />)}
             </div>
