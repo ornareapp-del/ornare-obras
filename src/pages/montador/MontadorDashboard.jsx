@@ -631,6 +631,18 @@ export default function MontadorDashboard() {
     }
   }
 
+  async function atualizarStatusAgendaMontador(agendaId, status, contexto) {
+    if (!agendaId) return
+    const { error } = await supabase.rpc('montador_atualizar_status_agenda', {
+      p_agenda_id: agendaId,
+      p_status: status,
+    })
+    if (error) {
+      logError('agenda.status_rpc_failed', error, { obraId: obraAtiva?.id, agendaId, status, contexto })
+      console.error(`${contexto} registrado, mas nao foi possivel atualizar a agenda:`, error)
+    }
+  }
+
   async function fazerCheckin() {
     if (!obraAtiva || !user) return
     if (isAppOffline()) {
@@ -708,8 +720,7 @@ export default function MontadorDashboard() {
     setServicoFeedback(mensagem)
     mostrarSucesso(mensagem)
     if (compromisso?.id) {
-      const agendaResult = await supabase.from('agenda').update({ status: 'em andamento' }).eq('id', compromisso.id)
-      if (agendaResult.error) console.error('Check-in registrado, mas nao foi possivel atualizar a agenda:', agendaResult.error)
+      await atualizarStatusAgendaMontador(compromisso.id, 'em andamento', 'Check-in')
     }
     await criarNotificacoesOperacionais({
       tipo: 'checkin',
@@ -767,6 +778,9 @@ export default function MontadorDashboard() {
         agendaId: ultimo.agenda_id,
         prioridade: 'normal',
       })
+      if (ultimo.agenda_id) {
+        await atualizarStatusAgendaMontador(ultimo.agenda_id, 'realizada', 'Check-out')
+      }
     }
     setServicoFeedback('Check-out registrado.')
     mostrarSucesso('Check-out registrado.')
