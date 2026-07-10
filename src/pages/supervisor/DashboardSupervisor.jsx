@@ -87,6 +87,8 @@ function safeArray(result) {
 }
 
 function fotoPendenteAprovacao(foto) {
+  const status = norm(foto?.status_aprovacao || foto?.status)
+  if (['recusada', 'recusado', 'reprovada', 'reprovado'].includes(status)) return false
   return !(foto?.aprovada === true && foto?.aprovada_gestao === true)
 }
 

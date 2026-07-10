@@ -129,6 +129,21 @@ function fotoUrl(foto) {
   return supabase.storage.from('fotos-obras').getPublicUrl(foto.storage_path).data.publicUrl
 }
 
+function statusAprovacaoFoto(foto) {
+  const status = norm(foto?.status_aprovacao || foto?.status)
+  if (['aprovada', 'aprovado'].includes(status)) return 'aprovada'
+  if (['recusada', 'recusado', 'reprovada', 'reprovado'].includes(status)) return 'recusada'
+  if (foto?.aprovada === true || foto?.aprovada_gestao === true) return 'aprovada'
+  return 'pendente'
+}
+
+function textoStatusFoto(foto) {
+  const status = statusAprovacaoFoto(foto)
+  if (status === 'aprovada') return 'Aprovada'
+  if (status === 'recusada') return foto?.motivo_recusa ? `Recusada: ${foto.motivo_recusa}` : 'Recusada'
+  return 'Aguardando supervisor'
+}
+
 function dataBR(value) {
   return value ? new Date(`${value}T00:00:00`).toLocaleDateString('pt-BR') : '-'
 }
@@ -1697,8 +1712,8 @@ export default function MontadorDashboard() {
                 <button key={foto.id} className="md-photo" onClick={() => foto.publicUrl && setPreview(foto.publicUrl)}>
                   {foto.publicUrl && <img src={foto.publicUrl} alt={foto.observacao || foto.categoria} />}
                   <span>{ambienteNome(foto.ambiente_id)}</span>
-                  <small className={foto.aprovada || foto.aprovada_gestao ? 'approved' : ''}>
-                    {foto.aprovada || foto.aprovada_gestao ? 'Aprovada' : 'Aguardando supervisor'}
+                  <small className={statusAprovacaoFoto(foto)}>
+                    {textoStatusFoto(foto)}
                   </small>
                 </button>
               ))}
@@ -1947,7 +1962,9 @@ const css = `
 .md-photo img{width:100%;height:100%;object-fit:cover;display:block}
 .md-photo span{position:absolute;left:5px;right:5px;bottom:5px;background:rgba(29,28,25,.72);color:#fff;border-radius:8px;padding:4px 5px;font-size:9px;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .md-photo small{position:absolute;left:5px;right:5px;top:5px;background:rgba(29,28,25,.78);color:#F4C66A;border-radius:999px;padding:4px 5px;font-size:8px;line-height:1.1;font-weight:900;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.md-photo small.approved{color:#A7E3BC}
+.md-photo small.aprovada{color:#A7E3BC}
+.md-photo small.recusada{color:#FFB4A8}
+.md-photo small.pendente{color:#F4C66A}
 .md-occ{border:1px solid ${THEME.border};border-radius:14px;padding:12px;margin-bottom:9px;background:${THEME.card}}
 .md-occ strong{font-size:13.5px;color:${THEME.ink}}
 .md-occ p{font-size:12px;color:${THEME.muted};line-height:1.4;margin:6px 0}

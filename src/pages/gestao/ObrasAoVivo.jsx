@@ -104,6 +104,7 @@ function statusBadge(status) {
 
 function fotoPendenteAprovacao(foto) {
   const status = normalizar(foto.status_aprovacao || foto.status)
+  if (['recusada', 'recusado', 'reprovada', 'reprovado'].includes(status)) return false
   return ['pendente', 'em analise', 'em análise', 'aguardando'].includes(status)
     || foto.aprovada === false
     || foto.aprovado === false

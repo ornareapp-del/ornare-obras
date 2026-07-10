@@ -130,6 +130,19 @@ function fotoAprovadaParaCliente(foto) {
   return Boolean(foto?.aprovada && foto?.aprovada_gestao)
 }
 
+function statusAprovacaoFoto(foto) {
+  const status = String(foto?.status_aprovacao || '').trim().toLowerCase()
+  if (['aprovada', 'aprovado'].includes(status)) return 'aprovada'
+  if (['recusada', 'recusado', 'reprovada', 'reprovado'].includes(status)) return 'recusada'
+  if (fotoAprovadaParaCliente(foto)) return 'aprovada'
+  return 'pendente'
+}
+
+function erroColunaFotoAprovacaoAusente(error) {
+  const texto = `${error?.code || ''} ${error?.message || ''} ${error?.details || ''}`.toLowerCase()
+  return texto.includes('status_aprovacao') || texto.includes('motivo_recusa') || texto.includes('schema cache') || texto.includes('column')
+}
+
 async function criarNotificacoesObra({ obraId, tipo, titulo, descricao, prioridade = 'normal', entidadeTipo, entidadeId, rota, excluirUsuarioId }) {
   if (!obraId || !titulo) return
   try {
@@ -2380,6 +2393,8 @@ function AbaFotos({ obraId, fotoDestaque }) {
   const [mensagem, setMensagem] = useState({ texto: '', tipo: 'ok' })
   const [preview, setPreview] = useState(null)
   const [fotoSelecionada, setFotoSelecionada] = useState(null)
+  const [recusaFoto, setRecusaFoto] = useState(null)
+  const [motivoRecusa, setMotivoRecusa] = useState('')
   const [filtroCategoria, setFiltroCategoria] = useState('')
   const [filtroAmbiente, setFiltroAmbiente] = useState('')
   const [filtroAprovacao, setFiltroAprovacao] = useState('')
@@ -2509,6 +2524,8 @@ function AbaFotos({ obraId, fotoDestaque }) {
       aprovada_gestao: aprovado,
       aprovada_por: aprovado ? user?.id : null,
       aprovada_em: aprovado ? new Date().toISOString() : null,
+      status_aprovacao: aprovado ? 'aprovada' : 'pendente',
+      motivo_recusa: null,
       ...(!aprovado ? { visivel_cliente: false, visibilidade: 'interna' } : {}),
     }).eq('id', foto.id)
     if (error) {
@@ -2529,6 +2546,47 @@ function AbaFotos({ obraId, fotoDestaque }) {
     })
     await carregar()
     mostrarMensagem(aprovado ? 'Foto aprovada. Agora ela pode ser liberada ao cliente.' : 'Foto voltou para revisao e foi ocultada do cliente.', 'ok')
+    setAcaoFoto('')
+  }
+  async function recusarFoto() {
+    if (acaoFoto || !recusaFoto) return
+    const foto = recusaFoto
+    const motivo = motivoRecusa.trim()
+    setErro('')
+    setAcaoFoto(foto.id)
+    setMensagem({ texto: 'Recusando foto...', tipo: 'info' })
+    const { error } = await supabase.from('fotos').update({
+      aprovada: false,
+      aprovada_gestao: false,
+      aprovada_por: null,
+      aprovada_em: null,
+      visivel_cliente: false,
+      visibilidade: 'interna',
+      status_aprovacao: 'recusada',
+      motivo_recusa: motivo || null,
+    }).eq('id', foto.id)
+    if (error) {
+      setAcaoFoto('')
+      setErro(erroColunaFotoAprovacaoAusente(error)
+        ? 'A tabela fotos precisa das colunas status_aprovacao e motivo_recusa. Aplique o SQL em docs/supabase-fotos-aprovacao-recusa.sql.'
+        : mensagemErro(error, 'Nao foi possivel recusar a foto.'))
+      return
+    }
+    await criarNotificacoesObra({
+      obraId,
+      tipo: 'foto_recusada',
+      titulo: 'Foto recusada',
+      descricao: [foto.categoria || 'Foto', motivo || foto.observacao].filter(Boolean).join(' - '),
+      prioridade: 'media',
+      entidadeTipo: 'fotos',
+      entidadeId: foto.id,
+      rota: `/obras/${obraId}?aba=Fotos&foto=${foto.id}`,
+      excluirUsuarioId: user?.id,
+    })
+    setRecusaFoto(null)
+    setMotivoRecusa('')
+    await carregar()
+    mostrarMensagem('Foto recusada e mantida interna. O montador vera o status ao acessar as fotos.', 'ok')
     setAcaoFoto('')
   }
   async function alternarCliente(foto) {
@@ -2573,8 +2631,10 @@ function AbaFotos({ obraId, fotoDestaque }) {
     if (filtroCategoria && (f.categoria || 'Geral') !== filtroCategoria) return false
     if (filtroAmbiente === 'sem' && f.ambiente_id) return false
     if (filtroAmbiente && filtroAmbiente !== 'sem' && f.ambiente_id !== filtroAmbiente) return false
-    if (filtroAprovacao === 'aprovadas' && !f.aprovada) return false
-    if (filtroAprovacao === 'pendentes' && f.aprovada) return false
+    const statusFoto = statusAprovacaoFoto(f)
+    if (filtroAprovacao === 'aprovadas' && statusFoto !== 'aprovada') return false
+    if (filtroAprovacao === 'pendentes' && statusFoto !== 'pendente') return false
+    if (filtroAprovacao === 'recusadas' && statusFoto !== 'recusada') return false
     return true
   })
   const gruposFotos = FOTO_CATEGORIAS.map(categoria => ({
@@ -2585,10 +2645,25 @@ function AbaFotos({ obraId, fotoDestaque }) {
   return (
     <div>
       {preview && <div onClick={() => setPreview(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out' }}><img src={preview} alt="preview" style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 8, objectFit: 'contain' }} /></div>}
+      {recusaFoto && (
+        <div onClick={e => e.target === e.currentTarget && !acaoFoto && setRecusaFoto(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(20,18,16,.72)', zIndex: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 18 }}>
+          <div style={{ width: 'min(460px, 100%)', background: THEME.card, border: '1px solid ' + THEME.border, borderRadius: 14, padding: 18, boxShadow: '0 24px 60px rgba(0,0,0,.28)' }}>
+            <div style={{ fontSize: 11, color: THEME.danger, textTransform: 'uppercase', letterSpacing: 1.4, fontWeight: 900, marginBottom: 8 }}>Recusar foto</div>
+            <h3 style={{ margin: '0 0 8px', color: THEME.ink, fontSize: 18 }}>Confirmar recusa</h3>
+            <p style={{ margin: '0 0 12px', color: THEME.muted, fontSize: 13, lineHeight: 1.45 }}>A foto ficara interna, fora do portal do cliente, e o montador vera que ela foi recusada.</p>
+            <Label>Motivo da recusa</Label>
+            <textarea value={motivoRecusa} onChange={e => setMotivoRecusa(e.target.value)} rows={4} placeholder="Opcional, se quiser orientar o reenvio..." style={textareaStyle} />
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 14, flexWrap: 'wrap' }}>
+              <button onClick={() => { setRecusaFoto(null); setMotivoRecusa('') }} disabled={Boolean(acaoFoto)} style={{ background: THEME.elevated, color: THEME.muted, border: '1px solid ' + THEME.border, borderRadius: 8, padding: '10px 14px', minHeight: 44, fontWeight: 800, cursor: acaoFoto ? 'not-allowed' : 'pointer' }}>Cancelar</button>
+              <button onClick={recusarFoto} disabled={Boolean(acaoFoto)} style={{ background: THEME.dangerBg, color: THEME.danger, border: '1px solid ' + THEME.danger, borderRadius: 8, padding: '10px 14px', minHeight: 44, fontWeight: 900, cursor: acaoFoto ? 'not-allowed' : 'pointer' }}>{acaoFoto ? 'Salvando...' : 'Recusar foto'}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 18 }}>
         <KpiCard label="Total" value={fotos.length} helper="fotos da obra" />
-        <KpiCard label="Aprovadas" value={fotos.filter(f => f.aprovada).length} helper="liberadas" />
+        <KpiCard label="Aprovadas" value={fotos.filter(f => statusAprovacaoFoto(f) === 'aprovada').length} helper="liberadas" />
         <KpiCard label="Cliente" value={fotos.filter(f => f.visivel_cliente).length} helper="visíveis ao cliente" />
         <KpiCard label="Não conform." value={naoConformidades} helper="registros críticos" />
       </div>
@@ -2628,7 +2703,7 @@ function AbaFotos({ obraId, fotoDestaque }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, margin: '18px 0' }}>
         <FSelect value={filtroCategoria} onChange={setFiltroCategoria}><option value="">Todas as categorias</option>{FOTO_CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}</FSelect>
         <FSelect value={filtroAmbiente} onChange={setFiltroAmbiente}><option value="">Todos os ambientes</option><option value="sem">Sem ambiente</option>{ambientes.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}</FSelect>
-        <FSelect value={filtroAprovacao} onChange={setFiltroAprovacao}><option value="">Todas</option><option value="aprovadas">Aprovadas</option><option value="pendentes">Pendentes</option></FSelect>
+        <FSelect value={filtroAprovacao} onChange={setFiltroAprovacao}><option value="">Todas</option><option value="pendentes">Pendentes</option><option value="aprovadas">Aprovadas</option><option value="recusadas">Recusadas</option></FSelect>
       </div>
 
       {loading ? <div style={{ color: '#bbb' }}>Carregando...</div>
@@ -2641,14 +2716,20 @@ function AbaFotos({ obraId, fotoDestaque }) {
               {grupo.fotos.map(foto => {
                 const destaque = fotoDestaque && foto.id === fotoDestaque
                 const liberavelCliente = fotoAprovadaParaCliente(foto)
+                const statusFoto = statusAprovacaoFoto(foto)
                 return (
                 <div key={foto.id} data-destaque-id={foto.id} style={{ background: destaque ? theme.app.surfaceWarm : THEME.card, border: destaque ? `2px solid ${THEME.gold}` : `1px solid ${THEME.border}`, borderRadius: 14, overflow: 'hidden', boxShadow: destaque ? '0 14px 34px rgba(184,150,94,.18)' : 'none' }}>
                   <div onClick={() => foto.publicUrl && setPreview(foto.publicUrl)} style={{ cursor: 'zoom-in', height: 170, overflow: 'hidden', background: THEME.elevated }}>{foto.publicUrl && <img src={foto.publicUrl} alt={foto.observacao || foto.categoria} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}</div>
                   <div style={{ padding: 12 }}>
                     <div style={{ fontSize: 12, color: THEME.ink, fontWeight: 700, marginBottom: 4 }}>{ambienteNome(foto.ambiente_id)}</div>
                     <div style={{ fontSize: 11, color: THEME.muted, marginBottom: 8, minHeight: 16 }}>{foto.observacao || 'Sem observação'}</div>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', borderRadius: 999, padding: '5px 9px', marginBottom: 9, fontSize: 10.5, fontWeight: 900, background: statusFoto === 'aprovada' ? THEME.successBg : statusFoto === 'recusada' ? THEME.dangerBg : THEME.warningBg, color: statusFoto === 'aprovada' ? THEME.success : statusFoto === 'recusada' ? THEME.danger : THEME.warning }}>
+                      {statusFoto === 'aprovada' ? 'Aprovada' : statusFoto === 'recusada' ? 'Recusada' : 'Pendente'}
+                    </div>
+                    {statusFoto === 'recusada' && foto.motivo_recusa && <div style={{ fontSize: 11, color: THEME.danger, background: THEME.dangerBg, borderRadius: 8, padding: '7px 9px', marginBottom: 9, fontWeight: 700 }}>Motivo: {foto.motivo_recusa}</div>}
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      <button onClick={() => aprovar(foto)} disabled={Boolean(acaoFoto)} style={{ flex: '1 1 90px', minHeight: 44, padding: '8px 10px', borderRadius: 7, border: 'none', fontSize: 11, cursor: acaoFoto ? 'not-allowed' : 'pointer', opacity: acaoFoto && acaoFoto !== foto.id ? 0.55 : 1, background: foto.aprovada ? THEME.successBg : THEME.elevated, color: foto.aprovada ? THEME.success : THEME.muted, fontWeight: 700 }}>{acaoFoto === foto.id ? 'Salvando...' : foto.aprovada ? 'Aprovada' : 'Aprovar'}</button>
+                      <button onClick={() => aprovar(foto)} disabled={Boolean(acaoFoto)} style={{ flex: '1 1 90px', minHeight: 44, padding: '8px 10px', borderRadius: 7, border: 'none', fontSize: 11, cursor: acaoFoto ? 'not-allowed' : 'pointer', opacity: acaoFoto && acaoFoto !== foto.id ? 0.55 : 1, background: statusFoto === 'aprovada' ? THEME.successBg : THEME.elevated, color: statusFoto === 'aprovada' ? THEME.success : THEME.muted, fontWeight: 700 }}>{acaoFoto === foto.id ? 'Salvando...' : statusFoto === 'aprovada' ? 'Aprovada' : 'Aprovar'}</button>
+                      <button onClick={() => { setRecusaFoto(foto); setMotivoRecusa(foto.motivo_recusa || '') }} disabled={Boolean(acaoFoto)} style={{ flex: '1 1 90px', minHeight: 44, padding: '8px 10px', borderRadius: 7, border: 'none', fontSize: 11, cursor: acaoFoto ? 'not-allowed' : 'pointer', opacity: acaoFoto && acaoFoto !== foto.id ? 0.55 : 1, background: statusFoto === 'recusada' ? THEME.dangerBg : THEME.elevated, color: statusFoto === 'recusada' ? THEME.danger : THEME.muted, fontWeight: 800 }}>{acaoFoto === foto.id ? 'Salvando...' : statusFoto === 'recusada' ? 'Recusada' : 'Recusar'}</button>
                       <button onClick={() => alternarCliente(foto)} disabled={Boolean(acaoFoto) || (!liberavelCliente && !foto.visivel_cliente)} style={{ flex: '1 1 90px', minHeight: 44, padding: '8px 10px', borderRadius: 7, border: 'none', fontSize: 11, cursor: acaoFoto || (!liberavelCliente && !foto.visivel_cliente) ? 'not-allowed' : 'pointer', opacity: acaoFoto && acaoFoto !== foto.id ? 0.55 : 1, background: foto.visivel_cliente ? THEME.softGold : THEME.elevated, color: foto.visivel_cliente ? THEME.gold : THEME.muted, fontWeight: 700 }}>{acaoFoto === foto.id ? 'Salvando...' : foto.visivel_cliente ? 'Cliente: sim' : 'Cliente'}</button>
                       <button onClick={() => deletar(foto)} disabled={Boolean(acaoFoto)} style={{ padding: '8px 12px', minHeight: 44, borderRadius: 7, border: 'none', fontSize: 11, cursor: acaoFoto ? 'not-allowed' : 'pointer', opacity: acaoFoto && acaoFoto !== foto.id ? 0.55 : 1, background: THEME.dangerBg, color: THEME.danger, fontWeight: 900 }}>{acaoFoto === foto.id ? '...' : 'X'}</button>
                     </div>

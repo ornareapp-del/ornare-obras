@@ -139,6 +139,8 @@ function isAberto(status) {
 }
 
 function fotoPendenteAprovacao(foto) {
+  const status = normalizar(foto?.status_aprovacao || foto?.status)
+  if (['recusada', 'recusado', 'reprovada', 'reprovado'].includes(status)) return false
   return !(foto?.aprovada === true && foto?.aprovada_gestao === true)
 }
 
