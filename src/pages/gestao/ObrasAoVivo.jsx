@@ -22,9 +22,9 @@ const THEME = {
 }
 
 const STATUS = {
-  producao: ['Em produ??o', 'Em producao'],
+  producao: ['Em produção', 'Em producao'],
   montagem: ['Em montagem', 'Montagem agendada'],
-  concluidas: ['Conclu?da', 'Concluida'],
+  concluidas: ['Concluída', 'Concluida'],
   canceladas: ['Cancelada'],
   travadas: ['Pausada', 'Cancelada'],
 }
@@ -75,7 +75,7 @@ function prazoTexto(value) {
   if (dias === null) return 'Sem data'
   if (dias < 0) return `${Math.abs(dias)}d atrasada`
   if (dias === 0) return 'Hoje'
-  if (dias === 1) return 'Amanh?'
+  if (dias === 1) return 'Amanhã'
   return `em ${dias}d`
 }
 
@@ -89,7 +89,7 @@ function fimObra(obra) {
 
 function statusBadge(status) {
   if (normalizar(status).includes('montagem')) return { bg: '#EFF4FA', color: '#1E3A5F', label: status || '-' }
-  if (normalizar(status).includes('producao') || normalizar(status).includes('produ??o')) return { bg: '#F0F3EA', color: '#415B34', label: status || '-' }
+  if (normalizar(status).includes('producao') || normalizar(status).includes('produção')) return { bg: '#F0F3EA', color: '#415B34', label: status || '-' }
   if (['pausada', 'cancelada'].includes(normalizar(status))) return { bg: '#FDECEA', color: '#9E2F2F', label: status || '-' }
   if (normalizar(status).includes('conclu')) return { bg: '#E8F5E9', color: '#2E7D32', label: status || '-' }
   return { bg: '#F5F1EA', color: '#5C5448', label: status || '-' }
@@ -98,7 +98,7 @@ function statusBadge(status) {
 function fotoPendenteAprovacao(foto) {
   const status = normalizar(foto.status_aprovacao || foto.status)
   if (['recusada', 'recusado', 'reprovada', 'reprovado'].includes(status)) return false
-  return ['pendente', 'em analise', 'em an?lise', 'aguardando'].includes(status)
+  return ['pendente', 'em analise', 'em análise', 'aguardando'].includes(status)
     || foto.aprovada === false
     || foto.aprovado === false
 }
@@ -170,7 +170,7 @@ export default function ObrasAoVivo() {
       const falhas = [
         erroConsulta('Obras', obrasResult),
         erroConsulta('Agenda', agendaResult),
-        erroConsulta('Ocorr?ncias', ocorrenciasResult),
+        erroConsulta('Ocorrências', ocorrenciasResult),
         erroConsulta('Check-ins', checkinsResult),
         erroConsulta('Fotos', fotosResult),
         erroConsulta('Cronogramas', cronogramasResult),
@@ -274,7 +274,7 @@ export default function ObrasAoVivo() {
       const abertos = checkinsAbertosPorObra.get(obra.id) || []
       const ultimoCheckin = ultimoCheckinPorObra.get(obra.id)
       const pendencias = [
-        (ocorrPorObra.get(obra.id) || []).length ? 'Ocorr?ncia' : null,
+        (ocorrPorObra.get(obra.id) || []).length ? 'Ocorrência' : null,
         (checklistPorObra.get(obra.id) || []).some(item => !item.concluido) ? 'Checklist' : null,
         (fotosPorObra.get(obra.id) || []).some(fotoPendenteAprovacao) ? 'Fotos' : null,
       ].filter(Boolean)
@@ -330,8 +330,8 @@ export default function ObrasAoVivo() {
   const filtros = [
     { id: 'todas', label: 'Todas', value: vm.resumo.total },
     { id: 'campo', label: 'Em campo', value: vm.resumo.emCampo },
-    { id: 'atencao', label: 'Aten??o', value: vm.resumo.atencao },
-    { id: 'criticas', label: 'Cr?ticas', value: vm.resumo.criticas },
+    { id: 'atencao', label: 'Atenção', value: vm.resumo.atencao },
+    { id: 'criticas', label: 'Críticas', value: vm.resumo.criticas },
     { id: 'sem-checkin', label: 'Sem check-in', value: vm.resumo.semCheckin },
   ]
 
@@ -341,9 +341,9 @@ export default function ObrasAoVivo() {
 
       <header className="oa-header">
         <div>
-          <div className="oa-eyebrow">Gest?o Ornare</div>
+          <div className="oa-eyebrow">Gestão Ornare</div>
           <h1>Obras ao vivo</h1>
-          <p>Leitura r?pida de campo: obra parada, montador em campo, datas, prazo, progresso e pr?ximo compromisso.</p>
+          <p>Leitura rápida de campo: obra parada, montador em campo, datas, prazo, progresso e próximo compromisso.</p>
         </div>
         <div className="oa-actions">
           <button onClick={() => carregar()} disabled={loading}>{loading ? 'Atualizando...' : 'Atualizar'}</button>
@@ -400,8 +400,8 @@ function LiveCard({ item, onOpen, onRoute }) {
       : item.semCheckin
         ? 'Sem check-in recente'
         : item.pendencias.length
-          ? 'Aten??o pendente'
-          : 'Sem alerta cr?tico'
+          ? 'Atenção pendente'
+          : 'Sem alerta crítico'
   const rotaObra = aba => `/obras/${obra.id}?aba=${aba}`
   const irPara = (event, rota) => {
     event.stopPropagation()
@@ -431,7 +431,7 @@ function LiveCard({ item, onOpen, onRoute }) {
       <div className="oa-live-head">
         <div>
           <strong>{obra.nome}</strong>
-          <span>{obra.cliente_nome || obra.cidade || 'Cliente n?o informado'}</span>
+          <span>{obra.cliente_nome || obra.cidade || 'Cliente não informado'}</span>
         </div>
         <em style={{ background: status.bg, color: status.color }}>{status.label}</em>
       </div>
@@ -442,12 +442,12 @@ function LiveCard({ item, onOpen, onRoute }) {
       </button>
 
       <div className="oa-live-metrics">
-        <button onClick={event => irPara(event, rotaObra('Cronograma'))}><small>In?cio</small><b>{item.inicio ? dataBR(item.inicio) : '-'}</b></button>
-        <button onClick={event => irPara(event, rotaObra('Cronograma'))}><small>T?rmino</small><b>{item.fim ? dataBR(item.fim) : '-'}</b></button>
+        <button onClick={event => irPara(event, rotaObra('Cronograma'))}><small>Início</small><b>{item.inicio ? dataBR(item.inicio) : '-'}</b></button>
+        <button onClick={event => irPara(event, rotaObra('Cronograma'))}><small>Término</small><b>{item.fim ? dataBR(item.fim) : '-'}</b></button>
         <button onClick={event => irPara(event, rotaObra('Cronograma'))}><small>Prazo</small><b>{prazoTexto(item.fim)}</b></button>
         <button onClick={event => irPara(event, rotaObra('Equipe'))}><small>Check-in</small><b>{ultimo ? `${diasDesde(ultimo)}d` : 'Nunca'}</b></button>
         <button onClick={event => irPara(event, rotaObra('Cronograma'))}><small>Progresso</small><b>{progresso}%</b></button>
-        <button onClick={event => irPara(event, item.proximo?.id ? `${rotaObra('Agenda')}&compromisso=${item.proximo.id}` : rotaObra('Agenda'))}><small>Pr?ximo</small><b>{item.proximo?.data ? dataBR(item.proximo.data) : '-'}</b></button>
+        <button onClick={event => irPara(event, item.proximo?.id ? `${rotaObra('Agenda')}&compromisso=${item.proximo.id}` : rotaObra('Agenda'))}><small>Próximo</small><b>{item.proximo?.data ? dataBR(item.proximo.data) : '-'}</b></button>
       </div>
 
       <div className="oa-live-flow">
@@ -456,7 +456,7 @@ function LiveCard({ item, onOpen, onRoute }) {
           <b>{item.operacao.faseLabel}</b>
         </button>
         <button onClick={event => irPara(event, rotaObra('Cronograma'))}>
-          <small><i />Pr?xima fase</small>
+          <small><i />Próxima fase</small>
           <b>{item.operacao.proximaFaseLabel}</b>
         </button>
         <div className="oa-live-progress"><i style={{ width: `${progresso}%` }} /></div>

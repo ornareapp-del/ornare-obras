@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import { resolverOperacaoObra } from '../utils/obraOperacional'
 
 const THEME = {
   ink: '#1D1C19',
@@ -49,6 +50,18 @@ function nomePessoa(profile) {
 
 function normalizar(value) {
   return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+}
+
+function operacaoObra(ctx) {
+  return resolverOperacaoObra(ctx?.obra || {}, ctx?.cronograma || {})
+}
+
+function faseGestao(ctx) {
+  return operacaoObra(ctx).faseLabel
+}
+
+function faseCliente(ctx) {
+  return operacaoObra(ctx).faseCliente
 }
 
 function statusGasto(gasto) {
@@ -345,7 +358,7 @@ function dadosBase(ctx) {
     { label: 'Obra', value: obra.nome },
     { label: 'Supervisor', value: nomePessoa(supervisor) },
     { label: 'Equipe', value: montadores.map(nomePessoa).join(', ') || '-' },
-    { label: 'Fase', value: cronograma.fase || obra.status },
+    { label: 'Fase', value: faseGestao(ctx) },
     { label: 'Status', value: cronograma.status_operacional || obra.status },
     { label: 'Prioridade', value: cronograma.prioridade || '-' },
     { label: 'Risco', value: cronograma.risco || '-' },
@@ -360,7 +373,7 @@ function dadosCliente(ctx) {
     { label: 'Cliente', value: obra.cliente_nome },
     { label: 'Obra', value: obra.nome },
     { label: 'Status', value: obra.status_cliente || obra.status },
-    { label: 'Fase atual', value: obra.fase_cliente || obra.fase_atual || cronograma.fase_cliente || obra.status },
+    { label: 'Fase atual', value: faseCliente(ctx) },
     { label: 'Percentual', value: `${cronograma.percentual_concluido ?? obra.progresso ?? 0}%` },
     { label: 'Previsao', value: dataBR(cronograma.data_fim_prevista || obra.data_previsao) },
   ]
@@ -504,7 +517,7 @@ export async function exportarRelatorioObra(obraId, tipo = 'executivo') {
       pdf.section('Status da obra')
       pdf.grid([
         { label: 'Status', value: ctx.cronograma.status_operacional || ctx.obra.status },
-        { label: 'Fase atual', value: ctx.cronograma.fase || ctx.obra.status },
+        { label: 'Fase atual', value: faseGestao(ctx) },
         { label: 'Progresso', value: `${ctx.cronograma.percentual_concluido ?? ctx.obra.progresso ?? 0}%` },
         { label: 'Risco', value: ctx.cronograma.risco || '-' },
       ])
@@ -549,7 +562,7 @@ export async function exportarRelatorioObra(obraId, tipo = 'executivo') {
       pdf.section('Andamento da obra')
       pdf.grid([
         { label: 'Status', value: ctx.obra.status_cliente || ctx.obra.status },
-        { label: 'Fase atual', value: ctx.obra.fase_cliente || ctx.obra.fase_atual || ctx.cronograma.fase_cliente || ctx.obra.status },
+        { label: 'Fase atual', value: faseCliente(ctx) },
         { label: 'Percentual', value: `${ctx.cronograma.percentual_concluido ?? ctx.obra.progresso ?? 0}%` },
         { label: 'Previsao', value: dataBR(ctx.cronograma.data_fim_prevista || ctx.obra.data_previsao) },
       ])
@@ -655,7 +668,7 @@ async function exportarRelatorioObraLegado(obraId, tipo = 'executivo') {
     pdf.section('Andamento da obra')
     pdf.grid([
       { label: 'Status', value: ctx.cronograma.status_operacional || ctx.obra.status },
-      { label: 'Fase atual', value: ctx.cronograma.fase || ctx.obra.status },
+      { label: 'Fase atual', value: faseGestao(ctx) },
       { label: 'Percentual', value: `${ctx.cronograma.percentual_concluido ?? ctx.obra.progresso ?? 0}%` },
       { label: 'Previsão', value: dataBR(ctx.cronograma.data_fim_prevista || ctx.obra.data_previsao) },
     ])
@@ -700,7 +713,7 @@ export async function exportarPlanejamentoPdf({ registros = [], agenda = [], mes
   pdf.list(registros.slice(0, 40).map(r => ({
     title: r.obra?.nome || r.obra_nome || 'Obra',
     meta: `${dataBR(r.data_inicio_prevista)} - ${dataBR(r.data_fim_prevista)}`,
-    detail: `${r.fase || '-'} · ${r.status_operacional || '-'} · ${r.percentual_concluido ?? 0}%`,
+    detail: `${r.faseLabel || r.fase || '-'} · ${r.status_operacional || '-'} · ${r.percentual_concluido ?? 0}%`,
   })), 'Nenhuma obra no cronograma.')
 
   pdf.section('Agenda do período')

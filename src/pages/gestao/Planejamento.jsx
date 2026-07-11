@@ -4,6 +4,7 @@ import { KpiCard as DesignKpiCard, StatusBadge } from '../../components/DesignSy
 import { supabase } from '../../lib/supabase'
 import { theme } from '../../constants/theme'
 import { exportarPlanejamentoPdf } from '../../services/pdfService'
+import { faseOrnarePorKey, faseOrnarePorTexto } from '../../constants/fasesOrnare'
 
 const THEME = {
   bg: theme.background,
@@ -23,9 +24,16 @@ const THEME = {
 }
 
 const FASE_CORES = {
+  vistoria_medida: '#9070C0',
+  executivo: '#4A90D9',
   producao: '#B8965E',
+  vistoria_tecnica: '#D9704A',
+  entrega_moveis: '#B09A7A',
   premontagem: '#365C7D',
   montagem: '#2D7A4A',
+  montagem_finalizada: '#5AAB6E',
+  vistoria_final: '#3A7D4F',
+  obra_concluida: '#2D7A4A',
   entrega: '#7A5AA6',
   posvenda: '#A36F22',
   preobra: '#6D675E',
@@ -53,8 +61,19 @@ function norm(value) {
 }
 
 function corFase(fase) {
+  const faseInfo = faseOrnarePorKey(fase) || faseOrnarePorTexto(fase)
+  if (faseInfo?.cor) return faseInfo.cor
   const key = norm(fase).replace(/[^a-z0-9]/g, '')
   return FASE_CORES[key] || THEME.gold
+}
+
+function faseOperacional(fase) {
+  const faseInfo = faseOrnarePorKey(fase) || faseOrnarePorTexto(fase)
+  return {
+    key: faseInfo?.key || fase || '',
+    label: faseInfo?.label || fase || 'Cronograma',
+    cor: faseInfo?.cor || corFase(fase),
+  }
 }
 
 function corCompromisso(tipo) {
@@ -209,6 +228,7 @@ export default function Planejamento() {
       const montadores = montadorIds.map(id => profilePorId.get(id)).filter(Boolean)
       const inicio = dateOnly(c.data_inicio_prevista)
       const fim = dateOnly(c.data_fim_prevista) || inicio
+      const faseInfo = faseOperacional(c.fase)
       return {
         ...c,
         obra,
@@ -216,7 +236,9 @@ export default function Planejamento() {
         montadores,
         inicio,
         fim,
-        faseCor: corFase(c.fase),
+        faseKey: faseInfo.key,
+        faseLabel: faseInfo.label,
+        faseCor: faseInfo.cor,
       }
     })
 
@@ -254,7 +276,7 @@ export default function Planejamento() {
         ? []
         : registros
           .filter(r => r.inicio && r.fim && atual >= r.inicio && atual <= r.fim)
-          .map(r => ({ ...r, origem: 'cronograma', compromissoTipo: r.fase || 'Cronograma', tom: { cor: r.faseCor, bg: `${r.faseCor}10`, border: r.faseCor } }))
+          .map(r => ({ ...r, origem: 'cronograma', compromissoTipo: r.faseLabel || 'Cronograma', tom: { cor: r.faseCor, bg: `${r.faseCor}10`, border: r.faseCor } }))
       const agendaDia = compromissosAgenda.filter(r => r.inicio && r.fim && atual >= r.inicio && atual <= r.fim)
       dias.push({
         data: atual,
@@ -304,7 +326,7 @@ export default function Planejamento() {
       obrasSemEquipe: obrasSemEquipe.length,
       obrasSemCronograma: obrasSemCronograma.length,
       obrasRisco: obrasRisco.length,
-      entregasPrevistas: agendaMes.filter(a => norm(a.compromissoTipo).includes('entrega')).length + registros.filter(r => norm(r.fase).includes('entrega') && r.fim && r.fim >= mesInicio && r.fim <= mesFim).length,
+      entregasPrevistas: agendaMes.filter(a => norm(a.compromissoTipo).includes('entrega')).length + registros.filter(r => r.faseKey === 'entrega_moveis' && r.fim && r.fim >= mesInicio && r.fim <= mesFim).length,
     }
 
     const hoje = new Date()
@@ -329,7 +351,7 @@ export default function Planejamento() {
     fimProximaSemana.setDate(hoje.getDate() + 14)
     const itensOperacionais = [
       ...compromissosAgenda.map(a => ({ ...a, tipoOperacional: a.compromissoTipo || 'Compromisso', dataBase: a.inicio })),
-      ...registros.map(r => ({ ...r, tipoOperacional: r.fase || 'Cronograma', dataBase: r.inicio })),
+      ...registros.map(r => ({ ...r, tipoOperacional: r.faseLabel || 'Cronograma', dataBase: r.inicio })),
     ].filter(item => item.dataBase).sort((a, b) => a.dataBase - b.dataBase)
     const mobileAgenda = [
       { titulo: 'Hoje', itens: itensOperacionais.filter(i => i.dataBase.getTime() === hoje.getTime()) },
@@ -834,7 +856,7 @@ function CronogramaTabela({ registros, filtros, setFiltros, supervisores, montad
                 <td>{r.obra.cliente_nome || '-'}</td>
                 <td>{nomePessoa(r.supervisor)}</td>
                 <td>{r.montadores.map(nomePessoa).join(', ') || '-'}</td>
-                <td><Badge color={r.faseCor}>{r.fase || '-'}</Badge></td>
+                <td><Badge color={r.faseCor}>{r.faseLabel || '-'}</Badge></td>
                 <td>{r.status_operacional || '-'}</td>
                 <td>{r.prioridade || '-'}</td>
                 <td>{r.risco || '-'}</td>
@@ -874,7 +896,7 @@ function Gantt({ registros, meses, abrirObra }) {
               </div>
               <div className="pl-gantt-lane" style={{ gridColumn: `span ${meses.length}` }}>
                 <i style={{ left: `${(startIdx / meses.length) * 100}%`, width: `${Math.max(((endIdx - startIdx + 1) / meses.length) * 100, 5)}%`, background: r.faseCor }}>
-                  {r.fase || 'Cronograma'}
+                  {r.faseLabel || 'Cronograma'}
                 </i>
               </div>
             </button>
