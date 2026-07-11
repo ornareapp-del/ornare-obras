@@ -15,6 +15,7 @@ const THEME = {
   muted: '#665E54',
   soft: '#8A8175',
   gold: theme.gold,
+  goldText: '#735321',
   dark: '#11100E',
   success: theme.success,
   danger: theme.error,
@@ -34,12 +35,13 @@ const DESKTOP_NAV = [
 ]
 
 const MOBILE_NAV = [
-  { id: 'obra', label: 'Obra', icon: '⌂' },
-  { id: 'agenda', label: 'Agenda', icon: '◷' },
-  { id: 'fotos', label: 'Fotos', icon: '▣' },
-  { id: 'mensagens', label: 'Mensagens', icon: '◇' },
-  { id: 'contatos', label: 'Contatos', icon: '☎' },
-  { id: 'docs', label: 'Docs', icon: '▤' },
+  { id: 'obra', label: 'Obra', icon: 'home' },
+  { id: 'cronograma', label: 'Etapas', icon: 'timeline' },
+  { id: 'agenda', label: 'Agenda', icon: 'calendar' },
+  { id: 'fotos', label: 'Fotos', icon: 'photos' },
+  { id: 'mensagens', label: 'Msg', icon: 'messages' },
+  { id: 'contatos', label: 'Contato', icon: 'contact' },
+  { id: 'docs', label: 'Docs', icon: 'docs' },
 ]
 
 const MARCOS_CLIENTE = [
