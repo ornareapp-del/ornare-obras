@@ -502,6 +502,7 @@ export default function Gastos() {
   const [filtroObra,      setFiltroObra]      = useState('')
   const [filtroCategoria, setFiltroCategoria] = useState('')
   const [filtroStatus,    setFiltroStatus]    = useState('')
+  const [visao,           setVisao]           = useState('cards')
   const [modal,           setModal]           = useState(false)
   const [gastoPendente,   setGastoPendente]   = useState(null) // para modal de aprovação
   const [toast,           setToast]           = useState('')
@@ -606,7 +607,12 @@ export default function Gastos() {
           <h1 style={s.title}>Central Financeira Operacional</h1>
           <p style={s.sub}>Gastos de obra, aprovações e leitura operacional de custos</p>
         </div>
-        <button style={s.btnNew} onClick={() => setModal(true)}>+ Lançar Gasto</button>
+        <div style={s.headerActions}>
+          <button type="button" style={s.btnGhost} onClick={() => setVisao(visao === 'cards' ? 'tabela' : 'cards')}>
+            {visao === 'cards' ? 'Tabela compacta' : 'Cards'}
+          </button>
+          <button style={s.btnNew} onClick={() => setModal(true)}>+ Lançar Gasto</button>
+        </div>
       </div>
 
       {erroCarregamento && <div style={s.errorBox}>{erroCarregamento}</div>}
@@ -715,6 +721,13 @@ export default function Gastos() {
           <div style={s.emptySub}>Registre os gastos operacionais das obras</div>
           <button style={s.btnNew} onClick={() => setModal(true)}>+ Lançar Primeiro Gasto</button>
         </div>
+      ) : visao === 'tabela' ? (
+        <GastosTabela
+          lista={lista}
+          statusCor={statusCor}
+          navigate={navigate}
+          setGastoPendente={setGastoPendente}
+        />
       ) : (
         <div className="ga-list" style={s.list}>
           {lista.map(g => {
@@ -768,6 +781,60 @@ export default function Gastos() {
 }
 
 // ─── ESTILOS ──────────────────────────────────────────────────────────────────
+function GastosTabela({ lista, statusCor, navigate, setGastoPendente }) {
+  return (
+    <div className="ga-table-wrap" style={s.tableWrap}>
+      <table style={s.table}>
+        <thead>
+          <tr>
+            <th style={s.th}>Data</th>
+            <th style={s.th}>Categoria</th>
+            <th style={s.th}>Obra</th>
+            <th style={s.th}>Responsável</th>
+            <th style={s.th}>Descrição</th>
+            <th style={{ ...s.th, textAlign: 'right' }}>Valor</th>
+            <th style={s.th}>Status</th>
+            <th style={{ ...s.th, textAlign: 'right' }}>Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lista.map(g => {
+            const status = statusGasto(g)
+            const sc = statusCor[status] || statusCor.aprovado
+            const dataBase = g.data || String(g.created_at || '').slice(0, 10)
+            const urlComprovante = comprovanteUrl(g)
+            return (
+              <tr key={g.id} style={s.tr}>
+                <td style={s.td}>{dataBase ? new Date(dataBase + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}</td>
+                <td style={s.td}>{CAT[g.categoria]?.label || g.categoria}</td>
+                <td style={s.td}>
+                  {g.obra_id ? (
+                    <button type="button" style={s.linkButton} onClick={() => navigate(`/obras/${g.obra_id}`)}>{g.obras?.nome || 'Abrir obra'}</button>
+                  ) : 'Sem obra'}
+                </td>
+                <td style={s.td}>{g.responsavel?.full_name || '-'}</td>
+                <td style={s.td}>
+                  <strong style={s.tableName}>{g.descricao || 'Sem descrição'}</strong>
+                  {urlComprovante && <a href={urlComprovante} target="_blank" rel="noreferrer" style={s.tableSub}>Comprovante</a>}
+                </td>
+                <td style={{ ...s.td, textAlign: 'right', fontWeight: 800, color: 'var(--color-ink)' }}>{moeda(g.valor)}</td>
+                <td style={s.td}><span style={{ ...s.statusPill, background: sc.bg, color: sc.color }}>{sc.label}</span></td>
+                <td style={{ ...s.td, textAlign: 'right' }}>
+                  {status === 'pendente_aprovacao' ? (
+                    <button type="button" style={s.tableAction} onClick={() => setGastoPendente(g)}>Aprovar / recusar</button>
+                  ) : (
+                    <span style={s.tableMuted}>Sem ação</span>
+                  )}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 const css = `
 .ga-mobile-summary{display:none}
 @media (max-width:760px){
@@ -791,6 +858,8 @@ const css = `
   .ga-categorias [style*="min-width: 36"]{display:none !important}
   .ga-filters{display:grid !important;grid-template-columns:1fr;gap:8px !important;margin-bottom:12px !important}
   .ga-filters select{width:100% !important;border-radius:14px !important;padding:10px 9px !important;font-size:12px !important}
+  .ga-table-wrap{border-radius:18px !important}
+  .ga-table-wrap table{min-width:900px !important}
   .ga-list{gap:10px !important}
   .ga-item{display:grid !important;grid-template-columns:8px 1fr !important;gap:10px !important;align-items:start !important;border-radius:18px !important;padding:14px !important;box-shadow:0 14px 34px rgba(29,28,25,.052) !important}
   .ga-item>div:first-child{margin-top:6px !important}
@@ -804,10 +873,12 @@ const css = `
 const s = {
   page:         { width: '100%', padding: '32px 40px', maxWidth: 'none', margin: 0, background: theme.background, color: theme.textPrimary, fontFamily: 'Inter, sans-serif', boxSizing: 'border-box', overflowX: 'hidden' },
   header:       { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 18, marginBottom: 24, boxSizing: 'border-box' },
+  headerActions:{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' },
   breadcrumb:   { fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6 },
   title:        { fontFamily: 'var(--font-serif)', fontSize: 36, fontWeight: 500, color: 'var(--color-ink)', margin: 0 },
   sub:          { fontSize: 13, color: 'var(--color-ink-muted)', marginTop: 4 },
   btnNew:       { background: theme.gold, color: theme.background, border: 'none', borderRadius: 8, padding: '12px 24px', minHeight: 44, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' },
+  btnGhost:     { background: theme.surface, color: 'var(--color-ink)', border: '1px solid var(--color-border)', borderRadius: 8, padding: '12px 16px', minHeight: 44, fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' },
   errorBox:     { background: theme.statusBg.danger, border: `1px solid ${theme.error}`, color: theme.error, borderRadius: 10, padding: '10px 12px', fontSize: 12.5, fontWeight: 800, marginBottom: 14 },
   pendentesBox: { background: '#fdf8f0', border: '1px solid #e8d9b8', borderLeft: '3px solid #C8A86A', borderRadius: 12, padding: '16px 20px', marginBottom: 24 },
   statsGrid:    { display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 24 },
@@ -834,6 +905,17 @@ const s = {
   itemObs:      { fontSize: 11, color: '#bbb', marginTop: 3, fontStyle: 'italic' },
   receiptLink:  { display: 'inline-flex', alignItems: 'center', minHeight: 32, marginTop: 6, color: theme.gold, fontSize: 12, fontWeight: 700, textDecoration: 'none' },
   itemValor:    { fontSize: 15, fontWeight: 700, color: 'var(--color-ink)', whiteSpace: 'nowrap' },
+  tableWrap:    { background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, boxShadow: '0 2px 12px rgba(0,0,0,0.3)', overflowX: 'auto' },
+  table:        { width: '100%', borderCollapse: 'collapse', minWidth: 980 },
+  th:           { padding: '12px 14px', textAlign: 'left', fontSize: 10, letterSpacing: 1.2, textTransform: 'uppercase', color: 'var(--color-gold)', borderBottom: '1px solid var(--color-border)' },
+  tr:           { borderBottom: '1px solid var(--color-border)' },
+  td:           { padding: '13px 14px', fontSize: 12.5, color: 'var(--color-ink-muted)', verticalAlign: 'middle' },
+  tableName:    { display: 'block', color: 'var(--color-ink)', fontSize: 13.5, marginBottom: 3 },
+  tableSub:     { display: 'block', color: theme.gold, fontSize: 11.5, fontWeight: 700, textDecoration: 'none' },
+  tableMuted:   { color: '#9B9185', fontSize: 11.5, fontWeight: 700 },
+  linkButton:   { background: 'transparent', border: 'none', color: 'var(--color-ink)', padding: 0, fontSize: 12.5, fontWeight: 800, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' },
+  statusPill:   { display: 'inline-flex', alignItems: 'center', minHeight: 24, borderRadius: 999, padding: '3px 9px', fontSize: 11, fontWeight: 800 },
+  tableAction:  { background: '#fdf8f0', color: '#8C6B28', border: '1px solid #e8d9b8', borderRadius: 8, padding: '8px 10px', minHeight: 36, fontSize: 11.5, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' },
   empty:        { textAlign: 'center', padding: '40px 0', color: '#bbb' },
   emptyBox:     { textAlign: 'center', padding: '60px 20px', background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
   emptyIcon:    { fontSize: 40, marginBottom: 12 },

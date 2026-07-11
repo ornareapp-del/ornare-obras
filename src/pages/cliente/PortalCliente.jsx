@@ -50,7 +50,7 @@ const MARCOS_CLIENTE = [
   { label: 'Entregue', fases: ['vistoria_final', 'obra_concluida'] },
 ]
 
-const OBRA_CLIENTE_SELECT = 'id, nome, cliente_nome, cidade, uf, supervisor_id, comercial_id, progresso, fase_atual, status, data_previsao, updated_at, created_at'
+const OBRA_CLIENTE_SELECT = 'id, nome, cliente_nome, cidade, uf, supervisor_id, comercial_id, progresso, status, data_previsao, updated_at, created_at'
 const CRONOGRAMA_CLIENTE_SELECT = 'id, obra_id, supervisor_id, comercial_id, pos_venda_id, percentual_concluido, fase, data_fim_prevista, visivel_cliente, updated_at, created_at'
 const FOTO_CLIENTE_SELECT = 'id, obra_id, ambiente_id, categoria, etapa, observacao_cliente, storage_path, url, created_at, aprovada, aprovada_gestao, visivel_cliente, visibilidade'
 const AGENDA_CLIENTE_SELECT = 'id, obra_id, tipo, titulo, data, hora_inicio, hora_fim, status, observacao_publica, descricao_cliente, confirmado_cliente, visivel_cliente, visibilidade, reuniao_interna'
@@ -251,7 +251,7 @@ export default function PortalCliente() {
 
     if (!authData?.user || !user || profile?.role !== 'cliente' || !profile?.obra_id || String(profile.obra_id) !== String(id)) {
       setDados(prev => ({ ...prev, obra: null }))
-      setErro('Acesso nao autorizado.')
+      setErro('Acesso não autorizado.')
       setLoading(false)
       return
     }

@@ -31,6 +31,10 @@ function normalizarEmail(email) {
   return String(email || '').trim().toLowerCase()
 }
 
+function normalizarBusca(valor) {
+  return String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+}
+
 function redirectAcesso() {
   return `${window.location.origin}/login`
 }
@@ -59,6 +63,9 @@ export default function Equipe() {
   const [supervisores, setSupervisores] = useState([])
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState('todos')
+  const [busca, setBusca] = useState('')
+  const [visao, setVisao] = useState('cards')
+  const [menuAberto, setMenuAberto] = useState(null)
   const [editando, setEditando] = useState(null)
   const [modal, setModal] = useState(false)
   const [salvando, setSalvando] = useState(false)
@@ -188,7 +195,13 @@ export default function Equipe() {
     ? profiles.filter(p => p.role === 'montador' && (!p.supervisor_id || p.supervisor_id === perfilAtual?.id))
     : profiles
   const filtrosDisponiveis = supervisorAtual ? ['todos', 'montador'] : ['todos', ...ROLES]
-  const lista = filtro === 'todos' ? profilesVisiveis : profilesVisiveis.filter(p => p.role === filtro)
+  const listaFiltrada = filtro === 'todos' ? profilesVisiveis : profilesVisiveis.filter(p => p.role === filtro)
+  const termoBusca = normalizarBusca(busca)
+  const lista = listaFiltrada.filter(p => {
+    if (!termoBusca) return true
+    const obrasTexto = obrasVinculadas(p).map(o => o.nome).join(' ')
+    return normalizarBusca([p.full_name, p.email, p.cargo, ROLE_LABEL[p.role], obrasTexto].join(' ')).includes(termoBusca)
+  })
   const kpis = [
     { label: 'Gestão', value: profilesVisiveis.filter(p => p.role === 'gestao').length },
     { label: 'Supervisores', value: profilesVisiveis.filter(p => p.role === 'supervisor').length },
@@ -208,6 +221,32 @@ export default function Equipe() {
     return []
   }
 
+  function cargaTrabalho(profile) {
+    const total = obrasVinculadas(profile).length
+    if (profile.role === 'cliente' || profile.role === 'gestao') {
+      return { total, label: total ? `${total} obra${total === 1 ? '' : 's'}` : 'Sem carga direta', nivel: 'Neutra', color: '#8A8175' }
+    }
+    if (total >= 6) return { total, label: `${total} obras`, nivel: 'Alta', color: theme.error }
+    if (total >= 3) return { total, label: `${total} obras`, nivel: 'Média', color: theme.gold }
+    if (total > 0) return { total, label: `${total} obra${total === 1 ? '' : 's'}`, nivel: 'Controlada', color: '#2D7A4A' }
+    return { total, label: 'Sem obras', nivel: 'Livre', color: '#8A8175' }
+  }
+
+  function abrirEdicao(profile) {
+    setMenuAberto(null)
+    setEditando({ ...profile })
+  }
+
+  function acaoAtivo(profile) {
+    setMenuAberto(null)
+    alterarAtivo(profile)
+  }
+
+  function acaoAcesso(profile) {
+    setMenuAberto(null)
+    enviarResetSenha(profile)
+  }
+
   return (
     <div className="ow-page" style={s.page}>
       <style>{css}</style>
@@ -220,7 +259,12 @@ export default function Equipe() {
           <h1 style={s.title}>Central de Equipe</h1>
           <p style={s.sub}>{profilesVisiveis.length} membro{profilesVisiveis.length !== 1 ? 's' : ''} · {profilesVisiveis.filter(p => p.ativo !== false).length} ativos</p>
         </div>
-        <button className="eq-new" style={s.btnNew} onClick={() => setModal(true)}>+ Novo Usuário</button>
+        <div style={s.headerActions}>
+          <button type="button" style={s.btnGhost} onClick={() => setVisao(visao === 'cards' ? 'tabela' : 'cards')}>
+            {visao === 'cards' ? 'Tabela compacta' : 'Cards'}
+          </button>
+          <button className="eq-new" style={s.btnNew} onClick={() => setModal(true)}>+ Novo Usuário</button>
+        </div>
       </div>
 
       <div className="eq-mobile-summary" aria-label="Resumo da equipe">
@@ -252,6 +296,13 @@ export default function Equipe() {
       </div>
 
       <div className="eq-filters" style={s.filters}>
+        <input
+          aria-label="Buscar membro da equipe"
+          placeholder="Buscar por nome, e-mail, perfil ou obra"
+          value={busca}
+          onChange={e => setBusca(e.target.value)}
+          style={s.search}
+        />
         {filtrosDisponiveis.map(f => (
           <button key={f} onClick={() => setFiltro(f)} style={{
             ...s.filterBtn,
@@ -272,6 +323,17 @@ export default function Equipe() {
           <div style={s.emptyTitle}>Nenhum membro encontrado</div>
           <button style={s.btnNew} onClick={() => setModal(true)}>+ Criar Primeiro Usuário</button>
         </div>
+      ) : visao === 'tabela' ? (
+        <EquipeTabela
+          lista={lista}
+          menuAberto={menuAberto}
+          setMenuAberto={setMenuAberto}
+          obrasVinculadas={obrasVinculadas}
+          cargaTrabalho={cargaTrabalho}
+          onEditar={abrirEdicao}
+          onAcesso={acaoAcesso}
+          onAtivo={acaoAtivo}
+        />
       ) : (
         <div className="eq-grid" style={s.gridList}>
           {lista.map(p => {
@@ -304,6 +366,15 @@ export default function Equipe() {
                         <span style={s.personMeta}>{p.cargo || ROLE_LABEL[p.role] || 'Sem cargo informado'}</span>
                         <span style={s.personEmail}>{p.email || 'E-mail não informado'}</span>
                       </div>
+                      <ActionMenu
+                        id={p.id}
+                        profile={p}
+                        menuAberto={menuAberto}
+                        setMenuAberto={setMenuAberto}
+                        onEditar={abrirEdicao}
+                        onAcesso={acaoAcesso}
+                        onAtivo={acaoAtivo}
+                      />
                     </div>
                     <div style={s.badgeRow}>
                       <span style={{ ...s.badge, background: cor + '18', color: cor }}>{ROLE_LABEL[p.role] || p.role}</span>
@@ -311,10 +382,8 @@ export default function Equipe() {
                     </div>
                     <div className="eq-detail" style={s.detailLine}>{p.telefone || 'Telefone não informado'}</div>
                     <div className="eq-detail" style={s.detailLine}>{obrasPessoa.length ? `${obrasPessoa.length} obra${obrasPessoa.length === 1 ? '' : 's'} vinculada${obrasPessoa.length === 1 ? '' : 's'}` : 'Sem obras vinculadas'}</div>
-                    <div className="eq-actions" style={s.actions}>
-                      <button style={s.btnEdit} onClick={() => setEditando({ ...p })}>Editar</button>
-                      {p.role === 'cliente' && <button style={s.btnEdit} onClick={() => enviarResetSenha(p)}>Reenviar acesso</button>}
-                      <button style={s.btnEdit} onClick={() => alterarAtivo(p)}>{ativo ? 'Desativar' : 'Ativar'}</button>
+                    <div className="eq-detail" style={s.detailLine}>
+                      Carga: <strong style={{ color: cargaTrabalho(p).color }}>{cargaTrabalho(p).nivel}</strong> · {cargaTrabalho(p).label}
                     </div>
                   </>
                 )}
@@ -323,6 +392,75 @@ export default function Equipe() {
           })}
         </div>
       )}
+    </div>
+  )
+}
+
+function ActionMenu({ id, profile, menuAberto, setMenuAberto, onEditar, onAcesso, onAtivo }) {
+  const aberto = menuAberto === id
+  const ativo = profile.ativo !== false
+  return (
+    <div style={s.menuWrap}>
+      <button
+        type="button"
+        aria-label="Abrir ações"
+        style={s.menuButton}
+        onClick={() => setMenuAberto(aberto ? null : id)}
+      >
+        ...
+      </button>
+      {aberto && (
+        <div style={s.menu}>
+          <button type="button" style={s.menuItem} onClick={() => onEditar(profile)}>Editar</button>
+          {profile.role === 'cliente' && <button type="button" style={s.menuItem} onClick={() => onAcesso(profile)}>Reenviar acesso</button>}
+          <button type="button" style={s.menuItemDanger} onClick={() => onAtivo(profile)}>{ativo ? 'Desativar' : 'Ativar'}</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function EquipeTabela({ lista, menuAberto, setMenuAberto, obrasVinculadas, cargaTrabalho, onEditar, onAcesso, onAtivo }) {
+  return (
+    <div className="eq-table-wrap" style={s.tableWrap}>
+      <table style={s.table}>
+        <thead>
+          <tr>
+            <th style={s.th}>Nome</th>
+            <th style={s.th}>Perfil</th>
+            <th style={s.th}>Status</th>
+            <th style={s.th}>Obras</th>
+            <th style={s.th}>Carga</th>
+            <th style={s.th}>Contato</th>
+            <th style={{ ...s.th, textAlign: 'right' }}>Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lista.map(p => {
+            const ativo = p.ativo !== false
+            const obrasPessoa = obrasVinculadas(p)
+            const carga = cargaTrabalho(p)
+            return (
+              <tr key={p.id} style={s.tr}>
+                <td style={s.td}>
+                  <strong style={s.tableName}>{p.full_name || 'Sem nome'}</strong>
+                  <span style={s.tableSub}>{p.email || 'E-mail não informado'}</span>
+                </td>
+                <td style={s.td}>{ROLE_LABEL[p.role] || p.role}</td>
+                <td style={s.td}>
+                  <span style={{ ...s.badge, background: ativo ? '#EAF5EE' : '#F5F1EA', color: ativo ? '#2D7A4A' : '#8A8175' }}>{ativo ? 'Ativo' : 'Inativo'}</span>
+                </td>
+                <td style={s.td}>{obrasPessoa.length ? `${obrasPessoa.length} obra${obrasPessoa.length === 1 ? '' : 's'}` : 'Sem obras'}</td>
+                <td style={s.td}><strong style={{ color: carga.color }}>{carga.nivel}</strong><span style={s.tableSub}>{carga.label}</span></td>
+                <td style={s.td}>{p.telefone || 'Telefone não informado'}</td>
+                <td style={{ ...s.td, textAlign: 'right' }}>
+                  <ActionMenu id={`row-${p.id}`} profile={p} menuAberto={menuAberto} setMenuAberto={setMenuAberto} onEditar={onEditar} onAcesso={onAcesso} onAtivo={onAtivo} />
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
     </div>
   )
 }
@@ -530,6 +668,7 @@ const css = `
 @media (max-width:760px){
   .ow-page{padding-bottom:112px !important}
   .eq-header{display:grid !important;grid-template-columns:1fr auto;gap:10px;align-items:end !important;margin-bottom:13px !important;padding-right:0 !important}
+  .eq-header>div:last-child{display:flex !important;gap:8px !important;align-items:center !important}
   .eq-header h1{font-size:27px !important;line-height:1 !important}
   .eq-header p{font-size:12px !important;margin-top:4px !important}
   .eq-new{padding:9px 12px !important;border-radius:12px !important;font-size:12px !important}
@@ -542,7 +681,10 @@ const css = `
   .eq-kpis span{font-size:10.5px !important;line-height:1 !important;letter-spacing:0 !important;white-space:nowrap !important;margin:0 !important;color:var(--color-ink-muted) !important}
   .eq-kpis strong{font-size:15px !important;line-height:1 !important}
   .eq-filters{display:flex !important;overflow-x:auto !important;flex-wrap:nowrap !important;gap:8px !important;margin-bottom:12px !important;padding-bottom:3px !important}
+  .eq-filters input{min-width:230px !important;flex:0 0 230px !important}
   .eq-filters button{flex:0 0 auto !important;white-space:nowrap !important}
+  .eq-table-wrap{border-radius:18px !important}
+  .eq-table-wrap table{min-width:820px !important}
   .eq-grid{display:flex !important;flex-direction:column !important;gap:10px !important}
   .eq-card{border-radius:18px !important;padding:14px !important;border-top-width:1px !important;box-shadow:0 14px 34px rgba(29,28,25,.05) !important}
   .eq-card>div:first-child{margin-bottom:10px !important}
@@ -560,15 +702,18 @@ const css = `
 const s = {
   page: { width: '100%', padding: '32px 40px', maxWidth: 'none', margin: 0, background: theme.background, color: theme.textPrimary, fontFamily: 'Inter, sans-serif', boxSizing: 'border-box', overflowX: 'hidden' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, gap: 18, boxSizing: 'border-box' },
+  headerActions: { display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' },
   breadcrumb: { fontSize: 9, letterSpacing: 3, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 6, fontWeight: 800 },
   title: { fontFamily: 'var(--font-serif)', fontSize: 38, fontWeight: 500, color: 'var(--color-ink)', margin: 0, lineHeight: 1.05 },
   sub: { fontSize: 13, color: 'var(--color-ink-muted)', marginTop: 6 },
   btnNew: { background: theme.gold, color: theme.background, border: 'none', borderRadius: 8, padding: '12px 24px', minHeight: 44, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' },
+  btnGhost: { background: theme.surface, color: 'var(--color-ink)', border: '1px solid var(--color-border)', borderRadius: 8, padding: '12px 16px', minHeight: 44, fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' },
   kpiGrid: { display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 12, marginBottom: 20 },
   kpi: { background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
   kpiLabel: { display: 'block', fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: 'var(--color-gold)', fontWeight: 800, marginBottom: 8 },
   kpiValue: { display: 'block', fontSize: 30, lineHeight: 1, color: 'var(--color-ink)' },
   filters: { display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' },
+  search: { flex: '1 1 260px', background: theme.inputBackground, border: '1px solid ' + theme.inputBorder, color: theme.inputText, borderRadius: 9, padding: '10px 14px', minHeight: 44, fontSize: 13, outline: 'none', fontFamily: 'inherit' },
   filterBtn: { padding: '9px 16px', minHeight: 44, borderRadius: 999, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700 },
   gridList: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 },
   card: { background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.3)', minWidth: 0 },
@@ -583,6 +728,18 @@ const s = {
   detailLine: { fontSize: 12, color: 'var(--color-ink-muted)', padding: '6px 0', borderTop: '1px solid var(--color-border)' },
   actions: { display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14 },
   btnEdit: { background: theme.surface, border: '1px solid var(--color-border)', borderRadius: 9, padding: '10px 13px', minHeight: 44, fontSize: 12, fontWeight: 700, cursor: 'pointer', color: 'var(--color-ink-muted)' },
+  menuWrap: { position: 'relative', flexShrink: 0 },
+  menuButton: { width: 34, height: 34, borderRadius: 8, border: '1px solid var(--color-border)', background: theme.surfaceElevated, color: 'var(--color-ink)', cursor: 'pointer', fontWeight: 900, lineHeight: 1 },
+  menu: { position: 'absolute', right: 0, top: 38, minWidth: 164, background: theme.surface, border: '1px solid var(--color-border)', borderRadius: 10, padding: 6, boxShadow: 'var(--shadow-md)', zIndex: 20 },
+  menuItem: { display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', borderRadius: 7, padding: '10px 12px', color: 'var(--color-ink)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' },
+  menuItemDanger: { display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', borderRadius: 7, padding: '10px 12px', color: theme.error, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' },
+  tableWrap: { background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, boxShadow: '0 2px 12px rgba(0,0,0,0.3)', overflowX: 'auto' },
+  table: { width: '100%', borderCollapse: 'collapse', minWidth: 860 },
+  th: { padding: '12px 14px', textAlign: 'left', fontSize: 10, letterSpacing: 1.2, textTransform: 'uppercase', color: 'var(--color-gold)', borderBottom: '1px solid var(--color-border)' },
+  tr: { borderBottom: '1px solid var(--color-border)' },
+  td: { padding: '13px 14px', fontSize: 12.5, color: 'var(--color-ink-muted)', verticalAlign: 'middle' },
+  tableName: { display: 'block', color: 'var(--color-ink)', fontSize: 13.5, marginBottom: 3 },
+  tableSub: { display: 'block', color: '#8A8175', fontSize: 11.5 },
   empty: { textAlign: 'center', padding: '40px 0', color: '#aaa' },
   emptyBox: { textAlign: 'center', padding: '44px 18px', background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
   emptyIcon: { fontSize: 13, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase', marginBottom: 12 },
