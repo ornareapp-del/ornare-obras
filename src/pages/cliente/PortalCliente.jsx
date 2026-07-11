@@ -51,6 +51,7 @@ const MARCOS_CLIENTE = [
 ]
 
 const OBRA_CLIENTE_SELECT = 'id, nome, cliente_nome, cidade, uf, supervisor_id, comercial_id, progresso, status, data_previsao, updated_at, created_at'
+const OBRA_CLIENTE_SELECT_MINIMO = 'id, nome, cliente_nome, cidade, uf, supervisor_id, comercial_id, status'
 const CRONOGRAMA_CLIENTE_SELECT = 'id, obra_id, supervisor_id, comercial_id, pos_venda_id, percentual_concluido, fase, data_fim_prevista, visivel_cliente, updated_at, created_at'
 const FOTO_CLIENTE_SELECT = 'id, obra_id, ambiente_id, categoria, etapa, observacao_cliente, storage_path, url, created_at, aprovada, aprovada_gestao, visivel_cliente, visibilidade'
 const AGENDA_CLIENTE_SELECT = 'id, obra_id, tipo, titulo, data, hora_inicio, hora_fim, status, observacao_publica, descricao_cliente, confirmado_cliente, visivel_cliente, visibilidade, reuniao_interna'
@@ -107,6 +108,11 @@ function isDocumentoCliente(doc) {
 
 function detalheErro(error, fallback) {
   return error?.message || error?.details || fallback
+}
+
+function erroColunaAusente(error) {
+  const texto = `${error?.code || ''} ${error?.message || ''} ${error?.details || ''}`.toLowerCase()
+  return texto.includes('column') || texto.includes('schema cache') || texto.includes('42703')
 }
 
 function resultadoVazio(error = null) {
@@ -205,6 +211,14 @@ async function carregarDocumentosCliente(obraId) {
   return resultadoVazio(documentos.error)
 }
 
+async function carregarObraCliente(obraId) {
+  const completa = await supabase.from('obras').select(OBRA_CLIENTE_SELECT).eq('id', obraId).single()
+  if (!erroColunaAusente(completa.error)) return completa
+
+  console.warn('Select completo de obras falhou no Portal Cliente. Tentando select minimo:', completa.error)
+  return supabase.from('obras').select(OBRA_CLIENTE_SELECT_MINIMO).eq('id', obraId).single()
+}
+
 function tabelaNaoEncontrada(error) {
   if (!error) return false
   const msg = `${error.code || ''} ${error.message || ''}`.toLowerCase()
@@ -256,7 +270,7 @@ export default function PortalCliente() {
       return
     }
 
-    const obra = await supabase.from('obras').select(OBRA_CLIENTE_SELECT).eq('id', id).single()
+    const obra = await carregarObraCliente(id)
     if (obra.error) {
       console.error('Erro ao carregar obra no portal cliente:', obra.error)
       setErro(detalheErro(obra.error, 'Não foi possível abrir esta obra no momento.'))
