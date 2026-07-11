@@ -7,15 +7,15 @@ import { resolverOperacaoObra } from '../../utils/obraOperacional'
 import { theme } from '../../constants/theme'
 
 const THEME = {
-  ink: theme.textPrimary,
-  warm: theme.background,
-  card: theme.surface,
-  elevated: theme.surfaceElevated,
-  border: theme.border,
-  muted: theme.textSecondary,
-  soft: theme.textMuted,
+  ink: '#1F1B16',
+  warm: '#F6F2EA',
+  card: '#FFFFFF',
+  elevated: '#FAF7F1',
+  border: '#D8D0C6',
+  muted: '#665E54',
+  soft: '#8A8175',
   gold: theme.gold,
-  dark: theme.background,
+  dark: '#11100E',
   success: theme.success,
   danger: theme.error,
   inputBackground: '#272320',
@@ -54,6 +54,7 @@ const OBRA_CLIENTE_SELECT = 'id, nome, cliente_nome, cidade, uf, supervisor_id, 
 const OBRA_CLIENTE_SELECT_MINIMO = 'id, nome, cliente_nome, cidade, uf, supervisor_id, comercial_id, status'
 const CRONOGRAMA_CLIENTE_SELECT = 'id, obra_id, supervisor_id, comercial_id, pos_venda_id, percentual_concluido, fase, data_fim_prevista, visivel_cliente, updated_at, created_at'
 const FOTO_CLIENTE_SELECT = 'id, obra_id, ambiente_id, categoria, etapa, observacao_cliente, storage_path, url, created_at, aprovada, aprovada_gestao, visivel_cliente, visibilidade'
+const FOTO_CLIENTE_SELECT_MINIMO = 'id, obra_id, ambiente_id, categoria, etapa, storage_path, url, created_at, aprovada, aprovada_gestao, visivel_cliente, visibilidade'
 const AGENDA_CLIENTE_SELECT = 'id, obra_id, tipo, titulo, data, hora_inicio, hora_fim, status, observacao_publica, descricao_cliente, confirmado_cliente, visivel_cliente, visibilidade, reuniao_interna'
 const MENSAGEM_OBRA_CLIENTE_SELECT = 'id, obra_id, mensagem, conteudo, created_at, user_id, visivel_cliente, visibilidade, publico_cliente, tipo'
 const MENSAGEM_CLIENTE_SELECT = 'id, obra_id, conteudo, created_at, remetente_id, tipo, lido_cliente, visivel_cliente, visibilidade, publico_cliente'
@@ -148,6 +149,19 @@ async function carregarFotosCliente(obraId) {
     .order('created_at', { ascending: false })
 
   if (!filtradas.error) return filtradas
+  if (erroColunaAusente(filtradas.error)) {
+    console.warn('Select completo de fotos falhou no Portal Cliente. Tentando select minimo:', filtradas.error)
+    const minimas = await supabase
+      .from('fotos')
+      .select(FOTO_CLIENTE_SELECT_MINIMO)
+      .eq('obra_id', obraId)
+      .eq('aprovada', true)
+      .eq('aprovada_gestao', true)
+      .eq('visivel_cliente', true)
+      .order('created_at', { ascending: false })
+
+    if (!minimas.error) return minimas
+  }
 
   logFiltroCliente('fotos', filtradas.error)
   return resultadoVazio(filtradas.error)
@@ -964,22 +978,22 @@ const css = `
 .pc-tabs button.active{background:${THEME.ink};color:#fff}
 .pc-tab-badge{position:absolute;right:9px;top:8px;width:8px;height:8px;border-radius:50%;background:${THEME.danger};box-shadow:0 0 0 2px #fff}
 .pc-bottom-nav{display:none}
-.pc-alert{max-width:960px;margin:14px auto 0;border:1px solid #F0C8C8;background:#FFF7F7;color:#A33E3E;border-radius:12px;padding:11px 14px;font-size:13px;font-weight:700}
+.pc-alert{max-width:960px;margin:14px auto 0;border:1px solid #D8C18A;background:#FFF9EA;color:#6F5521;border-radius:12px;padding:11px 14px;font-size:13px;font-weight:800}
 .pc-toast{position:fixed;left:50%;bottom:86px;transform:translateX(-50%);z-index:50;background:${THEME.ink};color:#fff;border-left:3px solid ${THEME.gold};border-radius:12px;padding:11px 15px;font-size:13px;font-weight:800;box-shadow:0 12px 32px rgba(0,0,0,.18)}
 .pc-content{max-width:960px;margin:0 auto;padding:12px 22px 64px}
 .pc-stack,.pc-feed{display:grid;gap:14px}
-.pc-card{background:${THEME.card};border:1px solid ${THEME.border};border-radius:18px;padding:18px;box-shadow:0 16px 36px rgba(29,28,25,.05)}
+.pc-card{background:${THEME.card};border:1px solid ${THEME.border};border-radius:18px;padding:18px;box-shadow:0 16px 36px rgba(29,28,25,.08);color:${THEME.ink}}
 .pc-card.destaque{border-top:3px solid ${THEME.gold}}
 .pc-card h2{font-size:15px;margin:0 0 16px;color:${THEME.ink}}
 .pc-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:16px}
-.pc-card-head span{color:${THEME.muted};font-size:13px;font-weight:800}
+.pc-card-head span{color:${THEME.muted};font-size:13px;font-weight:900}
 .pc-card-head strong{font-size:38px;color:${THEME.gold};line-height:1}
 .pc-progress{height:8px;background:#EEE7DC;border-radius:999px;overflow:hidden;margin-bottom:18px}
 .pc-progress i{display:block;height:100%;background:linear-gradient(90deg,${THEME.gold},#D9BD80);border-radius:999px}
 .pc-dashboard-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
-.pc-metric{border:1px solid ${THEME.border};background:#FFFBF5;border-radius:14px;padding:13px;min-width:0}
-.pc-metric span,.pc-detail span{display:block;color:${THEME.muted};font-size:10px;letter-spacing:1.4px;text-transform:uppercase;font-weight:900;margin-bottom:6px}
-.pc-metric strong{font-size:15px;color:${THEME.ink};line-height:1.35}
+.pc-metric{border:1px solid #D7CBBB;background:#FFFDF8;border-radius:14px;padding:13px;min-width:0;color:${THEME.ink}}
+.pc-metric span,.pc-detail span{display:block;color:#6B6257;font-size:10px;letter-spacing:1.4px;text-transform:uppercase;font-weight:950;margin-bottom:6px}
+.pc-metric strong{display:block;font-size:15px;color:#1F1B16;line-height:1.35;font-weight:900}
 .pc-detail{display:flex;justify-content:space-between;gap:16px;padding:12px 0;border-bottom:1px solid ${THEME.border}}
 .pc-detail:last-child{border-bottom:0}
 .pc-detail strong{text-align:right;color:${THEME.ink};font-size:14px;line-height:1.35}
@@ -989,12 +1003,12 @@ const css = `
 .pc-checklist-item strong{display:block;color:${THEME.ink};font-size:13.5px;line-height:1.35}
 .pc-checklist-item small{display:block;color:${THEME.muted};font-size:12px;margin-top:3px}
 .pc-timeline{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
-.pc-timeline div{background:${THEME.card};border:1px solid ${THEME.border};border-radius:14px;padding:13px 10px;color:${THEME.soft};font-size:12px;font-weight:900;text-align:center}
+.pc-timeline div{background:${THEME.card};border:1px solid ${THEME.border};border-radius:14px;padding:13px 10px;color:#6F665C;font-size:12px;font-weight:900;text-align:center}
 .pc-timeline div.done{color:${THEME.ink};border-color:#D8D0C6;background:#FAF7F1}
-.pc-timeline div.active{background:${THEME.gold};border-color:${THEME.gold};color:#fff;box-shadow:0 12px 30px rgba(201,169,110,.22)}
-.pc-timeline i{display:flex;width:22px;height:22px;border-radius:50%;background:#E8E0D5;color:${THEME.soft};margin:0 auto 8px;align-items:center;justify-content:center;font-style:normal;font-size:10px;font-weight:950}
+.pc-timeline div.active{background:${THEME.gold};border-color:${THEME.gold};color:#1F1B16;box-shadow:0 12px 30px rgba(201,169,110,.22)}
+.pc-timeline i{display:flex;width:22px;height:22px;border-radius:50%;background:#E8E0D5;color:#6F665C;margin:0 auto 8px;align-items:center;justify-content:center;font-style:normal;font-size:10px;font-weight:950}
 .pc-timeline div.done i{background:${THEME.ink};color:#fff}
-.pc-timeline div.active i{background:${THEME.elevated};color:${THEME.gold}}
+.pc-timeline div.active i{background:#1F1B16;color:#fff}
 .pc-filter-card{display:grid;grid-template-columns:1fr 1fr;gap:10px;background:${THEME.card};border:1px solid ${THEME.border};border-radius:16px;padding:12px}
 .pc-filter-card select{background:${THEME.inputBackground};border:1px solid ${THEME.inputBorder};color:${THEME.inputText};border-radius:8px;padding:10px 14px;width:100%;font-size:14px;outline:none;font-family:inherit}
 .pc-gallery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}

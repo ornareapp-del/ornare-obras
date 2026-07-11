@@ -15,6 +15,46 @@ alter table if exists public.obras
   add column if not exists created_at timestamptz not null default now(),
   add column if not exists updated_at timestamptz not null default now();
 
+alter table if exists public.fotos
+  add column if not exists observacao_cliente text,
+  add column if not exists aprovada boolean not null default false,
+  add column if not exists aprovada_gestao boolean not null default false,
+  add column if not exists visivel_cliente boolean not null default false,
+  add column if not exists visibilidade text not null default 'interna';
+
+alter table if exists public.agenda
+  add column if not exists visivel_cliente boolean not null default false,
+  add column if not exists visibilidade text not null default 'interna',
+  add column if not exists reuniao_interna boolean not null default false,
+  add column if not exists confirmado_cliente boolean not null default false,
+  add column if not exists descricao_cliente text,
+  add column if not exists observacao_publica text;
+
+alter table if exists public.checklist_items
+  add column if not exists observacao_cliente text,
+  add column if not exists concluido boolean not null default false,
+  add column if not exists visivel_cliente boolean not null default false,
+  add column if not exists visibilidade text not null default 'interna',
+  add column if not exists aprovado_cliente boolean not null default false,
+  add column if not exists aprovado_gestao boolean not null default false,
+  add column if not exists validado_supervisor boolean not null default false;
+
+alter table if exists public.mensagens
+  add column if not exists visivel_cliente boolean not null default false,
+  add column if not exists visibilidade text not null default 'interna',
+  add column if not exists publico_cliente boolean not null default false,
+  add column if not exists lido_cliente boolean not null default false;
+
+alter table if exists public.mensagens_obra
+  add column if not exists visivel_cliente boolean not null default false,
+  add column if not exists visibilidade text not null default 'interna',
+  add column if not exists publico_cliente boolean not null default false;
+
+alter table if exists public.documentos
+  add column if not exists visivel_cliente boolean not null default false,
+  add column if not exists visibilidade text not null default 'interna',
+  add column if not exists publico_cliente boolean not null default false;
+
 update public.obras o
 set
   fase_atual = c.fase,
