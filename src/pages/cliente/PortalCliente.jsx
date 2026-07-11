@@ -62,6 +62,8 @@ const MENSAGEM_OBRA_CLIENTE_SELECT = 'id, obra_id, mensagem, conteudo, created_a
 const MENSAGEM_CLIENTE_SELECT = 'id, obra_id, conteudo, created_at, remetente_id, tipo, lido_cliente, visivel_cliente, visibilidade, publico_cliente'
 const DOCUMENTO_CLIENTE_SELECT = 'id, obra_id, titulo, nome, descricao, url, storage_path, tipo, created_at, visivel_cliente, visibilidade, publico_cliente'
 const CHECKLIST_CLIENTE_SELECT = 'id, obra_id, descricao, ambiente, ambiente_id, observacao_cliente, concluido, concluido_em, visivel_cliente, visibilidade, aprovado_cliente, aprovado_gestao, validado_supervisor'
+const COMUNICADO_CLIENTE_SELECT = 'id, obra_id, titulo, conteudo, texto, descricao, created_at, visivel_cliente, visibilidade, publico_cliente'
+const CONTATO_CLIENTE_SELECT = 'id, obra_id, tipo, nome, full_name, email, telefone, phone, celular, visivel_cliente, visibilidade, publico_cliente'
 
 function safeArray(result) {
   return result?.data || []
@@ -118,12 +120,20 @@ function erroColunaAusente(error) {
   return texto.includes('column') || texto.includes('schema cache') || texto.includes('42703')
 }
 
+function erroSchemaCompat(error) {
+  return erroColunaAusente(error) || tabelaNaoEncontrada(error)
+}
+
 function resultadoVazio(error = null) {
   return { data: [], error }
 }
 
 function logFiltroCliente(secao, error) {
   console.error(`Erro ao aplicar filtro server-side do portal cliente em ${secao}:`, error)
+}
+
+function logCompatCliente(secao, error) {
+  console.warn(`Tabela/coluna opcional indisponivel no Portal Cliente em ${secao}. Exibindo fallback vazio.`, error)
 }
 
 async function carregarMensagensObraCliente(obraId) {
@@ -135,6 +145,11 @@ async function carregarMensagensObraCliente(obraId) {
     .order('created_at', { ascending: false })
 
   if (!publicas.error) return publicas
+
+  if (erroSchemaCompat(publicas.error)) {
+    logCompatCliente('mensagens_obra', publicas.error)
+    return resultadoVazio()
+  }
 
   logFiltroCliente('mensagens_obra', publicas.error)
   return resultadoVazio(publicas.error)
@@ -165,6 +180,11 @@ async function carregarFotosCliente(obraId) {
     if (!minimas.error) return minimas
   }
 
+  if (erroSchemaCompat(filtradas.error)) {
+    logCompatCliente('fotos', filtradas.error)
+    return resultadoVazio()
+  }
+
   logFiltroCliente('fotos', filtradas.error)
   return resultadoVazio(filtradas.error)
 }
@@ -180,6 +200,11 @@ async function carregarAgendaCliente(obraId) {
 
   if (!agenda.error) return { ...agenda, data: safeArray(agenda).filter(isAgendaCliente) }
 
+  if (erroSchemaCompat(agenda.error)) {
+    logCompatCliente('agenda', agenda.error)
+    return resultadoVazio()
+  }
+
   logFiltroCliente('agenda', agenda.error)
   return resultadoVazio(agenda.error)
 }
@@ -193,6 +218,11 @@ async function carregarMensagensCliente(obraId) {
     .order('created_at', { ascending: false })
 
   if (!mensagens.error) return { ...mensagens, data: safeArray(mensagens).filter(isMensagemCliente) }
+
+  if (erroSchemaCompat(mensagens.error)) {
+    logCompatCliente('mensagens', mensagens.error)
+    return resultadoVazio()
+  }
 
   logFiltroCliente('mensagens', mensagens.error)
   return resultadoVazio(mensagens.error)
@@ -209,6 +239,11 @@ async function carregarChecklistCliente(obraId) {
 
   if (!checklist.error) return { ...checklist, data: safeArray(checklist).filter(isChecklistCliente) }
 
+  if (erroSchemaCompat(checklist.error)) {
+    logCompatCliente('checklist_items', checklist.error)
+    return resultadoVazio()
+  }
+
   logFiltroCliente('checklist_items', checklist.error)
   return resultadoVazio(checklist.error)
 }
@@ -223,8 +258,65 @@ async function carregarDocumentosCliente(obraId) {
 
   if (!documentos.error) return { ...documentos, data: safeArray(documentos).filter(isDocumentoCliente) }
 
-  if (!tabelaNaoEncontrada(documentos.error)) logFiltroCliente('documentos', documentos.error)
+  if (erroSchemaCompat(documentos.error)) {
+    logCompatCliente('documentos', documentos.error)
+    return resultadoVazio()
+  }
+
+  logFiltroCliente('documentos', documentos.error)
   return resultadoVazio(documentos.error)
+}
+
+async function carregarCronogramaCliente(obraId) {
+  const cronograma = await supabase
+    .from('obra_cronograma')
+    .select(CRONOGRAMA_CLIENTE_SELECT)
+    .eq('obra_id', obraId)
+    .eq('visivel_cliente', true)
+    .maybeSingle()
+
+  if (!cronograma.error) return cronograma
+  if (erroSchemaCompat(cronograma.error)) {
+    logCompatCliente('obra_cronograma', cronograma.error)
+    return { data: null, error: null }
+  }
+
+  return cronograma
+}
+
+async function carregarComunicadosCliente(obraId) {
+  const comunicados = await supabase
+    .from('comunicados_cliente')
+    .select(COMUNICADO_CLIENTE_SELECT)
+    .eq('obra_id', obraId)
+    .or('visivel_cliente.eq.true,visibilidade.eq.cliente,visibilidade.eq.publica,publico_cliente.eq.true')
+    .order('created_at', { ascending: false })
+
+  if (!comunicados.error) return { ...comunicados, data: safeArray(comunicados).filter(isDocumentoCliente) }
+  if (erroSchemaCompat(comunicados.error)) {
+    logCompatCliente('comunicados_cliente', comunicados.error)
+    return resultadoVazio()
+  }
+
+  logFiltroCliente('comunicados_cliente', comunicados.error)
+  return resultadoVazio(comunicados.error)
+}
+
+async function carregarContatosCliente(obraId) {
+  const contatos = await supabase
+    .from('contatos_cliente')
+    .select(CONTATO_CLIENTE_SELECT)
+    .eq('obra_id', obraId)
+    .or('visivel_cliente.eq.true,visibilidade.eq.cliente,visibilidade.eq.publica,publico_cliente.eq.true')
+
+  if (!contatos.error) return { ...contatos, data: safeArray(contatos).filter(isDocumentoCliente) }
+  if (erroSchemaCompat(contatos.error)) {
+    logCompatCliente('contatos_cliente', contatos.error)
+    return resultadoVazio()
+  }
+
+  logFiltroCliente('contatos_cliente', contatos.error)
+  return resultadoVazio(contatos.error)
 }
 
 async function carregarObraCliente(obraId) {
@@ -233,6 +325,18 @@ async function carregarObraCliente(obraId) {
 
   console.warn('Select completo de obras falhou no Portal Cliente. Tentando select minimo:', completa.error)
   return supabase.from('obras').select(OBRA_CLIENTE_SELECT_MINIMO).eq('id', obraId).single()
+}
+
+async function inserirMensagemCliente(payload) {
+  const completa = await supabase.from('mensagens').insert(payload)
+  if (!erroColunaAusente(completa.error)) return completa
+
+  const minimo = { ...payload }
+  delete minimo.visivel_cliente
+  delete minimo.visibilidade
+  delete minimo.publico_cliente
+  console.warn('Insert completo de mensagem do cliente falhou. Tentando payload minimo:', completa.error)
+  return supabase.from('mensagens').insert(minimo)
 }
 
 function tabelaNaoEncontrada(error) {
@@ -294,7 +398,7 @@ export default function PortalCliente() {
       return
     }
 
-    const cronograma = await supabase.from('obra_cronograma').select(CRONOGRAMA_CLIENTE_SELECT).eq('obra_id', id).eq('visivel_cliente', true).maybeSingle()
+    const cronograma = await carregarCronogramaCliente(id)
     if (cronograma.error) {
       console.error('Erro ao carregar cronograma no portal cliente:', cronograma.error)
       setErro(detalheErro(cronograma.error, 'Parte das informações da obra não foi carregada.'))
@@ -323,10 +427,10 @@ export default function PortalCliente() {
       carregarFotosCliente(id),
       supabase.from('obra_ambientes').select('id, nome').eq('obra_id', id),
       carregarAgendaCliente(id),
-      supabase.from('comunicados_cliente').select('*').eq('obra_id', id).order('created_at', { ascending: false }),
+      carregarComunicadosCliente(id),
       carregarMensagensObraCliente(id),
       carregarMensagensCliente(id),
-      supabase.from('contatos_cliente').select('*').eq('obra_id', id),
+      carregarContatosCliente(id),
       profileIds.length
         ? supabase.from('profiles').select('id, full_name, email, role, telefone').in('id', [...new Set(profileIds)])
         : Promise.resolve({ data: [], error: null }),
@@ -342,12 +446,12 @@ export default function PortalCliente() {
       return
     }
 
-    const falha = [fotos, ambientes, agenda, comunicados, mensagens, mensagensCliente, contatos, profiles, checklist].find(r => r.error)
+    const falha = [fotos, ambientes, agenda, comunicados, mensagens, mensagensCliente, contatos, profiles, checklist].find(r => r.error && !erroSchemaCompat(r.error))
     if (falha?.error) {
       console.error('Erro em dados complementares do portal cliente:', falha.error)
       setErro(detalheErro(falha.error, 'Parte das informações liberadas ao cliente não foi carregada.'))
     }
-    if (documentos.error && !tabelaNaoEncontrada(documentos.error)) {
+    if (documentos.error && !erroSchemaCompat(documentos.error)) {
       console.error('Erro ao carregar documentos do portal cliente:', documentos.error)
       setErro(detalheErro(documentos.error, 'Não foi possível carregar documentos liberados.'))
     }
@@ -454,11 +558,13 @@ export default function PortalCliente() {
     setEnviandoMensagem(true)
     setMensagemStatus('')
 
-    const { error } = await supabase.from('mensagens').insert({
+    const { error } = await inserirMensagemCliente({
       obra_id: id,
       remetente_id: usuario?.id || null,
       conteudo,
       tipo: 'cliente',
+      visivel_cliente: true,
+      visibilidade: 'cliente',
     })
 
     setEnviandoMensagem(false)
@@ -490,11 +596,13 @@ export default function PortalCliente() {
     if (!texto) return
     const evento = modalReagendamento.evento
     const conteudo = `Solicitação de reagendamento: ${evento?.titulo || evento?.tipo || 'Compromisso'} (${dataBR(evento?.data)}). Motivo/sugestão: ${texto}`
-    const { error } = await supabase.from('mensagens').insert({
+    const { error } = await inserirMensagemCliente({
       obra_id: id,
       remetente_id: usuario?.id || null,
       conteudo,
       tipo: 'reagendamento',
+      visivel_cliente: true,
+      visibilidade: 'cliente',
     })
     if (error) {
       console.error('Erro ao solicitar reagendamento pelo cliente:', error)
@@ -633,7 +741,7 @@ export default function PortalCliente() {
       <nav className="pc-bottom-nav">
         {MOBILE_NAV.map(item => (
           <button key={item.id} className={aba === item.id ? 'active' : ''} onClick={() => trocarAba(item.id)}>
-            <span>{item.icon}</span>
+            <span className={`pc-mobile-icon ${item.icon}`} aria-hidden="true" />
             {item.label}
             {temBadge(item.id) && <i className="pc-tab-badge" />}
           </button>
@@ -702,7 +810,7 @@ function ChecklistCliente({ checklist, ambientesPorId }) {
       <div className="pc-checklist-list">
         {checklist.map(item => (
           <div key={item.id} className="pc-checklist-item">
-            <i>✓</i>
+            <i>OK</i>
             <div>
               <strong>{item.descricao}</strong>
               <small>{ambientesPorId.get(item.ambiente_id)?.nome || item.categoria_ambiente || 'Geral'}</small>
@@ -746,7 +854,7 @@ function AgendaCliente({ agenda, status, onConfirmar, onReagendar }) {
                   <strong>{item.titulo || item.tipo || 'Compromisso'}</strong>
                   <em className={`pc-agenda-status ${agendaStatus.tone}`}>{agendaStatus.label}</em>
                 </div>
-                {item.observacao && <p>{item.observacao}</p>}
+                {(item.observacao_publica || item.descricao_cliente) && <p>{item.observacao_publica || item.descricao_cliente}</p>}
                 <div className="pc-agenda-actions">
                   <button className="confirm" onClick={() => onConfirmar(item)} disabled={item.confirmado_cliente}>Confirmar presença</button>
                   <button className="reschedule" onClick={() => onReagendar(item)}>Solicitar reagendamento</button>
@@ -852,7 +960,7 @@ function Timeline({ faseAtualKey }) {
     <div className="pc-timeline">
       {MARCOS_CLIENTE.map((marco, index) => (
         <div key={marco.label} className={index < etapaAtual ? 'done' : index === etapaAtual ? 'active' : 'future'}>
-          <i>{index < etapaAtual ? '✓' : index + 1}</i>
+          <i>{index < etapaAtual ? 'OK' : index + 1}</i>
           <span>{marco.label}</span>
         </div>
       ))}
@@ -865,7 +973,7 @@ function Documento({ doc }) {
   return (
     <div className="pc-doc">
       <div>
-        <strong>{doc.nome_arquivo || doc.titulo || 'Documento'}</strong>
+        <strong>{doc.nome_arquivo || doc.nome || doc.titulo || 'Documento'}</strong>
         <p>{doc.created_at ? `Publicado em ${dataBR(doc.created_at)}` : (doc.descricao || 'Arquivo liberado pela equipe Ornare.')}</p>
       </div>
       <div className="pc-doc-actions">
@@ -961,14 +1069,14 @@ const css = `
 .pc-hero-overlay{position:absolute;inset:0;background:linear-gradient(180deg,rgba(15,14,12,.78),rgba(15,14,12,.58) 46%,rgba(15,14,12,.14) 74%,rgba(245,240,235,1) 100%)}
 .pc-top{position:relative;z-index:2;padding:22px;display:flex;justify-content:space-between;align-items:flex-start}
 .pc-top img{height:44px;filter:brightness(0) invert(1)}
-.pc-top span{display:block;margin-top:5px;color:${THEME.gold};font-size:9px;letter-spacing:3px;text-transform:uppercase}
+.pc-top span{display:block;margin-top:5px;color:#F1D79B;font-size:9px;letter-spacing:3px;text-transform:uppercase}
 .pc-hero-content{position:relative;z-index:2;max-width:980px;margin:0 auto;padding:22px 22px 14px;display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:42px;align-items:start}
 .pc-hero-copy{min-width:0;padding-top:0}
 .pc-brand-lockup{display:flex;flex-direction:column;align-items:center;justify-self:end;padding-top:0;width:238px;transform:translateY(-10px)}
 .pc-logo-frame{display:block;width:238px;height:64px;position:relative;overflow:hidden}
 .pc-logo-frame img{position:absolute;left:50%;top:50%;width:238px;height:238px;max-width:none;filter:brightness(0) invert(1);opacity:.96;transform:translate(-50%,-50%)}
-.pc-brand-lockup strong{display:block;margin-top:5px;color:${THEME.gold};font-size:10px;letter-spacing:3.5px;text-transform:uppercase;font-weight:900;text-align:center;width:238px}
-.pc-eyebrow{display:block;color:${THEME.gold};font-size:10px;letter-spacing:3px;text-transform:uppercase;font-weight:900;margin-bottom:10px}
+.pc-brand-lockup strong{display:block;margin-top:5px;color:#F1D79B;font-size:10px;letter-spacing:3.5px;text-transform:uppercase;font-weight:900;text-align:center;width:238px}
+.pc-eyebrow{display:block;color:#F1D79B;font-size:10px;letter-spacing:3px;text-transform:uppercase;font-weight:900;margin-bottom:10px}
 .pc-hero h1{font-family:var(--font-sans, Inter, system-ui, sans-serif);font-size:36px;line-height:1.04;font-weight:850;letter-spacing:-.01em;margin:0;max-width:720px;color:#fff;text-shadow:0 18px 42px rgba(0,0,0,.48)}
 .pc-hero p{font-size:14px;color:rgba(255,255,255,.88);margin:10px 0 0;font-weight:750;text-shadow:0 10px 28px rgba(0,0,0,.42)}
 .pc-hero-dashboard{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:24px}
@@ -989,7 +1097,7 @@ const css = `
 .pc-card h2{font-size:15px;margin:0 0 16px;color:${THEME.ink}}
 .pc-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:16px}
 .pc-card-head span{color:${THEME.muted};font-size:13px;font-weight:900}
-.pc-card-head strong{font-size:38px;color:${THEME.gold};line-height:1}
+.pc-card-head strong{font-size:38px;color:${THEME.goldText};line-height:1}
 .pc-progress{height:8px;background:#EEE7DC;border-radius:999px;overflow:hidden;margin-bottom:18px}
 .pc-progress i{display:block;height:100%;background:linear-gradient(90deg,${THEME.gold},#D9BD80);border-radius:999px}
 .pc-dashboard-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
@@ -1004,7 +1112,7 @@ const css = `
 .pc-checklist-item i{width:24px;height:24px;border-radius:999px;background:${THEME.success};color:#fff;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:13px;font-weight:950;flex-shrink:0}
 .pc-checklist-item strong{display:block;color:${THEME.ink};font-size:13.5px;line-height:1.35}
 .pc-checklist-item small{display:block;color:${THEME.muted};font-size:12px;margin-top:3px}
-.pc-timeline{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+.pc-timeline{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
 .pc-timeline div{background:${THEME.card};border:1px solid ${THEME.border};border-radius:14px;padding:13px 10px;color:#6F665C;font-size:12px;font-weight:900;text-align:center}
 .pc-timeline div.done{color:${THEME.ink};border-color:#D8D0C6;background:#FAF7F1}
 .pc-timeline div.active{background:${THEME.gold};border-color:${THEME.gold};color:#1F1B16;box-shadow:0 12px 30px rgba(201,169,110,.22)}
@@ -1021,7 +1129,7 @@ const css = `
 .pc-gallery strong{display:block;font-size:13px;color:${THEME.ink}}
 .pc-gallery small{display:block;color:${THEME.muted};font-size:12px;margin-top:3px}
 .pc-agenda-row{display:grid;grid-template-columns:96px 1fr;gap:16px}
-.pc-agenda-row span{display:block;color:${THEME.gold};font-size:13px;font-weight:900}
+.pc-agenda-row span{display:block;color:${THEME.goldText};font-size:13px;font-weight:900}
 .pc-agenda-row small{display:block;color:${THEME.muted};margin-top:4px}
 .pc-agenda-row strong,.pc-doc strong,.pc-message strong{display:block;color:${THEME.ink};font-size:15px}
 .pc-agenda-row p,.pc-doc p,.pc-message p{margin:7px 0 0;color:${THEME.muted};font-size:13px;line-height:1.55}
@@ -1029,44 +1137,44 @@ const css = `
 .pc-agenda-title{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .pc-agenda-status{border-radius:999px;padding:5px 9px;font-size:10px;font-style:normal;font-weight:950;white-space:nowrap}
 .pc-agenda-status.success{background:#E8F3EC;color:${THEME.success}}
-.pc-agenda-status.gold{background:#FBF3E2;color:#9C7838}
+.pc-agenda-status.gold{background:#FBF3E2;color:#735321}
 .pc-agenda-status.neutral{background:#F0EDEA;color:${THEME.muted}}
 .pc-agenda-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .pc-agenda-actions button{border-radius:10px;padding:9px 11px;min-height:44px;font-size:12px;font-weight:900;font-family:inherit;cursor:pointer}
 .pc-agenda-actions .confirm{border:1px solid ${THEME.success};background:${THEME.success};color:#fff}
 .pc-agenda-actions .confirm:disabled{opacity:.55;cursor:default}
-.pc-agenda-actions .reschedule{border:1px solid ${THEME.gold};background:${THEME.elevated};color:${THEME.gold}}
+.pc-agenda-actions .reschedule{border:1px solid ${THEME.gold};background:${THEME.elevated};color:${THEME.goldText}}
 .pc-doc-list{display:grid;gap:10px}
 .pc-doc{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;border:1px solid ${THEME.border};border-radius:14px;padding:14px;background:#FFFBF5}
 .pc-doc-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .pc-doc span,.pc-doc a{border:1px solid ${THEME.border};border-radius:999px;padding:6px 10px;min-height:32px;display:inline-flex;align-items:center;font-size:11px;color:${THEME.muted};white-space:nowrap;text-decoration:none;font-weight:900}
 .pc-doc a{background:${THEME.ink};border-color:${THEME.ink};color:#fff}
-.pc-message>span{display:block;color:${THEME.gold};font-size:10px;letter-spacing:1.5px;text-transform:uppercase;font-weight:900;margin-bottom:8px}
+.pc-message>span{display:block;color:${THEME.goldText};font-size:10px;letter-spacing:1.5px;text-transform:uppercase;font-weight:900;margin-bottom:8px}
 .pc-message p{white-space:pre-wrap}
 .pc-message-composer{position:sticky;bottom:calc(92px + env(safe-area-inset-bottom));background:${THEME.card};border:1px solid ${THEME.border};border-radius:18px;padding:13px;box-shadow:0 18px 42px rgba(29,28,25,.08)}
 .pc-message-composer textarea{background:${THEME.inputBackground};border:1px solid ${THEME.inputBorder};color:${THEME.inputText};border-radius:8px;padding:10px 14px;width:100%;font-size:14px;outline:none;font-family:inherit;resize:vertical;min-height:82px;box-sizing:border-box}
-.pc-message-composer button{margin-top:10px;width:100%;border:0;border-radius:12px;background:${THEME.gold};color:#fff;padding:12px;min-height:44px;font-weight:950;font-family:inherit;cursor:pointer}
+.pc-message-composer button{margin-top:10px;width:100%;border:0;border-radius:12px;background:${THEME.gold};color:${THEME.ink};padding:12px;min-height:44px;font-weight:950;font-family:inherit;cursor:pointer}
 .pc-message-composer button:disabled{opacity:.55;cursor:default}
 .pc-message-composer span{display:block;margin-top:8px;color:${THEME.muted};font-size:12px;font-weight:800}
 .pc-contact{display:flex;gap:14px;align-items:center}
-.pc-avatar{width:48px;height:48px;border-radius:50%;background:#F1E6D3;color:${THEME.gold};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;flex-shrink:0;text-transform:uppercase}
-.pc-contact span{display:block;color:${THEME.gold};font-size:10px;letter-spacing:1.4px;text-transform:uppercase;font-weight:900;margin-bottom:4px}
+.pc-avatar{width:48px;height:48px;border-radius:50%;background:#F1E6D3;color:${THEME.goldText};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;flex-shrink:0;text-transform:uppercase}
+.pc-contact span{display:block;color:${THEME.goldText};font-size:10px;letter-spacing:1.4px;text-transform:uppercase;font-weight:900;margin-bottom:4px}
 .pc-contact strong{display:block;color:${THEME.ink};font-size:15px}
 .pc-contact small{display:block;color:${THEME.muted};font-size:12px;margin-top:4px}
 .pc-contact-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
 .pc-contact-actions button,.pc-contact-actions a{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:10px;padding:9px 12px;min-height:44px;display:inline-flex;align-items:center;font-size:12px;font-weight:800;text-decoration:none;cursor:pointer;font-family:inherit}
 .pc-empty{text-align:center;background:${THEME.card};border:1px solid ${THEME.border};border-radius:18px;padding:52px 22px;color:${THEME.muted}}
-.pc-empty svg{width:54px;height:54px;margin:0 auto 16px;stroke:${THEME.gold};fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.pc-empty svg{width:54px;height:54px;margin:0 auto 16px;stroke:${THEME.goldText};fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
 .pc-empty strong{display:block;color:${THEME.ink};font-size:15px;margin-bottom:6px}
 .pc-empty p{margin:0;font-size:13px;line-height:1.5}
 .pc-modal{position:fixed;inset:0;z-index:120;background:rgba(15,14,12,.58);display:flex;align-items:center;justify-content:center;padding:18px}
 .pc-modal-card{width:min(460px,100%);background:${THEME.card};border:1px solid ${THEME.border};border-radius:20px;padding:20px;box-shadow:0 28px 70px rgba(0,0,0,.28);position:relative}
 .pc-modal-close{position:absolute;right:14px;top:14px;border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:999px;padding:7px 10px;font-family:inherit;font-weight:900;cursor:pointer}
-.pc-modal-card>span{display:block;color:${THEME.gold};font-size:10px;letter-spacing:1.7px;text-transform:uppercase;font-weight:950;margin-bottom:7px}
+.pc-modal-card>span{display:block;color:${THEME.goldText};font-size:10px;letter-spacing:1.7px;text-transform:uppercase;font-weight:950;margin-bottom:7px}
 .pc-modal-card h2{margin:0;color:${THEME.ink};font-size:22px}
 .pc-modal-card p{margin:8px 0 14px;color:${THEME.muted};font-size:13px}
 .pc-modal-card textarea{background:${THEME.inputBackground};border:1px solid ${THEME.inputBorder};color:${THEME.inputText};border-radius:8px;padding:10px 14px;width:100%;font-size:14px;outline:none;font-family:inherit;resize:vertical;box-sizing:border-box}
-.pc-primary-action{margin-top:12px;width:100%;border:0;border-radius:12px;background:${THEME.gold};color:#fff;padding:12px;min-height:44px;font-family:inherit;font-weight:950;cursor:pointer}
+.pc-primary-action{margin-top:12px;width:100%;border:0;border-radius:12px;background:${THEME.gold};color:${THEME.ink};padding:12px;min-height:44px;font-family:inherit;font-weight:950;cursor:pointer}
 .pc-preview{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.94);display:flex;align-items:center;justify-content:center;padding:16px;cursor:zoom-out}
 .pc-preview img{max-width:96vw;max-height:92vh;border-radius:10px;object-fit:contain}
 .pc-preview button{position:absolute;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);color:#fff;border-radius:10px;padding:9px 12px;cursor:pointer}
@@ -1093,16 +1201,17 @@ const css = `
   .pc-hero p{display:block;font-size:12px;color:rgba(255,255,255,.9);margin-top:9px;white-space:normal;overflow:visible;text-overflow:clip;max-width:330px;line-height:1.3;font-weight:700}
   .pc-hero-dashboard{display:none}
   .pc-tabs{display:none}
-  .pc-bottom-nav{position:fixed;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:40;display:grid;grid-template-columns:repeat(6,1fr);gap:4px;background:rgba(255,254,252,.96);border:1px solid ${THEME.border};border-radius:18px;padding:7px;box-shadow:0 18px 42px rgba(29,28,25,.18);backdrop-filter:blur(18px)}
-  .pc-bottom-nav button{position:relative;border:0;background:transparent;color:${THEME.muted};border-radius:13px;min-height:54px;padding:7px 4px 6px;font-size:9px;font-weight:900;cursor:pointer}
-  .pc-bottom-nav button span{display:block;font-size:0;line-height:1;margin-bottom:3px;color:${THEME.gold}}
-  .pc-bottom-nav button span::before{font-size:16px}
-  .pc-bottom-nav button:nth-child(1) span::before{content:"\\2302"}
-  .pc-bottom-nav button:nth-child(2) span::before{content:"\\25F7"}
-  .pc-bottom-nav button:nth-child(3) span::before{content:"\\25A1"}
-  .pc-bottom-nav button:nth-child(4) span::before{content:"\\25C7"}
-  .pc-bottom-nav button:nth-child(5) span::before{content:"\\260E"}
-  .pc-bottom-nav button:nth-child(6) span::before{content:"\\25A4"}
+.pc-bottom-nav{position:fixed;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:40;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;background:rgba(255,254,252,.96);border:1px solid ${THEME.border};border-radius:18px;padding:7px;box-shadow:0 18px 42px rgba(29,28,25,.18);backdrop-filter:blur(18px)}
+  .pc-bottom-nav button{position:relative;border:0;background:transparent;color:${THEME.muted};border-radius:13px;min-height:54px;padding:7px 2px 6px;font-size:8.5px;font-weight:900;cursor:pointer;overflow:hidden;text-overflow:ellipsis}
+  .pc-bottom-nav button span{display:block;line-height:1;margin-bottom:3px;color:${THEME.goldText}}
+  .pc-mobile-icon::before{font-size:16px}
+  .pc-mobile-icon.home::before{content:"\\2302"}
+  .pc-mobile-icon.timeline::before{content:"\\25CB"}
+  .pc-mobile-icon.calendar::before{content:"\\25F7"}
+  .pc-mobile-icon.photos::before{content:"\\25A1"}
+  .pc-mobile-icon.messages::before{content:"\\25C7"}
+  .pc-mobile-icon.contact::before{content:"\\260E"}
+  .pc-mobile-icon.docs::before{content:"\\25A4"}
   .pc-bottom-nav button.active{background:${THEME.ink};color:#fff}
   .pc-bottom-nav button.active span{color:#fff}
   .pc-alert{margin:12px 12px 0}

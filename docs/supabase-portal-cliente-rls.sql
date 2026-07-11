@@ -6,6 +6,7 @@ begin;
 
 -- 1) Colunas necessarias para vinculo e visibilidade
 alter table if exists public.profiles
+  add column if not exists role text not null default 'montador',
   add column if not exists obra_id uuid references public.obras(id) on delete set null,
   add column if not exists ativo boolean not null default true;
 
@@ -46,6 +47,16 @@ alter table if exists public.mensagens_obra
   add column if not exists publico_cliente boolean not null default false;
 
 alter table if exists public.documentos
+  add column if not exists visivel_cliente boolean not null default false,
+  add column if not exists visibilidade text not null default 'interna',
+  add column if not exists publico_cliente boolean not null default false;
+
+alter table if exists public.comunicados_cliente
+  add column if not exists visivel_cliente boolean not null default false,
+  add column if not exists visibilidade text not null default 'interna',
+  add column if not exists publico_cliente boolean not null default false;
+
+alter table if exists public.contatos_cliente
   add column if not exists visivel_cliente boolean not null default false,
   add column if not exists visibilidade text not null default 'interna',
   add column if not exists publico_cliente boolean not null default false;
@@ -176,6 +187,22 @@ to authenticated
 using (
   id = auth.uid()
   or public.ornare_role() in ('gestao', 'supervisor')
+  or (
+    public.ornare_role() = 'cliente'
+    and exists (
+      select 1
+      from public.obras o
+      left join public.obra_cronograma c on c.obra_id = o.id
+      where public.ornare_is_cliente_da_obra(o.id)
+        and (
+          o.supervisor_id = profiles.id
+          or o.comercial_id = profiles.id
+          or c.supervisor_id = profiles.id
+          or c.comercial_id = profiles.id
+          or c.pos_venda_id = profiles.id
+        )
+    )
+  )
 );
 
 drop policy if exists "profiles_insert_gestao" on public.profiles;
@@ -421,7 +448,15 @@ to authenticated
 using (
   public.ornare_is_staff()
   or public.ornare_is_supervisor_da_obra(obra_id)
-  or public.ornare_is_cliente_da_obra(obra_id)
+  or (
+    public.ornare_is_cliente_da_obra(obra_id)
+    and (
+      visivel_cliente = true
+      or visibilidade in ('cliente', 'publica')
+      or publico_cliente = true
+      or (tipo in ('cliente', 'reagendamento') and remetente_id = auth.uid())
+    )
+  )
 );
 
 drop policy if exists "mensagens_insert_cliente_obra" on public.mensagens;
@@ -446,7 +481,7 @@ using (
   or public.ornare_is_supervisor_da_obra(obra_id)
   or (
     public.ornare_is_cliente_da_obra(obra_id)
-    and (visivel_cliente = true or publico_cliente = true)
+    and (visivel_cliente = true or visibilidade in ('cliente', 'publica') or publico_cliente = true)
   )
 );
 
@@ -469,7 +504,10 @@ begin
     using (
       public.ornare_is_staff()
       or public.ornare_is_supervisor_da_obra(obra_id)
-      or public.ornare_is_cliente_da_obra(obra_id)
+      or (
+        public.ornare_is_cliente_da_obra(obra_id)
+        and (visivel_cliente = true or visibilidade in ('cliente', 'publica') or publico_cliente = true)
+      )
     );
 
     drop policy if exists "comunicados_cliente_write_staff" on public.comunicados_cliente;
@@ -491,7 +529,10 @@ begin
     using (
       public.ornare_is_staff()
       or public.ornare_is_supervisor_da_obra(obra_id)
-      or public.ornare_is_cliente_da_obra(obra_id)
+      or (
+        public.ornare_is_cliente_da_obra(obra_id)
+        and (visivel_cliente = true or visibilidade in ('cliente', 'publica') or publico_cliente = true)
+      )
     );
 
     drop policy if exists "contatos_cliente_write_staff" on public.contatos_cliente;
@@ -515,7 +556,7 @@ begin
       or public.ornare_is_supervisor_da_obra(obra_id)
       or (
         public.ornare_is_cliente_da_obra(obra_id)
-        and (visivel_cliente = true or publico_cliente = true)
+        and (visivel_cliente = true or visibilidade in ('cliente', 'publica') or publico_cliente = true)
       )
     );
 
@@ -529,3 +570,55 @@ begin
 end $$;
 
 commit;
+
+-- Diagnostico de acesso do Portal Cliente
+-- Troque os valores abaixo antes de executar.
+with alvo as (
+  select
+    'cliente@email.com'::text as cliente_email,
+    '00000000-0000-0000-0000-000000000000'::uuid as obra_id
+),
+cliente as (
+  select p.*
+  from public.profiles p
+  join alvo a on lower(p.email) = lower(a.cliente_email)
+)
+select
+  'profile' as item,
+  c.id::text as id,
+  c.email,
+  c.role,
+  c.obra_id::text as obra_id,
+  c.ativo::text as status,
+  case
+    when c.role <> 'cliente' then 'ERRO: role precisa ser cliente'
+    when c.obra_id <> a.obra_id then 'ERRO: obra_id nao confere'
+    when coalesce(c.ativo, true) is not true then 'ERRO: cliente inativo'
+    else 'OK'
+  end as diagnostico
+from cliente c
+cross join alvo a
+union all
+select 'obra', o.id::text, o.cliente_nome, null, o.id::text, o.status, 'OK'
+from public.obras o
+join alvo a on a.obra_id = o.id
+union all
+select 'cronograma_visivel', oc.id::text, oc.fase, null, oc.obra_id::text, oc.visivel_cliente::text,
+  case when oc.visivel_cliente then 'OK' else 'NAO LIBERADO' end
+from public.obra_cronograma oc
+join alvo a on a.obra_id = oc.obra_id
+union all
+select 'fotos_liberadas', null, count(*)::text, null, a.obra_id::text, null, 'OK'
+from alvo a
+left join public.fotos f on f.obra_id = a.obra_id and f.aprovada = true and f.aprovada_gestao = true and f.visivel_cliente = true
+group by a.obra_id
+union all
+select 'agenda_liberada', null, count(*)::text, null, a.obra_id::text, null, 'OK'
+from alvo a
+left join public.agenda ag on ag.obra_id = a.obra_id and ag.visivel_cliente = true and ag.reuniao_interna = false
+group by a.obra_id
+union all
+select 'checklist_liberado', null, count(*)::text, null, a.obra_id::text, null, 'OK'
+from alvo a
+left join public.checklist_items ci on ci.obra_id = a.obra_id and ci.concluido = true and ci.visivel_cliente = true
+group by a.obra_id;

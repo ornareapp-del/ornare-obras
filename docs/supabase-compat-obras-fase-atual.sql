@@ -15,6 +15,9 @@ alter table if exists public.obras
   add column if not exists created_at timestamptz not null default now(),
   add column if not exists updated_at timestamptz not null default now();
 
+alter table if exists public.obra_cronograma
+  add column if not exists visivel_cliente boolean not null default false;
+
 alter table if exists public.fotos
   add column if not exists observacao_cliente text,
   add column if not exists aprovada boolean not null default false,
@@ -51,6 +54,16 @@ alter table if exists public.mensagens_obra
   add column if not exists publico_cliente boolean not null default false;
 
 alter table if exists public.documentos
+  add column if not exists visivel_cliente boolean not null default false,
+  add column if not exists visibilidade text not null default 'interna',
+  add column if not exists publico_cliente boolean not null default false;
+
+alter table if exists public.comunicados_cliente
+  add column if not exists visivel_cliente boolean not null default false,
+  add column if not exists visibilidade text not null default 'interna',
+  add column if not exists publico_cliente boolean not null default false;
+
+alter table if exists public.contatos_cliente
   add column if not exists visivel_cliente boolean not null default false,
   add column if not exists visibilidade text not null default 'interna',
   add column if not exists publico_cliente boolean not null default false;

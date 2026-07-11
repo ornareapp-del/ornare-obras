@@ -10,6 +10,7 @@ import { logError } from '../../services/logService'
 import { progressBarStyle, progressFillStyle, statusBadgeBaseStyle } from '../../utils/ui'
 import { formatFileSize, prepararImagemUpload } from '../../utils/imageUpload'
 import { FASES_ORNARE, faseOrnarePorKey, faseOrnarePorTexto, indiceFaseOrnare } from '../../constants/fasesOrnare'
+import { resolverOperacaoObra } from '../../utils/obraOperacional'
 import { theme } from '../../constants/theme'
 import ObraPdfExportControls from './components/ObraPdfExportControls'
 
@@ -213,6 +214,7 @@ export default function ObraDetalhe() {
   const location    = useLocation()
 
   const [obra,      setObra]      = useState(null)
+  const [cronogramaOperacional, setCronogramaOperacional] = useState(null)
   const [aba,       setAba]       = useState('Resumo')
   const [loading,   setLoading]   = useState(true)
   const [tarefas,   setTarefas]   = useState([])
@@ -260,6 +262,21 @@ export default function ObraDetalhe() {
     }
     setObra(data); setFormObra(data || {}); setLoading(false)
   }, [id, mostrarToast])
+
+  const carregarCronogramaOperacional = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('obra_cronograma')
+      .select('*')
+      .eq('obra_id', id)
+      .maybeSingle()
+
+    if (error) {
+      console.error('Erro ao carregar cronograma operacional da obra:', error)
+      setCronogramaOperacional(null)
+      return
+    }
+    setCronogramaOperacional(data || null)
+  }, [id])
 
   const carregarProfiles = useCallback(async () => {
     const { data, error } = await supabase.from('profiles').select('id, full_name, email, role')
@@ -314,7 +331,7 @@ export default function ObraDetalhe() {
   }, [id, mostrarToast])
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { carregarObra(); carregarProfiles(); carregarResumo() }, [carregarObra, carregarProfiles, carregarResumo])
+  useEffect(() => { carregarObra(); carregarCronogramaOperacional(); carregarProfiles(); carregarResumo() }, [carregarObra, carregarCronogramaOperacional, carregarProfiles, carregarResumo])
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { if (aba === 'Tarefas') carregarTarefas() }, [aba, carregarTarefas])
   useEffect(() => {
@@ -412,10 +429,11 @@ export default function ObraDetalhe() {
 
   const st = ST[obra.status] || { label: obra.status, bg: '#f0ece6', color: '#888' }
   const supervisores = profiles.filter(p => ['gestao','supervisor'].includes(p.role))
-  const progressoObra = obra.progresso || progresso || 0
+  const operacaoObra = resolverOperacaoObra(obra, cronogramaOperacional)
+  const progressoObra = operacaoObra.progresso || progresso || 0
   const localizacao = [obra.cidade, obra.uf].filter(Boolean).join(' / ')
   const contrato = obra.numero_contrato || obra.pedido_ornare || '-'
-  const previsao = obra.data_previsao ? new Date(obra.data_previsao + 'T00:00:00').toLocaleDateString('pt-BR') : '-'
+  const previsao = operacaoObra.fimPrevisto ? new Date(operacaoObra.fimPrevisto + 'T00:00:00').toLocaleDateString('pt-BR') : '-'
   const supervisorNome = profiles.find(p => p.id === obra.supervisor_id)?.full_name
   const comercialNome = profiles.find(p => p.id === obra.comercial_id)?.full_name || obra.comercial_nome
 
@@ -732,7 +750,7 @@ export default function ObraDetalhe() {
         </div>
       )}
 
-      {aba === 'Cronograma' && <AbaCronograma obraId={id} profiles={profiles} compacto={compacto} cronogramaDestaque={cronogramaDestaque} />}
+      {aba === 'Cronograma' && <AbaCronograma obraId={id} profiles={profiles} compacto={compacto} cronogramaDestaque={cronogramaDestaque} onSaved={setCronogramaOperacional} />}
 
       {aba === 'Equipe' && (
         <div style={{ display: 'grid', gridTemplateColumns: compacto ? '1fr' : '1fr 1fr', gap: 16 }}>
@@ -1034,7 +1052,7 @@ function ResumoAtalho({ titulo, valor, detalhe, onClick }) {
   )
 }
 
-function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque }) {
+function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved }) {
   const [cronograma, setCronograma] = useState(null)
   const [form, setForm] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -1073,6 +1091,7 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque }) {
     if (data) {
       setCronograma(data)
       setForm(data)
+      onSaved?.(data)
       setLoading(false)
       return
     }
@@ -1106,6 +1125,7 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque }) {
     } else {
       setCronograma(criado)
       setForm(criado)
+      onSaved?.(criado)
     }
     setLoading(false)
   }
@@ -1154,6 +1174,7 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque }) {
     } else {
       setCronograma(data)
       setForm(data)
+      onSaved?.(data)
       setMensagem({ tipo: 'sucesso', texto: 'Cronograma atualizado com sucesso.' })
       await criarNotificacoesObra({
         obraId,
