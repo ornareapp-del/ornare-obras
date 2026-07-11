@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { logError } from '../services/logService'
 import bgImage from '../assets/ornare-milao-40-anos.jpg'
@@ -9,6 +9,7 @@ export default function Login() {
   const [senha, setSenha] = useState('')
   const [erro, setErro] = useState('')
   const [loading, setLoading] = useState(false)
+  const [mostrarSenha, setMostrarSenha] = useState(false)
   const [modo, setModo] = useState('login') // login | recuperar | magic | confirmado
 
   async function handleLogin(e) {
@@ -51,7 +52,7 @@ export default function Login() {
     })
     if (error) {
       logError('auth.magic_link_failed', error, { email, modo })
-      setErro('Nao foi possivel enviar o link. Confira o e-mail ou fale com a equipe Ornare.')
+      setErro('Não foi possível enviar o link. Confira o e-mail ou fale com a equipe Ornare.')
     } else {
       setModo('confirmado')
     }
@@ -87,7 +88,7 @@ Ornare</h1>
             <div className="ow-login-mark">OK</div>
             <strong>E-mail enviado</strong>
             <p>
-              Verifique sua caixa de entrada e siga as instrucoes para acessar o Ornare Works.
+              Verifique sua caixa de entrada e siga as instruções para acessar o Ornare Works.
             </p>
             <button className="ow-login-link" onClick={() => setModo('login')}>
               Voltar ao login
@@ -98,24 +99,29 @@ Ornare</h1>
             <div className="ow-login-head">
               <span>{modo === 'login' ? 'Acesso seguro' : modo === 'magic' ? 'Portal do cliente' : 'Recuperação de acesso'}</span>
               <h2>{modo === 'login' ? 'Entrar no Ornare Works' : modo === 'magic' ? 'Receber link de acesso' : 'Redefinir senha'}</h2>
-              <p>{modo === 'login' ? 'Equipe: use e-mail e senha. Cliente: tambem pode receber um link de acesso.' : modo === 'magic' ? 'Informe o e-mail cadastrado pela equipe Ornare para entrar no portal da sua obra.' : 'Informe seu e-mail para receber o link de recuperação.'}</p>
+              <p>{modo === 'login' ? 'Equipe: use e-mail e senha. Cliente: também pode receber um link de acesso.' : modo === 'magic' ? 'Informe o e-mail cadastrado pela equipe Ornare para entrar no portal da sua obra.' : 'Informe seu e-mail para receber o link de recuperação.'}</p>
             </div>
 
             <label className="ow-field">
               <span>E-mail</span>
               <input
                 type="email" value={email} onChange={e => setEmail(e.target.value)}
-                required autoComplete="email"
+                required autoComplete="email" placeholder="email@ornare.com.br"
               />
             </label>
 
             {modo === 'login' && (
               <label className="ow-field">
                 <span>Senha</span>
-                <input
-                  type="password" value={senha} onChange={e => setSenha(e.target.value)}
-                  required autoComplete="current-password"
-                />
+                <div className="ow-password-wrap">
+                  <input
+                    type={mostrarSenha ? 'text' : 'password'} value={senha} onChange={e => setSenha(e.target.value)}
+                    required autoComplete="current-password" placeholder="Sua senha"
+                  />
+                  <button type="button" onClick={() => setMostrarSenha(v => !v)} aria-label={mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'}>
+                    {mostrarSenha ? 'Ocultar' : 'Ver'}
+                  </button>
+                </div>
               </label>
             )}
 
@@ -129,7 +135,8 @@ Ornare</h1>
               className="ow-login-submit"
               type="submit" disabled={loading}
             >
-              {loading ? 'Aguarde...' : modo === 'login' ? 'Entrar' : 'Enviar link de recuperação'}
+              {loading && <span className="ow-login-spinner" aria-hidden="true" />}
+              <span>{loading ? 'Aguarde...' : modo === 'login' ? 'Entrar' : 'Enviar link de recuperação'}</span>
             </button>
 
             <div className="ow-login-alt">
@@ -181,11 +188,18 @@ const css = `
 .ow-field{display:block;margin-bottom:14px}
 .ow-field span{display:block;font-size:10px;letter-spacing:1.7px;color:${theme.textSecondary};margin-bottom:7px;text-transform:uppercase;font-weight:900}
 .ow-field input{background:${theme.inputBackground};border:1px solid ${theme.inputBorder};color:${theme.inputText};border-radius:8px;padding:10px 14px;width:100%;font-size:14px;outline:none;min-height:50px;font-family:inherit;box-sizing:border-box;transition:border-color .15s,box-shadow .15s}
+.ow-field input::placeholder{color:#B9B0A3;opacity:1}
 .ow-field input:focus{border-color:${theme.gold};box-shadow:0 0 0 3px rgba(201,168,76,.18)}
+.ow-password-wrap{position:relative}
+.ow-password-wrap input{padding-right:78px}
+.ow-password-wrap button{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:1px solid ${theme.border};background:${theme.surfaceElevated};color:${theme.gold};border-radius:7px;padding:7px 10px;font-size:11px;font-weight:900;cursor:pointer;font-family:inherit}
 .ow-login-error{font-size:12px;color:${theme.error};margin:2px 0 12px;padding:10px 12px;background:rgba(224,82,82,.12);border-radius:12px;border-left:3px solid ${theme.error}}
-.ow-login-submit{width:100%;min-height:52px;border-radius:8px;background:${theme.gold};color:#0F0F0F;border:0;font-size:13px;font-weight:600;cursor:pointer;margin-top:4px;font-family:inherit;box-shadow:0 2px 12px rgba(0,0,0,.3);transition:background .18s,box-shadow .18s;padding:12px 24px}
+.ow-login-submit{width:100%;min-height:52px;border-radius:8px;background:${theme.gold};color:#0F0F0F;border:0;font-size:13px;font-weight:600;cursor:pointer;margin-top:4px;font-family:inherit;box-shadow:0 2px 12px rgba(0,0,0,.3);transition:background .18s,box-shadow .18s;padding:12px 24px;display:flex;align-items:center;justify-content:center;gap:9px}
 .ow-login-submit:hover:not(:disabled){background:${theme.goldLight};box-shadow:0 16px 36px rgba(201,168,76,.18)}
 .ow-login-submit:disabled{background:#3D3830;color:#7A746B;cursor:not-allowed}
+.ow-login-spinner{width:15px;height:15px;border-radius:50%;border:2px solid rgba(255,255,255,.35);border-top-color:${theme.gold};display:inline-block;animation:owSpin .75s linear infinite}
+.ow-login-submit .ow-login-spinner{border-color:rgba(15,15,15,.22);border-top-color:#0F0F0F}
+@keyframes owSpin{to{transform:rotate(360deg)}}
 .ow-login-alt{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;text-align:center;margin-top:18px}
 .ow-login-alt button,.ow-login-link{background:transparent;border:0;color:var(--color-gold);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit}
 @media (max-width:760px){
@@ -210,4 +224,3 @@ const css = `
   .ow-login-card{padding:18px}
 }
 `
-

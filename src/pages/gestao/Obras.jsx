@@ -56,6 +56,8 @@ export default function Obras() {
   const [editModal, setEditModal] = useState(null)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
+  const [busca, setBusca] = useState('')
+  const [menuAberto, setMenuAberto] = useState(null)
 
   useEffect(() => { carregar() }, [])
 
@@ -113,7 +115,19 @@ export default function Obras() {
     }
   }
 
-  const obrasFiltradas = filtro === 'Todas' ? obras : obras.filter(o => normalizar(o.status) === normalizar(filtro))
+  const buscaNormalizada = normalizar(busca)
+  const obrasFiltradas = (filtro === 'Todas' ? obras : obras.filter(o => normalizar(o.status) === normalizar(filtro)))
+    .filter(obra => {
+      if (!buscaNormalizada) return true
+      return [
+        obra.nome,
+        obra.cliente_nome,
+        obra.numero_contrato,
+        obra.pedido_ornare,
+        obra.cidade,
+        obra.uf,
+      ].some(valor => normalizar(valor).includes(buscaNormalizada))
+    })
   const profilePorId = new Map(profiles.map(p => [p.id, p]))
   const cronogramasPorObra = mapearCronogramasPorObra(cronogramas)
   const operacaoDaObra = obra => resolverOperacaoObra(obra, cronogramasPorObra.get(obra.id))
@@ -139,7 +153,7 @@ export default function Obras() {
           <div style={s.modal}>
             <div style={s.modalHeader}>
               <h2 style={s.modalTitle}>Editar Obra</h2>
-              <button style={s.btnClose} onClick={() => setEditModal(null)} aria-label="Fechar edicao da obra">X</button>
+              <button style={s.btnClose} onClick={() => setEditModal(null)} aria-label="Fechar edição da obra">X</button>
             </div>
             <div style={s.modalBody}>
               <div style={s.grid}>
@@ -210,17 +224,23 @@ export default function Obras() {
         ))}
       </div>
 
-      <div className="ob-filters" style={s.filtros}>
-        {['Todas', ...STATUS_LISTA].map(f => (
-          <button key={f} onClick={() => setFiltro(f)} style={{
-            ...s.filtroBtn,
-            background: filtro === f ? theme.gold : theme.surfaceElevated,
-            color: filtro === f ? '#141210' : theme.textSecondary,
-            border: filtro === f ? '1px solid ' + theme.gold : '1px solid ' + theme.border,
-          }}>
-            {f === 'Todas' ? 'Todas' : getStatus(f).label}
-          </button>
-        ))}
+      <div className="ob-toolbar">
+        <label className="ob-search">
+          <span>Buscar obra</span>
+          <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Cliente, contrato ou cidade" />
+        </label>
+        <div className="ob-filters" style={s.filtros}>
+          {['Todas', ...STATUS_LISTA].map(f => (
+            <button key={f} onClick={() => setFiltro(f)} style={{
+              ...s.filtroBtn,
+              background: filtro === f ? theme.gold : theme.surfaceElevated,
+              color: filtro === f ? '#141210' : theme.textSecondary,
+              border: filtro === f ? '1px solid ' + theme.gold : '1px solid ' + theme.border,
+            }}>
+              {f === 'Todas' ? 'Todas' : getStatus(f).label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
@@ -303,12 +323,23 @@ export default function Obras() {
                   <div style={s.arrow}>›</div>
                 </div>
                 <div className="ob-card-actions" style={s.cardActions}>
-                  <button style={s.btnAcao} onClick={e => { e.stopPropagation(); setEditModal({ ...obra }) }}>
-                    Editar
+                  <button
+                    style={s.btnMenu}
+                    onClick={e => {
+                      e.stopPropagation()
+                      setMenuAberto(menuAberto === obra.id ? null : obra.id)
+                    }}
+                    aria-label={`Abrir ações da obra ${obra.nome || ''}`}
+                    aria-expanded={menuAberto === obra.id}
+                  >
+                    ...
                   </button>
-                  <button style={{ ...s.btnAcao, color: '#d94a4a', borderColor: '#fdecea' }} onClick={e => excluir(obra, e)}>
-                    Excluir
-                  </button>
+                  {menuAberto === obra.id && (
+                    <div className="ob-context-menu" onClick={e => e.stopPropagation()}>
+                      <button onClick={() => { setEditModal({ ...obra }); setMenuAberto(null) }}>Editar</button>
+                      <button onClick={e => { setMenuAberto(null); excluir(obra, e) }} className="danger">Excluir</button>
+                    </div>
+                  )}
                 </div>
               </div>
             )
@@ -326,6 +357,16 @@ function Sel({ onChange, children, ...props }) { return <select {...props} onCha
 const css = `
 .ob-mobile-summary{display:none}
 .ob-mobile-kpis,.ob-app-card{display:none}
+.ob-toolbar{display:grid;grid-template-columns:minmax(260px,360px) 1fr;gap:12px;align-items:start;margin-bottom:24px}
+.ob-search{display:block}
+.ob-search span{display:block;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:${theme.gold};font-weight:900;margin-bottom:7px}
+.ob-search input{width:100%;min-height:39px;background:${theme.inputBackground};border:1px solid ${theme.inputBorder};color:${theme.inputText};border-radius:20px;padding:8px 14px;font-size:13px;box-sizing:border-box;outline:none;font-family:inherit}
+.ob-search input::placeholder{color:#AFA69A}
+.ob-search input:focus{border-color:${theme.gold};box-shadow:0 0 0 3px rgba(201,168,76,.15)}
+.ob-context-menu{position:absolute;right:20px;top:43px;z-index:20;min-width:132px;background:${theme.surfaceElevated};border:1px solid ${theme.border};border-radius:10px;padding:6px;box-shadow:0 18px 42px rgba(0,0,0,.28)}
+.ob-context-menu button{width:100%;border:0;background:transparent;color:${theme.textPrimary};border-radius:7px;padding:9px 10px;text-align:left;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit}
+.ob-context-menu button:hover{background:rgba(255,255,255,.06)}
+.ob-context-menu button.danger{color:${theme.error}}
 @media (max-width:760px){
   .ow-page{padding-bottom:112px !important}
   .ob-header{display:grid !important;grid-template-columns:1fr;gap:10px;align-items:start !important;margin-bottom:13px !important;padding-right:0 !important}
@@ -337,12 +378,15 @@ const css = `
   .ob-mobile-kpis>div{min-width:0;display:flex;align-items:center;justify-content:space-between;gap:7px;background:${theme.surface};border:1px solid ${theme.border};border-radius:16px;padding:10px 11px;box-shadow:0 8px 20px rgba(0,0,0,.16)}
   .ob-mobile-kpis strong{font-size:19px;line-height:1;color:var(--color-ink)}
   .ob-mobile-kpis span{font-size:10.5px;line-height:1.05;color:var(--color-ink-muted);font-weight:800;white-space:normal;text-align:right}
-  .ob-filters{display:flex !important;overflow-x:auto !important;gap:8px !important;flex-wrap:nowrap !important;margin-bottom:14px !important;padding-bottom:3px}
+  .ob-toolbar{display:block;margin-bottom:14px}
+  .ob-search{margin-bottom:10px}
+  .ob-filters{display:flex !important;overflow-x:auto !important;gap:8px !important;flex-wrap:nowrap !important;margin-bottom:0 !important;padding-bottom:3px}
   .ob-filters button{flex:0 0 auto !important;white-space:nowrap !important}
   .ob-list{gap:10px !important}
   .ob-card{border-radius:18px !important;box-shadow:0 14px 34px rgba(0,0,0,.18) !important;border:1px solid var(--obra-border) !important;background:linear-gradient(135deg,var(--obra-soft),${theme.surface} 42%) !important}
   .ob-card-main{display:none !important}
-  .ob-card-actions{display:none !important}
+  .ob-card-actions{display:block !important;position:absolute;right:9px;top:8px;padding:0 !important;border:0 !important}
+  .ob-context-menu{right:0;top:40px}
   .ob-app-card{display:block;width:100%;border:0;background:transparent;text-align:left;font-family:inherit;padding:15px 15px 14px;cursor:pointer}
   .ob-app-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
   .ob-app-head strong{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:16px;line-height:1.18;color:var(--color-ink);font-weight:900;word-break:normal;overflow-wrap:normal}
@@ -370,7 +414,7 @@ const s = {
   filtros: { display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' },
   filtroBtn: { padding: '6px 16px', borderRadius: 20, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' },
   list: { display: 'flex', flexDirection: 'column', gap: 10 },
-  card: { background: 'linear-gradient(135deg,var(--obra-soft),var(--color-surface) 42%)', border: '1px solid var(--obra-border)', borderLeft: '7px solid var(--obra-accent)', borderRadius: 12, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
+  card: { position: 'relative', background: 'linear-gradient(135deg,var(--obra-soft),var(--color-surface) 42%)', border: '1px solid var(--obra-border)', borderLeft: '7px solid var(--obra-accent)', borderRadius: 12, overflow: 'visible', boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
   cardMain: { display: 'flex', alignItems: 'center', gap: 16, padding: '18px 20px', cursor: 'pointer' },
   dot: { width: 10, height: 10, borderRadius: '50%', flexShrink: 0 },
   cardInfo: { flex: 1, minWidth: 0 },
@@ -384,8 +428,9 @@ const s = {
   progressBar: { ...progressBarStyle, width: 100 },
   progressFill: progressFillStyle,
   arrow: { fontSize: 18, color: '#ccc', flexShrink: 0 },
-  cardActions: { display: 'flex', gap: 8, padding: '8px 20px 12px', borderTop: '1px solid var(--color-border)' },
+  cardActions: { position: 'relative', display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '8px 20px 12px', borderTop: '1px solid var(--color-border)' },
   btnAcao: { background: 'none', border: '1px solid var(--color-border)', borderRadius: 6, padding: '5px 14px', fontSize: 12, cursor: 'pointer', color: 'var(--color-ink-muted)', fontFamily: 'inherit' },
+  btnMenu: { width: 34, height: 34, background: theme.surfaceElevated, border: `1px solid ${theme.border}`, borderRadius: 9, color: theme.textPrimary, cursor: 'pointer', fontSize: 18, lineHeight: 1, fontFamily: 'inherit', fontWeight: 900 },
   empty: { textAlign: 'center', padding: '40px 0', color: '#bbb' },
   emptyBox: { textAlign: 'center', padding: '60px 20px', background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
   emptyIcon: { fontSize: 40, marginBottom: 12 },

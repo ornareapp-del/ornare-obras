@@ -24,7 +24,7 @@ const STATUS = {
   producao: ['Em produção', 'Em producao'],
   montagem: ['Em montagem', 'Montagem agendada'],
   aguardandoCliente: ['Aguardando cliente'],
-  aguardandoProducao: ['Aguardando início', 'Aguardando inicio', 'Em medição', 'Em medicao', 'Medição agendada', 'Medicao agendada', 'Projeto em conferência', 'Projeto em conferencia'],
+  aguardandoProducao: ['Aguardando início', 'Aguardando inicio', 'Em medição', 'Em medição', 'Medição agendada', 'Medição agendada', 'Projeto em conferência', 'Projeto em conferencia'],
   concluidas: ['Concluída', 'Concluida'],
   travadas: ['Pausada', 'Cancelada'],
   producaoFinalizada: ['Pronta para entrega'],
@@ -163,12 +163,33 @@ function rotaObra(obraId, aba, params = {}) {
   return `/obras/${obraId}?${query.toString()}`
 }
 
+function dentroDoPeriodo(value, periodo) {
+  if (!value) return false
+  const data = new Date(value)
+  if (Number.isNaN(data.getTime())) return false
+  const hoje = new Date()
+  const inicio = new Date(hoje)
+  inicio.setHours(0, 0, 0, 0)
+  if (periodo === 'hoje') {
+    const fimHoje = new Date(inicio)
+    fimHoje.setDate(fimHoje.getDate() + 1)
+    return data >= inicio && data < fimHoje
+  }
+  if (periodo === 'semana') {
+    const limite = new Date(inicio)
+    limite.setDate(limite.getDate() + 7)
+    return data >= inicio && data <= limite
+  }
+  return String(value).slice(0, 7) === hoje.toISOString().slice(0, 7)
+}
+
 export default function DashboardGestao() {
   const navigate = useNavigate()
   const [fluxoAberto, setFluxoAberto] = useState(false)
   const [dados, setDados] = useState(criarDadosVazios)
   const [loading, setLoading] = useState(true)
   const [erroDados, setErroDados] = useState('')
+  const [periodo, setPeriodo] = useState('mes')
 
   async function carregar() {
     setLoading(true)
@@ -487,6 +508,19 @@ export default function DashboardGestao() {
     { label: 'Travadas', value: vm.operacao.travadas, sub: 'ação imediata', tone: THEME.danger, onClick: () => navigate('/planejamento?filtro=travadas') },
   ]
 
+  const periodos = [
+    { id: 'hoje', label: 'Hoje' },
+    { id: 'semana', label: 'Esta semana' },
+    { id: 'mes', label: 'Este mês' },
+  ]
+  const agendaPeriodo = {
+    montagens: vm.agenda7.montagens.filter(item => dentroDoPeriodo(item.data, periodo)),
+    vistorias: vm.agenda7.vistorias.filter(item => dentroDoPeriodo(item.data, periodo)),
+    assistencias: vm.agenda7.assistencias.filter(item => dentroDoPeriodo(item.data, periodo)),
+  }
+  const atividadePeriodo = vm.atividade.filter(item => dentroDoPeriodo(item.ts, periodo))
+  const gastosPeriodo = vm.financeiro.gastosMes.filter(item => dentroDoPeriodo(item.data || item.created_at, periodo))
+  const totalPeriodo = gastosPeriodo.reduce((sum, gasto) => sum + valorSeguro(gasto.valor), 0)
   return (
     <div className="dg-page">
       <style>{css}</style>
@@ -504,6 +538,13 @@ export default function DashboardGestao() {
           <button className="primary" onClick={() => navigate('/obras/nova')}>Nova Obra</button>
         </div>
       </header>
+      <section className="dg-period-filter" aria-label="Filtro rápido de período">
+        {periodos.map(item => (
+          <button key={item.id} className={periodo === item.id ? 'active' : ''} onClick={() => setPeriodo(item.id)}>
+            {item.label}
+          </button>
+        ))}
+      </section>
 
       {erroDados && <div className="dg-load-alert">Parte dos dados não foi carregada: {erroDados}</div>}
 
@@ -529,6 +570,16 @@ export default function DashboardGestao() {
 
       <section className="dg-kpis" aria-label="Indicadores operacionais">
         {kpisExecutivos.map(k => <Kpi key={k.label} {...k} loading={loading} />)}
+      </section>
+      <section className="dg-visual-row">
+        <Card title="Distribuição das obras" action="Central" onAction={() => navigate('/obras')}>
+          <FluxoDonut fluxo={vm.fluxo} />
+        </Card>
+        <Card title="Foco do período" action="Agenda" onAction={() => navigate('/agenda')}>
+          <MetricLine label="Compromissos" value={agendaPeriodo.montagens.length + agendaPeriodo.vistorias.length + agendaPeriodo.assistencias.length} color={THEME.gold} />
+          <MetricLine label="Atividades recentes" value={atividadePeriodo.length} color={THEME.blue} />
+          <MetricLine label="Gastos no período" value={moeda(totalPeriodo)} color={THEME.warn} />
+        </Card>
       </section>
 
       <section className="dg-productivity-grid" aria-label="Produtividade operacional">
@@ -718,9 +769,9 @@ export default function DashboardGestao() {
 
       <section className="dg-agenda-mobile">
         <Card title="Agenda dos próximos dias" action="Agenda" onAction={() => navigate('/agenda')}>
-          <MiniAgenda label="Montagens" itens={vm.agenda7.montagens} />
-          <MiniAgenda label="Vistorias" itens={vm.agenda7.vistorias} />
-          <MiniAgenda label="Assist. técnicas" itens={vm.agenda7.assistencias} />
+          <MiniAgenda label="Montagens" itens={agendaPeriodo.montagens} />
+          <MiniAgenda label="Vistorias" itens={agendaPeriodo.vistorias} />
+          <MiniAgenda label="Assist. técnicas" itens={agendaPeriodo.assistencias} />
         </Card>
       </section>
 
@@ -734,9 +785,9 @@ export default function DashboardGestao() {
         </Card>
 
         <Card title="Próximos 7 dias" action="Agenda" onAction={() => navigate('/agenda')}>
-          <MiniAgenda label="Montagens" itens={vm.agenda7.montagens} />
-          <MiniAgenda label="Vistorias" itens={vm.agenda7.vistorias} />
-          <MiniAgenda label="Assist. técnicas" itens={vm.agenda7.assistencias} />
+          <MiniAgenda label="Montagens" itens={agendaPeriodo.montagens} />
+          <MiniAgenda label="Vistorias" itens={agendaPeriodo.vistorias} />
+          <MiniAgenda label="Assist. técnicas" itens={agendaPeriodo.assistencias} />
         </Card>
 
         <Card title="Equipe">
@@ -809,8 +860,8 @@ export default function DashboardGestao() {
           </Card>
 
           <Card title="Financeiro operacional" action="Gastos" onAction={() => navigate('/gastos')}>
-            <div className="dg-money">{moeda(vm.financeiro.totalMes)}</div>
-            <div className="dg-muted">{vm.financeiro.gastosMes.length} lançamento{vm.financeiro.gastosMes.length === 1 ? '' : 's'} no mês</div>
+            <div className="dg-money">{moeda(totalPeriodo)}</div>
+            <div className="dg-muted">{gastosPeriodo.length} lançamento{gastosPeriodo.length === 1 ? '' : 's'} no período</div>
             <MetricLine label="Total operacional" value={moeda(vm.financeiro.totalOperacional)} color={THEME.gold} />
             <MetricLine label="Gastos pendentes" value={vm.aprovacoes.gastosPendentes.length} color={THEME.warn} />
             <MetricLine label="Obras próximas da meta" value={vm.financeiro.pertoMeta.length} color={THEME.warn} />
@@ -824,7 +875,7 @@ export default function DashboardGestao() {
           </Card>
 
           <Card title="Atividade recente">
-            {vm.atividade.length === 0 ? <Empty text="Nenhuma atividade recente." /> : vm.atividade.map((a, i) => (
+            {atividadePeriodo.length === 0 ? <Empty text="Nenhuma atividade recente." /> : atividadePeriodo.map((a, i) => (
               <div className="dg-activity" key={`${a.tipo}-${i}`}>
                 <span style={{ color: activityColor(a.tipo) }}>{a.tipo}</span>
                 <div><strong>{a.texto}</strong><small>{a.sub}</small></div>
@@ -876,6 +927,37 @@ function MiniAgenda({ label, itens }) {
   )
 }
 
+function FluxoDonut({ fluxo }) {
+  const total = Math.max(1, fluxo.reduce((sum, item) => sum + item.value, 0))
+  const cores = [THEME.gold, THEME.blue, THEME.warn, '#B09A7A', THEME.success, '#6D675E']
+  const gradiente = fluxo.reduce((acc, item, index) => {
+    const inicio = acc.total
+    const fim = inicio + (item.value / total) * 100
+    return {
+      total: fim,
+      partes: [...acc.partes, `${cores[index % cores.length]} ${inicio}% ${fim}%`],
+    }
+  }, { total: 0, partes: [] }).partes.join(', ')
+
+  return (
+    <div className="dg-donut-wrap">
+      <div className="dg-donut" style={{ background: `conic-gradient(${gradiente || `${THEME.border} 0 100%`})` }}>
+        <strong>{total}</strong>
+        <span>obras</span>
+      </div>
+      <div className="dg-donut-legend">
+        {fluxo.map((item, index) => (
+          <div key={item.label}>
+            <i style={{ background: cores[index % cores.length] }} />
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function MetricLine({ label, value, color }) {
   return (
     <div className="dg-metric-line">
@@ -907,6 +989,9 @@ const css = `
 .dg-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .dg-actions button{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:8px;padding:12px 24px;min-height:44px;font-size:13px;font-weight:600;cursor:pointer}
 .dg-actions .primary{background:${THEME.gold};border-color:${THEME.gold};color:${THEME.bg}}
+.dg-period-filter{order:1;display:flex;gap:8px;margin:-8px 0 16px;flex-wrap:wrap}
+.dg-period-filter button{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.muted};border-radius:999px;padding:8px 13px;min-height:36px;font-size:12px;font-weight:900;cursor:pointer;font-family:inherit}
+.dg-period-filter button.active{background:${THEME.gold};border-color:${THEME.gold};color:${THEME.bg}}
 .dg-load-alert{width:100%;max-width:none;margin:0 0 12px;border:1px solid rgba(224,82,82,.34);background:rgba(224,82,82,.12);color:${THEME.danger};border-radius:12px;padding:11px 14px;font-size:13px;font-weight:800}
 .dg-mobile-home{display:none}
 .dg-priority-board{width:100%;max-width:none;margin:0 0 16px;display:grid;grid-template-columns:1.35fr .95fr 1.1fr .95fr;gap:12px;order:2}
@@ -951,6 +1036,17 @@ const css = `
 .dg-priority-row span{display:block;font-size:11.5px;color:${THEME.muted};line-height:1.35;margin-top:3px}
 .dg-priority-row.compact{padding:9px 0}
 .dg-kpis{width:100%;max-width:none;margin:0 0 16px;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;order:3}
+.dg-visual-row{width:100%;max-width:none;margin:0 0 16px;display:grid;grid-template-columns:1.2fr .8fr;gap:16px;order:3}
+.dg-donut-wrap{display:grid;grid-template-columns:150px 1fr;gap:18px;align-items:center}
+.dg-donut{width:150px;height:150px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;isolation:isolate}
+.dg-donut:after{content:"";position:absolute;inset:26px;background:${THEME.card};border-radius:50%;z-index:-1;border:1px solid ${THEME.border}}
+.dg-donut strong{font-size:34px;line-height:1;color:${THEME.ink}}
+.dg-donut span{font-size:11px;color:${THEME.muted};font-weight:900;text-transform:uppercase;letter-spacing:1px;margin-top:4px}
+.dg-donut-legend{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.dg-donut-legend div{display:grid;grid-template-columns:10px 1fr auto;gap:8px;align-items:center;border:1px solid ${THEME.border};background:${THEME.elevated};border-radius:10px;padding:8px 9px}
+.dg-donut-legend i{width:9px;height:9px;border-radius:999px}
+.dg-donut-legend span{font-size:11.5px;color:${THEME.muted};font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dg-donut-legend strong{font-size:13px;color:${THEME.ink}}
 .dg-kpi-button{border:0;background:transparent;padding:0;text-align:left;font-family:inherit;cursor:pointer}
 .dg-kpi-button>*{height:100%}
 .dg-kpi{background:${THEME.card};border:1px solid ${THEME.border};border-radius:12px;padding:20px;min-width:0;box-shadow:0 2px 12px rgba(0,0,0,.3)}
@@ -1014,7 +1110,7 @@ const css = `
 .dg-activity em{font-style:normal;font-size:10px;color:#aaa}
 .dg-stack:last-child .ow-premium-card:last-child{max-height:540px;overflow:auto}
 .dg-empty{padding:24px 0;text-align:center;color:#aaa;font-size:13px}
-@media (max-width:1100px){.dg-grid-3,.dg-main,.dg-productivity-grid{grid-template-columns:1fr}.dg-flow{grid-template-columns:repeat(3,1fr)}.dg-flow-line{display:none}}
+@media (max-width:1100px){.dg-grid-3,.dg-main,.dg-productivity-grid,.dg-visual-row{grid-template-columns:1fr}.dg-flow{grid-template-columns:repeat(3,1fr)}.dg-flow-line{display:none}}
 @media (max-width:1100px){.dg-priority-board{grid-template-columns:1fr 1fr}.dg-agenda-mobile{display:block}}
 @media (min-width:761px){.dg-agenda-mobile{display:none}}
 @media (max-width:760px){.dg-page{padding:22px 14px calc(112px + env(safe-area-inset-bottom));display:flex;flex-direction:column}.dg-header{display:block;margin-bottom:12px;order:0;padding-right:0}.dg-eyebrow{font-size:9px;letter-spacing:2px;margin-bottom:4px}.dg-header h1{font-size:28px;line-height:1.02}.dg-header p{font-size:12.5px;line-height:1.45}.dg-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;justify-content:flex-start;margin-top:10px}.dg-actions button{width:100%;padding:10px 9px;font-size:12px}.dg-mobile-home{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;order:1;margin:0 0 12px;max-width:none;width:100%}.dg-mobile-home>button{border:1px solid ${THEME.border};background:${THEME.elevated};border-radius:15px;padding:11px 9px;text-align:left;font-family:inherit;box-shadow:0 10px 26px rgba(0,0,0,.16)}.dg-mobile-home>button.warn{border-color:rgba(224,168,82,.4);background:rgba(224,168,82,.12)}.dg-mobile-home>button.critical{border-color:rgba(224,82,82,.34);background:rgba(224,82,82,.12)}.dg-mobile-home strong{display:block;font-size:24px;line-height:1;color:${THEME.ink}}.dg-mobile-home span{display:block;font-size:10.5px;color:${THEME.muted};font-weight:900;margin-top:5px}.dg-mobile-quick{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.dg-mobile-quick button{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:13px;padding:10px 8px;font-size:12px;font-weight:900}.dg-priority-board{grid-template-columns:1fr;gap:10px;margin-bottom:12px;order:2}.dg-priority-board>*:nth-child(n+2){display:none}.dg-productivity-grid{grid-template-columns:1fr;order:4;gap:12px}.dg-priority-row{padding:11px 0}.dg-agenda-mobile{order:3}.dg-main{order:5}.dg-kpis{order:2;display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px}.dg-kpis>*{flex:0 0 auto;min-width:auto;max-width:none}.dg-kpi{display:flex;align-items:center;gap:7px;border-radius:999px;padding:7px 10px;min-width:auto;max-width:none;border-top:1px solid rgba(184,150,94,.22)}.dg-kpi span{white-space:nowrap;font-size:10.5px;line-height:1;letter-spacing:0;margin:0}.dg-kpi strong{font-size:15px}.dg-kpi small{display:none}.dg-grid-3,.dg-main{gap:12px}.dg-grid-3{display:none}.dg-card{padding:15px 13px;border-radius:15px}.dg-card-head h2{font-size:19px}.dg-health{grid-template-columns:1fr 1fr 1fr}.dg-flow{display:none}.dg-card:has(.dg-flow){display:none}.dg-attention,.dg-work-row{align-items:flex-start;flex-direction:column}.dg-attention strong,.dg-attention span,.dg-work-main strong,.dg-work-main span{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;white-space:normal}.dg-tags{margin-left:0;justify-content:flex-start}.dg-tags span:nth-child(n+3){display:none}.dg-progress{width:100%}.dg-activity{grid-template-columns:62px 1fr}.dg-activity em{display:none}}

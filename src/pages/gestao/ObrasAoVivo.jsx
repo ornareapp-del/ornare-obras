@@ -140,6 +140,7 @@ export default function ObrasAoVivo() {
   const [loading, setLoading] = useState(true)
   const [erroDados, setErroDados] = useState('')
   const [filtro, setFiltro] = useState('todas')
+  const [visao, setVisao] = useState('cards')
 
   async function carregar() {
     setLoading(true)
@@ -346,6 +347,9 @@ export default function ObrasAoVivo() {
           <p>Leitura rápida de campo: obra parada, montador em campo, datas, prazo, progresso e próximo compromisso.</p>
         </div>
         <div className="oa-actions">
+          <button onClick={() => setVisao(v => v === 'cards' ? 'lista' : 'cards')}>
+            {visao === 'cards' ? 'Lista compacta' : 'Cards'}
+          </button>
           <button onClick={() => carregar()} disabled={loading}>{loading ? 'Atualizando...' : 'Atualizar'}</button>
           <button onClick={() => navigate('/dashboard')}>Dashboard</button>
           <button className="primary" onClick={() => navigate('/obras')}>Obras</button>
@@ -371,16 +375,29 @@ export default function ObrasAoVivo() {
         {obrasFiltradas.length === 0 ? (
           <EmptyState title={loading ? 'Carregando obras...' : 'Nenhuma obra neste filtro.'} />
         ) : (
-          <div className="oa-live-grid">
-            {obrasFiltradas.map(item => (
-              <LiveCard
-                key={item.obra.id}
-                item={item}
-                onOpen={() => navigate(`/obras/${item.obra.id}`)}
-                onRoute={rota => navigate(rota)}
-              />
-            ))}
-          </div>
+          visao === 'cards' ? (
+            <div className="oa-live-grid">
+              {obrasFiltradas.map(item => (
+                <LiveCard
+                  key={item.obra.id}
+                  item={item}
+                  onOpen={() => navigate(`/obras/${item.obra.id}`)}
+                  onRoute={rota => navigate(rota)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="oa-live-list">
+              {obrasFiltradas.map(item => (
+                <LiveRow
+                  key={item.obra.id}
+                  item={item}
+                  onOpen={() => navigate(`/obras/${item.obra.id}`)}
+                  onRoute={rota => navigate(rota)}
+                />
+              ))}
+            </div>
+          )
         )}
       </PremiumCard>
     </div>
@@ -471,6 +488,49 @@ function LiveCard({ item, onOpen, onRoute }) {
   )
 }
 
+function LiveRow({ item, onOpen, onRoute }) {
+  const obra = item.obra
+  const cor = obraColor(obra)
+  const ultimo = item.ultimoCheckin?.entrada || item.ultimoCheckin?.created_at
+  const rotaObra = aba => `/obras/${obra.id}?aba=${aba}`
+  const irPara = (event, rota) => {
+    event.stopPropagation()
+    onRoute(rota)
+  }
+
+  return (
+    <article
+      role="button"
+      tabIndex={0}
+      className={`oa-live-row ${item.situacao}`}
+      onClick={onOpen}
+      onKeyDown={event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onOpen()
+        }
+      }}
+      style={{ '--obra-accent': cor.accent, '--obra-soft': cor.soft, '--obra-border': cor.border }}
+    >
+      <span className="oa-row-status" />
+      <div className="oa-row-main">
+        <strong>{obra.nome}</strong>
+        <small>{obra.cliente_nome || obra.cidade || 'Cliente não informado'}</small>
+      </div>
+      <div><small>Fase</small><b>{item.operacao.faseLabel}</b></div>
+      <div><small>Prazo</small><b>{prazoTexto(item.fim)}</b></div>
+      <div><small>Progresso</small><b>{item.operacao.progresso}%</b></div>
+      <div><small>Check-in</small><b>{ultimo ? `${diasDesde(ultimo)}d` : 'Nunca'}</b></div>
+      <div className="oa-row-actions">
+        {item.pendencias.slice(0, 2).map(p => (
+          <button key={p} type="button" onClick={event => irPara(event, rotaObra(abaPendencia(p)))}>{p}</button>
+        ))}
+        <button type="button" onClick={event => irPara(event, rotaObra('Cronograma'))}>Cronograma</button>
+      </div>
+    </article>
+  )
+}
+
 function abaPendencia(pendencia) {
   const texto = normalizar(pendencia)
   if (texto.includes('ocorrencia')) return 'Ocorrencias'
@@ -496,6 +556,18 @@ const css = `
 .oa-summary strong{display:block;font-size:28px;line-height:1;color:${THEME.ink}}
 .oa-summary span{display:block;font-size:11.5px;color:${THEME.muted};font-weight:900;margin-top:8px}
 .oa-live-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.oa-live-list{display:grid;gap:8px}
+.oa-live-row{width:100%;display:grid;grid-template-columns:10px minmax(210px,1.5fr) repeat(4,minmax(90px,.7fr)) minmax(210px,1fr);gap:12px;align-items:center;border:1px solid var(--obra-border);border-left:7px solid var(--obra-accent);background:linear-gradient(90deg,var(--obra-soft),${THEME.elevated} 38%);border-radius:11px;padding:10px 12px;text-align:left;color:${THEME.ink};font-family:inherit;cursor:pointer}
+.oa-live-row.warn{background:linear-gradient(90deg,var(--obra-soft),#211B14 42%)}
+.oa-live-row.danger{background:linear-gradient(90deg,var(--obra-soft),#251717 42%)}
+.oa-row-status{width:9px;height:9px;border-radius:999px;background:var(--obra-accent)}
+.oa-row-main{min-width:0}
+.oa-row-main strong{display:block;font-size:13.5px;color:${THEME.ink};font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.oa-row-main small,.oa-live-row small{display:block;font-size:10px;color:${THEME.muted};font-weight:900;text-transform:uppercase;letter-spacing:.7px}
+.oa-row-main small{text-transform:none;letter-spacing:0;font-size:11.5px;margin-top:3px;font-weight:700}
+.oa-live-row b{display:block;font-size:12px;color:${THEME.ink};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+.oa-row-actions{display:flex;justify-content:flex-end;gap:5px;flex-wrap:wrap}
+.oa-row-actions button{border:1px solid ${THEME.border};background:${THEME.card};color:${THEME.ink};border-radius:999px;padding:5px 8px;font-size:10px;font-weight:900;cursor:pointer;font-family:inherit}
 .oa-live-card{border:1px solid var(--obra-border);border-left:7px solid var(--obra-accent);background:linear-gradient(135deg,var(--obra-soft),${THEME.elevated} 38%);border-radius:13px;padding:14px;min-height:250px;text-align:left;font-family:inherit;color:${THEME.ink};cursor:pointer;display:flex;flex-direction:column;gap:12px;box-shadow:inset 0 1px 0 rgba(255,255,255,.035)}
 .oa-live-card.warn{background:linear-gradient(135deg,var(--obra-soft),#211B14 42%)}
 .oa-live-card.danger{background:linear-gradient(135deg,var(--obra-soft),#251717 42%)}
@@ -525,5 +597,6 @@ const css = `
 .oa-live-foot button:hover{border-color:var(--obra-border);background:var(--obra-soft);color:var(--obra-ink)}
 .oa-live-foot button.ok{background:#18311F;color:#CFF3DA;border-color:#2D7A4A}
 @media (max-width:980px){.oa-summary{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media (max-width:760px){.oa-page{padding:22px 14px calc(112px + env(safe-area-inset-bottom))}.oa-header{display:block;margin-bottom:14px}.oa-eyebrow{font-size:9px;letter-spacing:2px;margin-bottom:4px}.oa-header h1{font-size:30px}.oa-header p{font-size:12.5px}.oa-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;justify-content:flex-start;margin-top:12px}.oa-actions button{padding:10px 9px;font-size:12px}.oa-summary{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.oa-summary button{min-height:72px;padding:12px}.oa-live-grid{grid-template-columns:1fr}.oa-live-card{min-height:0}.oa-live-head{display:block}.oa-live-head em{display:inline-flex;margin-top:9px}.oa-live-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:980px){.oa-live-row{grid-template-columns:8px minmax(180px,1fr) repeat(2,minmax(80px,.7fr));}.oa-live-row>div:nth-of-type(n+4){display:none}.oa-row-actions{grid-column:2/-1;justify-content:flex-start}}
+@media (max-width:760px){.oa-page{padding:22px 14px calc(112px + env(safe-area-inset-bottom))}.oa-header{display:block;margin-bottom:14px}.oa-eyebrow{font-size:9px;letter-spacing:2px;margin-bottom:4px}.oa-header h1{font-size:30px}.oa-header p{font-size:12.5px}.oa-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;justify-content:flex-start;margin-top:12px}.oa-actions button{padding:10px 9px;font-size:12px}.oa-summary{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.oa-summary button{min-height:72px;padding:12px}.oa-live-grid{grid-template-columns:1fr}.oa-live-card{min-height:0}.oa-live-head{display:block}.oa-live-head em{display:inline-flex;margin-top:9px}.oa-live-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.oa-live-row{grid-template-columns:8px minmax(0,1fr) 72px}.oa-live-row>div:nth-of-type(n+3){display:none}.oa-row-actions{grid-column:2/-1}}
 `
