@@ -57,7 +57,7 @@ const OBRA_CLIENTE_SELECT_MINIMO = 'id, nome, cliente_nome, cidade, uf, supervis
 const CRONOGRAMA_CLIENTE_SELECT = 'id, obra_id, supervisor_id, comercial_id, pos_venda_id, percentual_concluido, fase, data_fim_prevista, visivel_cliente, updated_at, created_at'
 const FOTO_CLIENTE_SELECT = 'id, obra_id, ambiente_id, categoria, etapa, observacao_cliente, storage_path, url, created_at, aprovada, aprovada_gestao, visivel_cliente, visibilidade'
 const FOTO_CLIENTE_SELECT_MINIMO = 'id, obra_id, ambiente_id, categoria, etapa, storage_path, url, created_at, aprovada, aprovada_gestao, visivel_cliente, visibilidade'
-const AGENDA_CLIENTE_SELECT = 'id, obra_id, tipo, titulo, data, hora_inicio, hora_fim, status, observacao_publica, descricao_cliente, confirmado_cliente, visivel_cliente, visibilidade, reuniao_interna'
+const AGENDA_CLIENTE_SELECT = 'id, obra_id, tipo, titulo, data, hora_inicio, hora_fim, status, observacao_publica, descricao_cliente, confirmado_cliente, confirmado_cliente_em, solicitacao_reagendamento_cliente, solicitacao_reagendamento_em, visivel_cliente, visibilidade, reuniao_interna'
 const MENSAGEM_OBRA_CLIENTE_SELECT = 'id, obra_id, mensagem, conteudo, created_at, user_id, visivel_cliente, visibilidade, publico_cliente, tipo'
 const MENSAGEM_CLIENTE_SELECT = 'id, obra_id, conteudo, created_at, remetente_id, tipo, lido_cliente, visivel_cliente, visibilidade, publico_cliente'
 const DOCUMENTO_CLIENTE_SELECT = 'id, obra_id, titulo, nome, descricao, url, storage_path, tipo, created_at, visivel_cliente, visibilidade, publico_cliente'
@@ -339,6 +339,20 @@ async function inserirMensagemCliente(payload) {
   return supabase.from('mensagens').insert(minimo)
 }
 
+async function atualizarAgendaCliente(id, payload) {
+  const completa = await supabase.from('agenda').update(payload).eq('id', id)
+  if (!erroColunaAusente(completa.error)) return completa
+
+  const minimo = { ...payload }
+  delete minimo.confirmado_cliente_em
+  delete minimo.confirmado_cliente_por
+  delete minimo.solicitacao_reagendamento_cliente
+  delete minimo.solicitacao_reagendamento_em
+  delete minimo.solicitacao_reagendamento_por
+  console.warn('Update completo da agenda do cliente falhou. Tentando payload minimo:', completa.error)
+  return supabase.from('agenda').update(minimo).eq('id', id)
+}
+
 function tabelaNaoEncontrada(error) {
   if (!error) return false
   const msg = `${error.code || ''} ${error.message || ''}`.toLowerCase()
@@ -581,7 +595,11 @@ export default function PortalCliente() {
 
   async function confirmarPresencaAgenda(item) {
     setAgendaStatus('')
-    const { error } = await supabase.from('agenda').update({ confirmado_cliente: true }).eq('id', item.id)
+    const { error } = await atualizarAgendaCliente(item.id, {
+      confirmado_cliente: true,
+      confirmado_cliente_em: new Date().toISOString(),
+      confirmado_cliente_por: usuario?.id || null,
+    })
     if (error) {
       console.error('Erro ao confirmar presença do cliente:', error)
       setAgendaStatus('Não foi possível confirmar presença agora. Tente novamente em instantes.')
@@ -596,14 +614,23 @@ export default function PortalCliente() {
     if (!texto) return
     const evento = modalReagendamento.evento
     const conteudo = `Solicitação de reagendamento: ${evento?.titulo || evento?.tipo || 'Compromisso'} (${dataBR(evento?.data)}). Motivo/sugestão: ${texto}`
-    const { error } = await inserirMensagemCliente({
-      obra_id: id,
-      remetente_id: usuario?.id || null,
-      conteudo,
-      tipo: 'reagendamento',
-      visivel_cliente: true,
-      visibilidade: 'cliente',
-    })
+    const [mensagemResult, agendaResult] = await Promise.all([
+      inserirMensagemCliente({
+        obra_id: id,
+        remetente_id: usuario?.id || null,
+        conteudo,
+        tipo: 'reagendamento',
+        visivel_cliente: true,
+        visibilidade: 'cliente',
+      }),
+      atualizarAgendaCliente(evento.id, {
+        solicitacao_reagendamento_cliente: texto,
+        solicitacao_reagendamento_em: new Date().toISOString(),
+        solicitacao_reagendamento_por: usuario?.id || null,
+        status: evento.status === 'realizada' ? evento.status : 'reagendamento solicitado',
+      }),
+    ])
+    const error = mensagemResult.error || agendaResult.error
     if (error) {
       console.error('Erro ao solicitar reagendamento pelo cliente:', error)
       setAgendaStatus('Não foi possível enviar a solicitação agora. Tente novamente em instantes.')

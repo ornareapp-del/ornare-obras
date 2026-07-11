@@ -195,7 +195,7 @@ export default function DashboardGestao() {
     setLoading(true)
     setErroDados('')
     try {
-      const [
+      let [
         obrasResult,
         agendaResult,
         ocorrenciasResult,
@@ -220,6 +220,13 @@ export default function DashboardGestao() {
         supabase.from('checklist_items').select('id, obra_id, descricao, concluido, concluido_em').limit(500),
         supabase.from('obra_cronograma').select('*').limit(300),
       ])
+
+      if (gastosResult.error) {
+        const textoErroGastos = `${gastosResult.error?.code || ''} ${gastosResult.error?.message || ''} ${gastosResult.error?.details || ''}`.toLowerCase()
+        if (textoErroGastos.includes('relationship') || textoErroGastos.includes('schema cache') || textoErroGastos.includes('column')) {
+          gastosResult = await supabase.from('gastos').select('*').order('created_at', { ascending: false })
+        }
+      }
 
       const falhas = [
         erroConsulta('Obras', obrasResult),
@@ -312,6 +319,15 @@ export default function DashboardGestao() {
     const naoConformidadesPendentes = naoConformidades.filter(fotoPendenteAprovacao)
     const tarefasAtrasadas = dados.tarefas.filter(t => t.prazo && t.prazo < hojeStr && !isConcluido(t.status))
     const agenda7 = dados.agenda.filter(a => a.data >= hojeStr && a.data <= em7Str)
+    const prioridadeAgenda = item => {
+      if (item.data < hojeStr && !isConcluido(item.status)) return 0
+      if (item.data === hojeStr) return 1
+      if (item.visivel_cliente && !item.confirmado_cliente) return 2
+      return 3
+    }
+    const agendaPrioritaria = [...dados.agenda]
+      .filter(a => a.data && a.data <= em7Str && !isConcluido(a.status) && normalizar(a.status) !== 'cancelada')
+      .sort((a, b) => prioridadeAgenda(a) - prioridadeAgenda(b) || String(a.data).localeCompare(String(b.data)) || String(a.hora_inicio || '').localeCompare(String(b.hora_inicio || '')))
     const tipoAgenda = termo => agenda7.filter(a => normalizar(a.tipo || a.titulo).includes(termo))
     const gastosMes = gastosRealizados.filter(g => (g.data || g.created_at || '').slice(0, 7) === mesAtual)
     const gastosPendentes = dados.gastos.filter(g => statusGasto(g) === 'pendente_aprovacao')
@@ -461,6 +477,10 @@ export default function DashboardGestao() {
         montagens: tipoAgenda('montagem'),
         vistorias: tipoAgenda('vistoria'),
         assistencias: agenda7.filter(a => normalizar(a.tipo || a.titulo).includes('assistencia') || normalizar(a.tipo || a.titulo).includes('tecnica')),
+        hoje: agendaPrioritaria.filter(a => a.data === hojeStr),
+        semana: agendaPrioritaria,
+        atrasados: agendaPrioritaria.filter(a => a.data < hojeStr),
+        clientePendente: agendaPrioritaria.filter(a => a.visivel_cliente && !a.confirmado_cliente),
       },
       pendencias: {
         ocorrenciasAbertas,
@@ -577,8 +597,18 @@ export default function DashboardGestao() {
         </Card>
         <Card title="Foco do período" action="Agenda" onAction={() => navigate('/agenda')}>
           <MetricLine label="Compromissos" value={agendaPeriodo.montagens.length + agendaPeriodo.vistorias.length + agendaPeriodo.assistencias.length} color={THEME.gold} />
+          <MetricLine label="Agenda hoje" value={vm.agenda7.hoje.length} color={vm.agenda7.hoje.length ? THEME.warn : THEME.success} />
+          <MetricLine label="Cliente sem confirmação" value={vm.agenda7.clientePendente.length} color={vm.agenda7.clientePendente.length ? THEME.warn : THEME.success} />
           <MetricLine label="Atividades recentes" value={atividadePeriodo.length} color={THEME.blue} />
           <MetricLine label="Gastos no período" value={moeda(totalPeriodo)} color={THEME.warn} />
+          <div className="dg-mini-list spaced">
+            {vm.agenda7.semana.slice(0, 3).map(item => (
+              <button className="dg-line-button" key={item.id} onClick={() => navigate(`/agenda?compromisso=${item.id}`)}>
+                <span>{item.titulo || item.tipo || 'Compromisso'}</span>
+                <small>{[dataBR(item.data), item.obras?.nome, item.data < vm.hojeStr ? 'atrasado' : item.visivel_cliente && !item.confirmado_cliente ? 'cliente pendente' : null].filter(Boolean).join(' · ')}</small>
+              </button>
+            ))}
+          </div>
         </Card>
       </section>
 

@@ -29,6 +29,11 @@ alter table if exists public.agenda
   add column if not exists visibilidade text not null default 'interna',
   add column if not exists reuniao_interna boolean not null default false,
   add column if not exists confirmado_cliente boolean not null default false,
+  add column if not exists confirmado_cliente_em timestamptz,
+  add column if not exists confirmado_cliente_por uuid references public.profiles(id) on delete set null,
+  add column if not exists solicitacao_reagendamento_cliente text,
+  add column if not exists solicitacao_reagendamento_em timestamptz,
+  add column if not exists solicitacao_reagendamento_por uuid references public.profiles(id) on delete set null,
   add column if not exists descricao_cliente text,
   add column if not exists observacao_publica text;
 
@@ -192,14 +197,10 @@ using (
     and exists (
       select 1
       from public.obras o
-      left join public.obra_cronograma c on c.obra_id = o.id
       where public.ornare_is_cliente_da_obra(o.id)
         and (
           o.supervisor_id = profiles.id
           or o.comercial_id = profiles.id
-          or c.supervisor_id = profiles.id
-          or c.comercial_id = profiles.id
-          or c.pos_venda_id = profiles.id
         )
     )
   )

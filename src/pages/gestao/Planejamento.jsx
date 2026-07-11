@@ -180,7 +180,7 @@ export default function Planejamento() {
   const [modalCompromisso, setModalCompromisso] = useState(null)
   const [mesAtual, setMesAtual] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1))
   const [visao, setVisao] = useState('calendario')
-  const [filtros, setFiltros] = useState({ mes: monthKey(new Date()), supervisor: '', montador: '', status: '', cidade: '' })
+  const [filtros, setFiltros] = useState({ mes: monthKey(new Date()), supervisor: '', montador: '', status: '', cidade: '', busca: '', tipo: '' })
 
   async function carregarDados() {
     setLoading(true)
@@ -297,7 +297,10 @@ export default function Planejamento() {
       const porMontador = !filtros.montador || r.montadores.some(m => m.id === filtros.montador)
       const porStatus = !filtros.status || norm(r.status_operacional).includes(norm(filtros.status))
       const porCidade = !filtros.cidade || r.obra.cidade === filtros.cidade
-      return porMes && porSupervisor && porMontador && porStatus && porCidade
+      const porTipo = !filtros.tipo || norm(r.faseLabel || r.fase).includes(norm(filtros.tipo))
+      const termo = norm(filtros.busca)
+      const porBusca = !termo || norm([r.obra.nome, r.obra.cliente_nome, nomePessoa(r.supervisor), r.montadores.map(nomePessoa).join(' '), r.faseLabel].filter(Boolean).join(' ')).includes(termo)
+      return porMes && porSupervisor && porMontador && porStatus && porCidade && porTipo && porBusca
     })
 
     const mesesGantt = []
@@ -319,12 +322,18 @@ export default function Planejamento() {
     const obrasComCronogramaIds = new Set(dados.cronogramas.map(c => c.obra_id).filter(Boolean))
     const obrasSemEquipe = dados.obras.filter(o => !obrasComEquipeIds.has(o.id))
     const obrasSemCronograma = dados.obras.filter(o => !obrasComCronogramaIds.has(o.id))
+    const obrasSemData = registros.filter(r => !r.data_inicio_prevista || !r.data_fim_prevista)
     const obrasRisco = registros.filter(r => r.travado || norm(r.risco).includes('alto') || norm(r.status_operacional).includes('risco') || norm(r.status_operacional).includes('trav'))
+    const hojeOperacional = new Date()
+    hojeOperacional.setHours(0, 0, 0, 0)
+    const atrasosCronograma = registros.filter(r => r.fim && r.fim < hojeOperacional && Number(r.percentual_concluido || 0) < 100 && !norm(r.status_operacional).includes('conclu'))
     const kpis = {
       montagensMes: agendaMes.filter(a => norm(a.compromissoTipo).includes('montagem')).length,
       obrasProgramadas: obrasProgramadasIds.size,
       obrasSemEquipe: obrasSemEquipe.length,
       obrasSemCronograma: obrasSemCronograma.length,
+      obrasSemData: obrasSemData.length,
+      atrasosCronograma: atrasosCronograma.length,
       obrasRisco: obrasRisco.length,
       entregasPrevistas: agendaMes.filter(a => norm(a.compromissoTipo).includes('entrega')).length + registros.filter(r => r.faseKey === 'entrega_moveis' && r.fim && r.fim >= mesInicio && r.fim <= mesFim).length,
     }
@@ -337,6 +346,8 @@ export default function Planejamento() {
       ...obrasSemEquipe.slice(0, 8).map(obra => ({ tipo: 'Sem montador', obra, detalhe: 'Nenhum montador vinculado à obra', cor: THEME.warn })),
       ...obrasSemCronograma.slice(0, 8).map(obra => ({ tipo: 'Sem cronograma', obra, detalhe: 'Obra ainda não possui cronograma operacional', cor: THEME.blue })),
       ...dados.obras.filter(o => !o.data_previsao).slice(0, 8).map(obra => ({ tipo: 'Sem data prevista', obra, detalhe: 'Previsão de entrega não informada', cor: THEME.muted })),
+      ...atrasosCronograma.slice(0, 8).map(item => ({ tipo: 'Cronograma atrasado', obra: item.obra, detalhe: `${item.faseLabel} deveria terminar em ${dataBR(item.data_fim_prevista)}`, cor: THEME.danger })),
+      ...obrasSemData.slice(0, 8).map(item => ({ tipo: 'Cronograma sem data', obra: item.obra, detalhe: `${item.faseLabel} sem início ou fim previsto`, cor: THEME.warn })),
       ...agendaMes.filter(a => norm(a.compromissoTipo).includes('montagem') && a.inicio >= hoje && a.inicio <= em7).slice(0, 8).map(a => ({ tipo: 'Inicia em breve', obra: a.obra, detalhe: `${a.compromissoTipo} em ${dataBR(a.data)}`, cor: THEME.gold })),
       ...registros.filter(r => r.travado).slice(0, 8).map(r => ({ tipo: 'Obra travada', obra: r.obra, detalhe: r.motivo_trava || 'Cronograma marcado como travado', cor: THEME.danger })),
     ].slice(0, 12)
@@ -526,6 +537,8 @@ export default function Planejamento() {
         <Kpi label="Obras programadas" value={vm.kpis.obrasProgramadas} />
         <Kpi label="Obras sem equipe" value={vm.kpis.obrasSemEquipe} danger={vm.kpis.obrasSemEquipe > 0} />
         <Kpi label="Sem cronograma" value={vm.kpis.obrasSemCronograma} danger={vm.kpis.obrasSemCronograma > 0} />
+        <Kpi label="Atrasos" value={vm.kpis.atrasosCronograma} danger={vm.kpis.atrasosCronograma > 0} />
+        <Kpi label="Sem data" value={vm.kpis.obrasSemData} danger={vm.kpis.obrasSemData > 0} />
         <Kpi label="Obras em risco" value={vm.kpis.obrasRisco} danger={vm.kpis.obrasRisco > 0} />
         <Kpi label="Entregas previstas" value={vm.kpis.entregasPrevistas} />
       </section>
@@ -813,6 +826,7 @@ function CronogramaTabela({ registros, filtros, setFiltros, supervisores, montad
       </div>
 
       <div className="pl-filters">
+        <input value={filtros.busca} onChange={e => setFiltros(f => ({ ...f, busca: e.target.value }))} placeholder="Buscar obra, cliente, supervisor ou montador" />
         <input type="month" value={filtros.mes} onChange={e => setFiltros(f => ({ ...f, mes: e.target.value }))} />
         <select value={filtros.supervisor} onChange={e => setFiltros(f => ({ ...f, supervisor: e.target.value }))}>
           <option value="">Supervisor</option>
@@ -825,6 +839,11 @@ function CronogramaTabela({ registros, filtros, setFiltros, supervisores, montad
         <select value={filtros.status} onChange={e => setFiltros(f => ({ ...f, status: e.target.value }))}>
           <option value="">Status</option>
           {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select value={filtros.tipo} onChange={e => setFiltros(f => ({ ...f, tipo: e.target.value }))}>
+          <option value="">Tipo/fase</option>
+          {TIPOS_COMPROMISSO.map(tipo => <option key={tipo} value={tipo}>{tipo}</option>)}
+          {[...new Set(registros.map(r => r.faseLabel).filter(Boolean))].sort().map(fase => <option key={fase} value={fase}>{fase}</option>)}
         </select>
         <select value={filtros.cidade} onChange={e => setFiltros(f => ({ ...f, cidade: e.target.value }))}>
           <option value="">Cidade</option>
@@ -923,7 +942,7 @@ const css = `
 .pl-alert{width:100%;max-width:none;margin:0 0 14px;border:1px solid rgba(224,82,82,.34);background:rgba(224,82,82,.12);color:${THEME.danger};border-radius:12px;padding:11px 14px;font-size:13px;font-weight:700}
 .pl-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:1200;background:${THEME.ink};color:#fff;border-left:3px solid ${THEME.gold};border-radius:13px;padding:12px 18px;font-size:13px;font-weight:800;box-shadow:0 14px 34px rgba(29,28,25,.18)}
 .pl-mobile-actions{display:none}
-.pl-kpis{width:100%;max-width:none;margin:0 0 16px;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+.pl-kpis{width:100%;max-width:none;margin:0 0 16px;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:12px}
 .pl-kpi{background:${THEME.card};border:1px solid ${THEME.border};border-radius:12px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,.3)}
 .pl-kpi.danger{border-top-color:${THEME.danger}}
 .pl-kpi span{display:block;font-size:10px;letter-spacing:1.7px;text-transform:uppercase;color:${THEME.gold};font-weight:800;margin-bottom:9px;white-space:nowrap}
@@ -962,7 +981,7 @@ const css = `
 .pl-day-items strong{display:block;font-size:11.5px;color:${THEME.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pl-day-items span,.pl-day-items small{display:block;font-size:10.5px;color:${THEME.muted};margin-top:2px}
 .pl-day-items em{display:inline-flex;margin-top:5px;border-radius:999px;background:${THEME.elevated};color:${THEME.gold};font-style:normal;font-size:9.5px;font-weight:900;padding:2px 6px}
-.pl-filters{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px;margin-bottom:14px}
+.pl-filters{display:grid;grid-template-columns:minmax(220px,1.4fr) repeat(6,minmax(0,1fr));gap:9px;margin-bottom:14px}
 .pl-filters input,.pl-filters select{background:${THEME.inputBackground};border:1px solid ${THEME.inputBorder};color:${THEME.inputText};border-radius:8px;padding:10px 14px;width:100%;font-size:14px;outline:none;box-sizing:border-box;font-family:inherit}
 .pl-table-wrap{overflow:auto;border:1px solid ${THEME.border};border-radius:14px}
 .pl-table{width:100%;border-collapse:collapse;min-width:1120px}

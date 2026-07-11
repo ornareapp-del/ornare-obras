@@ -47,12 +47,13 @@ function erroColunaAusente(error) {
 async function notificarStatusGasto(gasto, status, usuarioAtualId) {
   if (!gasto?.id || !gasto?.responsavel_id || gasto.responsavel_id === usuarioAtualId) return { error: null }
   const aprovado = status === 'aprovado'
+  const motivo = !aprovado ? motivoRecusaGasto(gasto) : ''
   const { error } = await criarNotificacoes([{
     usuario_id: gasto.responsavel_id,
     obra_id: gasto.obra_id || null,
     tipo: aprovado ? 'gasto_aprovado' : 'gasto_recusado',
     titulo: aprovado ? 'Gasto aprovado' : 'Gasto recusado',
-    descricao: `${gasto.descricao || 'Gasto'} - ${moeda(gasto.valor)}`,
+    descricao: `${gasto.descricao || 'Gasto'} - ${moeda(gasto.valor)}${motivo ? `. Motivo: ${motivo}` : ''}`,
     prioridade: aprovado ? 'normal' : 'media',
     status: 'nao_lida',
     rota: gasto.obra_id ? `/obras/${gasto.obra_id}?aba=Gastos&gasto=${gasto.id}` : `/gastos?gasto=${gasto.id}`,
@@ -60,6 +61,12 @@ async function notificarStatusGasto(gasto, status, usuarioAtualId) {
     entidade_id: gasto.id,
   }])
   return { error }
+}
+
+function motivoRecusaGasto(gasto) {
+  const texto = String(gasto?.observacao || '')
+  const match = texto.match(/Recusado:\s*([^|]+)/i)
+  return match?.[1]?.trim() || ''
 }
 
 function statusGasto(gasto) {
@@ -502,6 +509,9 @@ export default function Gastos() {
   const [filtroObra,      setFiltroObra]      = useState('')
   const [filtroCategoria, setFiltroCategoria] = useState('')
   const [filtroStatus,    setFiltroStatus]    = useState('')
+  const [filtroInicio,    setFiltroInicio]    = useState('')
+  const [filtroFim,       setFiltroFim]       = useState('')
+  const [busca,           setBusca]           = useState('')
   const [visao,           setVisao]           = useState('cards')
   const [modal,           setModal]           = useState(false)
   const [gastoPendente,   setGastoPendente]   = useState(null) // para modal de aprovação
@@ -514,13 +524,17 @@ export default function Gastos() {
   async function carregar() {
     setLoading(true)
     setErroCarregamento('')
-    const [gastosResult, obrasResult, profilesResult] = await Promise.all([
+    let [gastosResult, obrasResult, profilesResult] = await Promise.all([
       supabase.from('gastos')
         .select('*, obras(nome, gasto_meta), responsavel:profiles!gastos_responsavel_id_fkey(full_name)')
         .order('created_at', { ascending: false }),
       supabase.from('obras').select('id, nome, gasto_meta, supervisor_id, comercial_id').order('nome'),
       supabase.from('profiles').select('id, full_name, role').in('role', ['gestao', 'supervisor', 'montador']),
     ])
+    if (gastosResult.error && erroColunaAusente(gastosResult.error)) {
+      const fallback = await supabase.from('gastos').select('*, obras(nome, gasto_meta)').order('created_at', { ascending: false })
+      gastosResult = fallback
+    }
     const falhas = [
       gastosResult.error && mensagemErro(gastosResult.error, 'Nao foi possivel carregar os gastos.'),
       obrasResult.error && mensagemErro(obrasResult.error, 'Nao foi possivel carregar as obras.'),
@@ -547,6 +561,23 @@ export default function Gastos() {
     .filter(g => !filtroObra      || g.obra_id   === filtroObra)
     .filter(g => !filtroCategoria || g.categoria === filtroCategoria)
     .filter(g => !filtroStatus    || statusGasto(g) === filtroStatus)
+    .filter(g => {
+      const dataBase = String(g.data || g.created_at || '').slice(0, 10)
+      if (filtroInicio && (!dataBase || dataBase < filtroInicio)) return false
+      if (filtroFim && (!dataBase || dataBase > filtroFim)) return false
+      return true
+    })
+    .filter(g => {
+      const termo = busca.trim().toLowerCase()
+      if (!termo) return true
+      return [
+        g.descricao,
+        g.responsavel?.full_name,
+        g.responsavel_nome,
+        g.obras?.nome,
+        CAT[g.categoria]?.label,
+      ].filter(Boolean).some(valor => String(valor).toLowerCase().includes(termo))
+    })
 
   const listaRealizada = lista.filter(gastoContaNoRealizado)
   const total = listaRealizada.reduce((s, g) => s + valorSeguro(g.valor), 0)
@@ -695,6 +726,12 @@ export default function Gastos() {
 
       {/* ── FILTROS ──────────────────────────────────────────────────────────── */}
       <div className="ga-filters" style={s.filters}>
+        <input
+          style={s.select}
+          value={busca}
+          onChange={e => setBusca(e.target.value)}
+          placeholder="Buscar por descrição, responsável ou obra"
+        />
         <select style={s.select} value={filtroObra} onChange={e => setFiltroObra(e.target.value)}>
           <option value="">Todas as obras</option>
           {obras.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
@@ -709,6 +746,8 @@ export default function Gastos() {
           <option value="pendente_aprovacao">Pendentes</option>
           <option value="recusado">Recusados</option>
         </select>
+        <input style={s.select} type="date" value={filtroInicio} onChange={e => setFiltroInicio(e.target.value)} aria-label="Data inicial" />
+        <input style={s.select} type="date" value={filtroFim} onChange={e => setFiltroFim(e.target.value)} aria-label="Data final" />
       </div>
 
       {/* ── LISTA ────────────────────────────────────────────────────────────── */}
@@ -794,6 +833,7 @@ function GastosTabela({ lista, statusCor, navigate, setGastoPendente }) {
             <th style={s.th}>Descrição</th>
             <th style={{ ...s.th, textAlign: 'right' }}>Valor</th>
             <th style={s.th}>Status</th>
+            <th style={s.th}>Comprovante</th>
             <th style={{ ...s.th, textAlign: 'right' }}>Ações</th>
           </tr>
         </thead>
@@ -815,10 +855,15 @@ function GastosTabela({ lista, statusCor, navigate, setGastoPendente }) {
                 <td style={s.td}>{g.responsavel?.full_name || '-'}</td>
                 <td style={s.td}>
                   <strong style={s.tableName}>{g.descricao || 'Sem descrição'}</strong>
-                  {urlComprovante && <a href={urlComprovante} target="_blank" rel="noreferrer" style={s.tableSub}>Comprovante</a>}
+                  {status === 'recusado' && motivoRecusaGasto(g) && <span style={s.tableReject}>Motivo: {motivoRecusaGasto(g)}</span>}
                 </td>
                 <td style={{ ...s.td, textAlign: 'right', fontWeight: 800, color: 'var(--color-ink)' }}>{moeda(g.valor)}</td>
                 <td style={s.td}><span style={{ ...s.statusPill, background: sc.bg, color: sc.color }}>{sc.label}</span></td>
+                <td style={s.td}>
+                  {urlComprovante
+                    ? <a href={urlComprovante} target="_blank" rel="noreferrer" style={s.tableSub}>Abrir</a>
+                    : <span style={s.tableMuted}>Sem anexo</span>}
+                </td>
                 <td style={{ ...s.td, textAlign: 'right' }}>
                   {status === 'pendente_aprovacao' ? (
                     <button type="button" style={s.tableAction} onClick={() => setGastoPendente(g)}>Aprovar / recusar</button>
@@ -912,6 +957,7 @@ const s = {
   td:           { padding: '13px 14px', fontSize: 12.5, color: 'var(--color-ink-muted)', verticalAlign: 'middle' },
   tableName:    { display: 'block', color: 'var(--color-ink)', fontSize: 13.5, marginBottom: 3 },
   tableSub:     { display: 'block', color: theme.gold, fontSize: 11.5, fontWeight: 700, textDecoration: 'none' },
+  tableReject:  { display: 'block', color: theme.error, fontSize: 11.5, fontWeight: 800, marginTop: 3 },
   tableMuted:   { color: '#9B9185', fontSize: 11.5, fontWeight: 700 },
   linkButton:   { background: 'transparent', border: 'none', color: 'var(--color-ink)', padding: 0, fontSize: 12.5, fontWeight: 800, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' },
   statusPill:   { display: 'inline-flex', alignItems: 'center', minHeight: 24, borderRadius: 999, padding: '3px 9px', fontSize: 11, fontWeight: 800 },

@@ -113,6 +113,15 @@ export default function Agenda() {
   const [editandoId, setEditandoId] = useState(null)
   const [salvando, setSalvando] = useState(false)
   const [filtro, setFiltro] = useState('proximos')
+  const [filtrosAvancados, setFiltrosAvancados] = useState({
+    inicio: '',
+    fim: '',
+    obra: '',
+    responsavel: '',
+    tipo: '',
+    status: '',
+    busca: '',
+  })
   const [acaoStatus, setAcaoStatus] = useState('')
   const [vistoriaStats, setVistoriaStats] = useState({ checklist: 0, fotos: 0 })
   const [checkinsCompromisso, setCheckinsCompromisso] = useState([])
@@ -126,10 +135,12 @@ export default function Agenda() {
     titulo: '', descricao: '', tipo: 'Compromisso', obra_id: '',
     responsavel_id: '', data: hoje.toISOString().split('T')[0],
     data_fim: '', hora_inicio: '08:00', hora_fim: '',
+    descricao_cliente: '',
     reuniao_interna: false,
     status: 'pendente',
     visivel_montador: false,
     visivel_cliente: false,
+    confirmado_cliente: false,
   })
 
   useEffect(() => { carregar() }, [])
@@ -161,10 +172,12 @@ export default function Agenda() {
       titulo: '', descricao: '', tipo: 'Compromisso', obra_id: '',
       responsavel_id: '', data: hoje.toISOString().split('T')[0],
       data_fim: '', hora_inicio: '08:00', hora_fim: '',
+      descricao_cliente: '',
       reuniao_interna: false,
       status: 'pendente',
       visivel_montador: false,
       visivel_cliente: false,
+      confirmado_cliente: false,
     }
   }
 
@@ -188,10 +201,12 @@ export default function Agenda() {
       data_fim: ev.data_fim || ev.data || '',
       hora_inicio: ev.hora_inicio ? ev.hora_inicio.slice(0, 5) : '08:00',
       hora_fim: ev.hora_fim ? ev.hora_fim.slice(0, 5) : '',
+      descricao_cliente: ev.descricao_cliente || ev.observacao_publica || '',
       reuniao_interna: Boolean(ev.reuniao_interna),
       status: ev.status || 'pendente',
       visivel_montador: !ev.reuniao_interna && Boolean(ev.obra_id) && ev.visivel_montador !== false,
       visivel_cliente: Boolean(ev.visivel_cliente),
+      confirmado_cliente: Boolean(ev.confirmado_cliente),
     })
   }
 
@@ -477,10 +492,13 @@ export default function Agenda() {
       data_fim: form.data_fim || form.data,
       hora_inicio: form.hora_inicio,
       hora_fim: form.hora_fim || null,
+      descricao_cliente: form.visivel_cliente ? (form.descricao_cliente || form.descricao || null) : null,
+      observacao_publica: form.visivel_cliente ? (form.descricao_cliente || form.descricao || null) : null,
       reuniao_interna: form.reuniao_interna,
       status: form.status || 'pendente',
       visivel_montador: visivelParaMontador(form),
       visivel_cliente: !form.reuniao_interna && Boolean(form.visivel_cliente),
+      confirmado_cliente: Boolean(form.confirmado_cliente),
     }
 
     const result = editandoId
@@ -636,15 +654,32 @@ export default function Agenda() {
   }
 
   const hoje_str = hoje.toISOString().split('T')[0]
-  const proximos = eventos.filter(e => (e.data_fim || e.data) >= hoje_str)
-  const passados = eventos.filter(e => (e.data_fim || e.data) < hoje_str)
-  const hojeEventos = eventos.filter(e => e.data === hoje_str)
+  const eventosFiltrados = eventos.filter(ev => {
+    const inicio = ev.data || ''
+    const fim = ev.data_fim || ev.data || ''
+    if (filtrosAvancados.inicio && fim < filtrosAvancados.inicio) return false
+    if (filtrosAvancados.fim && inicio > filtrosAvancados.fim) return false
+    if (filtrosAvancados.obra && ev.obra_id !== filtrosAvancados.obra) return false
+    if (filtrosAvancados.responsavel && ev.responsavel_id !== filtrosAvancados.responsavel) return false
+    if (filtrosAvancados.tipo && norm(ev.tipo) !== norm(filtrosAvancados.tipo)) return false
+    if (filtrosAvancados.status && norm(ev.status || 'pendente') !== norm(filtrosAvancados.status)) return false
+    const termo = norm(filtrosAvancados.busca)
+    if (termo) {
+      const texto = norm([ev.titulo, ev.tipo, ev.observacao, ev.descricao, ev.descricao_cliente, ev.obras?.nome, ev.responsavel?.full_name].filter(Boolean).join(' '))
+      if (!texto.includes(termo)) return false
+    }
+    return true
+  })
+  const proximos = eventosFiltrados.filter(e => (e.data_fim || e.data) >= hoje_str)
+  const passados = eventosFiltrados.filter(e => (e.data_fim || e.data) < hoje_str)
+  const hojeEventos = eventosFiltrados.filter(e => e.data === hoje_str)
   const lista = filtro === 'proximos' ? proximos : passados
+  const limparFiltros = () => setFiltrosAvancados({ inicio: '', fim: '', obra: '', responsavel: '', tipo: '', status: '', busca: '' })
   const kpis = [
-    { label: 'Montagens', value: eventos.filter(e => norm(e.tipo || e.titulo).includes('montagem')).length },
-    { label: 'Assistências', value: eventos.filter(e => norm(e.tipo || e.titulo).includes('assist')).length },
-    { label: 'Entregas', value: eventos.filter(e => norm(e.tipo || e.titulo).includes('entrega')).length },
-    { label: 'Vistorias', value: eventos.filter(e => norm(e.tipo || e.titulo).includes('vistoria') || norm(e.tipo || e.titulo).includes('medicao')).length },
+    { label: 'Montagens', value: eventosFiltrados.filter(e => norm(e.tipo || e.titulo).includes('montagem')).length },
+    { label: 'Assistências', value: eventosFiltrados.filter(e => norm(e.tipo || e.titulo).includes('assist')).length },
+    { label: 'Entregas', value: eventosFiltrados.filter(e => norm(e.tipo || e.titulo).includes('entrega')).length },
+    { label: 'Vistorias', value: eventosFiltrados.filter(e => norm(e.tipo || e.titulo).includes('vistoria') || norm(e.tipo || e.titulo).includes('medicao')).length },
   ]
   const corTipoForm = corTipo(form.tipo || form.titulo)
   const statusForm = statusEvento(form, hoje_str)
@@ -729,6 +764,10 @@ export default function Agenda() {
                   <L>Descrição</L>
                   <textarea value={form.descricao} onChange={e => setForm(p => ({ ...p, descricao: e.target.value }))} rows={2} placeholder="Detalhes do evento..." style={{ background: theme.inputBackground, border: '1px solid ' + theme.inputBorder, color: theme.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', fontSize: 14, outline: 'none', fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }} />
                 </div>
+                <div style={s.full}>
+                  <L>Descrição para o cliente</L>
+                  <textarea value={form.descricao_cliente} onChange={e => setForm(p => ({ ...p, descricao_cliente: e.target.value }))} rows={2} placeholder="Texto exibido no Portal Cliente quando o evento estiver liberado..." disabled={!form.visivel_cliente || form.reuniao_interna} style={{ background: theme.inputBackground, border: '1px solid ' + theme.inputBorder, color: theme.inputText, borderRadius: 8, padding: '10px 14px', width: '100%', fontSize: 14, outline: 'none', fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box', opacity: (!form.visivel_cliente || form.reuniao_interna) ? 0.62 : 1 }} />
+                </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <input type="checkbox" id="ri" checked={form.reuniao_interna} onChange={e => setForm(p => ({ ...p, reuniao_interna: e.target.checked, obra_id: e.target.checked ? '' : p.obra_id, visivel_montador: e.target.checked ? false : p.visivel_montador, visivel_cliente: e.target.checked ? false : p.visivel_cliente }))} />
                   <label htmlFor="ri" style={{ fontSize: 13, color: 'var(--color-ink-muted)', cursor: 'pointer' }}>Reunião Interna</label>
@@ -741,6 +780,12 @@ export default function Agenda() {
                   <input type="checkbox" checked={form.visivel_cliente && !form.reuniao_interna} disabled={form.reuniao_interna} onChange={e => setForm(p => ({ ...p, visivel_cliente: e.target.checked }))} />
                   Visível para cliente
                 </label>
+                {form.visivel_cliente && !form.reuniao_interna && (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: 'var(--color-ink-muted)', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={form.confirmado_cliente} onChange={e => setForm(p => ({ ...p, confirmado_cliente: e.target.checked }))} />
+                    Presença confirmada pelo cliente
+                  </label>
+                )}
               </div>
 
               {editandoId && norm(form.tipo).includes('vistoria') && (
@@ -904,6 +949,29 @@ export default function Agenda() {
         ))}
       </div>
 
+      <div className="ag-filter-grid" style={s.filterGrid}>
+        <input style={s.filterInput} value={filtrosAvancados.busca} onChange={e => setFiltrosAvancados(p => ({ ...p, busca: e.target.value }))} placeholder="Buscar por título, obra ou responsável" />
+        <input style={s.filterInput} type="date" value={filtrosAvancados.inicio} onChange={e => setFiltrosAvancados(p => ({ ...p, inicio: e.target.value }))} aria-label="Início do período" />
+        <input style={s.filterInput} type="date" value={filtrosAvancados.fim} onChange={e => setFiltrosAvancados(p => ({ ...p, fim: e.target.value }))} aria-label="Fim do período" />
+        <select style={s.filterInput} value={filtrosAvancados.obra} onChange={e => setFiltrosAvancados(p => ({ ...p, obra: e.target.value }))}>
+          <option value="">Todas as obras</option>
+          {obras.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
+        </select>
+        <select style={s.filterInput} value={filtrosAvancados.responsavel} onChange={e => setFiltrosAvancados(p => ({ ...p, responsavel: e.target.value }))}>
+          <option value="">Todos os responsáveis</option>
+          {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+        </select>
+        <select style={s.filterInput} value={filtrosAvancados.tipo} onChange={e => setFiltrosAvancados(p => ({ ...p, tipo: e.target.value }))}>
+          <option value="">Todos os tipos</option>
+          {TIPOS.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
+        <select style={s.filterInput} value={filtrosAvancados.status} onChange={e => setFiltrosAvancados(p => ({ ...p, status: e.target.value }))}>
+          <option value="">Todos os status</option>
+          {['pendente', 'em andamento', 'realizada', 'concluida', 'remarcada', 'cancelada'].map(status => <option key={status} value={status}>{status}</option>)}
+        </select>
+        <button type="button" style={s.filterClear} onClick={limparFiltros}>Limpar</button>
+      </div>
+
       {loading ? (
         <div style={s.empty}>Carregando...</div>
       ) : lista.length === 0 ? (
@@ -940,6 +1008,9 @@ export default function Agenda() {
                     <span className={`ag-status tone-${status.tone}`}>{status.label}</span>
                     <span style={{ ...s.tipoBadge, background: cor + '18', color: cor }}>{ev.tipo}</span>
                     {ev.reuniao_interna && <span style={{ ...s.tipoBadge, background: '#eef2f8', color: '#3a5580' }}>Reunião Interna</span>}
+                    {!ev.reuniao_interna && ev.visivel_cliente && <span style={{ ...s.tipoBadge, background: '#EAF5EE', color: '#2D7A4A' }}>Cliente</span>}
+                    {!ev.reuniao_interna && ev.visivel_montador && <span style={{ ...s.tipoBadge, background: '#EEF5FB', color: '#1E5A8A' }}>Campo</span>}
+                    {ev.confirmado_cliente && <span style={{ ...s.tipoBadge, background: '#18311F', color: '#CFF3DA' }}>Confirmado</span>}
                     {isHoje && <span style={{ ...s.tipoBadge, background: '#edf7f0', color: '#3a7d4f' }}>Hoje</span>}
                   </div>
                   {(ev.observacao || ev.descricao) && <div className="ag-card-desc" style={s.cardDesc}>{ev.observacao || ev.descricao}</div>}
@@ -988,6 +1059,7 @@ const css = `
   .ag-mobile-home span{display:block;font-size:10.5px;color:var(--color-ink-muted);font-weight:900;margin-top:5px}
   .ag-filters{margin-bottom:12px !important}
   .ag-filters button{padding:8px 13px !important}
+  .ag-filter-grid{grid-template-columns:1fr !important;margin-bottom:12px !important}
   .ag-card{padding:12px 13px !important;gap:12px !important;border-radius:16px !important;align-items:flex-start !important;margin-bottom:9px !important}
   .ag-datebox{min-width:48px !important;padding:7px 0 !important}
   .ag-card-desc{display:none !important}
@@ -1013,6 +1085,9 @@ const s = {
   kpiValue: { display: 'block', fontSize: 30, lineHeight: 1, color: 'var(--color-ink)' },
   filtros: { display: 'flex', gap: 8, marginBottom: 20 },
   filtroBtn: { padding: '7px 16px', borderRadius: 20, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' },
+  filterGrid: { display: 'grid', gridTemplateColumns: 'minmax(220px, 1.4fr) repeat(7, minmax(120px, 1fr))', gap: 8, marginBottom: 20 },
+  filterInput: { background: theme.inputBackground, border: '1px solid ' + theme.inputBorder, color: theme.inputText, borderRadius: 8, padding: '10px 12px', minHeight: 44, fontSize: 13, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', minWidth: 0 },
+  filterClear: { background: theme.surfaceElevated, border: '1px solid var(--color-border)', color: 'var(--color-ink)', borderRadius: 8, padding: '10px 12px', minHeight: 44, fontSize: 12, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' },
   card: { display: 'flex', gap: 16, background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 20, marginBottom: 10, alignItems: 'flex-start', boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
   datebox: { minWidth: 52, textAlign: 'center', border: '1px solid', borderRadius: 8, padding: '8px 0', flexShrink: 0 },
   cardBody: { flex: 1, minWidth: 0 },

@@ -1982,6 +1982,10 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
     const match = String(gasto?.observacao || '').match(/Comprovante:\s*(https?:\/\/\S+)/i)
     return match?.[1] || ''
   }
+  function motivoRecusaGasto(gasto) {
+    const match = String(gasto?.observacao || '').match(/Recusado:\s*([^|]+)/i)
+    return match?.[1]?.trim() || ''
+  }
   async function anexarComprovante(gastoId, arquivoAtual, observacaoAtual = '') {
     if (!arquivoAtual) return { observacao: observacaoAtual || null, storage_path: '', url: '' }
     const preparado = await prepararImagemUpload(arquivoAtual, { maxWidth: 1800, maxHeight: 1800, quality: 0.78 })
@@ -2068,16 +2072,30 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
       if (gastoEdit) {
         const anexo = arquivo ? await anexarComprovante(gastoEdit.id, arquivo, form.observacao || gastoEdit.observacao || '') : { observacao: form.observacao || null }
         const observacao = anexo.observacao
-        const { error } = await supabase.from('gastos').update({ descricao: form.descricao.trim(), valor: vNum, categoria: form.categoria, data: form.data || null, observacao }).eq('id', gastoEdit.id)
-        if (error) throw error
+        const updates = arquivo
+          ? [
+              { descricao: form.descricao.trim(), valor: vNum, categoria: form.categoria, data: form.data || null, observacao, comprovante: anexo.url, storage_path: anexo.storage_path },
+              { descricao: form.descricao.trim(), valor: vNum, categoria: form.categoria, data: form.data || null, observacao },
+            ]
+          : [{ descricao: form.descricao.trim(), valor: vNum, categoria: form.categoria, data: form.data || null, observacao }]
+        let updateError = null
+        for (const update of updates) {
+          const result = await supabase.from('gastos').update(update).eq('id', gastoEdit.id)
+          updateError = result.error
+          if (!updateError) break
+          if (!erroColunaAusente(updateError)) break
+        }
+        if (updateError) throw updateError
       } else {
         const precisaAprovacao = CATS_APROVACAO.includes(form.categoria) && vNum > LIMITE_APROVACAO
-        const payload = { obra_id: obraId, descricao: form.descricao.trim(), valor: vNum, categoria: form.categoria, data: form.data, observacao: form.observacao || null, status: precisaAprovacao ? 'pendente_aprovacao' : 'aprovado' }
+        const payload = { obra_id: obraId, descricao: form.descricao.trim(), valor: vNum, categoria: form.categoria, data: form.data, observacao: form.observacao || null, status: precisaAprovacao ? 'pendente_aprovacao' : 'aprovado', responsavel_id: user?.id || null, criado_por: user?.id || null }
         let { data: ins, error } = await supabase.from('gastos').insert([payload]).select('id, observacao').single()
         if (error && erroColunaAusente(error)) {
           const payloadCompat = { ...payload }
           delete payloadCompat.status
           delete payloadCompat.observacao
+          delete payloadCompat.responsavel_id
+          delete payloadCompat.criado_por
           const retry = await supabase.from('gastos').insert([payloadCompat]).select('id').single()
           ins = retry.data
           error = retry.error
@@ -2146,9 +2164,14 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
 
   async function atualizarStatusGasto(gasto, status) {
     const acao = status === 'aprovado' ? 'Aprovando gasto...' : 'Recusando gasto...'
+    const motivoRecusa = status === 'recusado' ? window.prompt('Informe o motivo da recusa deste gasto:') : ''
+    if (status === 'recusado' && !String(motivoRecusa || '').trim()) {
+      setErro('Informe o motivo da recusa para concluir.')
+      return
+    }
     setAcaoGasto(acao)
     setErro('')
-    const observacao = [gasto.observacao, status === 'aprovado' ? 'Aprovado pela gestao' : 'Recusado pela gestao'].filter(Boolean).join(' | ')
+    const observacao = [gasto.observacao, status === 'aprovado' ? 'Aprovado pela gestao' : 'Recusado: ' + String(motivoRecusa).trim()].filter(Boolean).join(' | ')
     const { error } = await supabase.from('gastos').update({ status, observacao }).eq('id', gasto.id)
     setAcaoGasto('')
     if (error) {
@@ -2166,7 +2189,7 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
         obra_id: obraId,
         tipo: aprovado ? 'gasto_aprovado' : 'gasto_recusado',
         titulo: aprovado ? 'Gasto aprovado' : 'Gasto recusado',
-        descricao: `${gasto.descricao || 'Gasto'} - R$ ${valorSeguro(gasto.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+        descricao: `${gasto.descricao || 'Gasto'} - R$ ${valorSeguro(gasto.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}${!aprovado ? `. Motivo: ${String(motivoRecusa).trim()}` : ''}`,
         prioridade: aprovado ? 'normal' : 'media',
         status: 'nao_lida',
         rota: `/obras/${obraId}?aba=Gastos&gasto=${gasto.id}`,
@@ -2298,6 +2321,7 @@ function AbaGastos({ obraId, obraInfo, gastoDestaque }) {
                   <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 999, background: sc.bg, color: sc.color, fontWeight: 800 }}>{sc.label}</span>
                 </div>
                 <div style={{ fontSize: 11, color: '#aaa', marginTop: 3 }}>{CAT_G[g.categoria]?.emoji} {CAT_G[g.categoria]?.label || g.categoria}{g.data ? ' · ' + new Date(g.data + 'T00:00:00').toLocaleDateString('pt-BR') : ''}</div>
+                {status === 'recusado' && motivoRecusaGasto(g) && <div style={{ fontSize: 11, color: THEME.danger, background: THEME.dangerBg, borderRadius: 8, padding: '7px 9px', marginTop: 6, fontWeight: 800 }}>Motivo da recusa: {motivoRecusaGasto(g)}</div>}
                 {g.observacao && <div style={{ fontSize: 11, color: '#bbb', marginTop: 2, fontStyle: 'italic' }}>{g.observacao}</div>}
                 {urlComprovante && <a href={urlComprovante} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ display: 'inline-flex', alignItems: 'center', minHeight: 32, marginTop: 6, color: THEME.gold, fontSize: 12, fontWeight: 800, textDecoration: 'none' }}>Abrir comprovante</a>}
               </div>
