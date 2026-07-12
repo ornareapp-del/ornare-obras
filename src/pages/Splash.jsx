@@ -32,7 +32,7 @@ export default function Splash({ onDone }) {
           src="/logo-ornare.png"
           alt="Ornare"
           style={{
-            height: 72,
+            height: 94,
             objectFit: 'contain',
             display: 'block',
             margin: '0 auto 16px',
@@ -40,15 +40,15 @@ export default function Splash({ onDone }) {
           }}
         />
         <div style={{
-          fontSize: 10, letterSpacing: 6, color: theme.goldMuted,
+          fontSize: 13, letterSpacing: 7.8, color: theme.goldMuted,
           opacity: fase >= 2 ? 1 : 0,
           transition: 'opacity 0.5s 0.2s',
         }}>
-          GESTÃƒO DE OBRAS
+          GESTÃO DE OBRAS
         </div>
         <div style={{
-          width: 36, height: 1, background: theme.goldMuted,
-          margin: '14px auto 0',
+          width: 47, height: 1, background: theme.goldMuted,
+          margin: '18px auto 0',
           transform: fase >= 2 ? 'scaleX(1)' : 'scaleX(0)',
           transition: 'transform 0.6s 0.4s',
           transformOrigin: 'center',

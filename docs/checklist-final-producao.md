@@ -49,3 +49,12 @@ Rodar em ambiente de homologação primeiro e depois em produção, nesta ordem:
 - [ ] Storage de fotos/comprovantes testado em upload e visualização.
 - [ ] Backup ou export do schema feito antes de rodar os SQLs em produção.
 - [ ] Smoke test mobile feito em Gestão, Portal Cliente e Montador.
+
+## Melhorias pós-auditoria
+
+- [x] Portal Cliente com botão de logout.
+- [x] Tela global de carregamento com ação de tentar novamente e sair quando a validação demora.
+- [x] Portal Cliente protegido contra falhas inesperadas no carregamento, evitando ficar preso indefinidamente.
+- [x] Splash inicial ampliada e texto `GESTÃO DE OBRAS` corrigido.
+- [ ] Testar novamente o Portal Cliente em janela anônima com usuário cliente real.
+- [ ] Rodar `npm.cmd run build` em terminal com permissão suficiente caso o Vite volte a falhar com `EPERM`.

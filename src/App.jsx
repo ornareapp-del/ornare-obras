@@ -51,18 +51,41 @@ function homeForProfile(profile) {
 }
 
 function LoadingAuth() {
+  const [demorando, setDemorando] = useState(false)
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDemorando(true), 6500)
+    return () => clearTimeout(timer)
+  }, [])
+
+  async function sair() {
+    await supabase.auth.signOut()
+    window.location.href = '/login'
+  }
+
   return (
     <div style={{
       minHeight: '100vh',
       display: 'flex',
+      flexDirection: 'column',
+      gap: 14,
       alignItems: 'center',
       justifyContent: 'center',
-      background: 'var(--color-bg, #F5F2EE)',
-      color: 'var(--color-ink-muted, #5C5A54)',
+      background: 'var(--color-bg, #11100E)',
+      color: 'rgba(255,255,255,.74)',
       fontFamily: 'var(--font-sans, sans-serif)',
       fontSize: 13,
+      padding: 22,
+      textAlign: 'center',
     }}>
-      Carregando acesso...
+      <img src="/logo-ornare.png" alt="Ornare" style={{ height: 44, filter: 'brightness(0) invert(1)', opacity: .82 }} />
+      <span>{demorando ? 'A validação está demorando mais que o normal.' : 'Carregando acesso...'}</span>
+      {demorando && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+          <button onClick={() => window.location.reload()} style={{ minHeight: 42, border: '1px solid rgba(255,255,255,.18)', borderRadius: 999, background: 'rgba(255,255,255,.08)', color: '#fff', padding: '9px 14px', fontWeight: 800, cursor: 'pointer' }}>Tentar novamente</button>
+          <button onClick={sair} style={{ minHeight: 42, border: '1px solid rgba(255,255,255,.18)', borderRadius: 999, background: 'transparent', color: 'rgba(255,255,255,.82)', padding: '9px 14px', fontWeight: 800, cursor: 'pointer' }}>Sair</button>
+        </div>
+      )}
     </div>
   )
 }
@@ -161,8 +184,8 @@ function UnauthorizedClientAccess() {
         boxShadow: 'var(--shadow-md, 0 18px 42px rgba(29,28,25,.12))',
       }}>
         <div style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--color-gold, #B8965E)', fontWeight: 800, marginBottom: 8 }}>Portal Cliente</div>
-        <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: 30, lineHeight: 1.05, fontWeight: 500, margin: 0 }}>Acesso nao autorizado</h1>
-        <p style={{ color: 'var(--color-ink-muted, #5C5A54)', fontSize: 13, lineHeight: 1.5, margin: '12px 0 0' }}>Nao foi possivel liberar esta obra para o seu usuario.</p>
+        <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: 30, lineHeight: 1.05, fontWeight: 500, margin: 0 }}>Acesso não autorizado</h1>
+        <p style={{ color: 'var(--color-ink-muted, #5C5A54)', fontSize: 13, lineHeight: 1.5, margin: '12px 0 0' }}>Não foi possível liberar esta obra para o seu usuário.</p>
       </div>
     </div>
   )

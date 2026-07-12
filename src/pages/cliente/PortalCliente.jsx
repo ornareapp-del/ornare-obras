@@ -361,7 +361,7 @@ function tabelaNaoEncontrada(error) {
 
 export default function PortalCliente() {
   const { id } = useParams()
-  const { user, profile } = useStore()
+  const { user, profile, setUser, setProfile } = useStore()
   const [dados, setDados] = useState({
     obra: null,
     cronograma: null,
@@ -394,6 +394,7 @@ export default function PortalCliente() {
   async function carregar() {
     setLoading(true)
     setErro('')
+    try {
     const { data: authData } = await supabase.auth.getUser()
     setUsuario(authData?.user || null)
 
@@ -484,7 +485,20 @@ export default function PortalCliente() {
       documentos: safeArray(documentos),
       checklist: safeArray(checklist),
     })
-    setLoading(false)
+    } catch (error) {
+      console.error('Falha inesperada no Portal Cliente:', error)
+      setDados(prev => ({ ...prev, obra: null }))
+      setErro(error?.message || 'Não foi possível carregar o Portal Cliente.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function sairPortal() {
+    await supabase.auth.signOut()
+    setUser(null)
+    setProfile(null)
+    window.location.href = '/login'
   }
 
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
@@ -670,6 +684,7 @@ export default function PortalCliente() {
       <style>{css}</style>
       <img src="/logo-ornare.png" alt="Ornare" />
       <span>Preparando sua obra</span>
+      <button onClick={() => window.location.reload()}>Tentar novamente</button>
     </div>
   )
 
@@ -677,6 +692,10 @@ export default function PortalCliente() {
     <div className="pc-loading">
       <style>{css}</style>
       <span>{erro || 'Obra não encontrada.'}</span>
+      <div>
+        <button onClick={() => window.location.reload()}>Tentar novamente</button>
+        <button onClick={sairPortal}>Sair</button>
+      </div>
     </div>
   )
 
@@ -723,6 +742,7 @@ export default function PortalCliente() {
       <section className="pc-hero">
         <img className="pc-hero-img" src={bgImage} alt="" />
         <div className="pc-hero-overlay" />
+        <button className="pc-logout" onClick={sairPortal}>Sair</button>
         <div className="pc-hero-content">
           <div className="pc-hero-copy">
             <h1>{vm.obra.nome || 'Projeto Ornare'}</h1>
@@ -1091,9 +1111,13 @@ const css = `
 .pc-page{min-height:100vh;background:${THEME.warm};color:${THEME.ink};font-family:var(--font-sans, Inter, system-ui, sans-serif);overflow-x:hidden}
 .pc-loading{min-height:100vh;background:${THEME.dark};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;color:#fff;letter-spacing:2px;text-transform:uppercase;font-size:11px}
 .pc-loading img{height:54px;filter:brightness(0) invert(1);opacity:.8}
+.pc-loading div{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.pc-loading button{min-height:42px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;border-radius:999px;padding:9px 14px;font-size:12px;font-weight:900;font-family:inherit;cursor:pointer;text-transform:none;letter-spacing:0}
 .pc-hero{position:relative;min-height:174px;color:#fff;overflow:hidden}
 .pc-hero-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top;filter:grayscale(1) brightness(.66) contrast(1.08)}
 .pc-hero-overlay{position:absolute;inset:0;background:linear-gradient(180deg,rgba(15,14,12,.78),rgba(15,14,12,.58) 46%,rgba(15,14,12,.14) 74%,rgba(245,240,235,1) 100%)}
+.pc-logout{position:absolute;right:18px;top:16px;z-index:4;min-height:36px;border:1px solid rgba(255,255,255,.24);background:rgba(17,16,14,.34);color:#fff;border-radius:999px;padding:8px 13px;font-size:11px;font-weight:900;font-family:inherit;cursor:pointer;backdrop-filter:blur(10px)}
+.pc-logout:hover{background:rgba(255,255,255,.12)}
 .pc-top{position:relative;z-index:2;padding:22px;display:flex;justify-content:space-between;align-items:flex-start}
 .pc-top img{height:44px;filter:brightness(0) invert(1)}
 .pc-top span{display:block;margin-top:5px;color:#F1D79B;font-size:9px;letter-spacing:3px;text-transform:uppercase}
