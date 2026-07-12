@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { EmptyState, PremiumCard } from '../../components/DesignSystem'
-import { faseOrnarePorKey, faseOrnarePorTexto } from '../../constants/fasesOrnare'
 import { supabase } from '../../lib/supabase'
 import { useStore } from '../../store/useStore'
+import { mapearCronogramasPorObra, resolverOperacaoObra } from '../../utils/obraOperacional'
 import { limparNome } from '../../utils/ui'
 import { theme } from '../../constants/theme'
 
@@ -71,13 +71,15 @@ const PERIODOS = [
   { id: 'mes', label: 'Este mês' },
 ]
 
-function saudeObra(obra, hoje) {
-  const previsao = obra.data_previsao || obra.data_previsao_entrega
+function saudeObra(obra, hoje, operacao = resolverOperacaoObra(obra)) {
+  const previsao = operacao.fimPrevisto
   const data = previsao ? new Date(`${previsao}T00:00:00`) : null
-  if (data && data < hoje && !isConcluido(obra.status)) return 'atrasada'
+  const concluida = isConcluido(obra.status) || operacao.faseKey === 'obra_concluida'
+  if (data && data < hoje && !concluida) return 'atrasada'
+  if (operacao.travado || ['alto', 'critico', 'critica'].includes(norm(operacao.risco))) return 'risco'
   if (data) {
     const dias = Math.ceil((data.getTime() - hoje.getTime()) / 86400000)
-    if (dias <= 7 && !isConcluido(obra.status)) return 'risco'
+    if (dias <= 7 && !concluida) return 'risco'
   }
   return 'prazo'
 }
@@ -102,20 +104,6 @@ function diasDesde(value) {
   const data = new Date(value)
   if (Number.isNaN(data.getTime())) return 0
   return Math.max(0, Math.floor((new Date().setHours(0, 0, 0, 0) - data.setHours(0, 0, 0, 0)) / 86400000))
-}
-
-function faseKeyObra(obra) {
-  const fase = faseOrnarePorKey(obra?.fase)
-    || faseOrnarePorKey(obra?.fase_atual)
-    || faseOrnarePorTexto(obra?.fase || obra?.fase_atual || obra?.status)
-  return fase?.key || null
-}
-
-function faseLabelObra(obra) {
-  const fase = faseOrnarePorKey(obra?.fase)
-    || faseOrnarePorKey(obra?.fase_atual)
-    || faseOrnarePorTexto(obra?.fase || obra?.fase_atual || obra?.status)
-  return fase?.label || obra?.fase || obra?.fase_atual || obra?.status || 'Sem fase'
 }
 
 function criarDadosVazios(overrides = {}) {
@@ -199,7 +187,7 @@ export default function DashboardSupervisor() {
           supabase.from('checklist_items').select('id, obra_id, descricao, concluido, concluido_em, ambiente_id').in('obra_id', obraIds),
           supabase.from('fotos').select('*').in('obra_id', obraIds).order('created_at', { ascending: false }),
           supabase.from('gastos').select('*').in('obra_id', obraIds).order('created_at', { ascending: false }),
-          supabase.from('obra_cronograma').select('id, obra_id, fase, travado, motivo_trava, risco, updated_at').in('obra_id', obraIds),
+          supabase.from('obra_cronograma').select('*').in('obra_id', obraIds),
         ])
 
         if (!ativo) return
@@ -279,6 +267,8 @@ export default function DashboardSupervisor() {
 
     const obraPorId = new Map(dados.obras.map(o => [o.id, o]))
     const profilePorId = new Map(dados.profiles.map(p => [p.id, p]))
+    const cronogramasPorObra = mapearCronogramasPorObra(dados.cronogramas)
+    const operacaoDaObra = obra => resolverOperacaoObra(obra, cronogramasPorObra.get(obra.id))
     const montadorIds = [...new Set(dados.obraMontadores.map(m => m.montador_id).filter(Boolean))]
 
     const tarefasAbertas = dados.tarefas.filter(t => !isConcluido(t.status))
@@ -335,7 +325,7 @@ export default function DashboardSupervisor() {
     })
 
     const saude = dados.obras.reduce((acc, obra) => {
-      acc[saudeObra(obra, hoje)] += 1
+      acc[saudeObra(obra, hoje, operacaoDaObra(obra))] += 1
       return acc
     }, { atrasada: 0, risco: 0, prazo: 0 })
 
@@ -382,9 +372,9 @@ export default function DashboardSupervisor() {
       .sort((a, b) => b.total - a.total)
 
     const atrasadasPorFase = dados.obras
-      .filter(obra => saudeObra(obra, hoje) === 'atrasada')
+      .filter(obra => saudeObra(obra, hoje, operacaoDaObra(obra)) === 'atrasada')
       .reduce((acc, obra) => {
-        const fase = faseLabelObra(obra)
+        const fase = operacaoDaObra(obra).faseLabel
         acc.set(fase, (acc.get(fase) || 0) + 1)
         return acc
       }, new Map())
@@ -448,8 +438,9 @@ export default function DashboardSupervisor() {
     })
 
     dados.obras.forEach(obra => {
-      const fase = faseKeyObra(obra)
-      const diasNaFase = diasDesde(obra.updated_at || obra.created_at || obra.data_inicio || hoje)
+      const operacao = operacaoDaObra(obra)
+      const fase = operacao.faseKey
+      const diasNaFase = diasDesde(operacao.cronograma?.updated_at || obra.updated_at || obra.created_at || operacao.inicioPrevisto || hoje)
       if (fase === 'vistoria_tecnica' && diasNaFase > 3) {
         acoes.push({
           tipo: 'Vistoria técnica',
@@ -459,7 +450,7 @@ export default function DashboardSupervisor() {
           cor: THEME.warn,
         })
       }
-      if (fase === 'entrega_moveis' && !obra.data_inicio_prevista && !obra.data_previsao_inicio) {
+      if (fase === 'entrega_moveis' && !operacao.inicioPrevisto) {
         acoes.push({
           tipo: 'Entrega',
           titulo: obra.nome || 'Obra',
@@ -480,7 +471,8 @@ export default function DashboardSupervisor() {
     })
 
     const obrasDetalhadas = dados.obras.map(obra => {
-      const atrasada = saudeObra(obra, hoje) === 'atrasada'
+      const operacao = operacaoDaObra(obra)
+      const atrasada = saudeObra(obra, hoje, operacao) === 'atrasada'
       const temOcorrencia = ocorrenciasAbertas.some(o => o.obra_id === obra.id)
       const temChecklist = checklistPendentes.some(i => i.obra_id === obra.id)
       const ultimaFoto = fotosPorObra.get(obra.id)
@@ -491,22 +483,32 @@ export default function DashboardSupervisor() {
         temChecklist && 'Checklist',
         semFotoRecente && 'Sem foto recente',
       ].filter(Boolean)
-      return { ...obra, alertas }
+      return {
+        ...obra,
+        alertas,
+        operacao,
+        progressoOperacional: operacao.progresso,
+        previsaoOperacional: operacao.fimPrevisto,
+        faseOperacional: operacao.faseLabel,
+      }
     })
 
     const statusResumo = {
-      emProducao: dados.obras.filter(o => norm(o.status).includes('producao')).length,
-      emMontagem: dados.obras.filter(o => norm(o.status).includes('montagem')).length,
+      emProducao: dados.obras.filter(o => operacaoDaObra(o).faseKey === 'producao').length,
+      emMontagem: dados.obras.filter(o => ['montagem', 'montagem_finalizada'].includes(operacaoDaObra(o).faseKey)).length,
       aguardandoCliente: dados.obras.filter(o => norm(o.status).includes('aguard') && norm(o.status).includes('cliente')).length,
-      aguardandoProducao: dados.obras.filter(o => norm(o.status).includes('aguard') && norm(o.status).includes('producao')).length,
-      concluidas: dados.obras.filter(o => isConcluido(o.status)).length,
-      travadas: dados.obras.filter(o => norm(o.status).includes('travad') || norm(o.status).includes('pausad')).length,
+      aguardandoProducao: dados.obras.filter(o => ['vistoria_medida', 'executivo', 'vistoria_tecnica', 'entrega_moveis'].includes(operacaoDaObra(o).faseKey)).length,
+      concluidas: dados.obras.filter(o => isConcluido(o.status) || operacaoDaObra(o).faseKey === 'obra_concluida').length,
+      travadas: dados.obras.filter(o => {
+        const operacao = operacaoDaObra(o)
+        return norm(o.status).includes('travad') || norm(o.status).includes('pausad') || operacao.travado || ['alto', 'critico', 'critica'].includes(norm(operacao.risco))
+      }).length,
     }
 
     return {
       kpis: {
         minhasObras: dados.obras.length,
-        emMontagem: dados.obras.filter(o => norm(o.status).includes('montagem')).length,
+        emMontagem: dados.obras.filter(o => ['montagem', 'montagem_finalizada'].includes(operacaoDaObra(o).faseKey)).length,
         atrasadas: saude.atrasada,
         pendencias: tarefasAbertas.length + ocorrenciasAbertas.length + checklistPendentes.length,
         fotosPendentes: fotosPendentes.length,
@@ -917,19 +919,21 @@ export default function DashboardSupervisor() {
               <div className="ds-work-list">
                 {vm.obras.slice(0, 10).map(obra => {
                   const st = obraStatus(obra.status)
-                  const previsao = obra.data_previsao || obra.data_previsao_entrega
+                  const previsao = obra.previsaoOperacional
+                  const progresso = obra.progressoOperacional
                   return (
                     <button className="ds-work-row" key={obra.id} onClick={() => navigate(`/obras/${obra.id}`)}>
                       <div className="ds-work-main">
                         <strong>{obra.nome || 'Obra sem nome'}</strong>
                         <span>{[obra.cliente_nome, obra.cidade].filter(Boolean).join(' - ') || 'Cliente não informado'}</span>
                         <div className="ds-tags">
+                          <em>{obra.faseOperacional}</em>
                           {obra.alertas.length ? obra.alertas.slice(0, 3).map(a => <em key={a}>{a}</em>) : <em className="ok">Sem alerta</em>}
                         </div>
                       </div>
                       <div className="ds-progress-wrap">
-                        <div className="ds-progress"><i style={{ width: `${obra.progresso || 0}%`, background: THEME.gold }} /></div>
-                        <b>{Number(obra.progresso || 0)}%</b>
+                        <div className="ds-progress"><i style={{ width: `${progresso}%`, background: THEME.gold }} /></div>
+                        <b>{progresso}%</b>
                       </div>
                       <small>{previsao ? dataBR(previsao) : 'Sem previsão'}</small>
                       <span className="ds-badge" style={{ background: st.bg, color: st.color }}>{st.label}</span>

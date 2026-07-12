@@ -370,7 +370,7 @@ export default function DashboardGestao() {
       const previsao = dataOperacional(operacao.fimPrevisto)
       if (operacao.travado) motivos.push('cronograma travado')
       if (riscoAlto(operacao)) motivos.push('risco alto')
-      if ((ocorrPorObra.get(obra.id) || []).length > 0) motivos.push('ocorr?ncia aberta')
+      if ((ocorrPorObra.get(obra.id) || []).length > 0) motivos.push('ocorrência aberta')
       if (itens.some(i => !i.concluido)) motivos.push('checklist pendente')
       if (semFotoRecente) motivos.push('sem fotos recentes')
       if (previsao && previsao < hoje) motivos.push('atrasada')
