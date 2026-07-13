@@ -120,6 +120,17 @@ function mapearCheckinsComPerfis(checkins, profiles) {
   }))
 }
 
+function nomesUnicos(nomes = []) {
+  const vistos = new Set()
+  return nomes.filter(nome => {
+    const limpo = String(nome || '').trim()
+    const chave = normalizar(limpo)
+    if (!chave || vistos.has(chave)) return false
+    vistos.add(chave)
+    return true
+  })
+}
+
 function criarDadosVazios() {
   return {
     obras: [],
@@ -256,6 +267,12 @@ export default function ObrasAoVivo() {
       checkinsAbertosPorObra.set(checkin.obra_id, [...(checkinsAbertosPorObra.get(checkin.obra_id) || []), checkin])
     })
 
+    const checkinsHojePorObra = new Map()
+    checkinsHoje.forEach(checkin => {
+      if (!checkin.obra_id) return
+      checkinsHojePorObra.set(checkin.obra_id, [...(checkinsHojePorObra.get(checkin.obra_id) || []), checkin])
+    })
+
     const montadoresPorObra = new Map()
     dados.montadores.forEach(vinculo => {
       if (!vinculo.obra_id) return
@@ -285,7 +302,9 @@ export default function ObrasAoVivo() {
       const travada = operacao.travado || ['alto', 'critico', 'critica'].includes(normalizar(operacao.risco)) || inStatus(obra, STATUS.travadas) || (ocorrPorObra.get(obra.id) || []).some(oc => ['alta', 'critica'].includes(normalizar(oc.gravidade)))
       const semCheckin = !ultimoCheckin || diasDesde(ultimoCheckin.entrada || ultimoCheckin.created_at) > 2
       const proximo = (agendaPorObra.get(obra.id) || [])[0]
-      const emCampo = abertos.map(c => limparNome(c.profiles?.full_name) || 'Montador')
+      const emCampo = nomesUnicos(abertos.map(c => limparNome(c.profiles?.full_name) || 'Montador'))
+      const checkinsHojeObra = nomesUnicos((checkinsHojePorObra.get(obra.id) || []).map(c => limparNome(c.profiles?.full_name) || 'Montador'))
+      const montadores = nomesUnicos(montadoresPorObra.get(obra.id) || [])
       let situacao = 'ok'
       if (travada || (diasFim !== null && diasFim < 0)) situacao = 'danger'
       else if (semCheckin || pendencias.length > 0 || (diasFim !== null && diasFim <= 3)) situacao = 'warn'
@@ -295,8 +314,10 @@ export default function ObrasAoVivo() {
         inicio,
         fim,
         proximo,
-        montadores: montadoresPorObra.get(obra.id) || [],
+        montadores,
         emCampo,
+        checkinsHoje: checkinsHojeObra,
+        equipeResumo: nomesUnicos([...emCampo, ...checkinsHojeObra, ...montadores]),
         ultimoCheckin,
         pendencias,
         travada,
@@ -411,7 +432,7 @@ function LiveCard({ item, onOpen, onRoute }) {
   const ultimo = item.ultimoCheckin?.entrada || item.ultimoCheckin?.created_at
   const progresso = item.operacao.progresso
   const alerta = item.emCampo.length
-    ? 'Montador em campo'
+    ? item.emCampo.length === 1 ? 'Montador em campo' : 'Montadores em campo'
     : item.travada
       ? 'Obra travada'
       : item.semCheckin
@@ -419,6 +440,7 @@ function LiveCard({ item, onOpen, onRoute }) {
         : item.pendencias.length
           ? 'Atenção pendente'
           : 'Sem alerta crítico'
+  const nomesEquipe = item.equipeResumo?.length ? item.equipeResumo.join(', ') : 'Sem montador alocado'
   const rotaObra = aba => `/obras/${obra.id}?aba=${aba}`
   const irPara = (event, rota) => {
     event.stopPropagation()
@@ -455,7 +477,7 @@ function LiveCard({ item, onOpen, onRoute }) {
 
       <button className="oa-live-status oa-live-action" onClick={event => irPara(event, rotaObra(item.emCampo.length || item.semCheckin ? 'Equipe' : item.travada ? 'Ocorrencias' : item.pendencias.length ? abaPendencia(item.pendencias[0]) : 'Resumo'))}>
         <b>{alerta}</b>
-        <small>{item.emCampo[0] || item.montadores[0] || 'Sem montador alocado'}</small>
+        <small>{nomesEquipe}</small>
       </button>
 
       <div className="oa-live-metrics">
@@ -580,7 +602,7 @@ const css = `
 .oa-live-status{width:100%;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.035);border-radius:11px;padding:10px 11px;text-align:left;color:inherit;cursor:pointer}
 .oa-live-status:hover{border-color:var(--obra-border);background:rgba(255,255,255,.06)}
 .oa-live-status b{display:block;font-size:13.5px;color:${THEME.ink};line-height:1.2}
-.oa-live-status small{display:block;font-size:11.5px;color:${THEME.muted};margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.oa-live-status small{display:-webkit-box;font-size:11.5px;color:${THEME.muted};margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:normal;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.35}
 .oa-live-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .oa-live-metrics button{border:1px solid ${THEME.border};background:${THEME.card};border-radius:10px;padding:8px;min-width:0;text-align:left;color:inherit;cursor:pointer}
 .oa-live-metrics button:hover{border-color:var(--obra-border);background:var(--obra-soft)}
