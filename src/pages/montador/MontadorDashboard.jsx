@@ -1682,10 +1682,16 @@ export default function MontadorDashboard() {
             {(formFoto.categoria === 'Vistoria' ? vistoriasAgenda : agenda).map(item => <option key={item.id} value={item.id}>{item.titulo || item.tipo || 'Compromisso'}{item.data ? ` - ${dataBR(item.data)}` : ''}</option>)}
           </select>
           <input value={formFoto.observacao} onChange={e => setFormFoto(p => ({ ...p, observacao: e.target.value }))} placeholder="Observação opcional" />
-          <label className={formFoto.categoria ? 'md-file' : 'md-file disabled'}>
-            {fotoSelecionada ? 'Trocar fotos selecionadas' : 'Selecionar fotos'}
-            <input type="file" accept="image/*" capture="environment" multiple onChange={handleSelecionarFoto} disabled={uploading || !formFoto.categoria} />
-          </label>
+          <div className="md-file-actions">
+            <label className={formFoto.categoria ? 'md-file' : 'md-file disabled'}>
+              Tirar foto agora
+              <input type="file" accept="image/*" capture="environment" multiple onChange={handleSelecionarFoto} disabled={uploading || !formFoto.categoria} />
+            </label>
+            <label className={formFoto.categoria ? 'md-file secondary' : 'md-file secondary disabled'}>
+              {fotoSelecionada ? 'Trocar pela galeria' : 'Escolher da galeria'}
+              <input type="file" accept="image/*" multiple onChange={handleSelecionarFoto} disabled={uploading || !formFoto.categoria} />
+            </label>
+          </div>
           <small className="md-upload-hint">Envie quantas fotos precisar. Elas ficam internas até a aprovação do supervisor.</small>
           {fotoSelecionada && (
             <div className="md-upload-preview">
@@ -1941,7 +1947,9 @@ const css = `
 .md-check-item.done span{color:#9A938A;text-decoration:line-through}
 .md-check-delete{margin-left:auto;min-height:44px;border:0;background:#FFF1F1;color:${THEME.danger};border-radius:10px;padding:8px 9px;font-size:11px;font-weight:900;cursor:pointer}
 .md-upload{display:flex;flex-direction:column;gap:9px;margin-bottom:14px}
+.md-file-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .md-file{display:block;min-height:48px;box-sizing:border-box;background:${THEME.gold};color:${theme.textOnGold};border:1px solid ${THEME.gold};border-radius:14px;padding:15px;text-align:center;font-size:14px;font-weight:900;cursor:pointer}
+.md-file.secondary{background:${THEME.elevated};color:${THEME.ink};border-color:${THEME.border}}
 .md-file.disabled{opacity:1;background:${THEME.elevated};color:${THEME.muted};border-color:${THEME.border};cursor:not-allowed}
 .md-file input{display:none}
 .md-upload-hint{display:block;color:${THEME.muted};font-size:11px;font-weight:800;line-height:1.35;margin-top:-3px}
@@ -2025,6 +2033,6 @@ const css = `
 .md-bottom-nav button{border:0;background:transparent;color:${THEME.textMuted};border-radius:13px;min-height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:10px;font-weight:900;cursor:pointer}
 .md-bottom-nav button.active{color:${THEME.gold};background:rgba(201,168,76,.12)}
 .md-bottom-nav svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;color:currentColor}
-@media (max-width:380px){.md-page{padding-left:10px;padding-right:10px}.md-card,.md-obra-card,.md-check-card{padding:16px}.md-check-card{align-items:stretch;flex-direction:column}.md-check-card button{width:100%}.md-bottom-nav{left:6px;right:6px;gap:2px;padding:6px}.md-bottom-nav button{font-size:9px}.md-date-list button{grid-template-columns:48px minmax(0,1fr)}}
+@media (max-width:380px){.md-page{padding-left:10px;padding-right:10px}.md-card,.md-obra-card,.md-check-card{padding:16px}.md-check-card{align-items:stretch;flex-direction:column}.md-check-card button{width:100%}.md-file-actions{grid-template-columns:1fr}.md-bottom-nav{left:6px;right:6px;gap:2px;padding:6px}.md-bottom-nav button{font-size:9px}.md-date-list button{grid-template-columns:48px minmax(0,1fr)}}
 @media (min-width:720px){.md-page{max-width:680px;padding:26px 20px calc(112px + env(safe-area-inset-bottom))}.md-summary{grid-template-columns:repeat(4,1fr)}.md-quick{grid-template-columns:repeat(4,1fr)}}
 `
