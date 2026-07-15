@@ -137,6 +137,15 @@ function statusAprovacaoFoto(foto) {
   return 'pendente'
 }
 
+function fotoAprovadaEmpresa(foto) {
+  return statusAprovacaoFoto(foto) === 'aprovada' || foto?.aprovada_gestao === true || foto?.aprovada === true
+}
+
+function fotoEnviadaPeloUsuario(foto, userId) {
+  if (!userId) return false
+  return [foto?.enviada_por, foto?.criado_por, foto?.user_id, foto?.autor_id].filter(Boolean).some(id => String(id) === String(userId))
+}
+
 function textoStatusFoto(foto) {
   const status = statusAprovacaoFoto(foto)
   if (status === 'aprovada') return 'Aprovada'
@@ -313,6 +322,12 @@ function agendaMontador(result) {
   return safeArray(result).filter(agendaVisivelAoMontador)
 }
 
+function fotosVisiveisParaMontador(result, userId) {
+  return safeArray(result)
+    .filter(foto => fotoAprovadaEmpresa(foto) || fotoEnviadaPeloUsuario(foto, userId))
+    .map(foto => ({ ...foto, categoria: foto.categoria || 'Geral', publicUrl: fotoUrl(foto) }))
+}
+
 export default function MontadorDashboard() {
   const navigate = useNavigate()
   const { user, profile, setUser, setProfile } = useStore()
@@ -457,7 +472,7 @@ export default function MontadorDashboard() {
       setCheckins(safeArray(dados.checkinsResult))
       setChecklist(await garantirChecklistMontagem(obra, safeArray(dados.checklistResult)))
       setAmbientes(safeArray(dados.ambientesResult))
-      setFotos(safeArray(dados.fotosResult).map(foto => ({ ...foto, categoria: foto.categoria || 'Geral', publicUrl: fotoUrl(foto) })))
+      setFotos(fotosVisiveisParaMontador(dados.fotosResult, user.id))
       setOcorrencias(safeArray(dados.ocorrenciasResult))
       setAgenda(agendaMontador(dados.agendaResult))
     } catch (error) {
@@ -544,7 +559,7 @@ export default function MontadorDashboard() {
         setCheckins(safeArray(dados.checkinsResult))
         setChecklist(await garantirChecklistMontagem(obraAtiva, safeArray(dados.checklistResult)))
         setAmbientes(safeArray(dados.ambientesResult))
-        setFotos(safeArray(dados.fotosResult).map(foto => ({ ...foto, categoria: foto.categoria || 'Geral', publicUrl: fotoUrl(foto) })))
+        setFotos(fotosVisiveisParaMontador(dados.fotosResult, user.id))
         setOcorrencias(safeArray(dados.ocorrenciasResult))
         setAgenda(agendaMontador(dados.agendaResult))
       } catch (error) {

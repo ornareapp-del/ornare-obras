@@ -22,6 +22,7 @@ Rodar em ambiente de homologação primeiro e depois em produção, nesta ordem:
 5. `docs/supabase-financeiro-operacional.sql`
 6. `docs/supabase-montador-agenda-status-rpc.sql`
 7. `docs/supabase-portal-cliente-rls.sql`
+8. `docs/supabase-montador-fotos-internas.sql`
 
 ## Validação funcional obrigatória
 
@@ -56,5 +57,6 @@ Rodar em ambiente de homologação primeiro e depois em produção, nesta ordem:
 - [x] Tela global de carregamento com ação de tentar novamente e sair quando a validação demora.
 - [x] Portal Cliente protegido contra falhas inesperadas no carregamento, evitando ficar preso indefinidamente.
 - [x] Splash inicial ampliada e texto `GESTÃO DE OBRAS` corrigido.
+- [x] Fotos aprovadas por supervisor liberadas para todos os montadores vinculados à obra.
 - [ ] Testar novamente o Portal Cliente em janela anônima com usuário cliente real.
 - [ ] Rodar `npm.cmd run build` em terminal com permissão suficiente caso o Vite volte a falhar com `EPERM`.
