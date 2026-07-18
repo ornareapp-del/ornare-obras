@@ -68,6 +68,20 @@ function rotuloRisco(valor) {
 function rotuloStatusPeriodo(valor) {
   return { pendente: 'Planejado', 'em andamento': 'Em andamento', realizada: 'Concluído', suspensa: 'Suspenso', cancelada: 'Cancelado' }[valor] || valor
 }
+
+function calcularDiasDosPeriodos(periodos = []) {
+  const datas = new Set()
+  periodos.filter(item => item?.data && item.status !== 'cancelada').forEach(item => {
+    const atual = new Date(`${item.data}T12:00:00`)
+    const fim = new Date(`${item.data_fim || item.data}T12:00:00`)
+    if (Number.isNaN(atual.getTime()) || Number.isNaN(fim.getTime()) || fim < atual) return
+    while (atual <= fim) {
+      datas.add(atual.toISOString().slice(0, 10))
+      atual.setDate(atual.getDate() + 1)
+    }
+  })
+  return datas.size
+}
 const SECOES = [
   { id: 'Resumo', label: 'Resumo' },
   { id: 'Cliente', label: 'Cliente' },
@@ -1093,7 +1107,19 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
       setMensagem({ tipo: 'erro', texto: 'Não foi possível carregar os períodos de execução: ' + error.message })
       return
     }
-    setPeriodos(data || [])
+    const itens = data || []
+    setPeriodos(itens)
+    if (itens.length) setForm(atual => atual ? ({ ...atual, dias_previstos: calcularDiasDosPeriodos(itens) }) : atual)
+    return itens
+  }
+
+  async function sincronizarDiasDosPeriodos(itens) {
+    const dias = calcularDiasDosPeriodos(itens)
+    setForm(atual => atual ? ({ ...atual, dias_previstos: dias }) : atual)
+    if (!cronograma?.id) return
+    const { error } = await supabase.from('obra_cronograma').update({ dias_previstos: dias }).eq('id', cronograma.id)
+    if (error) throw error
+    setCronograma(atual => atual ? ({ ...atual, dias_previstos: dias }) : atual)
   }
 
   function editarPeriodo(item) {
@@ -1131,7 +1157,14 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
     if (result.error) {
       setMensagem({ tipo: 'erro', texto: 'Não foi possível salvar o período: ' + result.error.message })
     } else {
-      await carregarPeriodos()
+      const itens = await carregarPeriodos()
+      try {
+        await sincronizarDiasDosPeriodos(itens)
+      } catch (error) {
+        setMensagem({ tipo: 'erro', texto: 'O período foi salvo, mas não foi possível atualizar os dias estimados: ' + error.message })
+        setSalvandoPeriodo(false)
+        return
+      }
       novoPeriodo()
       setMensagem({ tipo: 'sucesso', texto: periodoEditando ? 'Período atualizado.' : 'Período adicionado ao cronograma e à agenda.' })
     }
@@ -1146,7 +1179,13 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
       return
     }
     if (String(periodoEditando) === String(item.id)) novoPeriodo()
-    await carregarPeriodos()
+    const itens = await carregarPeriodos()
+    try {
+      await sincronizarDiasDosPeriodos(itens)
+    } catch (sincronizacaoError) {
+      setMensagem({ tipo: 'erro', texto: 'O período foi excluído, mas não foi possível atualizar os dias estimados: ' + sincronizacaoError.message })
+      return
+    }
     setMensagem({ tipo: 'sucesso', texto: 'Período excluído da agenda.' })
   }
 
@@ -1344,7 +1383,11 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
           <div><Label>Prioridade</Label><FSelect value={form.prioridade || 'media'} onChange={v => setCampo('prioridade', v)}>{PRIORIDADES_CRONOGRAMA.map(p => <option key={p} value={p}>{rotuloPrioridade(p)}</option>)}</FSelect></div>
           <div><Label>Risco</Label><FSelect value={form.risco || 'medio'} onChange={v => setCampo('risco', v)}>{RISCOS_CRONOGRAMA.map(r => <option key={r} value={r}>{rotuloRisco(r)}</option>)}</FSelect></div>
           <div><Label>Percentual concluído</Label><FInput type="number" min="0" max="100" value={form.percentual_concluido ?? 0} onChange={v => setCampo('percentual_concluido', v)} /></div>
-          <div><Label>Dias estimados de execução</Label><FInput type="number" min="0" value={form.dias_previstos || ''} onChange={v => setCampo('dias_previstos', v)} /></div>
+          <div>
+            <Label>Dias estimados de execução</Label>
+            <FInput type="number" min="0" readOnly={periodos.length > 0} value={form.dias_previstos ?? ''} onChange={v => setCampo('dias_previstos', v)} />
+            {periodos.length > 0 && <div style={{ color: THEME.muted, fontSize: 10.5, marginTop: 5 }}>Calculado automaticamente pelos períodos, sem duplicar datas sobrepostas.</div>}
+          </div>
           <div><Label>Data início prevista</Label><FInput type="date" value={form.data_inicio_prevista || ''} onChange={v => setCampo('data_inicio_prevista', v)} /></div>
           <div><Label>Data fim prevista</Label><FInput type="date" value={form.data_fim_prevista || ''} onChange={v => setCampo('data_fim_prevista', v)} /></div>
           <div><Label>Data início real</Label><FInput type="date" value={form.data_inicio_real || ''} onChange={v => setCampo('data_inicio_real', v)} /></div>
