@@ -694,37 +694,82 @@ async function exportarRelatorioObraLegado(obraId, tipo = 'executivo') {
   pdf.save(`${nomeArquivo(titulo)}-${nomeArquivo(ctx.obra.nome)}.pdf`)
 }
 
+class PlanejamentoPdf {
+  constructor(jsPDF, mes) {
+    this.doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+    this.mes = mes; this.page = 1; this.header()
+  }
+  header() {
+    const d = this.doc
+    d.setFillColor(THEME.ink); d.rect(0, 0, 297, 29, 'F')
+    d.setTextColor('#FFFFFF'); d.setFont('helvetica', 'bold'); d.setFontSize(17); d.text('ORNARE', 14, 13)
+    d.setTextColor(THEME.gold); d.setFontSize(6.5); d.text('WORKS  /  FLORIANOPOLIS', 14, 19)
+    d.setTextColor('#FFFFFF'); d.setFontSize(14); d.text('PLANEJAMENTO EXECUTIVO', 78, 12.5)
+    d.setFont('helvetica', 'normal'); d.setTextColor('#DDD5C9'); d.setFontSize(8); d.text(`Carteira de obras e agenda operacional  -  ${this.mes}`, 78, 19)
+    d.setDrawColor(THEME.gold); d.setLineWidth(0.8); d.line(14, 26, 283, 26); this.y = 37
+  }
+  footer() {
+    const d = this.doc; d.setDrawColor(THEME.border); d.line(14, 199, 283, 199)
+    d.setTextColor(THEME.muted); d.setFont('helvetica', 'normal'); d.setFontSize(6.5)
+    d.text(`Atualizado em ${new Date().toLocaleString('pt-BR')}  |  Ornare Works`, 14, 204); d.text(`Pagina ${this.page}`, 272, 204)
+  }
+  addPage(title) { this.footer(); this.doc.addPage(); this.page += 1; this.header(); if (title) this.section(title) }
+  ensure(h, title) { if (this.y + h > 195) this.addPage(title) }
+  fit(v, w) { return this.doc.splitTextToSize(String(v ?? '-'), w)[0] || '-' }
+  title(t, s) { this.doc.setTextColor(THEME.ink); this.doc.setFont('helvetica', 'bold'); this.doc.setFontSize(17); this.doc.text(t, 14, this.y); this.doc.setFont('helvetica', 'normal'); this.doc.setTextColor(THEME.muted); this.doc.setFontSize(8); this.doc.text(s, 14, this.y + 5); this.y += 12 }
+  section(t, note = '') { this.ensure(14); const d = this.doc; d.setFillColor(THEME.soft); d.rect(14, this.y, 269, 9, 'F'); d.setFillColor(THEME.gold); d.rect(14, this.y, 2, 9, 'F'); d.setTextColor(THEME.ink); d.setFont('helvetica', 'bold'); d.setFontSize(9.5); d.text(t, 20, this.y + 5.8); if (note) { d.setFont('helvetica', 'normal'); d.setTextColor(THEME.muted); d.setFontSize(6.5); d.text(note, 280, this.y + 5.8, { align: 'right' }) } this.y += 13 }
+  kpis(items) { const gap = 3, w = (269 - gap * (items.length - 1)) / items.length; items.forEach((it, i) => { const x = 14 + i * (w + gap), d = this.doc; d.setDrawColor(it.danger ? THEME.danger : THEME.border); d.setLineWidth(it.danger ? .7 : .25); d.roundedRect(x, this.y, w, 20, 2, 2); d.setTextColor(it.danger ? THEME.danger : THEME.gold); d.setFont('helvetica', 'bold'); d.setFontSize(6.2); d.text(String(it.label).toUpperCase(), x + 4, this.y + 6); d.setTextColor(THEME.ink); d.setFontSize(15); d.text(String(it.value), x + 4, this.y + 15) }); this.y += 26 }
+  table(cols, rows, title = 'Continuacao') {
+    const head = () => { let x = 14; const d = this.doc; d.setFillColor(THEME.ink); d.rect(14, this.y, 269, 8, 'F'); cols.forEach(c => { d.setTextColor('#FFF'); d.setFont('helvetica', 'bold'); d.setFontSize(6.3); d.text(c.label, x + 2, this.y + 5.2); x += c.width }); this.y += 8 }
+    head(); if (!rows.length) { this.doc.setTextColor(THEME.muted); this.doc.setFontSize(7.5); this.doc.text('Nenhum registro encontrado.', 16, this.y + 7); this.y += 12; return }
+    rows.forEach((row, i) => { if (this.y + 11 > 195) { this.addPage(title); head() } const d = this.doc; if (i % 2) { d.setFillColor('#F5F2ED'); d.rect(14, this.y, 269, 11, 'F') } let x = 14; cols.forEach(c => { const v = c.get(row); d.setTextColor(c.color ? c.color(row) : THEME.ink); d.setFont('helvetica', c.bold ? 'bold' : 'normal'); d.setFontSize(6.7); d.text(this.fit(v || '-', c.width - 4), x + 2, this.y + 6.5); x += c.width }); d.setDrawColor(THEME.border); d.line(14, this.y + 11, 283, this.y + 11); this.y += 11 }); this.y += 5
+  }
+  save(name) { this.footer(); this.doc.save(name) }
+}
+
+function alertaPlanejamento(r, ocorrencias) {
+  const a = []
+  if (r.travado) a.push('Obra travada')
+  if (['alto', 'critico'].includes(normalizar(r.risco))) a.push(`Risco ${r.risco}`)
+  const abertas = ocorrencias.filter(o => o.obra_id === r.obra_id && !['resolvida', 'concluida', 'cancelada'].includes(normalizar(o.status)))
+  if (abertas.length) a.push(`${abertas.length} ocorrencia(s)`)
+  if (!r.montadores?.length) a.push('Equipe nao alocada')
+  return a.join(' | ') || 'OK - sem pendencias criticas'
+}
+
 export async function exportarPlanejamentoPdf({ registros = [], agenda = [], mesAtual = new Date() }) {
-  const pdf = await criarPdf('Relatório de Planejamento', 'Central de Planejamento Operacional')
   const mes = mesAtual.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
-  const obrasIds = new Set(registros.map(r => r.obra_id).filter(Boolean))
-  const travadas = registros.filter(r => r.travado || normalizar(r.status_operacional).includes('trav'))
-  const riscos = registros.filter(r => ['alto', 'critico'].includes(normalizar(r.risco)))
-
-  pdf.section(`Resumo do mês - ${mes}`)
-  pdf.grid([
-    { label: 'Obras no cronograma', value: obrasIds.size },
-    { label: 'Compromissos', value: agenda.length },
-    { label: 'Travadas', value: travadas.length },
-    { label: 'Risco alto', value: riscos.length },
-  ])
-
-  pdf.section('Cronograma operacional')
-  pdf.list(registros.slice(0, 40).map(r => ({
-    title: r.obra?.nome || r.obra_nome || 'Obra',
-    meta: `${dataBR(r.data_inicio_prevista)} - ${dataBR(r.data_fim_prevista)}`,
-    detail: `${r.faseLabel || r.fase || '-'} · ${r.status_operacional || '-'} · ${r.percentual_concluido ?? 0}%`,
-  })), 'Nenhuma obra no cronograma.')
-
-  pdf.section('Agenda do período')
-  pdf.list(agenda.slice(0, 40).map(a => ({
-    title: a.obra?.nome || a.titulo || a.tipo || 'Compromisso',
-    meta: dataBR(a.data),
-    detail: [a.tipo, a.supervisor?.full_name || a.supervisor?.email].filter(Boolean).join(' · '),
-  })), 'Nenhum compromisso encontrado.')
-
   try {
-    pdf.save(`planejamento-ornare-${nomeArquivo(mes)}.pdf`)
+    const ids = [...new Set(registros.map(r => r.obra_id).filter(Boolean))]
+    const [obrasResult, ocorrenciasResult] = await Promise.all([
+      ids.length ? consultaSupabase('obras', supabase.from('obras').select('*').in('id', ids)) : { data: [] },
+      ids.length ? consultaSupabase('ocorrencias', supabase.from('ocorrencias').select('*').in('obra_id', ids)) : { data: [] },
+    ])
+    const obras = safeArray(obrasResult), ocorrencias = safeArray(ocorrenciasResult), obraPorId = new Map(obras.map(o => [o.id, o]))
+    const carteira = registros.map(r => ({ ...r, obra: { ...(r.obra || {}), ...(obraPorId.get(r.obra_id) || {}) } }))
+    const travadas = carteira.filter(r => r.travado || normalizar(r.status_operacional).includes('trav'))
+    const riscos = carteira.filter(r => ['alto', 'critico'].includes(normalizar(r.risco)))
+    const equipes = new Set(agenda.flatMap(a => (a.montadores || []).map(nomePessoa)).filter(n => n !== '-'))
+    const { jsPDF } = await import('jspdf'); const pdf = new PlanejamentoPdf(jsPDF, mes)
+    pdf.title('Dashboard da operacao', 'Leitura executiva da carteira, dos riscos e da mobilizacao das equipes.')
+    pdf.kpis([{ label: 'Obras ativas', value: ids.length }, { label: 'Execucoes / agenda', value: agenda.length }, { label: 'Equipes mobilizadas', value: equipes.size }, { label: 'Obras travadas', value: travadas.length, danger: travadas.length > 0 }, { label: 'Risco alto', value: riscos.length, danger: riscos.length > 0 }])
+    pdf.section('Visao rapida por obra', `${carteira.length} registros no cronograma`)
+    pdf.table([
+      { label: 'OBRA / CLIENTE', width: 52, get: r => r.obra?.nome, bold: true }, { label: 'STATUS', width: 31, get: r => r.status_operacional || r.obra?.status }, { label: 'FASE ATUAL', width: 37, get: r => r.faseLabel || r.fase }, { label: 'PROG.', width: 16, get: r => `${r.percentual_concluido ?? 0}%`, bold: true }, { label: 'PERIODO PREVISTO', width: 43, get: r => `${dataBR(r.data_inicio_prevista)} - ${dataBR(r.data_fim_prevista)}` }, { label: 'RESPONSAVEL / EQUIPE', width: 44, get: r => (r.montadores || []).map(nomePessoa).join(', ') || nomePessoa(r.supervisor) }, { label: 'ALERTAS', width: 46, get: r => alertaPlanejamento(r, ocorrencias), color: r => alertaPlanejamento(r, ocorrencias).startsWith('OK') ? '#2D7A4A' : THEME.danger, bold: true },
+    ], carteira, 'Carteira de obras - continuacao')
+    pdf.section('Agenda operacional do mes', 'Periodos de execucao e compromissos confirmados')
+    pdf.table([
+      { label: 'DATA / HORARIO', width: 38, get: a => `${dataBR(a.data)}${a.hora_inicio ? `  ${String(a.hora_inicio).slice(0, 5)}` : ''}`, bold: true }, { label: 'OBRA', width: 54, get: a => a.obra?.nome || a.titulo || 'Interno', bold: true }, { label: 'ATIVIDADE', width: 43, get: a => a.compromissoTipo || a.tipo }, { label: 'PERIODO', width: 42, get: a => a.data_fim && a.data_fim !== a.data ? `${dataBR(a.data)} - ${dataBR(a.data_fim)}` : 'No dia' }, { label: 'RESPONSAVEL', width: 43, get: a => nomePessoa(a.supervisor) }, { label: 'EQUIPE ALOCADA', width: 49, get: a => (a.montadores || []).map(nomePessoa).join(', ') || 'Sem equipe definida' },
+    ], [...agenda].sort((a, b) => String(a.data).localeCompare(String(b.data))), 'Agenda operacional - continuacao')
+    pdf.section('Dados de cliente e local da obra', 'Apoio para logistica e contato')
+    pdf.table([
+      { label: 'OBRA / CLIENTE', width: 58, get: o => o.nome || o.cliente_nome, bold: true }, { label: 'CONTATO', width: 58, get: o => [o.cliente_telefone, o.cliente_email].filter(Boolean).join(' | ') }, { label: 'ENDERECO DA OBRA', width: 89, get: o => o.endereco || [o.cidade, o.uf].filter(Boolean).join(' / ') }, { label: 'CONTRATO', width: 34, get: o => o.numero_contrato }, { label: 'PREVISAO', width: 30, get: o => dataBR(o.data_previsao || o.data_previsao_entrega) },
+    ], obras, 'Clientes e locais - continuacao')
+    pdf.section('Pontos de atencao', 'Prioridades para a reuniao de planejamento')
+    pdf.table([
+      { label: 'OBRA', width: 58, get: r => r.obra?.nome, bold: true }, { label: 'RISCO / STATUS', width: 51, get: r => `${r.risco || 'nao informado'} | ${r.status_operacional || '-'}` }, { label: 'PENDENCIA', width: 91, get: r => alertaPlanejamento(r, ocorrencias), color: () => THEME.danger, bold: true }, { label: 'ACAO RECOMENDADA', width: 69, get: r => r.acao_recomendada || 'Definir responsavel e proximo passo' },
+    ], carteira.filter(r => !alertaPlanejamento(r, ocorrencias).startsWith('OK')), 'Pontos de atencao - continuacao')
+    pdf.save(`planejamento-executivo-ornare-${nomeArquivo(mes)}.pdf`)
   } catch (error) {
     throw new Error(`Nao foi possivel gerar o PDF de planejamento. ${erroMensagem(error)}`, { cause: error })
   }
