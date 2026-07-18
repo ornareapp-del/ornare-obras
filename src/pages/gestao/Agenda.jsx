@@ -4,11 +4,12 @@ import { supabase } from '../../lib/supabase'
 import { theme } from '../../constants/theme'
 import { criarNotificacoes } from '../../services/notificacoesService'
 
-const TIPOS = ['Apresentação','Assistência Técnica','Compromisso','Entrega','Medição','Montagem','Tarefa','Vistoria','Reunião Interna']
+const TIPOS = ['Apresentação','Assistência Técnica','Compromisso','Entrega','Medição','Montagem','Período de execução','Tarefa','Vistoria','Reunião Interna']
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 const DIAS = ['Dom','Seg','Ter','Qua','Qui','Sex','Sab']
 const TIPO_COR = {
   'Montagem': '#2D7A4A',
+  'Período de execução': '#C9A84C',
   'Entrega': '#E07B39',
   'Medicao': '#9070C0',
   'Medição': '#9070C0',
