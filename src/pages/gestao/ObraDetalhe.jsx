@@ -78,7 +78,8 @@ function datasOperacionaisPeriodo(item, calendario = []) {
   while (atual <= fim) {
     const data = `${atual.getFullYear()}-${String(atual.getMonth() + 1).padStart(2, '0')}-${String(atual.getDate()).padStart(2, '0')}`
     const excecao = excecoes.get(data)
-    if (excecao ? excecao.dia_util : ![0, 6].includes(atual.getDay())) datas.push(data)
+    const sabadoPermitido = atual.getDay() === 6 && (jornadaSabadoNaObservacao(item.observacao) || item.data === (item.data_fim || item.data))
+    if (excecao ? excecao.dia_util : (atual.getDay() !== 0 && (atual.getDay() !== 6 || sabadoPermitido))) datas.push(data)
     atual.setDate(atual.getDate() + 1)
   }
   return datas
@@ -108,6 +109,15 @@ function adicionarDiasIso(data, quantidade) {
   const valor = new Date(`${data}T12:00:00`)
   valor.setDate(valor.getDate() + Number(quantidade || 0))
   return `${valor.getFullYear()}-${String(valor.getMonth() + 1).padStart(2, '0')}-${String(valor.getDate()).padStart(2, '0')}`
+}
+
+function jornadaSabadoNaObservacao(observacao) {
+  return /(?:^|\n)Jornada:\s*segunda a sabado(?:\n|$)/i.test(String(observacao || ''))
+}
+
+function observacaoComJornada(observacao, trabalhaSabado) {
+  const texto = String(observacao || '').split('\n').filter(linha => !/^Jornada:\s*/i.test(linha.trim())).join('\n').trim()
+  return [texto, trabalhaSabado ? 'Jornada: segunda a sabado' : ''].filter(Boolean).join('\n') || null
 }
 const SECOES = [
   { id: 'Resumo', label: 'Resumo' },
@@ -1124,7 +1134,7 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
   const [calendarioOperacional, setCalendarioOperacional] = useState([])
   const [modeloSelecionado, setModeloSelecionado] = useState('simples')
   const [dataModelo, setDataModelo] = useState('')
-  const [formPeriodo, setFormPeriodo] = useState({ atividade: 'Montagem', data: '', data_fim: '', responsavel_id: '', equipe_ids: [], status: 'pendente', percentual_concluido: 0, retorno_necessario: false, motivo_pausa: '', dependencias: [], observacao: '', visivel_montador: true, visivel_cliente: false })
+  const [formPeriodo, setFormPeriodo] = useState({ atividade: 'Montagem', data: '', data_fim: '', hora_inicio: '08:00', hora_fim: '17:00', trabalha_sabado: false, responsavel_id: '', equipe_ids: [], status: 'pendente', percentual_concluido: 0, retorno_necessario: false, motivo_pausa: '', dependencias: [], observacao: '', visivel_montador: true, visivel_cliente: false })
 
   function setCampo(campo, valor) {
     setForm(p => ({ ...p, [campo]: valor }))
@@ -1132,7 +1142,7 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
 
   function novoPeriodo() {
     setPeriodoEditando(null)
-    setFormPeriodo({ atividade: 'Montagem', data: form?.data_inicio_prevista || '', data_fim: form?.data_inicio_prevista || '', responsavel_id: form?.responsavel_id || '', equipe_ids: [], status: 'pendente', percentual_concluido: 0, retorno_necessario: false, motivo_pausa: '', dependencias: [], observacao: '', visivel_montador: true, visivel_cliente: false })
+    setFormPeriodo({ atividade: 'Montagem', data: form?.data_inicio_prevista || '', data_fim: form?.data_inicio_prevista || '', hora_inicio: '08:00', hora_fim: '17:00', trabalha_sabado: false, responsavel_id: form?.responsavel_id || '', equipe_ids: [], status: 'pendente', percentual_concluido: 0, retorno_necessario: false, motivo_pausa: '', dependencias: [], observacao: '', visivel_montador: true, visivel_cliente: false })
   }
 
   async function carregarPeriodos() {
@@ -1176,7 +1186,7 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
 
   function editarPeriodo(item) {
     setPeriodoEditando(item.id)
-    setFormPeriodo({ atividade: item.titulo || 'Montagem', data: item.data || '', data_fim: item.data_fim || item.data || '', responsavel_id: item.responsavel_id || '', equipe_ids: equipePorPeriodo[item.id] || [], status: item.status || 'pendente', percentual_concluido: Number(item.percentual_concluido) || 0, retorno_necessario: Boolean(item.retorno_necessario), motivo_pausa: item.motivo_pausa || '', dependencias: (dependenciasPorPeriodo[item.id] || []).map(dep => ({ tipo: dep.tipo, descricao: dep.descricao, concluida: dep.concluida })), observacao: item.observacao || '', visivel_montador: item.visivel_montador !== false, visivel_cliente: Boolean(item.visivel_cliente) })
+    setFormPeriodo({ atividade: item.titulo || 'Montagem', data: item.data || '', data_fim: item.data_fim || item.data || '', hora_inicio: item.hora_inicio?.slice(0, 5) || '08:00', hora_fim: item.hora_fim?.slice(0, 5) || '17:00', trabalha_sabado: jornadaSabadoNaObservacao(item.observacao), responsavel_id: item.responsavel_id || '', equipe_ids: equipePorPeriodo[item.id] || [], status: item.status || 'pendente', percentual_concluido: Number(item.percentual_concluido) || 0, retorno_necessario: Boolean(item.retorno_necessario), motivo_pausa: item.motivo_pausa || '', dependencias: (dependenciasPorPeriodo[item.id] || []).map(dep => ({ tipo: dep.tipo, descricao: dep.descricao, concluida: dep.concluida })), observacao: String(item.observacao || '').split('\n').filter(linha => !/^Jornada:\s*/i.test(linha.trim())).join('\n'), visivel_montador: item.visivel_montador !== false, visivel_cliente: Boolean(item.visivel_cliente) })
   }
 
   async function salvarPeriodo() {
@@ -1221,7 +1231,7 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
         return
       }
     }
-    const payload = { obra_id: obraId, tipo: TIPO_AGENDA_PERIODO, titulo: formPeriodo.atividade.trim(), observacao: formPeriodo.observacao || null, data: formPeriodo.data, data_fim: fim, hora_inicio: '08:00', hora_fim: null, responsavel_id: formPeriodo.responsavel_id || null, status: formPeriodo.status || 'pendente', percentual_concluido: Number(formPeriodo.percentual_concluido) || 0, retorno_necessario: Boolean(formPeriodo.retorno_necessario), motivo_pausa: formPeriodo.motivo_pausa || null, reuniao_interna: false, visivel_montador: Boolean(formPeriodo.visivel_montador), visivel_cliente: Boolean(formPeriodo.visivel_cliente) }
+    const payload = { obra_id: obraId, tipo: TIPO_AGENDA_PERIODO, titulo: formPeriodo.atividade.trim(), observacao: observacaoComJornada(formPeriodo.observacao, formPeriodo.trabalha_sabado), data: formPeriodo.data, data_fim: fim, hora_inicio: formPeriodo.hora_inicio || '08:00', hora_fim: formPeriodo.hora_fim || null, responsavel_id: formPeriodo.responsavel_id || null, status: formPeriodo.status || 'pendente', percentual_concluido: Number(formPeriodo.percentual_concluido) || 0, retorno_necessario: Boolean(formPeriodo.retorno_necessario), motivo_pausa: formPeriodo.motivo_pausa || null, reuniao_interna: false, visivel_montador: Boolean(formPeriodo.visivel_montador), visivel_cliente: Boolean(formPeriodo.visivel_cliente) }
     const periodoOriginal = periodos.find(item => String(item.id) === String(periodoEditando))
     const houveReagendamento = periodoOriginal && (periodoOriginal.data !== payload.data || (periodoOriginal.data_fim || periodoOriginal.data) !== payload.data_fim)
     let reagendamento = null
@@ -1579,7 +1589,7 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
       </Card>
 
       <Card titulo="Dados do cronograma">
-        <div style={{ color: THEME.muted, fontSize: 12.5, lineHeight: 1.5, marginBottom: 14 }}>Visão geral da obra: fase atual, prazo total e responsáveis. As idas e retornos da equipe são detalhados nos períodos de execução abaixo.</div>
+        <div style={{ color: THEME.muted, fontSize: 12.5, lineHeight: 1.5, marginBottom: 14 }}><strong style={{ color: THEME.ink }}>Previsão macro da obra.</strong> Define fase, prazo geral e responsáveis; não cria uma ida da equipe. As datas efetivamente trabalhadas são cadastradas em “Períodos de execução” abaixo.</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12 }}>
           <div><Label>Fase / status operacional</Label><FSelect value={faseAtual} onChange={v => setCampo('fase', v)}>{FASES_ORNARE.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}</FSelect></div>
           <div><Label>Descrição da etapa atual</Label><FInput value={form.etapa_atual || ''} onChange={v => setCampo('etapa_atual', v)} /></div>
@@ -1600,11 +1610,12 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
           <div><Label>Supervisor</Label><FSelect value={form.supervisor_id || ''} onChange={v => setCampo('supervisor_id', v)}><option value="">Sem supervisor</option>{supervisores.map(p => <option key={p.id} value={p.id}>{p.full_name || p.email}</option>)}</FSelect></div>
           <div><Label>Pós-venda</Label><FSelect value={form.pos_venda_id || ''} onChange={v => setCampo('pos_venda_id', v)}><option value="">Sem pós-venda</option>{posVenda.map(p => <option key={p.id} value={p.id}>{p.full_name || p.email}</option>)}</FSelect></div>
         </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}><button onClick={salvar} disabled={salvando} style={{ background: salvando ? '#777' : THEME.gold, color: '#fff', border: 'none', borderRadius: 9, minHeight: 42, padding: '9px 16px', fontSize: 12.5, fontWeight: 900, cursor: 'pointer' }}>{salvando ? 'Salvando...' : 'Salvar dados do cronograma'}</button></div>
       </Card>
 
       <div style={{ display: 'grid', gridTemplateColumns: compacto ? '1fr' : '1fr 1fr', gap: 16 }}>
         <Card titulo="Períodos de execução" full>
-          <div style={{ color: THEME.muted, fontSize: 12.5, lineHeight: 1.5, marginBottom: 14 }}>Divida a execução em intervalos. Cada período também aparece na Agenda e libera o responsável entre um retorno e outro.</div>
+          <div style={{ color: THEME.muted, fontSize: 12.5, lineHeight: 1.5, marginBottom: 14 }}><strong style={{ color: THEME.ink }}>Agenda real da equipe.</strong> Cada período salvo aparece automaticamente na Agenda e no Planejamento. Domingos são ignorados; marque abaixo quando houver trabalho no sábado.</div>
           <div style={{ display: 'grid', gridTemplateColumns: compacto ? '1fr' : '2fr 1fr auto', gap: 10, alignItems: 'end', border: `1px solid ${THEME.border}`, background: THEME.elevated, borderRadius: 12, padding: 12, marginBottom: 14 }}>
             <div><Label>Modelo de execução</Label><FSelect value={modeloSelecionado} onChange={setModeloSelecionado}>{Object.entries(MODELOS_EXECUCAO).map(([key, modelo]) => <option key={key} value={key}>{modelo.label}</option>)}</FSelect></div>
             <div><Label>Início do modelo</Label><FInput type="date" value={dataModelo} onChange={setDataModelo} /></div>
@@ -1626,6 +1637,8 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
             <div><Label>Atividade</Label><FSelect value={formPeriodo.atividade} onChange={v => setFormPeriodo(p => ({ ...p, atividade: v }))}>{TIPOS_PERIODO_EXECUCAO.map(tipo => <option key={tipo}>{tipo}</option>)}</FSelect></div>
             <div><Label>Data inicial</Label><FInput type="date" value={formPeriodo.data} onChange={v => setFormPeriodo(p => ({ ...p, data: v, data_fim: p.data_fim || v }))} /></div>
             <div><Label>Data final</Label><FInput type="date" value={formPeriodo.data_fim} onChange={v => setFormPeriodo(p => ({ ...p, data_fim: v }))} /></div>
+            <div><Label>Horário inicial</Label><FInput type="time" value={formPeriodo.hora_inicio} onChange={v => setFormPeriodo(p => ({ ...p, hora_inicio: v }))} /></div>
+            <div><Label>Horário final</Label><FInput type="time" value={formPeriodo.hora_fim} onChange={v => setFormPeriodo(p => ({ ...p, hora_fim: v }))} /></div>
             <div><Label>Líder da equipe</Label><FSelect value={formPeriodo.responsavel_id} onChange={v => setFormPeriodo(p => ({ ...p, responsavel_id: v }))}><option value="">Sem líder</option>{responsaveis.map(p => <option key={p.id} value={p.id}>{p.full_name || p.email}</option>)}</FSelect></div>
             <div><Label>Status</Label><FSelect value={formPeriodo.status} onChange={v => setFormPeriodo(p => ({ ...p, status: v }))}>{STATUS_PERIODO_EXECUCAO.map(status => <option key={status} value={status}>{rotuloStatusPeriodo(status)}</option>)}</FSelect></div>
             <div><Label>Progresso do período (%)</Label><FInput type="number" min="0" max="100" value={formPeriodo.percentual_concluido} onChange={v => setFormPeriodo(p => ({ ...p, percentual_concluido: v }))} /></div>
@@ -1650,6 +1663,7 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
             })}</div> : <div style={{ color: THEME.warning, fontSize: 12 }}>Cadastre montadores na aba Equipe para alocá-los neste período.</div>}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap', marginTop: 12 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: THEME.gold, fontSize: 12.5, fontWeight: 800 }}><input type="checkbox" checked={formPeriodo.trabalha_sabado} onChange={e => setFormPeriodo(p => ({ ...p, trabalha_sabado: e.target.checked, hora_fim: e.target.checked && p.hora_fim === '17:00' ? '12:00' : p.hora_fim }))} />Incluir sábados neste período</label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: THEME.ink, fontSize: 12.5, fontWeight: 700 }}><input type="checkbox" checked={formPeriodo.visivel_montador} onChange={e => setFormPeriodo(p => ({ ...p, visivel_montador: e.target.checked }))} />Visível ao montador</label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: THEME.ink, fontSize: 12.5, fontWeight: 700 }}><input type="checkbox" checked={formPeriodo.visivel_cliente} onChange={e => setFormPeriodo(p => ({ ...p, visivel_cliente: e.target.checked }))} />Visível ao cliente</label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: THEME.warning, fontSize: 12.5, fontWeight: 800 }}><input type="checkbox" checked={formPeriodo.retorno_necessario} onChange={e => setFormPeriodo(p => ({ ...p, retorno_necessario: e.target.checked }))} />Retorno necessário</label>

@@ -170,6 +170,10 @@ function compromissoVisivelMontador(tipo, obraId) {
   return Boolean(obraId) && TIPOS_CAMPO.some(item => texto.includes(item))
 }
 
+function periodoTrabalhaSabado(item) {
+  return /(?:^|\n)Jornada:\s*segunda a sabado(?:\n|$)/i.test(String(item?.observacao || ''))
+}
+
 export default function Planejamento() {
   const navigate = useNavigate()
   const [dados, setDados] = useState({ cronogramas: [], obras: [], profiles: [], montadores: [], agenda: [], equipesPeriodo: [], calendario: [] })
@@ -285,15 +289,23 @@ export default function Planejamento() {
     const dias = []
     const calInicio = startOfCalendar(mesAtual)
     const calFim = endOfCalendar(mesAtual)
+    const obrasComExecucaoAgendada = new Set(compromissosAgenda.filter(item => norm(item.tipo) === 'periodo de execucao' && item.status !== 'cancelada' && item.inicio <= calFim && item.fim >= calInicio).map(item => item.obra_id).filter(Boolean))
     for (const d = new Date(calInicio); d <= calFim; d.setDate(d.getDate() + 1)) {
       const atual = new Date(d)
       const naoUtil = diaNaoUtil(atual)
       const obrasCronograma = naoUtil
         ? []
         : registros
-          .filter(r => r.inicio && r.fim && atual >= r.inicio && atual <= r.fim)
+          .filter(r => r.inicio && r.fim && atual >= r.inicio && atual <= r.fim && !obrasComExecucaoAgendada.has(r.obra_id))
           .map(r => ({ ...r, origem: 'cronograma', compromissoTipo: r.faseLabel || 'Cronograma', tom: { cor: r.faseCor, bg: `${r.faseCor}10`, border: r.faseCor } }))
-      const agendaDia = compromissosAgenda.filter(r => r.inicio && r.fim && atual >= r.inicio && atual <= r.fim)
+      const agendaDia = compromissosAgenda.filter(r => {
+        if (!r.inicio || !r.fim || atual < r.inicio || atual > r.fim) return false
+        if (norm(r.tipo) !== 'periodo de execucao') return true
+        const diaSemana = atual.getDay()
+        if (diaSemana === 0) return false
+        if (diaSemana === 6) return periodoTrabalhaSabado(r) || r.data === r.data_fim
+        return !naoUtil
+      })
       dias.push({
         data: atual,
         key: isoDate(atual),
