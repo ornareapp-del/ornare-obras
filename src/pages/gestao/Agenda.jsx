@@ -352,7 +352,8 @@ export default function Agenda() {
       return
     }
 
-    const agendaResult = await supabase.from('agenda').update({ status: 'em andamento' }).eq('id', editandoId)
+    const ehPeriodoExecucao = norm(form.tipo) === 'periodo de execucao'
+    const agendaResult = await supabase.from('agenda').update(ehPeriodoExecucao ? { status: 'em andamento', data_inicio_real: new Date().toISOString().slice(0, 10) } : { status: 'em andamento' }).eq('id', editandoId)
     if (agendaResult.error) {
       setAcaoStatus('Check-in registrado, mas não foi possível atualizar a agenda: ' + agendaResult.error.message)
       setCampoSalvando(false)
@@ -396,13 +397,20 @@ export default function Agenda() {
       return
     }
 
-    const agendaResult = await supabase.from('agenda').update({ status: 'realizada' }).eq('id', editandoId)
+    const saidaAgora = new Date()
+    const minutosRealizados = checkinsCompromisso.reduce((total, item) => {
+      if (!item.entrada) return total
+      const saida = item.id === aberto.id ? saidaAgora : item.saida ? new Date(item.saida) : null
+      return total + (saida ? Math.max(0, Math.round((saida - new Date(item.entrada)) / 60000)) : 0)
+    }, 0)
+    const ehPeriodoExecucao = norm(form.tipo) === 'periodo de execucao'
+    const agendaResult = await supabase.from('agenda').update(ehPeriodoExecucao ? { status: 'em andamento', data_fim_real: saidaAgora.toISOString().slice(0, 10), minutos_realizados: minutosRealizados } : { status: 'realizada' }).eq('id', editandoId)
     if (agendaResult.error) {
       setAcaoStatus('Check-out registrado, mas não foi possível atualizar a agenda: ' + agendaResult.error.message)
       setCampoSalvando(false)
       return
     }
-    setForm(p => ({ ...p, status: 'realizada' }))
+    setForm(p => ({ ...p, status: ehPeriodoExecucao ? 'em andamento' : 'realizada' }))
     await criarNotificacaoCompromisso({
       agendaId: editandoId,
       obraId: form.obra_id,
@@ -414,7 +422,7 @@ export default function Agenda() {
     })
     await carregarCheckinsCompromisso(form.obra_id, form.data, editandoId)
     await carregar()
-    setAcaoStatus(local.autorizado ? 'Check-out registrado com localização.' : 'Check-out registrado sem localização.')
+    setAcaoStatus(ehPeriodoExecucao ? 'Check-out registrado. O período está pronto para validação de encerramento.' : local.autorizado ? 'Check-out registrado com localização.' : 'Check-out registrado sem localização.')
     setCampoSalvando(false)
   }
 

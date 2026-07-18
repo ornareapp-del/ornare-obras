@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase'
 import { theme } from '../../constants/theme'
 import { exportarPlanejamentoPdf } from '../../services/pdfService'
 import { faseOrnarePorKey, faseOrnarePorTexto } from '../../constants/fasesOrnare'
+import { criarNotificacoes } from '../../services/notificacoesService'
 
 const THEME = {
   bg: theme.background,
@@ -52,7 +53,7 @@ const COMPROMISSO_CORES = {
 const FERIADOS_FIXOS = ['01-01', '04-21', '05-01', '09-07', '10-12', '11-02', '11-15', '12-25']
 
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
-const DIAS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab', 'Dom']
+const DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const TIPOS_COMPROMISSO = ['Montagem', 'Assistência Técnica', 'Vistoria', 'Medição', 'Entrega', 'Reunião']
 const TIPOS_CAMPO = ['montagem', 'assistencia', 'vistoria', 'medicao', 'entrega']
 
@@ -171,7 +172,7 @@ function compromissoVisivelMontador(tipo, obraId) {
 
 export default function Planejamento() {
   const navigate = useNavigate()
-  const [dados, setDados] = useState({ cronogramas: [], obras: [], profiles: [], montadores: [], agenda: [] })
+  const [dados, setDados] = useState({ cronogramas: [], obras: [], profiles: [], montadores: [], agenda: [], equipesPeriodo: [], calendario: [] })
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState('')
   const [salvando, setSalvando] = useState(false)
@@ -181,20 +182,26 @@ export default function Planejamento() {
   const [mesAtual, setMesAtual] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1))
   const [visao, setVisao] = useState('calendario')
   const [filtros, setFiltros] = useState({ mes: monthKey(new Date()), supervisor: '', montador: '', status: '', cidade: '', busca: '', tipo: '' })
+  const diaNaoUtilOperacional = date => {
+    const excecao = dados.calendario.find(item => item.data === isoDate(date))
+    return excecao ? !excecao.dia_util : isDiaNaoUtil(date)
+  }
 
   async function carregarDados() {
     setLoading(true)
     setErro('')
 
-    const [cronogramas, obras, profiles, montadores, agenda] = await Promise.all([
+    const [cronogramas, obras, profiles, montadores, agenda, equipesPeriodo, calendario] = await Promise.all([
       supabase.from('obra_cronograma').select('*').order('data_inicio_prevista', { ascending: true }),
       supabase.from('obras').select('id, nome, cliente_nome, cidade, uf, status, supervisor_id, comercial_id, data_previsao').order('nome'),
       supabase.from('profiles').select('id, full_name, email, role'),
       supabase.from('obra_montadores').select('obra_id, montador_id'),
-      supabase.from('agenda').select('id, obra_id, tipo, titulo, data, data_fim, hora_inicio, hora_fim, responsavel_id, observacao, reuniao_interna, visivel_montador').order('data'),
+      supabase.from('agenda').select('id, obra_id, tipo, titulo, data, data_fim, hora_inicio, hora_fim, responsavel_id, observacao, reuniao_interna, visivel_montador, percentual_concluido, retorno_necessario, motivo_pausa').order('data'),
+      supabase.from('agenda_periodo_montadores').select('agenda_id, montador_id'),
+      supabase.from('calendario_operacional').select('data, descricao, dia_util'),
     ])
 
-    const falha = [cronogramas, obras, profiles, montadores, agenda].find(r => r.error)
+    const falha = [cronogramas, obras, profiles, montadores, agenda, equipesPeriodo, calendario].find(r => r.error)
     if (falha?.error) setErro(falha.error.message || 'Nao foi possivel carregar todos os dados do planejamento.')
 
     setDados({
@@ -203,6 +210,8 @@ export default function Planejamento() {
       profiles: safeArray(profiles),
       montadores: safeArray(montadores),
       agenda: safeArray(agenda),
+      equipesPeriodo: safeArray(equipesPeriodo),
+      calendario: safeArray(calendario),
     })
     setLoading(false)
   }
@@ -211,6 +220,11 @@ export default function Planejamento() {
   useEffect(() => { carregarDados() }, [])
 
   const vm = useMemo(() => {
+    const excecaoPorData = new Map(dados.calendario.map(item => [item.data, item]))
+    const diaNaoUtil = date => {
+      const excecao = excecaoPorData.get(isoDate(date))
+      return excecao ? !excecao.dia_util : isDiaNaoUtil(date)
+    }
     const obraPorId = new Map(dados.obras.map(o => [o.id, o]))
     const profilePorId = new Map(dados.profiles.map(p => [p.id, p]))
     const montadoresPorObra = new Map()
@@ -246,7 +260,8 @@ export default function Planejamento() {
       const obra = obraPorId.get(a.obra_id) || {}
       const supervisor = profilePorId.get(a.responsavel_id || obra.supervisor_id)
       const montadoresTexto = montadoresNaObservacao(a.observacao, dados.profiles)
-      const montadorIds = montadoresPorObra.get(a.obra_id) || []
+      const equipeIds = dados.equipesPeriodo.filter(item => item.agenda_id === a.id).map(item => item.montador_id)
+      const montadorIds = equipeIds.length ? equipeIds : (montadoresPorObra.get(a.obra_id) || [])
       const montadores = montadoresTexto.length ? montadoresTexto : montadorIds.map(id => profilePorId.get(id)).filter(Boolean)
       const inicio = dateOnly(a.data)
       const fim = dateOnly(a.data_fim) || inicio
@@ -271,7 +286,7 @@ export default function Planejamento() {
     const calFim = endOfCalendar(mesAtual)
     for (const d = new Date(calInicio); d <= calFim; d.setDate(d.getDate() + 1)) {
       const atual = new Date(d)
-      const naoUtil = isDiaNaoUtil(atual)
+      const naoUtil = diaNaoUtil(atual)
       const obrasCronograma = naoUtil
         ? []
         : registros
@@ -385,6 +400,7 @@ export default function Planejamento() {
       statuses: [...new Set(dados.cronogramas.map(c => c.status_operacional).filter(Boolean))].sort(),
       agendaMes,
       mobileAgenda,
+      capacidade: compromissosAgenda.filter(item => norm(item.tipo) === 'periodo de execucao'),
     }
   }, [dados, filtros, mesAtual])
 
@@ -417,7 +433,7 @@ export default function Planejamento() {
   async function salvarCompromisso() {
     if (!modalCompromisso?.tipo || !modalCompromisso?.data) return
     const dataInicio = dateOnly(modalCompromisso.data)
-    if (isDiaNaoUtil(dataInicio) && !modalCompromisso.permitir_nao_util) {
+    if (diaNaoUtilOperacional(dataInicio) && !modalCompromisso.permitir_nao_util) {
       const confirmar = window.confirm('Você está adicionando trabalho em um dia não útil. Deseja confirmar?')
       if (!confirmar) return
     }
@@ -550,6 +566,7 @@ export default function Planejamento() {
           ['calendario', 'Calendário Mensal'],
           ['tabela', 'Cronograma Operacional'],
           ['gantt', 'Gantt Executivo'],
+          ['capacidade', 'Capacidade das Equipes'],
         ].map(([id, label]) => (
           <button key={id} className={visao === id ? 'active' : ''} onClick={() => setVisao(id)}>{label}</button>
         ))}
@@ -573,6 +590,7 @@ export default function Planejamento() {
             />
           )}
           {visao === 'gantt' && <Gantt registros={vm.filtrados} meses={vm.mesesGantt} abrirObra={abrirObra} />}
+          {visao === 'capacidade' && <CapacidadeEquipes periodos={vm.capacidade} montadores={vm.montadores} mesAtual={mesAtual} abrirObra={abrirObra} calendario={dados.calendario} onRefresh={carregarDados} />}
         </>
       )}
     </div>
@@ -926,6 +944,72 @@ function Gantt({ registros, meses, abrirObra }) {
   )
 }
 
+function CapacidadeEquipes({ periodos, montadores, mesAtual, abrirObra, calendario, onRefresh }) {
+  const totalDias = new Date(mesAtual.getFullYear(), mesAtual.getMonth() + 1, 0).getDate()
+  const dias = Array.from({ length: totalDias }, (_, index) => new Date(mesAtual.getFullYear(), mesAtual.getMonth(), index + 1))
+  const [excecao, setExcecao] = useState({ data: '', descricao: '', dia_util: false })
+
+  async function salvarExcecao() {
+    if (!excecao.data || !excecao.descricao.trim()) return
+    const { error } = await supabase.from('calendario_operacional').upsert([{ ...excecao, descricao: excecao.descricao.trim() }], { onConflict: 'data' })
+    if (!error) {
+      setExcecao({ data: '', descricao: '', dia_util: false })
+      await onRefresh()
+    }
+  }
+
+  async function removerExcecao(data) {
+    await supabase.from('calendario_operacional').delete().eq('data', data)
+    await onRefresh()
+  }
+
+  async function reagendarPorArraste(periodo, novaData) {
+    if (!periodo || periodo.data === novaData) return
+    const motivo = window.prompt(`Motivo para mover "${periodo.titulo}" para ${dataBR(novaData)}:`)
+    if (!String(motivo || '').trim()) return
+    const duracao = Math.max(0, Math.round((dateOnly(periodo.data_fim || periodo.data) - dateOnly(periodo.data)) / 86400000))
+    const novoFim = new Date(`${novaData}T12:00:00`)
+    novoFim.setDate(novoFim.getDate() + duracao)
+    const dataFimNova = isoDate(novoFim)
+    const { error } = await supabase.from('agenda').update({ data: novaData, data_fim: dataFimNova }).eq('id', periodo.id)
+    if (error) return
+    const { data: authData } = await supabase.auth.getUser()
+    await supabase.from('agenda_reagendamentos').insert([{ agenda_id: periodo.id, data_anterior: periodo.data, data_fim_anterior: periodo.data_fim || periodo.data, data_nova: novaData, data_fim_nova: dataFimNova, motivo: motivo.trim(), escopo: 'periodo', alterado_por: authData?.user?.id || null }])
+    const destinatarios = new Set([periodo.obra?.supervisor_id, periodo.obra?.comercial_id, ...periodo.montadores.map(item => item.id)].filter(Boolean))
+    destinatarios.delete(authData?.user?.id)
+    if (destinatarios.size) await criarNotificacoes([...destinatarios].map(usuario_id => ({ usuario_id, obra_id: periodo.obra_id, tipo: 'periodo_reagendado', titulo: 'Período reagendado', descricao: `${periodo.titulo}: ${dataBR(periodo.data)} para ${dataBR(novaData)}. Motivo: ${motivo.trim()}`, prioridade: 'alta', status: 'nao_lida', rota: `/obras/${periodo.obra_id}?aba=Cronograma`, entidade_tipo: 'agenda', entidade_id: periodo.id })))
+    await onRefresh()
+  }
+  return (
+    <section className="pl-card">
+      <div className="pl-card-head"><div><h2>Capacidade das equipes</h2><p>Disponibilidade diária e conflitos de alocação</p></div><span>{montadores.length} montadores</span></div>
+      <div className="pl-calendar-config">
+        <strong>Calendário operacional</strong>
+        <input type="date" value={excecao.data} onChange={e => setExcecao(p => ({ ...p, data: e.target.value }))} />
+        <input placeholder="Feriado, plantão ou exceção" value={excecao.descricao} onChange={e => setExcecao(p => ({ ...p, descricao: e.target.value }))} />
+        <label><input type="checkbox" checked={excecao.dia_util} onChange={e => setExcecao(p => ({ ...p, dia_util: e.target.checked }))} /> Dia útil</label>
+        <button type="button" onClick={salvarExcecao}>Salvar exceção</button>
+      </div>
+      {calendario.length > 0 && <div className="pl-calendar-tags">{calendario.map(item => <button type="button" key={item.data} onClick={() => removerExcecao(item.data)} title="Clique para remover">{dataBR(item.data)} · {item.descricao} {item.dia_util ? '(útil)' : '(não útil)'} ×</button>)}</div>}
+      <p className="pl-drag-hint">Arraste um bloco para outro dia para reagendar. O sistema preserva sua duração e registra o motivo.</p>
+      <div className="pl-capacidade" style={{ '--dias': dias.length }}>
+        <div className="pl-cap-row pl-cap-head"><div className="pl-cap-name">Montador</div>{dias.map(dia => <div key={isoDate(dia)} className={[0, 6].includes(dia.getDay()) ? 'off' : ''}>{dia.getDate()}<small>{DIAS[dia.getDay()]}</small></div>)}</div>
+        {montadores.map(montador => <div className="pl-cap-row" key={montador.id}>
+          <div className="pl-cap-name"><strong>{nomePessoa(montador)}</strong></div>
+          {dias.map(dia => {
+            const data = isoDate(dia)
+            const alocacoes = periodos.filter(periodo => periodo.montadores.some(item => item.id === montador.id) && periodo.data <= data && (periodo.data_fim || periodo.data) >= data && periodo.status !== 'cancelada')
+            const conflito = alocacoes.length > 1
+            return <div key={data} onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); const id = e.dataTransfer.getData('text/agenda-id'); reagendarPorArraste(periodos.find(item => String(item.id) === id), data) }} className={`pl-cap-day ${[0, 6].includes(dia.getDay()) ? 'off' : ''} ${conflito ? 'conflict' : alocacoes.length ? 'busy' : ''}`} title={alocacoes.map(item => `${item.obra?.nome || 'Obra'}: ${item.titulo}`).join('\n')}>
+              {alocacoes.slice(0, 2).map(item => <button type="button" draggable onDragStart={e => e.dataTransfer.setData('text/agenda-id', String(item.id))} key={item.id} onClick={() => abrirObra(item)} style={{ background: conflito ? THEME.danger : item.faseCor }}>{(item.obra?.nome || item.titulo || 'Obra').slice(0, 2).toUpperCase()}</button>)}
+            </div>
+          })}
+        </div>)}
+      </div>
+    </section>
+  )
+}
+
 function Badge({ color, children }) {
   return <StatusBadge style={{ color, background: `${color}18` }}>{children}</StatusBadge>
 }
@@ -1003,6 +1087,9 @@ const css = `
 .pl-gantt-name span{display:block;font-size:11px;color:${THEME.muted};margin-top:3px}
 .pl-gantt-lane{position:relative;height:54px;background:repeating-linear-gradient(90deg,${THEME.card} 0,${THEME.card} 119px,${THEME.border} 120px)}
 .pl-gantt-lane i{position:absolute;top:16px;height:22px;border-radius:999px;color:#fff;font-style:normal;font-size:10px;font-weight:900;padding:5px 10px;box-sizing:border-box;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;box-shadow:0 8px 18px rgba(29,28,25,.12)}
+.pl-capacidade{overflow:auto;border:1px solid ${THEME.border};border-radius:14px}.pl-cap-row{display:grid;grid-template-columns:190px repeat(var(--dias),minmax(42px,1fr));min-width:1500px;border-top:1px solid ${THEME.border}}.pl-cap-row:first-child{border-top:0}.pl-cap-row>div{min-height:48px;border-right:1px solid ${THEME.border};display:flex;align-items:center;justify-content:center;gap:2px}.pl-cap-head{background:${THEME.elevated};font-size:10px;font-weight:900;color:${THEME.muted}}.pl-cap-head>div{flex-direction:column}.pl-cap-head small{font-size:8px}.pl-cap-name{position:sticky;left:0;z-index:3;background:${THEME.card};justify-content:flex-start!important;padding:0 10px;box-sizing:border-box}.pl-cap-head .pl-cap-name{background:${THEME.elevated}}.pl-cap-day.off,.pl-cap-head .off{background:rgba(109,103,94,.08)}.pl-cap-day.busy{background:rgba(201,168,76,.12)}.pl-cap-day.conflict{background:rgba(192,57,43,.16)}.pl-cap-day button{width:24px;height:24px;border:0;border-radius:6px;color:#fff;font-size:8px;font-weight:900;cursor:pointer;padding:0}
+.pl-calendar-config{display:grid;grid-template-columns:auto 150px minmax(220px,1fr) auto auto;gap:8px;align-items:center;margin-bottom:10px}.pl-calendar-config input{background:${THEME.inputBackground};color:${THEME.inputText};border:1px solid ${THEME.inputBorder};border-radius:8px;padding:9px}.pl-calendar-config label{font-size:12px;font-weight:800}.pl-calendar-config button{border:0;background:${THEME.gold};color:#fff;border-radius:8px;padding:10px;font-weight:900}.pl-calendar-tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}.pl-calendar-tags button{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.muted};border-radius:999px;padding:6px 9px;font-size:10.5px}.pl-drag-hint{font-size:11.5px;color:${THEME.muted}}
+@media (max-width:760px){.pl-calendar-config{grid-template-columns:1fr}.pl-calendar-config strong{margin-bottom:2px}.pl-cap-row{grid-template-columns:145px repeat(var(--dias),minmax(40px,1fr))}.pl-drag-hint{line-height:1.4}}
 .pl-empty{width:100%;max-width:none;margin:0;background:${THEME.card};border:1px solid ${THEME.border};border-radius:12px;padding:42px;text-align:center;color:${THEME.muted};box-shadow:0 2px 12px rgba(0,0,0,.3)}
 .pl-modal-bg{position:fixed;inset:0;background:rgba(29,28,25,.48);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(4px)}
 .pl-modal{width:100%;max-width:780px;max-height:92vh;background:${THEME.card};border:1px solid ${THEME.border};border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden}

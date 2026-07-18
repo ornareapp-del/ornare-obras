@@ -751,6 +751,9 @@ export default function MontadorDashboard() {
     mostrarSucesso(mensagem)
     if (compromisso?.id) {
       await atualizarStatusAgendaMontador(compromisso.id, 'em andamento', 'Check-in')
+      if (norm(compromisso.tipo) === 'periodo de execucao') {
+        await supabase.from('agenda').update({ data_inicio_real: entrada.slice(0, 10) }).eq('id', compromisso.id)
+      }
     }
     await criarNotificacoesOperacionais({
       tipo: 'checkin',
@@ -809,7 +812,15 @@ export default function MontadorDashboard() {
         prioridade: 'normal',
       })
       if (ultimo.agenda_id) {
-        await atualizarStatusAgendaMontador(ultimo.agenda_id, 'realizada', 'Check-out')
+        const periodo = agenda.find(item => item.id === ultimo.agenda_id)
+        if (norm(periodo?.tipo) === 'periodo de execucao') {
+          const saida = new Date()
+          const minutos = Math.max(0, Math.round((saida - new Date(ultimo.entrada)) / 60000))
+          await atualizarStatusAgendaMontador(ultimo.agenda_id, 'em andamento', 'Check-out')
+          await supabase.from('agenda').update({ data_fim_real: saida.toISOString().slice(0, 10), minutos_realizados: minutos }).eq('id', ultimo.agenda_id)
+        } else {
+          await atualizarStatusAgendaMontador(ultimo.agenda_id, 'realizada', 'Check-out')
+        }
       }
     }
     setServicoFeedback('Check-out registrado.')

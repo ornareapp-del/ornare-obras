@@ -11,6 +11,7 @@ import { progressBarStyle, progressFillStyle, statusBadgeBaseStyle } from '../..
 import { formatFileSize, prepararImagemUpload } from '../../utils/imageUpload'
 import { FASES_ORNARE, faseOrnarePorKey, faseOrnarePorTexto, indiceFaseOrnare } from '../../constants/fasesOrnare'
 import { resolverOperacaoObra } from '../../utils/obraOperacional'
+import { MODELOS_EXECUCAO, MOTIVOS_PAUSA, TIPOS_DEPENDENCIA, criarPeriodosDoModelo, validarEncerramento } from '../../utils/planejamentoOperacional'
 import { theme } from '../../constants/theme'
 import ObraPdfExportControls from './components/ObraPdfExportControls'
 
@@ -69,32 +70,44 @@ function rotuloStatusPeriodo(valor) {
   return { pendente: 'Planejado', 'em andamento': 'Em andamento', realizada: 'Concluído', suspensa: 'Suspenso', cancelada: 'Cancelado' }[valor] || valor
 }
 
-function calcularDiasDosPeriodos(periodos = []) {
+function datasOperacionaisPeriodo(item, calendario = []) {
+  const datas = []
+  const excecoes = new Map(calendario.map(valor => [valor.data, valor]))
+  const atual = new Date(`${item.data}T12:00:00`)
+  const fim = new Date(`${item.data_fim || item.data}T12:00:00`)
+  while (atual <= fim) {
+    const data = `${atual.getFullYear()}-${String(atual.getMonth() + 1).padStart(2, '0')}-${String(atual.getDate()).padStart(2, '0')}`
+    const excecao = excecoes.get(data)
+    if (excecao ? excecao.dia_util : ![0, 6].includes(atual.getDay())) datas.push(data)
+    atual.setDate(atual.getDate() + 1)
+  }
+  return datas
+}
+
+function calcularDiasDosPeriodos(periodos = [], calendario = []) {
   const datas = new Set()
   periodos.filter(item => item?.data && item.status !== 'cancelada').forEach(item => {
-    const atual = new Date(`${item.data}T12:00:00`)
-    const fim = new Date(`${item.data_fim || item.data}T12:00:00`)
-    if (Number.isNaN(atual.getTime()) || Number.isNaN(fim.getTime()) || fim < atual) return
-    while (atual <= fim) {
-      datas.add(atual.toISOString().slice(0, 10))
-      atual.setDate(atual.getDate() + 1)
-    }
+    datasOperacionaisPeriodo(item, calendario).forEach(data => datas.add(data))
   })
   return datas.size
 }
 
-function calcularProgressoDosPeriodos(periodos = []) {
+function calcularProgressoDosPeriodos(periodos = [], calendario = []) {
   let pesoTotal = 0
   let realizado = 0
   periodos.filter(item => item?.data && item.status !== 'cancelada').forEach(item => {
-    const inicio = new Date(`${item.data}T12:00:00`)
-    const fim = new Date(`${item.data_fim || item.data}T12:00:00`)
-    const peso = Math.max(1, Math.round((fim - inicio) / 86400000) + 1)
+    const peso = Math.max(1, datasOperacionaisPeriodo(item, calendario).length)
     const percentual = Math.max(0, Math.min(100, Number(item.percentual_concluido) || 0))
     pesoTotal += peso
     realizado += peso * percentual
   })
   return pesoTotal ? Math.round(realizado / pesoTotal) : 0
+}
+
+function adicionarDiasIso(data, quantidade) {
+  const valor = new Date(`${data}T12:00:00`)
+  valor.setDate(valor.getDate() + Number(quantidade || 0))
+  return `${valor.getFullYear()}-${String(valor.getMonth() + 1).padStart(2, '0')}-${String(valor.getDate()).padStart(2, '0')}`
 }
 const SECOES = [
   { id: 'Resumo', label: 'Resumo' },
@@ -187,7 +200,7 @@ function erroColunaFotoAprovacaoAusente(error) {
   return texto.includes('status_aprovacao') || texto.includes('motivo_recusa') || texto.includes('schema cache') || texto.includes('column')
 }
 
-async function criarNotificacoesObra({ obraId, tipo, titulo, descricao, prioridade = 'normal', entidadeTipo, entidadeId, rota, excluirUsuarioId }) {
+async function criarNotificacoesObra({ obraId, tipo, titulo, descricao, prioridade = 'normal', entidadeTipo, entidadeId, rota, excluirUsuarioId, destinatariosExtras = [] }) {
   if (!obraId || !titulo) return
   try {
     const [{ data: obra }, { data: profiles }] = await Promise.all([
@@ -195,6 +208,7 @@ async function criarNotificacoesObra({ obraId, tipo, titulo, descricao, priorida
       supabase.from('profiles').select('id, role').in('role', ['gestao', 'pos_venda', 'vendedor', 'supervisor']),
     ])
     const destinatarios = new Set([obra?.supervisor_id, obra?.comercial_id].filter(Boolean))
+    destinatariosExtras.filter(Boolean).forEach(id => destinatarios.add(id))
     ;(profiles || []).forEach(profile => {
       if (profile?.id && ['gestao', 'pos_venda', 'vendedor'].includes(profile.role)) destinatarios.add(profile.id)
     })
@@ -1106,7 +1120,11 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
   const [salvandoPeriodo, setSalvandoPeriodo] = useState(false)
   const [montadoresDisponiveis, setMontadoresDisponiveis] = useState([])
   const [equipePorPeriodo, setEquipePorPeriodo] = useState({})
-  const [formPeriodo, setFormPeriodo] = useState({ atividade: 'Montagem', data: '', data_fim: '', responsavel_id: '', equipe_ids: [], status: 'pendente', percentual_concluido: 0, retorno_necessario: false, observacao: '', visivel_montador: true, visivel_cliente: false })
+  const [dependenciasPorPeriodo, setDependenciasPorPeriodo] = useState({})
+  const [calendarioOperacional, setCalendarioOperacional] = useState([])
+  const [modeloSelecionado, setModeloSelecionado] = useState('simples')
+  const [dataModelo, setDataModelo] = useState('')
+  const [formPeriodo, setFormPeriodo] = useState({ atividade: 'Montagem', data: '', data_fim: '', responsavel_id: '', equipe_ids: [], status: 'pendente', percentual_concluido: 0, retorno_necessario: false, motivo_pausa: '', dependencias: [], observacao: '', visivel_montador: true, visivel_cliente: false })
 
   function setCampo(campo, valor) {
     setForm(p => ({ ...p, [campo]: valor }))
@@ -1114,13 +1132,14 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
 
   function novoPeriodo() {
     setPeriodoEditando(null)
-    setFormPeriodo({ atividade: 'Montagem', data: form?.data_inicio_prevista || '', data_fim: form?.data_inicio_prevista || '', responsavel_id: form?.responsavel_id || '', equipe_ids: [], status: 'pendente', percentual_concluido: 0, retorno_necessario: false, observacao: '', visivel_montador: true, visivel_cliente: false })
+    setFormPeriodo({ atividade: 'Montagem', data: form?.data_inicio_prevista || '', data_fim: form?.data_inicio_prevista || '', responsavel_id: form?.responsavel_id || '', equipe_ids: [], status: 'pendente', percentual_concluido: 0, retorno_necessario: false, motivo_pausa: '', dependencias: [], observacao: '', visivel_montador: true, visivel_cliente: false })
   }
 
   async function carregarPeriodos() {
-    const [agendaResult, montadoresResult] = await Promise.all([
+    const [agendaResult, montadoresResult, calendarioResult] = await Promise.all([
       supabase.from('agenda').select('*').eq('obra_id', obraId).eq('tipo', TIPO_AGENDA_PERIODO).order('data', { ascending: true }),
       supabase.from('obra_montadores').select('montador_id, montador:profiles!obra_montadores_montador_id_fkey(id, full_name, email)').eq('obra_id', obraId),
+      supabase.from('calendario_operacional').select('data, descricao, dia_util'),
     ])
     const { data, error } = agendaResult
     if (error) {
@@ -1130,17 +1149,24 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
     const itens = data || []
     setPeriodos(itens)
     setMontadoresDisponiveis((montadoresResult.data || []).map(item => item.montador).filter(Boolean))
+    const calendario = calendarioResult.data || []
+    setCalendarioOperacional(calendario)
     if (itens.length) {
       const { data: vinculos, error: vinculosError } = await supabase.from('agenda_periodo_montadores').select('agenda_id, montador_id').in('agenda_id', itens.map(item => item.id))
       if (!vinculosError) setEquipePorPeriodo((vinculos || []).reduce((mapa, item) => ({ ...mapa, [item.agenda_id]: [...(mapa[item.agenda_id] || []), item.montador_id] }), {}))
-    } else setEquipePorPeriodo({})
-    if (itens.length) setForm(atual => atual ? ({ ...atual, dias_previstos: calcularDiasDosPeriodos(itens), percentual_concluido: calcularProgressoDosPeriodos(itens) }) : atual)
+      const { data: dependencias, error: dependenciasError } = await supabase.from('agenda_periodo_dependencias').select('*').in('agenda_id', itens.map(item => item.id)).order('created_at')
+      if (!dependenciasError) setDependenciasPorPeriodo((dependencias || []).reduce((mapa, item) => ({ ...mapa, [item.agenda_id]: [...(mapa[item.agenda_id] || []), item] }), {}))
+    } else {
+      setEquipePorPeriodo({})
+      setDependenciasPorPeriodo({})
+    }
+    if (itens.length) setForm(atual => atual ? ({ ...atual, dias_previstos: calcularDiasDosPeriodos(itens, calendario), percentual_concluido: calcularProgressoDosPeriodos(itens, calendario) }) : atual)
     return itens
   }
 
   async function sincronizarCronogramaDosPeriodos(itens) {
-    const dias = calcularDiasDosPeriodos(itens)
-    const percentual = calcularProgressoDosPeriodos(itens)
+    const dias = calcularDiasDosPeriodos(itens, calendarioOperacional)
+    const percentual = calcularProgressoDosPeriodos(itens, calendarioOperacional)
     setForm(atual => atual ? ({ ...atual, dias_previstos: dias, percentual_concluido: percentual }) : atual)
     if (!cronograma?.id) return
     const { error } = await supabase.from('obra_cronograma').update({ dias_previstos: dias, percentual_concluido: percentual }).eq('id', cronograma.id)
@@ -1150,7 +1176,7 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
 
   function editarPeriodo(item) {
     setPeriodoEditando(item.id)
-    setFormPeriodo({ atividade: item.titulo || 'Montagem', data: item.data || '', data_fim: item.data_fim || item.data || '', responsavel_id: item.responsavel_id || '', equipe_ids: equipePorPeriodo[item.id] || [], status: item.status || 'pendente', percentual_concluido: Number(item.percentual_concluido) || 0, retorno_necessario: Boolean(item.retorno_necessario), observacao: item.observacao || '', visivel_montador: item.visivel_montador !== false, visivel_cliente: Boolean(item.visivel_cliente) })
+    setFormPeriodo({ atividade: item.titulo || 'Montagem', data: item.data || '', data_fim: item.data_fim || item.data || '', responsavel_id: item.responsavel_id || '', equipe_ids: equipePorPeriodo[item.id] || [], status: item.status || 'pendente', percentual_concluido: Number(item.percentual_concluido) || 0, retorno_necessario: Boolean(item.retorno_necessario), motivo_pausa: item.motivo_pausa || '', dependencias: (dependenciasPorPeriodo[item.id] || []).map(dep => ({ tipo: dep.tipo, descricao: dep.descricao, concluida: dep.concluida })), observacao: item.observacao || '', visivel_montador: item.visivel_montador !== false, visivel_cliente: Boolean(item.visivel_cliente) })
   }
 
   async function salvarPeriodo() {
@@ -1161,6 +1187,10 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
     const fim = formPeriodo.data_fim || formPeriodo.data
     if (fim < formPeriodo.data) {
       setMensagem({ tipo: 'erro', texto: 'A data final não pode ser anterior à data inicial.' })
+      return
+    }
+    if (formPeriodo.status === 'em andamento' && formPeriodo.dependencias.some(item => !item.concluida)) {
+      setMensagem({ tipo: 'erro', texto: 'Conclua ou remova as dependências pendentes antes de iniciar este período.' })
       return
     }
     setSalvandoPeriodo(true)
@@ -1191,12 +1221,34 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
         return
       }
     }
-    const payload = { obra_id: obraId, tipo: TIPO_AGENDA_PERIODO, titulo: formPeriodo.atividade.trim(), observacao: formPeriodo.observacao || null, data: formPeriodo.data, data_fim: fim, hora_inicio: '08:00', hora_fim: null, responsavel_id: formPeriodo.responsavel_id || null, status: formPeriodo.status || 'pendente', percentual_concluido: Number(formPeriodo.percentual_concluido) || 0, retorno_necessario: Boolean(formPeriodo.retorno_necessario), reuniao_interna: false, visivel_montador: Boolean(formPeriodo.visivel_montador), visivel_cliente: Boolean(formPeriodo.visivel_cliente) }
+    const payload = { obra_id: obraId, tipo: TIPO_AGENDA_PERIODO, titulo: formPeriodo.atividade.trim(), observacao: formPeriodo.observacao || null, data: formPeriodo.data, data_fim: fim, hora_inicio: '08:00', hora_fim: null, responsavel_id: formPeriodo.responsavel_id || null, status: formPeriodo.status || 'pendente', percentual_concluido: Number(formPeriodo.percentual_concluido) || 0, retorno_necessario: Boolean(formPeriodo.retorno_necessario), motivo_pausa: formPeriodo.motivo_pausa || null, reuniao_interna: false, visivel_montador: Boolean(formPeriodo.visivel_montador), visivel_cliente: Boolean(formPeriodo.visivel_cliente) }
+    const periodoOriginal = periodos.find(item => String(item.id) === String(periodoEditando))
+    const houveReagendamento = periodoOriginal && (periodoOriginal.data !== payload.data || (periodoOriginal.data_fim || periodoOriginal.data) !== payload.data_fim)
+    let reagendamento = null
+    if (houveReagendamento) {
+      const motivo = window.prompt('Informe o motivo do reagendamento:')
+      if (!String(motivo || '').trim()) {
+        setMensagem({ tipo: 'erro', texto: 'O motivo é obrigatório para reagendar um período.' })
+        setSalvandoPeriodo(false)
+        return
+      }
+      reagendamento = { motivo: motivo.trim(), escopo: window.confirm('Deseja deslocar também todos os períodos seguintes?') ? 'seguintes' : 'periodo' }
+    }
     const result = periodoEditando ? await supabase.from('agenda').update(payload).eq('id', periodoEditando).select().single() : await supabase.from('agenda').insert([payload]).select().single()
     if (result.error) {
       setMensagem({ tipo: 'erro', texto: 'Não foi possível salvar o período: ' + result.error.message })
     } else {
       const agendaId = result.data.id
+      if (reagendamento) {
+        const { data: authData } = await supabase.auth.getUser()
+        await supabase.from('agenda_reagendamentos').insert([{ agenda_id: agendaId, data_anterior: periodoOriginal.data, data_fim_anterior: periodoOriginal.data_fim || periodoOriginal.data, data_nova: payload.data, data_fim_nova: payload.data_fim, motivo: reagendamento.motivo, escopo: reagendamento.escopo, alterado_por: authData?.user?.id || null }])
+        if (reagendamento.escopo === 'seguintes') {
+          const delta = Math.round((new Date(`${payload.data}T12:00:00`) - new Date(`${periodoOriginal.data}T12:00:00`)) / 86400000)
+          const seguintes = periodos.filter(item => item.data > periodoOriginal.data && String(item.id) !== String(agendaId))
+          await Promise.all(seguintes.map(item => supabase.from('agenda').update({ data: adicionarDiasIso(item.data, delta), data_fim: adicionarDiasIso(item.data_fim || item.data, delta) }).eq('id', item.id)))
+        }
+        await criarNotificacoesObra({ obraId, tipo: 'periodo_reagendado', titulo: 'Período de execução reagendado', descricao: `${payload.titulo}: ${new Date(`${periodoOriginal.data}T00:00:00`).toLocaleDateString('pt-BR')} para ${new Date(`${payload.data}T00:00:00`).toLocaleDateString('pt-BR')}. Motivo: ${reagendamento.motivo}`, prioridade: 'alta', entidadeTipo: 'agenda', entidadeId: agendaId, rota: `/obras/${obraId}?aba=Cronograma`, destinatariosExtras: formPeriodo.equipe_ids })
+      }
       const exclusaoEquipe = await supabase.from('agenda_periodo_montadores').delete().eq('agenda_id', agendaId)
       if (exclusaoEquipe.error) {
         setMensagem({ tipo: 'erro', texto: 'O período foi salvo, mas a equipe não pôde ser atualizada. Aplique a atualização do banco.' })
@@ -1207,6 +1259,20 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
         const inclusaoEquipe = await supabase.from('agenda_periodo_montadores').insert(formPeriodo.equipe_ids.map(montador_id => ({ agenda_id: agendaId, montador_id })))
         if (inclusaoEquipe.error) {
           setMensagem({ tipo: 'erro', texto: 'O período foi salvo, mas não foi possível vincular toda a equipe: ' + inclusaoEquipe.error.message })
+          setSalvandoPeriodo(false)
+          return
+        }
+      }
+      const exclusaoDependencias = await supabase.from('agenda_periodo_dependencias').delete().eq('agenda_id', agendaId)
+      if (exclusaoDependencias.error) {
+        setMensagem({ tipo: 'erro', texto: 'O período foi salvo, mas as dependências não puderam ser atualizadas.' })
+        setSalvandoPeriodo(false)
+        return
+      }
+      if (formPeriodo.dependencias.length) {
+        const inclusaoDependencias = await supabase.from('agenda_periodo_dependencias').insert(formPeriodo.dependencias.map(item => ({ agenda_id: agendaId, tipo: item.tipo, descricao: item.descricao || item.tipo, concluida: Boolean(item.concluida) })))
+        if (inclusaoDependencias.error) {
+          setMensagem({ tipo: 'erro', texto: 'O período foi salvo, mas não foi possível registrar as dependências.' })
           setSalvandoPeriodo(false)
           return
         }
@@ -1241,6 +1307,69 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
       return
     }
     setMensagem({ tipo: 'sucesso', texto: 'Período excluído da agenda.' })
+  }
+
+  async function encerrarPeriodo(item) {
+    setSalvandoPeriodo(true)
+    const [checklistResult, fotosResult, ocorrenciasResult, checkinsResult, authResult] = await Promise.all([
+      supabase.from('checklist_items').select('id, concluido').eq('agenda_id', item.id),
+      supabase.from('fotos').select('id').eq('agenda_id', item.id),
+      supabase.from('ocorrencias').select('id, status').eq('agenda_id', item.id),
+      supabase.from('checkins').select('id, entrada, saida').eq('agenda_id', item.id),
+      supabase.auth.getUser(),
+    ])
+    const validacao = validarEncerramento({ checklist: checklistResult.data || [], fotos: fotosResult.data || [], ocorrencias: ocorrenciasResult.data || [], checkins: checkinsResult.data || [], retornoNecessario: Boolean(item.retorno_necessario) })
+    if (!validacao.podeEncerrar) {
+      setMensagem({ tipo: 'erro', texto: 'O período não pode ser encerrado: ' + validacao.pendencias.join('; ') + '.' })
+      setSalvandoPeriodo(false)
+      return
+    }
+    const checkins = checkinsResult.data || []
+    const entradas = checkins.map(c => c.entrada).filter(Boolean).sort()
+    const saidas = checkins.map(c => c.saida).filter(Boolean).sort()
+    const minutos = checkins.reduce((total, c) => total + (c.entrada && c.saida ? Math.max(0, Math.round((new Date(c.saida) - new Date(c.entrada)) / 60000)) : 0), 0)
+    const { error } = await supabase.from('agenda').update({ status: 'realizada', percentual_concluido: 100, data_inicio_real: entradas[0]?.slice(0, 10) || item.data_inicio_real || item.data, data_fim_real: saidas.at(-1)?.slice(0, 10) || item.data_fim_real || item.data_fim || item.data, minutos_realizados: minutos, encerramento_validado: true, encerramento_validado_em: new Date().toISOString(), encerramento_validado_por: authResult.data?.user?.id || null }).eq('id', item.id)
+    if (error) setMensagem({ tipo: 'erro', texto: 'Não foi possível encerrar o período: ' + error.message })
+    else {
+      const itens = await carregarPeriodos()
+      await sincronizarCronogramaDosPeriodos(itens)
+      setMensagem({ tipo: 'sucesso', texto: 'Período encerrado com todos os controles validados.' })
+    }
+    setSalvandoPeriodo(false)
+  }
+
+  async function aplicarModeloExecucao() {
+    const etapas = criarPeriodosDoModelo(modeloSelecionado, dataModelo)
+    if (!etapas.length) {
+      setMensagem({ tipo: 'erro', texto: 'Selecione um modelo e informe a data inicial.' })
+      return
+    }
+    if (periodos.length && !window.confirm('Este modelo será acrescentado aos períodos existentes. Deseja continuar?')) return
+    setSalvandoPeriodo(true)
+    const registros = etapas.map(etapa => ({
+      obra_id: obraId,
+      tipo: TIPO_AGENDA_PERIODO,
+      titulo: etapa.atividade,
+      data: etapa.data,
+      data_fim: etapa.data_fim,
+      hora_inicio: '08:00',
+      status: 'pendente',
+      percentual_concluido: 0,
+      retorno_necessario: etapa.retorno_necessario,
+      motivo_pausa: etapa.retorno_necessario ? 'Retorno planejado' : null,
+      responsavel_id: form?.responsavel_id || null,
+      reuniao_interna: false,
+      visivel_montador: true,
+      visivel_cliente: false,
+    }))
+    const { error } = await supabase.from('agenda').insert(registros)
+    if (error) setMensagem({ tipo: 'erro', texto: 'Não foi possível aplicar o modelo: ' + error.message })
+    else {
+      const itens = await carregarPeriodos()
+      await sincronizarCronogramaDosPeriodos(itens)
+      setMensagem({ tipo: 'sucesso', texto: `Modelo "${MODELOS_EXECUCAO[modeloSelecionado].label}" aplicado com sucesso.` })
+    }
+    setSalvandoPeriodo(false)
   }
 
   function textoAprovacao(valor) {
@@ -1386,6 +1515,7 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
   const proximaMobilizacao = periodosAtivos.find(item => (item.data_fim || item.data) >= hojeIso)
   const retornoPendente = periodosAtivos.find(item => item.retorno_necessario && !['realizada', 'cancelada'].includes(item.status))
   const intervalosSemEquipe = periodosAtivos.filter(item => !(equipePorPeriodo[item.id] || []).length)
+  const dependenciasPendentes = Object.values(dependenciasPorPeriodo).flat().filter(item => !item.concluida)
   const lacunas = periodosAtivos.slice(1).map((item, index) => {
     const anterior = periodosAtivos[index]
     const inicio = new Date(`${anterior.data_fim || anterior.data}T12:00:00`)
@@ -1422,11 +1552,12 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
         <KpiCard label="Percentual" value={`${porcentagem}%`} helper="concluido" />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: compacto ? '1fr' : 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: compacto ? '1fr' : 'repeat(5, minmax(0, 1fr))', gap: 12 }}>
         <KpiCard label="Próxima mobilização" value={proximaMobilizacao?.data ? new Date(`${proximaMobilizacao.data}T00:00:00`).toLocaleDateString('pt-BR') : '-'} helper={proximaMobilizacao?.titulo || 'nenhum período futuro'} />
         <KpiCard label="Retorno necessário" value={retornoPendente ? 'Sim' : 'Não'} helper={retornoPendente?.titulo || 'sem retorno pendente'} />
         <KpiCard label="Intervalos sem equipe" value={intervalosSemEquipe.length} helper="períodos a alocar" />
         <KpiCard label="Pausas planejadas" value={lacunas.length} helper={lacunas.length ? `${lacunas.reduce((soma, item) => soma + item.dias, 0)} dias sem execução` : 'cronograma contínuo'} />
+        <KpiCard label="Bloqueios pendentes" value={dependenciasPendentes.length} helper={dependenciasPendentes.length ? 'dependências a liberar' : 'execução liberada'} />
       </div>
 
       <Card titulo="Linha do tempo operacional">
@@ -1459,7 +1590,7 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
           <div>
             <Label>Dias estimados de execução</Label>
             <FInput type="number" min="0" readOnly={periodos.length > 0} value={form.dias_previstos ?? ''} onChange={v => setCampo('dias_previstos', v)} />
-            {periodos.length > 0 && <div style={{ color: THEME.muted, fontSize: 10.5, marginTop: 5 }}>Calculado automaticamente pelos períodos, sem duplicar datas sobrepostas.</div>}
+            {periodos.length > 0 && <div style={{ color: THEME.muted, fontSize: 10.5, marginTop: 5 }}>Calculado pelo calendário operacional, sem fins de semana nem datas sobrepostas.</div>}
           </div>
           <div><Label>Data início prevista</Label><FInput type="date" value={form.data_inicio_prevista || ''} onChange={v => setCampo('data_inicio_prevista', v)} /></div>
           <div><Label>Data fim prevista</Label><FInput type="date" value={form.data_fim_prevista || ''} onChange={v => setCampo('data_fim_prevista', v)} /></div>
@@ -1474,13 +1605,19 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
       <div style={{ display: 'grid', gridTemplateColumns: compacto ? '1fr' : '1fr 1fr', gap: 16 }}>
         <Card titulo="Períodos de execução" full>
           <div style={{ color: THEME.muted, fontSize: 12.5, lineHeight: 1.5, marginBottom: 14 }}>Divida a execução em intervalos. Cada período também aparece na Agenda e libera o responsável entre um retorno e outro.</div>
+          <div style={{ display: 'grid', gridTemplateColumns: compacto ? '1fr' : '2fr 1fr auto', gap: 10, alignItems: 'end', border: `1px solid ${THEME.border}`, background: THEME.elevated, borderRadius: 12, padding: 12, marginBottom: 14 }}>
+            <div><Label>Modelo de execução</Label><FSelect value={modeloSelecionado} onChange={setModeloSelecionado}>{Object.entries(MODELOS_EXECUCAO).map(([key, modelo]) => <option key={key} value={key}>{modelo.label}</option>)}</FSelect></div>
+            <div><Label>Início do modelo</Label><FInput type="date" value={dataModelo} onChange={setDataModelo} /></div>
+            <button type="button" onClick={aplicarModeloExecucao} disabled={salvandoPeriodo} style={{ border: 'none', background: THEME.ink, color: THEME.card, minHeight: 42, borderRadius: 9, padding: '9px 14px', fontWeight: 900, cursor: 'pointer' }}>Aplicar modelo</button>
+          </div>
           {lacunas.length > 0 && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>{lacunas.map(item => <span key={`${item.anterior.id}-${item.proximo.id}`} style={{ border: `1px dashed ${THEME.warning}`, background: THEME.warningBg, color: THEME.warning, borderRadius: 999, padding: '6px 10px', fontSize: 11.5, fontWeight: 800 }}>Pausa de {item.dias} dia{item.dias === 1 ? '' : 's'} antes de {item.proximo.titulo}</span>)}</div>}
           {periodos.length ? <div style={{ display: 'grid', gap: 9, marginBottom: 16 }}>{periodos.map(item => {
             const responsavel = responsaveis.find(p => p.id === item.responsavel_id)
             const equipe = (equipePorPeriodo[item.id] || []).map(id => montadoresDisponiveis.find(p => p.id === id)?.full_name).filter(Boolean)
             return <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', border: `1px solid ${String(periodoEditando) === String(item.id) ? THEME.gold : THEME.border}`, background: String(periodoEditando) === String(item.id) ? THEME.softGold : THEME.elevated, borderRadius: 12, padding: '12px 14px' }}>
               <div style={{ minWidth: 165 }}><div style={{ color: THEME.ink, fontSize: 13.5, fontWeight: 900 }}>{item.titulo}</div><div style={{ color: THEME.gold, fontSize: 12, fontWeight: 800, marginTop: 4 }}>{new Date(`${item.data}T00:00:00`).toLocaleDateString('pt-BR')} — {new Date(`${item.data_fim || item.data}T00:00:00`).toLocaleDateString('pt-BR')}</div></div>
-              <div style={{ flex: 1, minWidth: 190, color: THEME.muted, fontSize: 12, lineHeight: 1.5 }}>{responsavel?.full_name || responsavel?.email || 'Sem responsável'} · {rotuloStatusPeriodo(item.status || 'pendente')} · {Number(item.percentual_concluido) || 0}%<br />Equipe: {equipe.length ? equipe.join(', ') : 'não alocada'} {item.retorno_necessario ? '· Retorno necessário' : ''}</div>
+              <div style={{ flex: 1, minWidth: 220, color: THEME.muted, fontSize: 12, lineHeight: 1.5 }}>{responsavel?.full_name || responsavel?.email || 'Sem responsável'} · {rotuloStatusPeriodo(item.status || 'pendente')} · {Number(item.percentual_concluido) || 0}%<br />Equipe: {equipe.length ? equipe.join(', ') : 'não alocada'} {item.retorno_necessario ? '· Retorno necessário' : ''}{(item.data_inicio_real || item.minutos_realizados) && <><br />Realizado: {item.data_inicio_real ? new Date(`${item.data_inicio_real}T00:00:00`).toLocaleDateString('pt-BR') : '-'}{item.data_fim_real ? ` — ${new Date(`${item.data_fim_real}T00:00:00`).toLocaleDateString('pt-BR')}` : ''} · {Math.round(Number(item.minutos_realizados || 0) / 60 * 10) / 10}h</>}</div>
+              {!['realizada', 'cancelada'].includes(item.status) && <button type="button" onClick={() => encerrarPeriodo(item)} style={{ border: `1px solid ${THEME.success}`, background: THEME.successBg, color: THEME.success, borderRadius: 8, minHeight: 40, padding: '8px 11px', fontWeight: 800, cursor: 'pointer' }}>Encerrar</button>}
               <button type="button" onClick={() => editarPeriodo(item)} style={{ border: `1px solid ${THEME.border}`, background: THEME.card, color: THEME.ink, borderRadius: 8, minHeight: 40, padding: '8px 11px', fontWeight: 800, cursor: 'pointer' }}>Editar</button>
               <button type="button" onClick={() => excluirPeriodo(item)} style={{ border: `1px solid ${THEME.danger}`, background: THEME.dangerBg, color: THEME.danger, borderRadius: 8, minHeight: 40, padding: '8px 11px', fontWeight: 800, cursor: 'pointer' }}>Excluir</button>
             </div>
@@ -1489,10 +1626,21 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
             <div><Label>Atividade</Label><FSelect value={formPeriodo.atividade} onChange={v => setFormPeriodo(p => ({ ...p, atividade: v }))}>{TIPOS_PERIODO_EXECUCAO.map(tipo => <option key={tipo}>{tipo}</option>)}</FSelect></div>
             <div><Label>Data inicial</Label><FInput type="date" value={formPeriodo.data} onChange={v => setFormPeriodo(p => ({ ...p, data: v, data_fim: p.data_fim || v }))} /></div>
             <div><Label>Data final</Label><FInput type="date" value={formPeriodo.data_fim} onChange={v => setFormPeriodo(p => ({ ...p, data_fim: v }))} /></div>
-            <div><Label>Responsável</Label><FSelect value={formPeriodo.responsavel_id} onChange={v => setFormPeriodo(p => ({ ...p, responsavel_id: v }))}><option value="">Sem responsável</option>{responsaveis.map(p => <option key={p.id} value={p.id}>{p.full_name || p.email}</option>)}</FSelect></div>
+            <div><Label>Líder da equipe</Label><FSelect value={formPeriodo.responsavel_id} onChange={v => setFormPeriodo(p => ({ ...p, responsavel_id: v }))}><option value="">Sem líder</option>{responsaveis.map(p => <option key={p.id} value={p.id}>{p.full_name || p.email}</option>)}</FSelect></div>
             <div><Label>Status</Label><FSelect value={formPeriodo.status} onChange={v => setFormPeriodo(p => ({ ...p, status: v }))}>{STATUS_PERIODO_EXECUCAO.map(status => <option key={status} value={status}>{rotuloStatusPeriodo(status)}</option>)}</FSelect></div>
             <div><Label>Progresso do período (%)</Label><FInput type="number" min="0" max="100" value={formPeriodo.percentual_concluido} onChange={v => setFormPeriodo(p => ({ ...p, percentual_concluido: v }))} /></div>
+            <div><Label>Motivo da pausa/retorno</Label><FSelect value={formPeriodo.motivo_pausa} onChange={v => setFormPeriodo(p => ({ ...p, motivo_pausa: v }))}><option value="">Sem pausa</option>{MOTIVOS_PAUSA.map(motivo => <option key={motivo}>{motivo}</option>)}</FSelect></div>
             <div style={{ gridColumn: '1 / -1' }}><Label>Observação</Label><textarea value={formPeriodo.observacao} onChange={e => setFormPeriodo(p => ({ ...p, observacao: e.target.value }))} rows={2} style={textareaStyle} /></div>
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <Label>Dependências e bloqueios</Label>
+            <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>{TIPOS_DEPENDENCIA.map(tipo => {
+              const indice = formPeriodo.dependencias.findIndex(item => item.tipo === tipo)
+              const marcada = indice >= 0
+              const concluida = marcada && formPeriodo.dependencias[indice].concluida
+              return <button type="button" key={tipo} onClick={() => setFormPeriodo(p => ({ ...p, dependencias: marcada ? (concluida ? p.dependencias.filter(item => item.tipo !== tipo) : p.dependencias.map(item => item.tipo === tipo ? { ...item, concluida: true } : item)) : [...p.dependencias, { tipo, descricao: tipo, concluida: false }] }))} style={{ border: `1px solid ${marcada ? concluida ? THEME.success : THEME.warning : THEME.border}`, background: marcada ? concluida ? THEME.successBg : THEME.warningBg : THEME.elevated, color: marcada ? concluida ? THEME.success : THEME.warning : THEME.muted, borderRadius: 999, padding: '7px 10px', fontSize: 11.5, fontWeight: 800, cursor: 'pointer' }}>{marcada ? concluida ? '✓ ' : '◷ ' : '+ '}{tipo}</button>
+            })}</div>
+            <div style={{ color: THEME.muted, fontSize: 10.5, marginTop: 5 }}>Clique uma vez para adicionar como pendente, novamente para concluir e uma terceira vez para remover.</div>
           </div>
           <div style={{ marginTop: 12 }}>
             <Label>Equipe do período</Label>
