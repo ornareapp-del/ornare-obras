@@ -481,12 +481,15 @@ function LiveCard({ item, onOpen, onRoute }) {
       </button>
 
       <div className="oa-live-metrics">
-        <button onClick={event => irPara(event, rotaObra('Cronograma'))}><small>Início</small><b>{item.inicio ? dataBR(item.inicio) : '-'}</b></button>
-        <button onClick={event => irPara(event, rotaObra('Cronograma'))}><small>Término</small><b>{item.fim ? dataBR(item.fim) : '-'}</b></button>
-        <button onClick={event => irPara(event, rotaObra('Cronograma'))}><small>Prazo</small><b>{prazoTexto(item.fim)}</b></button>
+        <button onClick={event => irPara(event, rotaObra('Cronograma'))}><small>Início macro</small><b>{item.inicio ? dataBR(item.inicio) : '-'}</b></button>
+        <button onClick={event => irPara(event, rotaObra('Cronograma'))}><small>Término macro</small><b>{item.fim ? dataBR(item.fim) : '-'}</b></button>
+        <button onClick={event => irPara(event, rotaObra('Cronograma'))}><small>Prazo macro</small><b>{prazoTexto(item.fim)}</b></button>
         <button onClick={event => irPara(event, rotaObra('Equipe'))}><small>Check-in</small><b>{ultimo ? `${diasDesde(ultimo)}d` : 'Nunca'}</b></button>
         <button onClick={event => irPara(event, rotaObra('Cronograma'))}><small>Progresso</small><b>{progresso}%</b></button>
-        <button onClick={event => irPara(event, item.proximo?.id ? `${rotaObra('Agenda')}&compromisso=${item.proximo.id}` : rotaObra('Agenda'))}><small>Próximo</small><b>{item.proximo?.data ? dataBR(item.proximo.data) : '-'}</b></button>
+        <button onClick={event => {
+          const ehExecucao = normalizar(item.proximo?.tipo) === 'periodo de execucao'
+          irPara(event, item.proximo?.id ? `${rotaObra(ehExecucao ? 'Cronograma' : 'Agenda')}&compromisso=${item.proximo.id}` : rotaObra('Agenda'))
+        }}><small>{normalizar(item.proximo?.tipo) === 'periodo de execucao' ? 'Próxima execução' : 'Próxima agenda'}</small><b>{item.proximo?.data ? dataBR(item.proximo.data) : '-'}</b></button>
       </div>
 
       <div className="oa-live-flow">

@@ -6,6 +6,7 @@ import { theme } from '../../constants/theme'
 import { exportarPlanejamentoPdf } from '../../services/pdfService'
 import { faseOrnarePorKey, faseOrnarePorTexto } from '../../constants/fasesOrnare'
 import { criarNotificacoes } from '../../services/notificacoesService'
+import { obraColor } from '../../utils/obraColor'
 
 const THEME = {
   bg: theme.background,
@@ -596,7 +597,7 @@ export default function Planejamento() {
         <div className="pl-empty">Carregando planejamento...</div>
       ) : (
         <>
-          {visao === 'calendario' && <Calendario dias={vm.dias} mesAtual={mesAtual} abrirDia={setDiaSelecionado} />}
+          {visao === 'calendario' && <Calendario dias={vm.dias} mesAtual={mesAtual} abrirDia={setDiaSelecionado} mudarMes={quantidade => setMesAtual(m => addMonths(m, quantidade))} />}
           {visao === 'tabela' && (
             <CronogramaTabela
               registros={vm.filtrados}
@@ -692,7 +693,7 @@ function MobileOperacional({ grupos, abrirObra }) {
   )
 }
 
-function Calendario({ dias, mesAtual, abrirDia }) {
+function Calendario({ dias, mesAtual, abrirDia, mudarMes }) {
   return (
     <section className="pl-card">
       <div className="pl-card-head">
@@ -700,6 +701,7 @@ function Calendario({ dias, mesAtual, abrirDia }) {
         <span>{MESES[mesAtual.getMonth()]} {mesAtual.getFullYear()}</span>
       </div>
       <div className="pl-calendar-legend" aria-label="Legenda de tipos de compromisso">
+        <span className="meaning"><b>Cor do cartão = obra</b></span>
         {[
           ['Vistoria', COMPROMISSO_CORES.vistoria],
           ['Montagem', COMPROMISSO_CORES.montagem],
@@ -723,18 +725,23 @@ function Calendario({ dias, mesAtual, abrirDia }) {
                 <div
                   key={`${dia.key}-${item.origem}-${item.id}`}
                   className={item.origem === 'agenda' ? 'agenda-item' : 'cronograma-item'}
-                  style={{ borderLeftColor: item.tom?.border || item.faseCor, background: item.tom?.bg || `${item.faseCor}12` }}
+                  style={{ borderLeftColor: obraColor(item.obra).accent, background: obraColor(item.obra).soft }}
                 >
                   <strong>{item.obra.nome || 'Obra'}</strong>
                   <span>{item.montadores[0] ? nomePessoa(item.montadores[0]) : nomePessoa(item.supervisor)}</span>
                   <em style={{ color: item.tom?.cor || item.faseCor }}>{item.compromissoTipo}</em>
-                  <small>{item.origem === 'agenda' ? 'Agenda' : 'Cronograma'}</small>
+                  <small>{item.origem === 'cronograma' ? 'Previsão macro' : norm(item.tipo) === 'periodo de execucao' ? 'Execução da equipe' : 'Agenda'}</small>
                 </div>
               ))}
               {dia.obras.length > 4 && <small>+{dia.obras.length - 4} obras</small>}
             </div>
           </div>
         ))}
+      </div>
+      <div className="pl-calendar-bottom-nav">
+        <button type="button" onClick={() => mudarMes(-1)}>← Mês anterior</button>
+        <strong>{MESES[mesAtual.getMonth()]} {mesAtual.getFullYear()}</strong>
+        <button type="button" className="next" onClick={() => mudarMes(1)}>Próximo mês →</button>
       </div>
     </section>
   )
@@ -763,7 +770,7 @@ function ResumoDiaModal({ dia, onClose, onOpenItem, onAdd }) {
           ) : (
             <div className="pl-day-detail-list">
               {dia.obras.map(item => {
-                const cor = item.tom?.cor || item.faseCor || THEME.gold
+                const cor = obraColor(item.obra).accent
                 const equipe = (item.montadores || []).map(nomePessoa).filter(nome => nome !== '-')
                 const local = [item.obra?.cidade, item.obra?.uf].filter(Boolean).join(' / ')
                 return (
@@ -776,7 +783,7 @@ function ResumoDiaModal({ dia, onClose, onOpenItem, onAdd }) {
                       <div><span>Local</span><strong>{local || 'Não informado'}</strong></div>
                       <div><span>Responsável</span><strong>{nomePessoa(item.supervisor)}</strong></div>
                       <div><span>Equipe alocada</span><strong>{equipe.join(', ') || 'Sem equipe definida'}</strong></div>
-                      <div><span>Origem</span><strong>{item.origem === 'agenda' ? 'Agenda' : 'Cronograma da obra'}</strong></div>
+                      <div><span>Origem</span><strong>{item.origem === 'cronograma' ? 'Previsão macro' : norm(item.tipo) === 'periodo de execucao' ? 'Execução da equipe' : 'Agenda manual'}</strong></div>
                     </div>
                     {item.observacao && <p>{String(item.observacao).split('\n')[0]}</p>}
                     {item.obra_id && <button onClick={() => onOpenItem(item)}>Abrir obra e detalhes →</button>}
@@ -1137,6 +1144,7 @@ const css = `
 .pl-day-items strong{display:block;font-size:11.5px;color:${THEME.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pl-day-items span,.pl-day-items small{display:block;font-size:10.5px;color:${THEME.muted};margin-top:2px}
 .pl-day-items em{display:inline-flex;margin-top:5px;border-radius:999px;background:${THEME.elevated};color:${THEME.gold};font-style:normal;font-size:9.5px;font-weight:900;padding:2px 6px}
+.pl-calendar-bottom-nav{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:18px;padding-top:16px;border-top:1px solid ${THEME.border}}.pl-calendar-bottom-nav strong{font-size:12px;color:${THEME.muted}}.pl-calendar-bottom-nav button{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:9px;min-height:42px;padding:9px 14px;font-size:12px;font-weight:900;cursor:pointer}.pl-calendar-bottom-nav button.next{background:${THEME.gold};border-color:${THEME.gold};color:${THEME.bg}}
 .pl-filters{display:grid;grid-template-columns:minmax(220px,1.4fr) repeat(6,minmax(0,1fr));gap:9px;margin-bottom:14px}
 .pl-filters input,.pl-filters select{background:${THEME.inputBackground};border:1px solid ${THEME.inputBorder};color:${THEME.inputText};border-radius:8px;padding:10px 14px;width:100%;font-size:14px;outline:none;box-sizing:border-box;font-family:inherit}
 .pl-table-wrap{overflow:auto;border:1px solid ${THEME.border};border-radius:14px}

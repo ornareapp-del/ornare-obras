@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { theme } from '../../constants/theme'
 import { criarNotificacoes } from '../../services/notificacoesService'
 
-const TIPOS = ['Apresentação','Assistência Técnica','Compromisso','Entrega','Medição','Montagem','Período de execução','Tarefa','Vistoria','Reunião Interna']
+const TIPOS = ['Apresentação','Assistência Técnica','Compromisso','Entrega','Medição','Montagem','Tarefa','Vistoria','Reunião Interna']
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 const DIAS = ['Dom','Seg','Ter','Qua','Qui','Sex','Sab']
 const TIPO_COR = {
@@ -159,6 +159,10 @@ export default function Agenda() {
 
       if (error) {
         setErroPagina('Não foi possível abrir o compromisso indicado no link: ' + error.message)
+        return
+      }
+      if (norm(data?.tipo) === 'periodo de execucao' && data?.obra_id) {
+        navigate(`/obras/${data.obra_id}?aba=Cronograma&compromisso=${data.id}`)
         return
       }
       if (data) abrirEditar(data)
@@ -663,7 +667,7 @@ export default function Agenda() {
   }
 
   const hoje_str = hoje.toISOString().split('T')[0]
-  const eventosFiltrados = eventos.filter(ev => {
+  const eventosFiltrados = eventos.filter(ev => norm(ev.tipo) !== 'periodo de execucao').filter(ev => {
     const inicio = ev.data || ''
     const fim = ev.data_fim || ev.data || ''
     if (filtrosAvancados.inicio && fim < filtrosAvancados.inicio) return false
