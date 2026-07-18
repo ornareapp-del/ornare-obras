@@ -713,7 +713,7 @@ class PlanejamentoPdf {
     d.setTextColor(THEME.muted); d.setFont('helvetica', 'normal'); d.setFontSize(6.5)
     d.text(`Atualizado em ${new Date().toLocaleString('pt-BR')}  |  Ornare Works`, 14, 204); d.text(`Pagina ${this.page}`, 272, 204)
   }
-  addPage(title) { this.footer(); this.doc.addPage(); this.page += 1; this.header(); if (title) this.section(title) }
+  addPage(title) { this.footer(); this.doc.addPage('a4', 'landscape'); this.page += 1; this.header(); if (title) this.section(title) }
   ensure(h, title) { if (this.y + h > 195) this.addPage(title) }
   fit(v, w) { return this.doc.splitTextToSize(String(v ?? '-'), w)[0] || '-' }
   title(t, s) { this.doc.setTextColor(THEME.ink); this.doc.setFont('helvetica', 'bold'); this.doc.setFontSize(17); this.doc.text(t, 14, this.y); this.doc.setFont('helvetica', 'normal'); this.doc.setTextColor(THEME.muted); this.doc.setFontSize(8); this.doc.text(s, 14, this.y + 5); this.y += 12 }
@@ -737,10 +737,10 @@ function alertaPlanejamento(r, ocorrencias) {
   return a.join(' | ') || 'OK - sem pendencias criticas'
 }
 
-export async function exportarPlanejamentoPdf({ registros = [], agenda = [], mesAtual = new Date() }) {
-  const mes = mesAtual.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+export async function exportarPlanejamentoPdf({ registros = [], agenda = [], mesAtual = new Date(), periodoLabel = '', escopo = 'mes' }) {
+  const mes = periodoLabel || mesAtual.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
   try {
-    const ids = [...new Set(registros.map(r => r.obra_id).filter(Boolean))]
+    const ids = [...new Set([...registros.map(r => r.obra_id), ...agenda.map(a => a.obra_id)].filter(Boolean))]
     const [obrasResult, ocorrenciasResult] = await Promise.all([
       ids.length ? consultaSupabase('obras', supabase.from('obras').select('*').in('id', ids)) : { data: [] },
       ids.length ? consultaSupabase('ocorrencias', supabase.from('ocorrencias').select('*').in('obra_id', ids)) : { data: [] },
@@ -761,15 +761,17 @@ export async function exportarPlanejamentoPdf({ registros = [], agenda = [], mes
     pdf.table([
       { label: 'DATA / HORARIO', width: 38, get: a => `${dataBR(a.data)}${a.hora_inicio ? `  ${String(a.hora_inicio).slice(0, 5)}` : ''}`, bold: true }, { label: 'OBRA', width: 54, get: a => a.obra?.nome || a.titulo || 'Interno', bold: true }, { label: 'ATIVIDADE', width: 43, get: a => a.compromissoTipo || a.tipo }, { label: 'PERIODO', width: 42, get: a => a.data_fim && a.data_fim !== a.data ? `${dataBR(a.data)} - ${dataBR(a.data_fim)}` : 'No dia' }, { label: 'RESPONSAVEL', width: 43, get: a => nomePessoa(a.supervisor) }, { label: 'EQUIPE ALOCADA', width: 49, get: a => (a.montadores || []).map(nomePessoa).join(', ') || 'Sem equipe definida' },
     ], [...agenda].sort((a, b) => String(a.data).localeCompare(String(b.data))), 'Agenda operacional - continuacao')
+    pdf.ensure(34)
     pdf.section('Dados de cliente e local da obra', 'Apoio para logistica e contato')
     pdf.table([
       { label: 'OBRA / CLIENTE', width: 58, get: o => o.nome || o.cliente_nome, bold: true }, { label: 'CONTATO', width: 58, get: o => [o.cliente_telefone, o.cliente_email].filter(Boolean).join(' | ') }, { label: 'ENDERECO DA OBRA', width: 89, get: o => o.endereco || [o.cidade, o.uf].filter(Boolean).join(' / ') }, { label: 'CONTRATO', width: 34, get: o => o.numero_contrato }, { label: 'PREVISAO', width: 30, get: o => dataBR(o.data_previsao || o.data_previsao_entrega) },
     ], obras, 'Clientes e locais - continuacao')
+    pdf.ensure(34)
     pdf.section('Pontos de atencao', 'Prioridades para a reuniao de planejamento')
     pdf.table([
       { label: 'OBRA', width: 58, get: r => r.obra?.nome, bold: true }, { label: 'RISCO / STATUS', width: 51, get: r => `${r.risco || 'nao informado'} | ${r.status_operacional || '-'}` }, { label: 'PENDENCIA', width: 91, get: r => alertaPlanejamento(r, ocorrencias), color: () => THEME.danger, bold: true }, { label: 'ACAO RECOMENDADA', width: 69, get: r => r.acao_recomendada || 'Definir responsavel e proximo passo' },
     ], carteira.filter(r => !alertaPlanejamento(r, ocorrencias).startsWith('OK')), 'Pontos de atencao - continuacao')
-    pdf.save(`planejamento-executivo-ornare-${nomeArquivo(mes)}.pdf`)
+    pdf.save(`planejamento-executivo-ornare-${nomeArquivo(mes)}-${escopo}.pdf`)
   } catch (error) {
     throw new Error(`Nao foi possivel gerar o PDF de planejamento. ${erroMensagem(error)}`, { cause: error })
   }

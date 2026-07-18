@@ -182,6 +182,7 @@ export default function Planejamento() {
   const [erro, setErro] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [exportandoPdf, setExportandoPdf] = useState(false)
+  const [modalExportacao, setModalExportacao] = useState(false)
   const [toast, setToast] = useState('')
   const [modalCompromisso, setModalCompromisso] = useState(null)
   const [diaSelecionado, setDiaSelecionado] = useState(null)
@@ -503,14 +504,28 @@ export default function Planejamento() {
     }
   }
 
-  async function gerarPdfPlanejamento() {
+  async function gerarPdfPlanejamento(escopo = 'mes') {
     if (exportandoPdf) return
     setExportandoPdf(true)
     setErro('')
     setToast('Gerando PDF...')
     try {
-      await exportarPlanejamentoPdf({ registros: vm.filtrados, agenda: vm.agendaMes, mesAtual })
+      const inicio = escopo === 'abertas' ? null : new Date(mesAtual.getFullYear(), mesAtual.getMonth(), 1)
+      const fim = escopo === 'trimestre' ? new Date(mesAtual.getFullYear(), mesAtual.getMonth() + 3, 0) : escopo === 'mes' ? new Date(mesAtual.getFullYear(), mesAtual.getMonth() + 1, 0) : null
+      const registrosPdf = vm.registros.filter(item => {
+        if (escopo === 'abertas') return !['concluida', 'cancelada'].some(status => norm(item.status_operacional || item.obra?.status).includes(status))
+        return item.inicio && item.fim && overlapsRange(item.inicio, item.fim, inicio, fim)
+      })
+      const agendaPdf = vm.compromissosAgenda.filter(item => {
+        if (escopo === 'abertas') return item.status !== 'cancelada' && item.fim >= new Date(new Date().setHours(0, 0, 0, 0))
+        return item.inicio && item.fim && overlapsRange(item.inicio, item.fim, inicio, fim)
+      })
+      const periodoLabel = escopo === 'trimestre'
+        ? `${MESES[inicio.getMonth()]} a ${MESES[fim.getMonth()]} de ${fim.getFullYear()}`
+        : escopo === 'abertas' ? 'Visão geral das obras em aberto' : `${MESES[mesAtual.getMonth()]} de ${mesAtual.getFullYear()}`
+      await exportarPlanejamentoPdf({ registros: registrosPdf, agenda: agendaPdf, mesAtual, periodoLabel, escopo })
       setToast('PDF gerado com sucesso.')
+      setModalExportacao(false)
       setTimeout(() => setToast(''), 3200)
     } catch (error) {
       setToast('')
@@ -544,6 +559,7 @@ export default function Planejamento() {
           abrirModalDia(data)
         }} />
       )}
+      {modalExportacao && <ExportacaoModal mesAtual={mesAtual} exportando={exportandoPdf} onClose={() => setModalExportacao(false)} onExport={gerarPdfPlanejamento} />}
 
       <header className="pl-header">
         <div>
@@ -552,7 +568,7 @@ export default function Planejamento() {
           <p>Central de Planejamento Operacional da Ornare</p>
         </div>
         <div className="pl-month-nav">
-          <button onClick={gerarPdfPlanejamento} disabled={exportandoPdf}>{exportandoPdf ? 'Gerando PDF...' : 'Exportar PDF'}</button>
+          <button onClick={() => setModalExportacao(true)} disabled={exportandoPdf}>{exportandoPdf ? 'Gerando PDF...' : 'Exportar PDF'}</button>
           <button onClick={() => setMesAtual(m => addMonths(m, -1))}>Anterior</button>
           <strong>{MESES[mesAtual.getMonth()]} {mesAtual.getFullYear()}</strong>
           <button onClick={() => setMesAtual(m => addMonths(m, 1))}>Próximo</button>
@@ -744,6 +760,25 @@ function Calendario({ dias, mesAtual, abrirDia, mudarMes }) {
         <button type="button" className="next" onClick={() => mudarMes(1)}>Próximo mês →</button>
       </div>
     </section>
+  )
+}
+
+function ExportacaoModal({ mesAtual, exportando, onClose, onExport }) {
+  return (
+    <div className="pl-modal-bg" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="pl-modal pl-export-modal" role="dialog" aria-modal="true" aria-labelledby="pl-export-title">
+        <div className="pl-modal-head"><div><span>Exportar planejamento</span><h2 id="pl-export-title">Qual visão você precisa?</h2></div><button onClick={onClose} aria-label="Fechar exportação">X</button></div>
+        <div className="pl-modal-body">
+          <p className="pl-export-intro">O relatório será montado com cronograma, execuções, equipes, clientes, riscos e ocorrências dentro do período escolhido.</p>
+          <div className="pl-export-options">
+            <button onClick={() => onExport('mes')} disabled={exportando}><i>01</i><div><strong>Mês exibido</strong><span>{MESES[mesAtual.getMonth()]} de {mesAtual.getFullYear()}</span><small>Ideal para reunião operacional do mês.</small></div><b>→</b></button>
+            <button onClick={() => onExport('trimestre')} disabled={exportando}><i>03</i><div><strong>Próximos 3 meses</strong><span>A partir de {MESES[mesAtual.getMonth()]}</span><small>Melhor para capacidade e mobilização das equipes.</small></div><b>→</b></button>
+            <button onClick={() => onExport('abertas')} disabled={exportando}><i>∞</i><div><strong>Visão geral</strong><span>Todas as obras em aberto</span><small>Resumo executivo completo da carteira.</small></div><b>→</b></button>
+          </div>
+        </div>
+        <div className="pl-modal-foot"><button onClick={onClose} disabled={exportando}>Cancelar</button></div>
+      </div>
+    </div>
   )
 }
 
@@ -1194,6 +1229,7 @@ const css = `
 .pl-modal-foot{display:flex;justify-content:flex-end;gap:10px;padding:16px 24px;border-top:1px solid ${THEME.border};background:${THEME.card}}
 .pl-modal-foot button{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:10px;padding:10px 15px;font-size:13px;font-weight:800;cursor:pointer}
 .pl-modal-foot button.primary{background:${THEME.gold};border-color:${THEME.gold};color:#fff}
+.pl-export-modal{max-width:680px}.pl-export-intro{margin:0 0 15px;color:${THEME.muted};font-size:13px;line-height:1.5}.pl-export-options{display:grid;gap:10px}.pl-export-options>button{width:100%;display:grid;grid-template-columns:44px 1fr auto;align-items:center;gap:12px;border:1px solid ${THEME.border};background:${THEME.elevated};border-radius:13px;padding:13px;text-align:left;cursor:pointer;color:${THEME.ink};font-family:inherit}.pl-export-options>button:hover{border-color:${THEME.gold}}.pl-export-options i{width:40px;height:40px;border-radius:11px;background:${THEME.ink};color:${THEME.gold};display:flex;align-items:center;justify-content:center;font-style:normal;font-size:13px;font-weight:900}.pl-export-options strong,.pl-export-options span,.pl-export-options small{display:block}.pl-export-options strong{font-size:14px}.pl-export-options span{font-size:12px;color:${THEME.gold};font-weight:800;margin-top:2px}.pl-export-options small{font-size:11px;color:${THEME.muted};margin-top:4px}.pl-export-options>button>b{font-size:20px;color:${THEME.gold}}
 .pl-day-modal{max-width:860px}.pl-day-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}.pl-day-summary>div{border:1px solid ${THEME.border};background:${THEME.elevated};border-radius:11px;padding:12px}.pl-day-summary span,.pl-day-team>span,.pl-day-detail-grid span{display:block;font-size:9.5px;letter-spacing:1.2px;text-transform:uppercase;color:${THEME.muted};font-weight:900}.pl-day-summary strong{display:block;margin-top:6px;font-size:17px;color:${THEME.ink}}.pl-day-team{border:1px solid ${THEME.border};border-radius:11px;padding:12px;margin-bottom:14px}.pl-day-team>div{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.pl-day-team b{background:${THEME.elevated};border-radius:999px;padding:6px 9px;font-size:11px;color:${THEME.ink}}.pl-day-detail-list{display:grid;gap:10px}.pl-day-detail-list article{border:1px solid ${THEME.border};border-left:4px solid ${THEME.gold};border-radius:11px;padding:14px;background:${THEME.card}}.pl-day-detail-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}.pl-day-detail-head span{font-size:10px;text-transform:uppercase;letter-spacing:1.2px;font-weight:900}.pl-day-detail-head h3{font-size:15px;margin:4px 0 0;color:${THEME.ink}}.pl-day-detail-head>b{font-size:11px;background:${THEME.elevated};border-radius:999px;padding:6px 9px;white-space:nowrap}.pl-day-detail-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:14px}.pl-day-detail-grid strong{display:block;font-size:12px;color:${THEME.ink};margin-top:4px;line-height:1.35}.pl-day-detail-list article p{font-size:12px;color:${THEME.muted};margin:12px 0 0;padding-top:10px;border-top:1px solid ${THEME.border}}.pl-day-detail-list article>button{border:0;background:transparent;color:${THEME.gold};font-weight:900;font-size:11.5px;padding:12px 0 0;cursor:pointer}.pl-day-empty{border:1px dashed ${THEME.border};border-radius:12px;padding:28px;text-align:center}.pl-day-empty strong,.pl-day-empty span{display:block}.pl-day-empty span{font-size:12px;color:${THEME.muted};margin-top:5px}
 @media (max-width:1100px){.pl-kpis{grid-template-columns:repeat(3,1fr)}.pl-attention-list{grid-template-columns:1fr 1fr}.pl-filters{grid-template-columns:repeat(2,1fr)}.pl-calendar{grid-template-columns:repeat(2,1fr)}.pl-weekdays{display:none}.pl-day{min-height:auto}.pl-day.outside{display:none}.pl-form-grid{grid-template-columns:1fr 1fr}}
 @media (max-width:760px){.pl-page{padding:22px 14px calc(112px + env(safe-area-inset-bottom))}.pl-header{display:block;margin-bottom:12px;padding-right:0}.pl-eyebrow{font-size:9px;letter-spacing:2px;margin-bottom:4px}.pl-header h1{font-size:28px;line-height:1.02}.pl-header p{font-size:12.5px;line-height:1.45}.pl-month-nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;justify-content:flex-start;margin-top:10px}.pl-month-nav strong{grid-column:1/-1;order:-1;text-align:left;min-width:0;font-size:16px}.pl-month-nav button{width:100%;padding:10px 9px;font-size:12px}.pl-mobile-actions{display:grid;grid-template-columns:1.35fr 1fr 1fr;gap:8px;margin:0 0 12px;max-width:none}.pl-mobile-actions button{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:13px;padding:10px 8px;font-size:12px;font-weight:900;font-family:inherit}.pl-mobile-actions button.primary{background:${THEME.gold};border-color:${THEME.gold};color:#fff}.pl-kpis{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px}.pl-kpis>*{flex:0 0 auto;min-width:auto;max-width:none}.pl-kpi{display:flex;align-items:center;gap:7px;border-radius:999px;padding:7px 10px;min-width:auto;max-width:none;border-top:1px solid rgba(184,150,94,.22)}.pl-kpi span{white-space:nowrap;font-size:10.5px;line-height:1;letter-spacing:0;margin:0}.pl-kpi strong{font-size:15px}.pl-attention{padding:15px 13px;border-radius:15px}.pl-attention-list{grid-template-columns:1fr}.pl-mobile-operational{display:grid;gap:10px;margin:0 0 12px;max-width:none}.pl-mobile-group{background:${THEME.card};border:1px solid ${THEME.border};border-radius:16px;padding:13px;box-shadow:0 14px 34px rgba(29,28,25,.045)}.pl-mobile-group-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.pl-mobile-group-head h2{font-size:19px;margin:0}.pl-mobile-group-head span{color:${THEME.gold};font-size:13px;font-weight:900}.pl-mobile-item{width:100%;border:1px solid ${THEME.border};border-left:4px solid ${THEME.gold};background:${THEME.elevated};border-radius:13px;padding:12px;margin-top:8px;display:flex;justify-content:space-between;gap:12px;text-align:left;font-family:inherit}.pl-mobile-item span{display:block;font-size:10px;letter-spacing:1.4px;text-transform:uppercase;color:${THEME.gold};font-weight:900;margin-bottom:4px}.pl-mobile-item strong{display:block;font-size:14px;color:${THEME.ink};line-height:1.25}.pl-mobile-item small,.pl-mobile-item em{display:block;font-size:11.5px;color:${THEME.muted};line-height:1.35;font-style:normal}.pl-mobile-side{display:flex;flex-direction:column;align-items:flex-end;gap:6px;min-width:92px}.pl-mobile-side b{border-radius:999px;padding:5px 8px;font-size:10.5px;line-height:1;font-weight:900;white-space:nowrap}.pl-mobile-side b.tone-success{background:rgba(76,175,125,.12);color:${THEME.success}}.pl-mobile-side b.tone-info{background:rgba(59,95,134,.18);color:${THEME.blue}}.pl-mobile-side b.tone-warn{background:rgba(224,168,82,.12);color:${THEME.warn}}.pl-mobile-item em{text-align:right;max-width:120px}.pl-mobile-empty{border:0;border-radius:0;padding:3px 0 2px;text-align:left;color:${THEME.muted};font-size:12.5px}.pl-tabs,.pl-card:has(.pl-calendar){display:none}.pl-card{padding:15px 13px;border-radius:15px}.pl-card-head h2{font-size:20px}.pl-calendar{grid-template-columns:1fr;gap:10px}.pl-day{min-height:78px;padding:11px 12px}.pl-day.outside{display:none}.pl-day-items>div{padding:9px 10px}.pl-day-items strong{white-space:normal}.pl-filters{grid-template-columns:1fr}.pl-gantt-head,.pl-gantt-row{grid-template-columns:190px repeat(var(--cols),100px)}.pl-modal-bg{align-items:flex-end;padding:8px}.pl-modal{max-height:94vh;border-radius:18px 18px 0 0}.pl-modal-head{padding:20px 18px 0}.pl-modal-body{padding:18px}.pl-modal-foot{padding:14px 18px}.pl-form-grid,.pl-day-detail-grid{grid-template-columns:1fr}.pl-day-summary{grid-template-columns:1fr 1fr}.pl-day-summary>div:last-child{grid-column:1/-1}}
