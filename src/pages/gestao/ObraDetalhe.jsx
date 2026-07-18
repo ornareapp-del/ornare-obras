@@ -53,9 +53,21 @@ const STATUS_LIST = [
 const APROVACOES_CRONOGRAMA = ['pendente', 'aprovado', 'reprovado', 'nao_se_aplica']
 const PRIORIDADES_CRONOGRAMA = ['baixa', 'media', 'alta']
 const RISCOS_CRONOGRAMA = ['baixo', 'medio', 'alto']
-const TIPOS_PERIODO_EXECUCAO = ['Desmontagem', 'Montagem parcial', 'Montagem', 'Retorno / finalizacao', 'Assistencia tecnica', 'Vistoria', 'Entrega', 'Outro']
+const TIPOS_PERIODO_EXECUCAO = ['Desmontagem', 'Montagem parcial', 'Montagem', 'Retorno / finalização', 'Assistência técnica', 'Vistoria', 'Entrega', 'Outro']
 const STATUS_PERIODO_EXECUCAO = ['pendente', 'em andamento', 'realizada', 'suspensa', 'cancelada']
 const TIPO_AGENDA_PERIODO = 'Período de execução'
+
+function rotuloPrioridade(valor) {
+  return { baixa: 'Baixa', media: 'Média', alta: 'Alta' }[valor] || valor
+}
+
+function rotuloRisco(valor) {
+  return { baixo: 'Baixo', medio: 'Médio', alto: 'Alto' }[valor] || valor
+}
+
+function rotuloStatusPeriodo(valor) {
+  return { pendente: 'Planejado', 'em andamento': 'Em andamento', realizada: 'Concluído', suspensa: 'Suspenso', cancelada: 'Cancelado' }[valor] || valor
+}
 const SECOES = [
   { id: 'Resumo', label: 'Resumo' },
   { id: 'Cliente', label: 'Cliente' },
@@ -1078,7 +1090,7 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
   async function carregarPeriodos() {
     const { data, error } = await supabase.from('agenda').select('*').eq('obra_id', obraId).eq('tipo', TIPO_AGENDA_PERIODO).order('data', { ascending: true })
     if (error) {
-      setMensagem({ tipo: 'erro', texto: 'Nao foi possivel carregar os periodos de execucao: ' + error.message })
+      setMensagem({ tipo: 'erro', texto: 'Não foi possível carregar os períodos de execução: ' + error.message })
       return
     }
     setPeriodos(data || [])
@@ -1091,12 +1103,12 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
 
   async function salvarPeriodo() {
     if (!formPeriodo.atividade.trim() || !formPeriodo.data) {
-      setMensagem({ tipo: 'erro', texto: 'Informe a atividade e a data inicial do periodo.' })
+      setMensagem({ tipo: 'erro', texto: 'Informe a atividade e a data inicial do período.' })
       return
     }
     const fim = formPeriodo.data_fim || formPeriodo.data
     if (fim < formPeriodo.data) {
-      setMensagem({ tipo: 'erro', texto: 'A data final nao pode ser anterior a data inicial.' })
+      setMensagem({ tipo: 'erro', texto: 'A data final não pode ser anterior à data inicial.' })
       return
     }
     setSalvandoPeriodo(true)
@@ -1104,12 +1116,12 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
     if (formPeriodo.responsavel_id) {
       const { data: agendaResponsavel, error: conflitoError } = await supabase.from('agenda').select('id, titulo, data, data_fim').eq('responsavel_id', formPeriodo.responsavel_id).neq('status', 'cancelada')
       if (conflitoError) {
-        setMensagem({ tipo: 'erro', texto: 'Nao foi possivel validar conflitos de agenda: ' + conflitoError.message })
+        setMensagem({ tipo: 'erro', texto: 'Não foi possível validar conflitos de agenda: ' + conflitoError.message })
         setSalvandoPeriodo(false)
         return
       }
       const conflito = (agendaResponsavel || []).find(item => String(item.id) !== String(periodoEditando) && item.data <= fim && (item.data_fim || item.data) >= formPeriodo.data)
-      if (conflito && !window.confirm(`O responsavel ja possui "${conflito.titulo || 'outro compromisso'}" neste intervalo. Deseja manter a sobreposicao?`)) {
+      if (conflito && !window.confirm(`O responsável já possui "${conflito.titulo || 'outro compromisso'}" neste intervalo. Deseja manter a sobreposição?`)) {
         setSalvandoPeriodo(false)
         return
       }
@@ -1117,25 +1129,25 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
     const payload = { obra_id: obraId, tipo: TIPO_AGENDA_PERIODO, titulo: formPeriodo.atividade.trim(), observacao: formPeriodo.observacao || null, data: formPeriodo.data, data_fim: fim, hora_inicio: '08:00', hora_fim: null, responsavel_id: formPeriodo.responsavel_id || null, status: formPeriodo.status || 'pendente', reuniao_interna: false, visivel_montador: Boolean(formPeriodo.visivel_montador), visivel_cliente: Boolean(formPeriodo.visivel_cliente) }
     const result = periodoEditando ? await supabase.from('agenda').update(payload).eq('id', periodoEditando).select().single() : await supabase.from('agenda').insert([payload]).select().single()
     if (result.error) {
-      setMensagem({ tipo: 'erro', texto: 'Nao foi possivel salvar o periodo: ' + result.error.message })
+      setMensagem({ tipo: 'erro', texto: 'Não foi possível salvar o período: ' + result.error.message })
     } else {
       await carregarPeriodos()
       novoPeriodo()
-      setMensagem({ tipo: 'sucesso', texto: periodoEditando ? 'Periodo atualizado.' : 'Periodo adicionado ao cronograma e a agenda.' })
+      setMensagem({ tipo: 'sucesso', texto: periodoEditando ? 'Período atualizado.' : 'Período adicionado ao cronograma e à agenda.' })
     }
     setSalvandoPeriodo(false)
   }
 
   async function excluirPeriodo(item) {
-    if (!window.confirm(`Excluir o periodo "${item.titulo}"?`)) return
+    if (!window.confirm(`Excluir o período "${item.titulo}"?`)) return
     const { error } = await supabase.from('agenda').delete().eq('id', item.id)
     if (error) {
-      setMensagem({ tipo: 'erro', texto: 'Nao foi possivel excluir o periodo: ' + error.message })
+      setMensagem({ tipo: 'erro', texto: 'Não foi possível excluir o período: ' + error.message })
       return
     }
     if (String(periodoEditando) === String(item.id)) novoPeriodo()
     await carregarPeriodos()
-    setMensagem({ tipo: 'sucesso', texto: 'Periodo excluido da agenda.' })
+    setMensagem({ tipo: 'sucesso', texto: 'Período excluído da agenda.' })
   }
 
   function textoAprovacao(valor) {
@@ -1324,19 +1336,20 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
       </Card>
 
       <Card titulo="Dados do cronograma">
+        <div style={{ color: THEME.muted, fontSize: 12.5, lineHeight: 1.5, marginBottom: 14 }}>Visão geral da obra: fase atual, prazo total e responsáveis. As idas e retornos da equipe são detalhados nos períodos de execução abaixo.</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12 }}>
           <div><Label>Fase / status operacional</Label><FSelect value={faseAtual} onChange={v => setCampo('fase', v)}>{FASES_ORNARE.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}</FSelect></div>
-          <div><Label>Etapa atual</Label><FInput value={form.etapa_atual || ''} onChange={v => setCampo('etapa_atual', v)} /></div>
-          <div><Label>Tipo de montagem</Label><FInput value={form.tipo_montagem || ''} onChange={v => setCampo('tipo_montagem', v)} /></div>
-          <div><Label>Prioridade</Label><FSelect value={form.prioridade || 'media'} onChange={v => setCampo('prioridade', v)}>{PRIORIDADES_CRONOGRAMA.map(p => <option key={p} value={p}>{p}</option>)}</FSelect></div>
-          <div><Label>Risco</Label><FSelect value={form.risco || 'medio'} onChange={v => setCampo('risco', v)}>{RISCOS_CRONOGRAMA.map(r => <option key={r} value={r}>{r}</option>)}</FSelect></div>
+          <div><Label>Descrição da etapa atual</Label><FInput value={form.etapa_atual || ''} onChange={v => setCampo('etapa_atual', v)} /></div>
+          <div><Label>Modalidade de montagem</Label><FInput value={form.tipo_montagem || ''} onChange={v => setCampo('tipo_montagem', v)} /></div>
+          <div><Label>Prioridade</Label><FSelect value={form.prioridade || 'media'} onChange={v => setCampo('prioridade', v)}>{PRIORIDADES_CRONOGRAMA.map(p => <option key={p} value={p}>{rotuloPrioridade(p)}</option>)}</FSelect></div>
+          <div><Label>Risco</Label><FSelect value={form.risco || 'medio'} onChange={v => setCampo('risco', v)}>{RISCOS_CRONOGRAMA.map(r => <option key={r} value={r}>{rotuloRisco(r)}</option>)}</FSelect></div>
           <div><Label>Percentual concluído</Label><FInput type="number" min="0" max="100" value={form.percentual_concluido ?? 0} onChange={v => setCampo('percentual_concluido', v)} /></div>
-          <div><Label>Dias previstos</Label><FInput type="number" min="0" value={form.dias_previstos || ''} onChange={v => setCampo('dias_previstos', v)} /></div>
+          <div><Label>Dias estimados de execução</Label><FInput type="number" min="0" value={form.dias_previstos || ''} onChange={v => setCampo('dias_previstos', v)} /></div>
           <div><Label>Data início prevista</Label><FInput type="date" value={form.data_inicio_prevista || ''} onChange={v => setCampo('data_inicio_prevista', v)} /></div>
           <div><Label>Data fim prevista</Label><FInput type="date" value={form.data_fim_prevista || ''} onChange={v => setCampo('data_fim_prevista', v)} /></div>
           <div><Label>Data início real</Label><FInput type="date" value={form.data_inicio_real || ''} onChange={v => setCampo('data_inicio_real', v)} /></div>
           <div><Label>Data fim real</Label><FInput type="date" value={form.data_fim_real || ''} onChange={v => setCampo('data_fim_real', v)} /></div>
-          <div><Label>Responsável</Label><FSelect value={form.responsavel_id || ''} onChange={v => setCampo('responsavel_id', v)}><option value="">Sem responsável</option>{responsaveis.map(p => <option key={p.id} value={p.id}>{p.full_name || p.email}</option>)}</FSelect></div>
+          <div><Label>Responsável geral</Label><FSelect value={form.responsavel_id || ''} onChange={v => setCampo('responsavel_id', v)}><option value="">Sem responsável</option>{responsaveis.map(p => <option key={p.id} value={p.id}>{p.full_name || p.email}</option>)}</FSelect></div>
           <div><Label>Supervisor</Label><FSelect value={form.supervisor_id || ''} onChange={v => setCampo('supervisor_id', v)}><option value="">Sem supervisor</option>{supervisores.map(p => <option key={p.id} value={p.id}>{p.full_name || p.email}</option>)}</FSelect></div>
           <div><Label>Pós-venda</Label><FSelect value={form.pos_venda_id || ''} onChange={v => setCampo('pos_venda_id', v)}><option value="">Sem pós-venda</option>{posVenda.map(p => <option key={p.id} value={p.id}>{p.full_name || p.email}</option>)}</FSelect></div>
         </div>
@@ -1349,7 +1362,7 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
             const responsavel = responsaveis.find(p => p.id === item.responsavel_id)
             return <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', border: `1px solid ${String(periodoEditando) === String(item.id) ? THEME.gold : THEME.border}`, background: String(periodoEditando) === String(item.id) ? THEME.softGold : THEME.elevated, borderRadius: 12, padding: '12px 14px' }}>
               <div style={{ minWidth: 165 }}><div style={{ color: THEME.ink, fontSize: 13.5, fontWeight: 900 }}>{item.titulo}</div><div style={{ color: THEME.gold, fontSize: 12, fontWeight: 800, marginTop: 4 }}>{new Date(`${item.data}T00:00:00`).toLocaleDateString('pt-BR')} — {new Date(`${item.data_fim || item.data}T00:00:00`).toLocaleDateString('pt-BR')}</div></div>
-              <div style={{ flex: 1, minWidth: 150, color: THEME.muted, fontSize: 12 }}>{responsavel?.full_name || responsavel?.email || 'Sem responsável'} · {item.status || 'pendente'}</div>
+              <div style={{ flex: 1, minWidth: 150, color: THEME.muted, fontSize: 12 }}>{responsavel?.full_name || responsavel?.email || 'Sem responsável'} · {rotuloStatusPeriodo(item.status || 'pendente')}</div>
               <button type="button" onClick={() => editarPeriodo(item)} style={{ border: `1px solid ${THEME.border}`, background: THEME.card, color: THEME.ink, borderRadius: 8, minHeight: 40, padding: '8px 11px', fontWeight: 800, cursor: 'pointer' }}>Editar</button>
               <button type="button" onClick={() => excluirPeriodo(item)} style={{ border: `1px solid ${THEME.danger}`, background: THEME.dangerBg, color: THEME.danger, borderRadius: 8, minHeight: 40, padding: '8px 11px', fontWeight: 800, cursor: 'pointer' }}>Excluir</button>
             </div>
@@ -1359,7 +1372,7 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
             <div><Label>Data inicial</Label><FInput type="date" value={formPeriodo.data} onChange={v => setFormPeriodo(p => ({ ...p, data: v, data_fim: p.data_fim || v }))} /></div>
             <div><Label>Data final</Label><FInput type="date" value={formPeriodo.data_fim} onChange={v => setFormPeriodo(p => ({ ...p, data_fim: v }))} /></div>
             <div><Label>Responsável</Label><FSelect value={formPeriodo.responsavel_id} onChange={v => setFormPeriodo(p => ({ ...p, responsavel_id: v }))}><option value="">Sem responsável</option>{responsaveis.map(p => <option key={p.id} value={p.id}>{p.full_name || p.email}</option>)}</FSelect></div>
-            <div><Label>Status</Label><FSelect value={formPeriodo.status} onChange={v => setFormPeriodo(p => ({ ...p, status: v }))}>{STATUS_PERIODO_EXECUCAO.map(status => <option key={status}>{status}</option>)}</FSelect></div>
+            <div><Label>Status</Label><FSelect value={formPeriodo.status} onChange={v => setFormPeriodo(p => ({ ...p, status: v }))}>{STATUS_PERIODO_EXECUCAO.map(status => <option key={status} value={status}>{rotuloStatusPeriodo(status)}</option>)}</FSelect></div>
             <div style={{ gridColumn: '1 / -1' }}><Label>Observação</Label><textarea value={formPeriodo.observacao} onChange={e => setFormPeriodo(p => ({ ...p, observacao: e.target.value }))} rows={2} style={textareaStyle} /></div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap', marginTop: 12 }}>
