@@ -233,9 +233,26 @@ function corDataOperacional(item) {
   return { bg: 'rgba(255,255,255,.05)', border: THEME.border, color: THEME.muted }
 }
 
-function obraAguardandoInicio(obra) {
-  const status = norm(obra?.status)
-  return status.includes('aguardando inicio') || status.includes('aguardando montagem')
+function bloqueioCheckinObra(obra) {
+  if (!obra) return { titulo: 'Obra indisponível', detalhe: 'Selecione uma obra para registrar presença.', botao: 'Indisponível' }
+  const status = norm(obra.status)
+  const inicioReal = obra.data_inicio_real
+  const liberadaOperacionalmente = Boolean(inicioReal) || status.includes('em montagem') || status.includes('em andamento') || status.includes('iniciada')
+
+  if (status.includes('conclu') || status.includes('finaliz')) {
+    return { titulo: 'Obra finalizada', detalhe: 'O apontamento de presença foi encerrado para esta obra.', botao: 'Finalizada' }
+  }
+  if (!liberadaOperacionalmente) {
+    const inicioPrevisto = obra.data_previsao_inicio || obra.data_inicio_prevista
+    return {
+      titulo: 'Obra não liberada',
+      detalhe: inicioPrevisto
+        ? `Aguardando liberação do supervisor · início previsto em ${dataBR(inicioPrevisto)}.`
+        : 'Aguardando o supervisor liberar a montagem e definir o início.',
+      botao: 'Aguardando',
+    }
+  }
+  return null
 }
 
 function obraEmMontagem(obra) {
@@ -711,6 +728,12 @@ export default function MontadorDashboard() {
 
   async function fazerCheckin() {
     if (!obraAtiva || !user) return
+    const bloqueio = bloqueioCheckinObra(obraAtiva)
+    if (bloqueio) {
+      setServicoFeedback(bloqueio.detalhe)
+      mostrarSucesso('Check-in bloqueado: obra ainda não liberada.')
+      return
+    }
     if (isAppOffline()) {
       guardarAcaoOffline({ tipo: 'checkin', detalhe: 'Check-in solicitado sem conexao' })
       setServicoFeedback('Sem conexao. Intencao de check-in guardada neste aparelho; refaca o check-in quando a internet voltar.')
@@ -1479,6 +1502,7 @@ export default function MontadorDashboard() {
   }
 
   const previsao = obraAtiva.data_previsao || obraAtiva.data_previsao_entrega
+  const bloqueioCheckin = bloqueioCheckinObra(obraAtiva)
 
   return (
     <div className="md-page">
@@ -1640,8 +1664,8 @@ export default function MontadorDashboard() {
         {(() => {
           const faseMontador = faseObraMontador(obraAtiva)
           const analiseSolicitada = agenda.some(item => norm(item.tipo).includes('vistoria') && norm(item.titulo).includes('analise final da montagem') && !isConcluido(item.status) && norm(item.status) !== 'cancelada')
-          if (obraAguardandoInicio(obraAtiva)) {
-            return <div className="md-work-day muted">Aguardando liberação para montagem</div>
+          if (bloqueioCheckin) {
+            return <div className="md-work-day muted">{bloqueioCheckin.titulo}</div>
           }
           if (analiseSolicitada) {
             return <div className="md-work-day gold">Análise solicitada · aguardando supervisor</div>
@@ -1685,10 +1709,10 @@ export default function MontadorDashboard() {
       <section className={vm.emServico ? 'md-check-card active' : 'md-check-card'} style={telaAtiva === 'hoje' ? undefined : { display: 'none' }}>
         <div className="md-check-info">
           <span>Hoje - {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
-          {obraAguardandoInicio(obraAtiva) ? (
+          {bloqueioCheckin ? (
             <>
-              <p className="md-check-primary">Obra ainda não iniciada</p>
-              <small>Inicie a obra antes de registrar presença em campo.</small>
+              <p className="md-check-primary">{bloqueioCheckin.titulo}</p>
+              <small>{bloqueioCheckin.detalhe}</small>
             </>
           ) : vm.registrosHoje.length > 0 ? (
             <>
@@ -1712,8 +1736,8 @@ export default function MontadorDashboard() {
           )}
           {servicoFeedback && <div className="md-check-feedback">{servicoFeedback}</div>}
         </div>
-        {obraAguardandoInicio(obraAtiva) ? (
-          <button className="disabled" disabled>Aguardando</button>
+        {bloqueioCheckin ? (
+          <button className="disabled" disabled>{bloqueioCheckin.botao}</button>
         ) : vm.emServico ? (
           <button className="checkout" onClick={fazerCheckout} disabled={checkando}>{checkando ? '...' : 'Check-out'}</button>
         ) : (
