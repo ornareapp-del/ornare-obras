@@ -63,6 +63,7 @@ export default function Equipe() {
   const [supervisores, setSupervisores] = useState([])
   const [ajudantes, setAjudantes] = useState([])
   const [modalAjudante, setModalAjudante] = useState(false)
+  const [editandoAjudante, setEditandoAjudante] = useState(null)
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState('ativos')
   const [busca, setBusca] = useState('')
@@ -196,6 +197,18 @@ export default function Equipe() {
     await carregar()
   }
 
+  async function alterarAtivoAjudante(ajudante) {
+    const ativo = ajudante.ativo !== false
+    if (ativo && !window.confirm(`Deseja desativar ${ajudante.nome}?`)) return
+    const { error } = await supabase.from('equipe_operacional').update({ ativo: !ativo }).eq('id', ajudante.id)
+    if (error) {
+      mostrarToast(detalheErro(error, `Não foi possível ${ativo ? 'desativar' : 'ativar'} o ajudante.`), 'erro')
+      return
+    }
+    mostrarToast(`${ajudante.nome} ${ativo ? 'desativado' : 'ativado'}.`)
+    await carregar()
+  }
+
   const profilesVisiveis = supervisorAtual
     ? profiles.filter(p => p.role === 'montador' && (!p.supervisor_id || p.supervisor_id === perfilAtual?.id))
     : profiles
@@ -227,6 +240,7 @@ export default function Equipe() {
   const membrosTotal = profilesVisiveis.length + ajudantes.length
   const ativosTotal = profilesVisiveis.filter(p => p.ativo !== false).length + ajudantes.filter(a => a.ativo !== false).length
   const profilesAtivos = profilesVisiveis.filter(p => p.ativo !== false)
+  const ajudantesAtivosFiltrados = ajudantesFiltrados.filter(a => a.ativo !== false).length
   const kpis = [
     { label: 'Gestão', value: profilesAtivos.filter(p => p.role === 'gestao').length },
     { label: 'Supervisores', value: profilesAtivos.filter(p => p.role === 'supervisor').length },
@@ -234,6 +248,7 @@ export default function Equipe() {
     { label: 'Ajudantes', value: ajudantes.filter(p => p.ativo !== false).length },
     { label: 'Pós-venda', value: profilesAtivos.filter(p => p.role === 'pos_venda').length },
     { label: 'Vendedores', value: profilesAtivos.filter(p => p.role === 'vendedor').length },
+    { label: 'Clientes', value: profilesAtivos.filter(p => p.role === 'cliente').length },
   ].filter(k => !supervisorAtual || k.label === 'Montadores')
 
   function obrasVinculadas(profile) {
@@ -277,7 +292,7 @@ export default function Equipe() {
     <div className="ow-page" style={s.page}>
       <style>{css}</style>
       {toast.msg && <Toast msg={toast.msg} tipo={toast.tipo} />}
-      {modalAjudante && <ModalAjudante supervisores={supervisores} onClose={() => setModalAjudante(false)} onSaved={() => { setModalAjudante(false); carregar(); mostrarToast('Ajudante cadastrado sem acesso ao aplicativo.') }} />}
+      {modalAjudante && <ModalAjudante ajudante={editandoAjudante} supervisores={supervisores} onClose={() => { setModalAjudante(false); setEditandoAjudante(null) }} onSaved={(editado) => { setModalAjudante(false); setEditandoAjudante(null); carregar(); mostrarToast(editado ? 'Dados do ajudante atualizados.' : 'Ajudante cadastrado sem acesso ao aplicativo.') }} />}
       {modal && <ModalNovoUsuario obras={obras} supervisores={supervisores} rolesDisponiveis={rolesDisponiveis} supervisorAtual={supervisorAtual ? perfilAtual : null} onClose={() => setModal(false)} onSaved={(role) => { setModal(false); carregar(); mostrarToast(role === 'cliente' ? 'Cliente criado, vinculado a obra e convidado por e-mail.' : 'Novo usuario criado com sucesso. A senha inicial nao sera exibida novamente.') }} />}
 
       <div className="eq-header" style={s.header}>
@@ -291,7 +306,7 @@ export default function Equipe() {
             {visao === 'cards' ? 'Tabela compacta' : 'Cards'}
           </button>
           <button className="eq-new" style={s.btnNew} onClick={() => setModal(true)}>+ Usuário com acesso</button>
-          <button className="eq-new" style={{...s.btnNew,background:'#2D7A4A'}} onClick={() => setModalAjudante(true)}>+ Novo Ajudante</button>
+          <button className="eq-new" style={{...s.btnNew,background:'#2D7A4A'}} onClick={() => { setEditandoAjudante(null); setModalAjudante(true) }}>+ Novo Ajudante</button>
         </div>
       </div>
 
@@ -314,7 +329,11 @@ export default function Equipe() {
         </button>
       </div>
 
-      <div className="eq-kpis" style={s.kpiGrid}>
+      <div className="eq-kpi-heading" style={s.kpiHeading}>
+        <span>Equipe ativa por função</span>
+        <small>Inativos permanecem disponíveis no filtro para auditoria.</small>
+      </div>
+      <div className="eq-kpis" style={s.kpiGrid} aria-label="Equipe ativa por função">
         {kpis.map(k => (
           <div key={k.label} style={s.kpi}>
             <span style={s.kpiLabel}>{k.label}</span>
@@ -430,15 +449,15 @@ export default function Equipe() {
               <p style={s.sectionDescription}>Pessoas disponíveis para alocação nas obras, sem acesso ao aplicativo.</p>
             </div>
             <div style={s.sectionCount}>
-              <strong>{ajudantesFiltrados.filter(a => a.ativo !== false).length}</strong>
-              <span>ativos</span>
+              <strong>{ajudantesAtivosFiltrados}</strong>
+              <span>{ajudantesAtivosFiltrados === 1 ? 'ativo' : 'ativos'}</span>
             </div>
           </div>
 
           {ajudantesFiltrados.length === 0 ? (
             <div style={s.helpersEmpty}>Nenhum ajudante encontrado neste filtro.</div>
           ) : (
-            <div className="eq-grid" style={s.gridList}>
+            <div className="eq-grid" style={s.helpersGrid}>
               {ajudantesFiltrados.map(a => (
                 <article key={a.id} className="eq-card" style={{ ...s.card, borderTopColor: '#2D7A4A', opacity: a.ativo === false ? 0.6 : 1 }}>
                   <div style={s.cardTop}>
@@ -460,7 +479,16 @@ export default function Equipe() {
                   <div className="eq-detail" style={s.detailLine}>
                     {a.obras_ids.length ? `${a.obras_ids.length} obra${a.obras_ids.length === 1 ? '' : 's'} vinculada${a.obras_ids.length === 1 ? '' : 's'}` : 'Disponível · sem obra vinculada'}
                   </div>
+                  <div className="eq-detail" style={s.detailLine}>
+                    Supervisor: {supervisores.find(p => p.id === a.supervisor_id)?.full_name || 'não definido'}
+                  </div>
                   {a.especialidades && <div className="eq-detail" style={s.detailLine}>{a.especialidades}</div>}
+                  <div style={s.actions}>
+                    <button type="button" style={s.btnEdit} onClick={() => { setEditandoAjudante(a); setModalAjudante(true) }}>Editar</button>
+                    <button type="button" style={{ ...s.btnEdit, color: a.ativo === false ? '#2D7A4A' : theme.error }} onClick={() => alterarAtivoAjudante(a)}>
+                      {a.ativo === false ? 'Ativar' : 'Desativar'}
+                    </button>
+                  </div>
                 </article>
               ))}
             </div>
@@ -734,20 +762,46 @@ function ModalNovoUsuario({ obras, supervisores, rolesDisponiveis, supervisorAtu
   )
 }
 
-function ModalAjudante({ supervisores, onClose, onSaved }) {
-  const [form,setForm]=useState({nome:'',telefone:'',supervisor_id:'',especialidades:'',observacoes:''})
-  const [saving,setSaving]=useState(false)
-  const [erro,setErro]=useState('')
-  const set=(k,v)=>setForm(p=>({...p,[k]:v}))
-  async function salvar(){
-    if(!form.nome.trim()){setErro('Informe o nome do ajudante.');return}
-    setSaving(true);setErro('')
-    const {error}=await supabase.from('equipe_operacional').insert({nome:form.nome.trim(),funcao:'ajudante',telefone:form.telefone||null,supervisor_id:form.supervisor_id||null,especialidades:form.especialidades||null,observacoes:form.observacoes||null,ativo:true})
+function ModalAjudante({ ajudante, supervisores, onClose, onSaved }) {
+  const [form, setForm] = useState({
+    nome: ajudante?.nome || '',
+    telefone: ajudante?.telefone || '',
+    supervisor_id: ajudante?.supervisor_id || '',
+    especialidades: ajudante?.especialidades || '',
+    observacoes: ajudante?.observacoes || '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [erro, setErro] = useState('')
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
+
+  async function salvar() {
+    if (!form.nome.trim()) {
+      setErro('Informe o nome do ajudante.')
+      return
+    }
+    setSaving(true)
+    setErro('')
+    const payload = {
+      nome: form.nome.trim(),
+      funcao: 'ajudante',
+      telefone: form.telefone || null,
+      supervisor_id: form.supervisor_id || null,
+      especialidades: form.especialidades || null,
+      observacoes: form.observacoes || null,
+    }
+    const query = ajudante?.id
+      ? supabase.from('equipe_operacional').update(payload).eq('id', ajudante.id)
+      : supabase.from('equipe_operacional').insert({ ...payload, ativo: true })
+    const { error } = await query
     setSaving(false)
-    if(error){setErro(detalheErro(error,'Não foi possível cadastrar. Verifique a migração da Equipe Operacional.'));return}
-    onSaved()
+    if (error) {
+      setErro(detalheErro(error, `Não foi possível ${ajudante?.id ? 'atualizar' : 'cadastrar'} o ajudante.`))
+      return
+    }
+    onSaved(Boolean(ajudante?.id))
   }
-  return <div style={s.modalBg} onClick={e=>e.target===e.currentTarget&&onClose()}><div style={s.modal}><div style={s.modalHead}><h2>Novo ajudante</h2><button onClick={onClose}>X</button></div><div style={s.modalBody}>{erro&&<div style={s.error}>{erro}</div>}<div style={s.editGrid}><Field label="Nome completo"><input style={s.input} value={form.nome} onChange={e=>set('nome',e.target.value)}/></Field><Field label="Telefone opcional"><input style={s.input} value={form.telefone} onChange={e=>set('telefone',e.target.value)}/></Field><Field label="Supervisor responsável"><select style={s.input} value={form.supervisor_id} onChange={e=>set('supervisor_id',e.target.value)}><option value="">Sem supervisor</option>{supervisores.map(p=><option key={p.id} value={p.id}>{p.full_name}</option>)}</select></Field><Field label="Especialidades"><input style={s.input} value={form.especialidades} onChange={e=>set('especialidades',e.target.value)} placeholder="Ex.: montagem, carga e descarga"/></Field><Field label="Observações"><textarea style={s.input} value={form.observacoes} onChange={e=>set('observacoes',e.target.value)}/></Field></div><div style={s.roleHint}>Este cadastro não cria senha nem acesso. O ajudante ficará disponível para alocação nas obras e períodos.</div></div><div style={s.modalFoot}><button style={s.btnEdit} onClick={onClose}>Cancelar</button><button style={{...s.btnEdit,background:'#2D7A4A',color:'#fff',borderColor:'#2D7A4A'}} onClick={salvar} disabled={saving}>{saving?'Salvando...':'Cadastrar ajudante'}</button></div></div></div>
+
+  return <div style={s.modalBg} onClick={e => e.target === e.currentTarget && onClose()}><div style={s.modal}><div style={s.modalHead}><h2>{ajudante?.id ? 'Editar ajudante' : 'Novo ajudante'}</h2><button onClick={onClose}>X</button></div><div style={s.modalBody}>{erro && <div style={s.error}>{erro}</div>}<div style={s.editGrid}><Field label="Nome completo"><input style={s.input} value={form.nome} onChange={e => set('nome', e.target.value)} /></Field><Field label="Telefone opcional"><input style={s.input} value={form.telefone} onChange={e => set('telefone', e.target.value)} /></Field><Field label="Supervisor responsável"><select style={s.input} value={form.supervisor_id} onChange={e => set('supervisor_id', e.target.value)}><option value="">Sem supervisor</option>{supervisores.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}</select></Field><Field label="Especialidades"><input style={s.input} value={form.especialidades} onChange={e => set('especialidades', e.target.value)} placeholder="Ex.: montagem, carga e descarga" /></Field><Field label="Observações"><textarea style={s.input} value={form.observacoes} onChange={e => set('observacoes', e.target.value)} /></Field></div><div style={s.roleHint}>Este cadastro não cria senha nem acesso. O ajudante ficará disponível para alocação nas obras e períodos.</div></div><div style={s.modalFoot}><button style={s.btnEdit} onClick={onClose}>Cancelar</button><button style={{ ...s.btnEdit, background: '#2D7A4A', color: '#fff', borderColor: '#2D7A4A' }} onClick={salvar} disabled={saving}>{saving ? 'Salvando...' : ajudante?.id ? 'Salvar alterações' : 'Cadastrar ajudante'}</button></div></div></div>
 }
 
 function Field({ label, children }) {
@@ -763,11 +817,12 @@ const css = `
   .eq-header h1{font-size:27px !important;line-height:1 !important}
   .eq-header p{font-size:12px !important;margin-top:4px !important}
   .eq-new{padding:9px 12px !important;border-radius:12px !important;font-size:12px !important}
-  .eq-mobile-summary{display:grid !important;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 10px}
+  .eq-mobile-summary{display:grid !important;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 10px}
   .eq-mobile-summary button{appearance:none;border:1px solid rgba(231,224,213,.95);background:${theme.surface};border-radius:16px;padding:10px 8px;text-align:left;box-shadow:0 10px 24px rgba(29,28,25,.045);font-family:inherit}
   .eq-mobile-summary strong{display:block;font-size:22px;line-height:1;color:var(--color-ink)}
   .eq-mobile-summary span{display:block;margin-top:5px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--color-ink-muted)}
   .eq-kpis{display:none !important}
+  .eq-kpi-heading{display:none !important}
   .eq-kpis>div{flex:0 0 auto !important;min-width:auto !important;display:flex !important;align-items:center !important;gap:7px !important;border-radius:999px !important;padding:7px 10px !important;border-top:1px solid rgba(184,150,94,.22) !important;box-shadow:0 8px 20px rgba(29,28,25,.045) !important}
   .eq-kpis span{font-size:10.5px !important;line-height:1 !important;letter-spacing:0 !important;white-space:nowrap !important;margin:0 !important;color:var(--color-ink-muted) !important}
   .eq-kpis strong{font-size:15px !important;line-height:1 !important}
@@ -801,7 +856,8 @@ const s = {
   sub: { fontSize: 13, color: 'var(--color-ink-muted)', marginTop: 6 },
   btnNew: { background: theme.gold, color: theme.background, border: 'none', borderRadius: 8, padding: '12px 24px', minHeight: 44, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' },
   btnGhost: { background: theme.surface, color: 'var(--color-ink)', border: '1px solid var(--color-border)', borderRadius: 8, padding: '12px 16px', minHeight: 44, fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' },
-  kpiGrid: { display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 12, marginBottom: 20 },
+  kpiHeading: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 14, margin: '2px 0 10px', color: 'var(--color-ink-muted)' },
+  kpiGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))', gap: 12, marginBottom: 20 },
   kpi: { background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.3)' },
   kpiLabel: { display: 'block', fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: 'var(--color-gold)', fontWeight: 800, marginBottom: 8 },
   kpiValue: { display: 'block', fontSize: 30, lineHeight: 1, color: 'var(--color-ink)' },
@@ -813,8 +869,9 @@ const s = {
   sectionEyebrow: { fontSize: 9, letterSpacing: 2.2, color: '#2D7A4A', textTransform: 'uppercase', fontWeight: 800, marginBottom: 6 },
   sectionTitle: { margin: 0, fontFamily: 'var(--font-serif)', fontSize: 25, fontWeight: 500, color: 'var(--color-ink)' },
   sectionDescription: { margin: '5px 0 0', color: 'var(--color-ink-muted)', fontSize: 12 },
-  sectionCount: { minWidth: 72, padding: '9px 12px', borderRadius: 12, background: '#2D7A4A14', color: '#2D7A4A', textAlign: 'center' },
+  sectionCount: { minWidth: 72, padding: '9px 12px', borderRadius: 12, background: '#2D7A4A14', color: '#2D7A4A', display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 5, textAlign: 'center' },
   helpersEmpty: { padding: '22px 18px', border: '1px dashed var(--color-border)', borderRadius: 12, color: 'var(--color-ink-muted)', textAlign: 'center', fontSize: 12 },
+  helpersGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 380px))', gap: 14 },
   gridList: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 },
   card: { background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.3)', minWidth: 0 },
   cardTop: { display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 },
