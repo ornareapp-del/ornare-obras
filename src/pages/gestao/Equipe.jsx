@@ -64,7 +64,7 @@ export default function Equipe() {
   const [ajudantes, setAjudantes] = useState([])
   const [modalAjudante, setModalAjudante] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [filtro, setFiltro] = useState('todos')
+  const [filtro, setFiltro] = useState('ativos')
   const [busca, setBusca] = useState('')
   const [visao, setVisao] = useState('cards')
   const [menuAberto, setMenuAberto] = useState(null)
@@ -199,21 +199,41 @@ export default function Equipe() {
   const profilesVisiveis = supervisorAtual
     ? profiles.filter(p => p.role === 'montador' && (!p.supervisor_id || p.supervisor_id === perfilAtual?.id))
     : profiles
-  const filtrosDisponiveis = supervisorAtual ? ['todos', 'montador'] : ['todos', ...ROLES]
-  const listaFiltrada = filtro === 'todos' ? profilesVisiveis : profilesVisiveis.filter(p => p.role === filtro)
+  const filtrosDisponiveis = supervisorAtual
+    ? ['ativos', 'inativos', 'todos', 'montador', 'ajudante']
+    : ['ativos', 'inativos', 'todos', ...ROLES, 'ajudante']
+  const listaFiltrada = filtro === 'todos'
+    ? profilesVisiveis
+    : filtro === 'ativos'
+      ? profilesVisiveis.filter(p => p.ativo !== false)
+      : filtro === 'inativos'
+        ? profilesVisiveis.filter(p => p.ativo === false)
+        : filtro === 'ajudante'
+          ? []
+          : profilesVisiveis.filter(p => p.role === filtro)
   const termoBusca = normalizarBusca(busca)
   const lista = listaFiltrada.filter(p => {
     if (!termoBusca) return true
     const obrasTexto = obrasVinculadas(p).map(o => o.nome).join(' ')
     return normalizarBusca([p.full_name, p.email, p.cargo, ROLE_LABEL[p.role], obrasTexto].join(' ')).includes(termoBusca)
   })
+  const ajudantesFiltrados = ajudantes.filter(a => {
+    if (filtro === 'inativos' && a.ativo !== false) return false
+    if (!['todos', 'ativos', 'inativos', 'ajudante'].includes(filtro)) return false
+    if (filtro === 'ativos' && a.ativo === false) return false
+    if (!termoBusca) return true
+    return normalizarBusca([a.nome, a.telefone, a.especialidades, 'ajudante'].join(' ')).includes(termoBusca)
+  })
+  const membrosTotal = profilesVisiveis.length + ajudantes.length
+  const ativosTotal = profilesVisiveis.filter(p => p.ativo !== false).length + ajudantes.filter(a => a.ativo !== false).length
+  const profilesAtivos = profilesVisiveis.filter(p => p.ativo !== false)
   const kpis = [
-    { label: 'Gestão', value: profilesVisiveis.filter(p => p.role === 'gestao').length },
-    { label: 'Supervisores', value: profilesVisiveis.filter(p => p.role === 'supervisor').length },
-    { label: 'Montadores', value: profilesVisiveis.filter(p => p.role === 'montador').length },
+    { label: 'Gestão', value: profilesAtivos.filter(p => p.role === 'gestao').length },
+    { label: 'Supervisores', value: profilesAtivos.filter(p => p.role === 'supervisor').length },
+    { label: 'Montadores', value: profilesAtivos.filter(p => p.role === 'montador').length },
     { label: 'Ajudantes', value: ajudantes.filter(p => p.ativo !== false).length },
-    { label: 'Pós-venda', value: profilesVisiveis.filter(p => p.role === 'pos_venda').length },
-    { label: 'Vendedores', value: profilesVisiveis.filter(p => p.role === 'vendedor').length },
+    { label: 'Pós-venda', value: profilesAtivos.filter(p => p.role === 'pos_venda').length },
+    { label: 'Vendedores', value: profilesAtivos.filter(p => p.role === 'vendedor').length },
   ].filter(k => !supervisorAtual || k.label === 'Montadores')
 
   function obrasVinculadas(profile) {
@@ -264,29 +284,29 @@ export default function Equipe() {
         <div>
           <div style={s.breadcrumb}>Gestão</div>
           <h1 style={s.title}>Central de Equipe</h1>
-          <p style={s.sub}>{profilesVisiveis.length} membro{profilesVisiveis.length !== 1 ? 's' : ''} · {profilesVisiveis.filter(p => p.ativo !== false).length} ativos</p>
+          <p style={s.sub}>{membrosTotal} membro{membrosTotal !== 1 ? 's' : ''} · {ativosTotal} ativos</p>
         </div>
         <div style={s.headerActions}>
           <button type="button" style={s.btnGhost} onClick={() => setVisao(visao === 'cards' ? 'tabela' : 'cards')}>
             {visao === 'cards' ? 'Tabela compacta' : 'Cards'}
           </button>
-          <button className="eq-new" style={s.btnNew} onClick={() => setModal(true)}>+ Novo Usuário</button>
+          <button className="eq-new" style={s.btnNew} onClick={() => setModal(true)}>+ Usuário com acesso</button>
           <button className="eq-new" style={{...s.btnNew,background:'#2D7A4A'}} onClick={() => setModalAjudante(true)}>+ Novo Ajudante</button>
         </div>
       </div>
 
-      <section style={{ marginBottom: 24 }}>
-        <div style={{ display:'flex',justifyContent:'space-between',alignItems:'end',gap:12,marginBottom:12 }}><div><h2 style={{margin:0,fontFamily:'var(--font-serif)',fontSize:24}}>Ajudantes operacionais</h2><p style={{margin:'5px 0 0',color:theme.textSecondary,fontSize:12}}>Pessoas cadastradas para alocação, sem login no aplicativo.</p></div><strong style={{color:'#2D7A4A'}}>{ajudantes.filter(a=>a.ativo!==false).length} ativos</strong></div>
-        {ajudantes.length === 0 ? <div style={s.empty}>Nenhum ajudante cadastrado.</div> : <div className="eq-grid" style={s.gridList}>{ajudantes.map(a => <article key={a.id} className="eq-card" style={{...s.card,borderTopColor:'#2D7A4A',opacity:a.ativo===false?.6:1}}><div style={s.cardTop}><div className="eq-avatar" style={{...s.avatar,background:'#2D7A4A18',color:'#2D7A4A'}}>{a.nome.split(' ').map(n=>n[0]).slice(0,2).join('').toUpperCase()}</div><div style={s.personInfo}><strong style={s.personName}>{a.nome}</strong><span style={s.personMeta}>Ajudante · sem acesso</span><span style={s.personEmail}>{a.telefone||'Telefone não informado'}</span></div></div><div style={s.badgeRow}><span style={{...s.badge,background:'#EAF5EE',color:'#2D7A4A'}}>Ajudante</span><span style={{...s.badge,background:'#F5F1EA',color:'#8A8175'}}>Sem login</span></div><div className="eq-detail" style={s.detailLine}>{a.obras_ids.length ? `${a.obras_ids.length} obra${a.obras_ids.length===1?'':'s'} vinculada${a.obras_ids.length===1?'':'s'}` : 'Disponível · sem obra vinculada'}</div>{a.especialidades&&<div className="eq-detail" style={s.detailLine}>{a.especialidades}</div>}</article>)}</div>}
-      </section>
+      {['todos', 'ativos', 'inativos', 'ajudante'].includes(filtro) && <section style={{ marginBottom: 24 }}>
+        <div style={{ display:'flex',justifyContent:'space-between',alignItems:'end',gap:12,marginBottom:12 }}><div><h2 style={{margin:0,fontFamily:'var(--font-serif)',fontSize:24}}>Ajudantes operacionais</h2><p style={{margin:'5px 0 0',color:theme.textSecondary,fontSize:12}}>Pessoas cadastradas para alocação, sem login no aplicativo.</p></div><strong style={{color:'#2D7A4A'}}>{ajudantesFiltrados.filter(a=>a.ativo!==false).length} ativos</strong></div>
+        {ajudantesFiltrados.length === 0 ? <div style={s.empty}>Nenhum ajudante neste filtro.</div> : <div className="eq-grid" style={s.gridList}>{ajudantesFiltrados.map(a => <article key={a.id} className="eq-card" style={{...s.card,borderTopColor:'#2D7A4A',opacity:a.ativo===false?.6:1}}><div style={s.cardTop}><div className="eq-avatar" style={{...s.avatar,background:'#2D7A4A18',color:'#2D7A4A'}}>{a.nome.split(' ').map(n=>n[0]).slice(0,2).join('').toUpperCase()}</div><div style={s.personInfo}><strong style={s.personName}>{a.nome}</strong><span style={s.personMeta}>Ajudante · sem acesso</span><span style={s.personEmail}>{a.telefone||'Telefone não informado'}</span></div></div><div style={s.badgeRow}><span style={{...s.badge,background:'#EAF5EE',color:'#2D7A4A'}}>Ajudante</span><span style={{...s.badge,background:a.ativo===false?'#F2E8E5':'#F5F1EA',color:a.ativo===false?'#A04444':'#8A8175'}}>{a.ativo===false?'Inativo':'Sem login'}</span></div><div className="eq-detail" style={s.detailLine}>{a.obras_ids.length ? `${a.obras_ids.length} obra${a.obras_ids.length===1?'':'s'} vinculada${a.obras_ids.length===1?'':'s'}` : 'Disponível · sem obra vinculada'}</div>{a.especialidades&&<div className="eq-detail" style={s.detailLine}>{a.especialidades}</div>}</article>)}</div>}
+      </section>}
 
       <div className="eq-mobile-summary" aria-label="Resumo da equipe">
         <button type="button" onClick={() => setFiltro('todos')}>
-          <strong>{loading ? '-' : profilesVisiveis.length}</strong>
+          <strong>{loading ? '-' : membrosTotal}</strong>
           <span>total</span>
         </button>
-        <button type="button" onClick={() => setFiltro('todos')}>
-          <strong>{loading ? '-' : profilesVisiveis.filter(p => p.ativo !== false).length}</strong>
+        <button type="button" onClick={() => setFiltro('ativos')}>
+          <strong>{loading ? '-' : ativosTotal}</strong>
           <span>ativos</span>
         </button>
         <button type="button" onClick={() => setFiltro('montador')}>
@@ -323,14 +343,14 @@ export default function Equipe() {
             color: filtro === f ? theme.background : theme.textSecondary,
             border: filtro === f ? 'none' : '1px solid var(--color-border)',
           }}>
-            {f === 'todos' ? 'Todos' : ROLE_LABEL[f]}
+            {f === 'todos' ? 'Todos' : f === 'ativos' ? 'Ativos' : f === 'inativos' ? 'Inativos' : f === 'ajudante' ? 'Ajudante' : ROLE_LABEL[f]}
           </button>
         ))}
       </div>
 
       {loading ? (
         <div style={s.empty}>Carregando...</div>
-      ) : lista.length === 0 ? (
+      ) : filtro === 'ajudante' ? null : lista.length === 0 && ajudantesFiltrados.length === 0 ? (
         <div style={s.emptyBox}>
           <div style={s.emptyIcon}>Equipe</div>
           <div style={s.emptyTitle}>Nenhum membro encontrado</div>
