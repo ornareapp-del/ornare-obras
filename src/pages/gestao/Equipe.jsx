@@ -295,11 +295,6 @@ export default function Equipe() {
         </div>
       </div>
 
-      {['todos', 'ativos', 'inativos', 'ajudante'].includes(filtro) && <section style={{ marginBottom: 24 }}>
-        <div style={{ display:'flex',justifyContent:'space-between',alignItems:'end',gap:12,marginBottom:12 }}><div><h2 style={{margin:0,fontFamily:'var(--font-serif)',fontSize:24}}>Ajudantes operacionais</h2><p style={{margin:'5px 0 0',color:theme.textSecondary,fontSize:12}}>Pessoas cadastradas para alocação, sem login no aplicativo.</p></div><strong style={{color:'#2D7A4A'}}>{ajudantesFiltrados.filter(a=>a.ativo!==false).length} ativos</strong></div>
-        {ajudantesFiltrados.length === 0 ? <div style={s.empty}>Nenhum ajudante neste filtro.</div> : <div className="eq-grid" style={s.gridList}>{ajudantesFiltrados.map(a => <article key={a.id} className="eq-card" style={{...s.card,borderTopColor:'#2D7A4A',opacity:a.ativo===false?.6:1}}><div style={s.cardTop}><div className="eq-avatar" style={{...s.avatar,background:'#2D7A4A18',color:'#2D7A4A'}}>{a.nome.split(' ').map(n=>n[0]).slice(0,2).join('').toUpperCase()}</div><div style={s.personInfo}><strong style={s.personName}>{a.nome}</strong><span style={s.personMeta}>Ajudante · sem acesso</span><span style={s.personEmail}>{a.telefone||'Telefone não informado'}</span></div></div><div style={s.badgeRow}><span style={{...s.badge,background:'#EAF5EE',color:'#2D7A4A'}}>Ajudante</span><span style={{...s.badge,background:a.ativo===false?'#F2E8E5':'#F5F1EA',color:a.ativo===false?'#A04444':'#8A8175'}}>{a.ativo===false?'Inativo':'Sem login'}</span></div><div className="eq-detail" style={s.detailLine}>{a.obras_ids.length ? `${a.obras_ids.length} obra${a.obras_ids.length===1?'':'s'} vinculada${a.obras_ids.length===1?'':'s'}` : 'Disponível · sem obra vinculada'}</div>{a.especialidades&&<div className="eq-detail" style={s.detailLine}>{a.especialidades}</div>}</article>)}</div>}
-      </section>}
-
       <div className="eq-mobile-summary" aria-label="Resumo da equipe">
         <button type="button" onClick={() => setFiltro('todos')}>
           <strong>{loading ? '-' : membrosTotal}</strong>
@@ -424,6 +419,53 @@ export default function Equipe() {
             )
           })}
         </div>
+      )}
+
+      {['todos', 'ativos', 'inativos', 'ajudante'].includes(filtro) && (
+        <section className="eq-helpers" style={s.helpersSection}>
+          <div style={s.sectionHeader}>
+            <div>
+              <div style={s.sectionEyebrow}>Equipe de apoio</div>
+              <h2 style={s.sectionTitle}>Ajudantes operacionais</h2>
+              <p style={s.sectionDescription}>Pessoas disponíveis para alocação nas obras, sem acesso ao aplicativo.</p>
+            </div>
+            <div style={s.sectionCount}>
+              <strong>{ajudantesFiltrados.filter(a => a.ativo !== false).length}</strong>
+              <span>ativos</span>
+            </div>
+          </div>
+
+          {ajudantesFiltrados.length === 0 ? (
+            <div style={s.helpersEmpty}>Nenhum ajudante encontrado neste filtro.</div>
+          ) : (
+            <div className="eq-grid" style={s.gridList}>
+              {ajudantesFiltrados.map(a => (
+                <article key={a.id} className="eq-card" style={{ ...s.card, borderTopColor: '#2D7A4A', opacity: a.ativo === false ? 0.6 : 1 }}>
+                  <div style={s.cardTop}>
+                    <div className="eq-avatar" style={{ ...s.avatar, background: '#2D7A4A18', color: '#2D7A4A' }}>
+                      {a.nome.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
+                    </div>
+                    <div style={s.personInfo}>
+                      <strong style={s.personName}>{a.nome}</strong>
+                      <span style={s.personMeta}>Ajudante · sem acesso</span>
+                      <span style={s.personEmail}>{a.telefone || 'Telefone não informado'}</span>
+                    </div>
+                  </div>
+                  <div style={s.badgeRow}>
+                    <span style={{ ...s.badge, background: '#EAF5EE', color: '#2D7A4A' }}>Ajudante</span>
+                    <span style={{ ...s.badge, background: a.ativo === false ? '#F2E8E5' : '#F5F1EA', color: a.ativo === false ? '#A04444' : '#8A8175' }}>
+                      {a.ativo === false ? 'Inativo' : 'Sem login'}
+                    </span>
+                  </div>
+                  <div className="eq-detail" style={s.detailLine}>
+                    {a.obras_ids.length ? `${a.obras_ids.length} obra${a.obras_ids.length === 1 ? '' : 's'} vinculada${a.obras_ids.length === 1 ? '' : 's'}` : 'Disponível · sem obra vinculada'}
+                  </div>
+                  {a.especialidades && <div className="eq-detail" style={s.detailLine}>{a.especialidades}</div>}
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
       )}
     </div>
   )
@@ -745,6 +787,8 @@ const css = `
   .eq-card label{font-size:9px !important}
   .eq-card input,.eq-card select{font-size:13px !important}
   .eq-card [style*="grid-template-columns"]{grid-template-columns:1fr !important}
+  .eq-helpers{margin-top:24px !important;padding-top:20px !important}
+  .eq-helpers>div:first-child{align-items:center !important}
 }
 `
 
@@ -764,6 +808,13 @@ const s = {
   filters: { display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' },
   search: { flex: '1 1 260px', background: theme.inputBackground, border: '1px solid ' + theme.inputBorder, color: theme.inputText, borderRadius: 9, padding: '10px 14px', minHeight: 44, fontSize: 13, outline: 'none', fontFamily: 'inherit' },
   filterBtn: { padding: '9px 16px', minHeight: 44, borderRadius: 999, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700 },
+  helpersSection: { marginTop: 34, paddingTop: 28, borderTop: '1px solid var(--color-border)' },
+  sectionHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 16, marginBottom: 16 },
+  sectionEyebrow: { fontSize: 9, letterSpacing: 2.2, color: '#2D7A4A', textTransform: 'uppercase', fontWeight: 800, marginBottom: 6 },
+  sectionTitle: { margin: 0, fontFamily: 'var(--font-serif)', fontSize: 25, fontWeight: 500, color: 'var(--color-ink)' },
+  sectionDescription: { margin: '5px 0 0', color: 'var(--color-ink-muted)', fontSize: 12 },
+  sectionCount: { minWidth: 72, padding: '9px 12px', borderRadius: 12, background: '#2D7A4A14', color: '#2D7A4A', textAlign: 'center' },
+  helpersEmpty: { padding: '22px 18px', border: '1px dashed var(--color-border)', borderRadius: 12, color: 'var(--color-ink-muted)', textAlign: 'center', fontSize: 12 },
   gridList: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 },
   card: { background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.3)', minWidth: 0 },
   cardTop: { display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 },
