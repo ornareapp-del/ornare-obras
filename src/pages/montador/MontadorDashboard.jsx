@@ -355,6 +355,7 @@ export default function MontadorDashboard() {
 
   const [loading, setLoading] = useState(true)
   const [loadingObra, setLoadingObra] = useState(false)
+  const [mostrarLoadingObra, setMostrarLoadingObra] = useState(false)
   const [checkando, setCheckando] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadFeedback, setUploadFeedback] = useState('')
@@ -386,6 +387,16 @@ export default function MontadorDashboard() {
   const ocorrenciasRef = useRef(null)
   const perfilRef = useRef(null)
   const longPressRef = useRef(null)
+  const obraAtivaRef = useRef(null)
+
+  useEffect(() => {
+    obraAtivaRef.current = obraAtiva
+  }, [obraAtiva])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setMostrarLoadingObra(loadingObra), loadingObra ? 350 : 0)
+    return () => window.clearTimeout(timer)
+  }, [loadingObra])
 
   function guardarAcaoOffline(acao) {
     const proximas = registrarAcaoOffline({
@@ -559,28 +570,31 @@ export default function MontadorDashboard() {
     return () => { ativo = false }
   }, [user?.id])
 
+  const obraAtivaId = obraAtiva?.id
+
   useEffect(() => {
-    if (!obraAtiva?.id || !user?.id) return
+    if (!obraAtivaId || !user?.id) return
     let ativo = true
 
     async function carregar() {
       setLoadingObra(true)
       try {
-        const dados = await buscarDadosOperacionais(obraAtiva.id, user.id)
+        const obraSelecionada = obraAtivaRef.current
+        const dados = await buscarDadosOperacionais(obraAtivaId, user.id)
 
         if (!ativo) return
 
         registrarErrosOperacionais('troca de obra', dados)
         setTarefas(safeArray(dados.tarefasResult))
         setCheckins(safeArray(dados.checkinsResult))
-        setChecklist(await garantirChecklistMontagem(obraAtiva, safeArray(dados.checklistResult)))
+        setChecklist(await garantirChecklistMontagem(obraSelecionada, safeArray(dados.checklistResult)))
         setAmbientes(safeArray(dados.ambientesResult))
         setFotos(fotosVisiveisParaMontador(dados.fotosResult, user.id))
         setOcorrencias(safeArray(dados.ocorrenciasResult))
         setAgenda(agendaMontador(dados.agendaResult))
         if (dados.cronogramaResult?.data) {
           const cronograma = dados.cronogramaResult.data
-          setObraAtiva(atual => atual?.id === obraAtiva.id ? ({ ...atual, fase: cronograma.fase, fase_atual: cronograma.fase, progresso: cronograma.percentual_concluido, data_inicio_real: cronograma.data_inicio_real || atual.data_inicio_real, data_previsao_inicio: cronograma.data_inicio_prevista || atual.data_previsao_inicio, data_previsao: cronograma.data_fim_prevista || atual.data_previsao }) : atual)
+          setObraAtiva(atual => atual?.id === obraAtivaId ? ({ ...atual, fase: cronograma.fase, fase_atual: cronograma.fase, progresso: cronograma.percentual_concluido, data_inicio_real: cronograma.data_inicio_real || atual.data_inicio_real, data_previsao_inicio: cronograma.data_inicio_prevista || atual.data_previsao_inicio, data_previsao: cronograma.data_fim_prevista || atual.data_previsao }) : atual)
         }
       } catch (error) {
         console.error('Erro inesperado ao carregar dados da obra ativa:', error)
@@ -593,7 +607,7 @@ export default function MontadorDashboard() {
     carregar()
 
     return () => { ativo = false }
-  }, [obraAtiva, garantirChecklistMontagem, user?.id])
+  }, [obraAtivaId, garantirChecklistMontagem, user?.id])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -1706,7 +1720,7 @@ export default function MontadorDashboard() {
         )}
       </section>
 
-      {loadingObra && telaAtiva === 'hoje' && <div className="md-loading-inline">Atualizando dados da obra...</div>}
+      {mostrarLoadingObra && telaAtiva === 'hoje' && <div className="md-loading-inline" role="status">Atualizando dados da obra...</div>}
 
       {telaAtiva === 'hoje' && vm.tarefasAbertas.length > 0 && (
         <section className="md-card compact-card">
