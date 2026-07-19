@@ -186,6 +186,7 @@ export default function Planejamento() {
   const [toast, setToast] = useState('')
   const [modalCompromisso, setModalCompromisso] = useState(null)
   const [diaSelecionado, setDiaSelecionado] = useState(null)
+  const [ordemMontagem, setOrdemMontagem] = useState(null)
   const [mesAtual, setMesAtual] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1))
   const [visao, setVisao] = useState('calendario')
   const [filtros, setFiltros] = useState({ mes: monthKey(new Date()), supervisor: '', montador: '', status: '', cidade: '', busca: '', tipo: '' })
@@ -200,7 +201,7 @@ export default function Planejamento() {
 
     const [cronogramas, obras, profiles, montadores, agenda, equipesPeriodo, calendario, logistica, logisticaMontadores] = await Promise.all([
       supabase.from('obra_cronograma').select('*').order('data_inicio_prevista', { ascending: true }),
-      supabase.from('obras').select('id, nome, cliente_nome, cidade, uf, status, supervisor_id, comercial_id, data_previsao').order('nome'),
+      supabase.from('obras').select('id, nome, cliente_nome, endereco, cidade, uf, status, supervisor_id, comercial_id, data_previsao').order('nome'),
       supabase.from('profiles').select('id, full_name, email, role'),
       supabase.from('obra_montadores').select('obra_id, montador_id'),
       supabase.from('agenda').select('id, obra_id, tipo, titulo, status, data, data_fim, hora_inicio, hora_fim, responsavel_id, observacao, reuniao_interna, visivel_montador, percentual_concluido, retorno_necessario, motivo_pausa').order('data'),
@@ -454,6 +455,13 @@ export default function Planejamento() {
     navigate(`/obras/${alvo.obra_id}?aba=${aba}${extra}`)
   }
 
+  function abrirItemDia(item) {
+    const ehMontagem = item?.origem === 'agenda' && norm(item?.tipo) === 'periodo de execucao' && norm([item?.compromissoTipo, item?.titulo].join(' ')).includes('montagem')
+    setDiaSelecionado(null)
+    if (ehMontagem) setOrdemMontagem(item)
+    else abrirObra(item)
+  }
+
   function abrirModalDia(data) {
     setModalCompromisso({
       tipo: 'Montagem',
@@ -576,12 +584,13 @@ export default function Planejamento() {
         />
       )}
       {diaSelecionado && (
-        <ResumoDiaModal dia={diaSelecionado} onClose={() => setDiaSelecionado(null)} onOpenItem={abrirObra} onAdd={() => {
+        <ResumoDiaModal dia={diaSelecionado} onClose={() => setDiaSelecionado(null)} onOpenItem={abrirItemDia} onAdd={() => {
           const data = diaSelecionado.data
           setDiaSelecionado(null)
           abrirModalDia(data)
         }} />
       )}
+      {ordemMontagem && <OrdemMontagemModal item={ordemMontagem} onClose={() => setOrdemMontagem(null)} onEdit={() => abrirObra(ordemMontagem)} />}
       {modalExportacao && <ExportacaoModal mesAtual={mesAtual} exportando={exportandoPdf} onClose={() => setModalExportacao(false)} onExport={gerarPdfPlanejamento} />}
 
       <header className="pl-header">
@@ -839,7 +848,7 @@ function ResumoDiaModal({ dia, onClose, onOpenItem, onAdd }) {
                       <div><span>Origem</span><strong>{item.origem === 'logistica' ? 'Logística' : item.origem === 'cronograma' ? 'Previsão macro' : norm(item.tipo) === 'periodo de execucao' ? 'Execução da equipe' : 'Agenda manual'}</strong></div>
                     </div>
                     {item.observacao && <p>{String(item.observacao).split('\n')[0]}</p>}
-                    {item.obra_id && <button onClick={() => onOpenItem(item)}>Abrir obra e detalhes →</button>}
+                    {item.obra_id && <button onClick={() => onOpenItem(item)}>{item.origem === 'agenda' && norm(item.tipo) === 'periodo de execucao' && norm([item.compromissoTipo, item.titulo].join(' ')).includes('montagem') ? 'Abrir ordem de montagem →' : 'Abrir obra e detalhes →'}</button>}
                   </article>
                 )
               })}
@@ -851,6 +860,51 @@ function ResumoDiaModal({ dia, onClose, onOpenItem, onAdd }) {
     </div>
   )
 }
+
+function OrdemMontagemModal({ item, onClose, onEdit }) {
+  const obra = item.obra || {}
+  const equipe = (item.montadores || []).map(nomePessoa).filter(nome => nome !== '-')
+  const jornada = `${item.hora_inicio ? String(item.hora_inicio).slice(0,5) : '08:00'}${item.hora_fim ? `–${String(item.hora_fim).slice(0,5)}` : ''}`
+  const periodo = `${dataBR(item.data)}${item.data_fim && item.data_fim !== item.data ? ` a ${dataBR(item.data_fim)}` : ''}`
+  const local = [obra.endereco, obra.cidade, obra.uf].filter(Boolean).join(' · ')
+  const campos = [
+    ['Atividade', item.compromissoTipo || item.titulo || 'Montagem'], ['Período de execução', periodo],
+    ['Jornada prevista', jornada], ['Status', item.status || 'Planejado'],
+    ['Progresso do período', `${Number(item.percentual_concluido || 0)}%`], ['Supervisor', nomePessoa(item.supervisor)],
+    ['Equipe de montagem', equipe.join(', ') || 'Sem equipe definida'], ['Jornada aos sábados', periodoTrabalhaSabado(item) ? 'Sim' : 'Não'],
+  ]
+
+  function imprimir() {
+    const esc = value => String(value || '—').replace(/[&<>"']/g, char => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' })[char])
+    const janela = window.open('', '_blank', 'width=980,height=760')
+    if (!janela) return
+    const linhas = campos.map(([label,value]) => `<div><small>${esc(label)}</small><strong>${esc(value)}</strong></div>`).join('')
+    janela.document.write(`<!doctype html><html><head><title>Ordem de montagem · ${esc(obra.nome)}</title><style>@page{size:A4;margin:14mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#211d19;margin:0}.top{border-bottom:4px solid #2d7a4a;padding-bottom:18px;display:flex;justify-content:space-between}.brand{font-size:30px;letter-spacing:3px}.tag{font-size:10px;letter-spacing:2px;color:#2d7a4a;font-weight:800}h1{font-family:Georgia,serif;font-size:30px;margin:8px 0 3px}.status{border:1px solid #2d7a4a;border-radius:20px;padding:8px 12px;height:max-content;color:#2d7a4a;font-weight:800}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:22px 0}.grid>div,.block{border:1px solid #ddd6cc;border-radius:9px;padding:11px}.grid small,.block small{display:block;text-transform:uppercase;letter-spacing:1px;color:#81786f;font-size:9px;font-weight:800;margin-bottom:5px}.grid strong{font-size:13px}.block{margin:10px 0;white-space:pre-wrap;font-size:13px}.foot{margin-top:35px;border-top:1px solid #ddd;padding-top:10px;color:#8a8178;font-size:9px;display:flex;justify-content:space-between}</style></head><body><div class="top"><div><div class="brand">ORNARE</div><div class="tag">ORDEM DE MONTAGEM</div><h1>${esc(obra.nome || obra.cliente_nome)}</h1><div>${esc(obra.cliente_nome)}</div></div><div class="status">${esc(item.status || 'Planejado')}</div></div><div class="grid">${linhas}</div><div class="block"><small>Local da montagem</small>${esc(local)}</div><div class="block"><small>Observações operacionais</small>${esc(item.observacao)}</div><div class="foot"><span>Ornare Works · Ordem operacional</span><span>Emitido em ${new Date().toLocaleString('pt-BR')}</span></div><script>window.onload=()=>window.print()</script></body></html>`)
+    janela.document.close()
+  }
+
+  async function baixarPdf() {
+    const { jsPDF } = await import('jspdf')
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+    doc.setFillColor(45,122,74); doc.rect(0,0,210,7,'F'); doc.setTextColor(35,31,27); doc.setFont('helvetica','bold'); doc.setFontSize(22); doc.text('ORNARE',16,22)
+    doc.setTextColor(45,122,74); doc.setFontSize(8); doc.text('ORDEM DE MONTAGEM',16,29); doc.setTextColor(35,31,27); doc.setFontSize(18); doc.text(obra.nome || obra.cliente_nome || 'Obra',16,40)
+    doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.text(`${periodo} · ${jornada} · ${item.status || 'Planejado'}`,16,47)
+    let y=60
+    const bloco=(titulo,valor)=>{doc.setTextColor(130,118,105);doc.setFont('helvetica','bold');doc.setFontSize(7);doc.text(titulo.toUpperCase(),16,y);y+=5;doc.setTextColor(35,31,27);doc.setFont('helvetica','normal');doc.setFontSize(10);const linhas=doc.splitTextToSize(String(valor||'—'),178);doc.text(linhas,16,y);y+=linhas.length*5+5}
+    campos.forEach(([titulo,valor])=>bloco(titulo,valor)); bloco('Local da montagem',local); bloco('Observações operacionais',item.observacao)
+    doc.setDrawColor(220,213,204);doc.line(16,282,194,282);doc.setFontSize(7);doc.setTextColor(140,130,120);doc.text(`Ornare Works · Emitido em ${new Date().toLocaleString('pt-BR')}`,16,288)
+    doc.save(`ordem-montagem-${String(obra.nome||obra.cliente_nome||item.id).replace(/[^a-z0-9]+/gi,'-').toLowerCase()}.pdf`)
+  }
+
+  return <div className="pl-modal-bg pl-order-bg" onClick={e=>e.target===e.currentTarget&&onClose()}><article className="pl-order-sheet">
+    <header><div><div className="pl-order-brand">ORNARE</div><span>ORDEM DE MONTAGEM</span><h2>{obra.nome || obra.cliente_nome || 'Obra'}</h2><p>{obra.cliente_nome || local}</p></div><div className="pl-order-top"><b>{item.status || 'Planejado'}</b><button onClick={onClose}>×</button></div></header>
+    <section className="pl-order-highlight"><InfoOrdem label="Período de execução" value={periodo}/><InfoOrdem label="Jornada prevista" value={jornada}/><InfoOrdem label="Progresso" value={`${Number(item.percentual_concluido||0)}%`}/></section>
+    <section className="pl-order-grid"><InfoOrdem label="Atividade" value={item.compromissoTipo||item.titulo}/><InfoOrdem label="Supervisor" value={nomePessoa(item.supervisor)}/><InfoOrdem label="Equipe de montagem" value={equipe.join(', ')}/><InfoOrdem label="Trabalho aos sábados" value={periodoTrabalhaSabado(item)?'Sim':'Não'}/><InfoOrdem label="Local da montagem" value={local} wide/><InfoOrdem label="Observações operacionais" value={String(item.observacao||'').replace(/(?:^|\n)Jornada:[^\n]*/i,'').trim()} wide/></section>
+    <footer><div><small>Documento operacional Ornare Works</small><span>Execução vinculada ao cronograma da obra</span></div><div><button onClick={imprimir}>Imprimir</button><button onClick={baixarPdf}>Baixar PDF</button><button className="primary" onClick={onEdit}>Editar período</button></div></footer>
+  </article></div>
+}
+
+function InfoOrdem({ label, value, wide }) { return <div className={wide?'wide':''}><small>{label}</small><strong>{value || 'Não informado'}</strong></div> }
 
 function CompromissoModal({ form, setForm, obras, supervisores, montadores, vinculos, salvando, onClose, onSave }) {
   const obraSelecionada = obras.find(o => o.id === form.obra_id)
@@ -1198,6 +1252,7 @@ const css = `
 .pl-day-items span,.pl-day-items small{display:block;font-size:10.5px;color:${THEME.muted};margin-top:2px}
 .pl-day-items em{display:inline-flex;margin-top:5px;border-radius:999px;background:${THEME.elevated};color:${THEME.gold};font-style:normal;font-size:9.5px;font-weight:900;padding:2px 6px}
 .pl-calendar-bottom-nav{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:18px;padding-top:16px;border-top:1px solid ${THEME.border}}.pl-calendar-bottom-nav strong{font-size:12px;color:${THEME.muted}}.pl-calendar-bottom-nav button{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:9px;min-height:42px;padding:9px 14px;font-size:12px;font-weight:900;cursor:pointer}.pl-calendar-bottom-nav button.next{background:${THEME.gold};border-color:${THEME.gold};color:${THEME.bg}}
+.pl-order-bg{align-items:flex-start;overflow:auto;padding:22px}.pl-order-sheet{width:min(920px,100%);margin:auto;background:#f8f5ef;color:#28231e!important;padding:34px 38px;border-radius:4px;box-shadow:0 24px 80px #000b}.pl-order-sheet h2,.pl-order-sheet strong,.pl-order-brand{color:#28231e!important}.pl-order-sheet>header{display:flex;justify-content:space-between;gap:22px;border-bottom:4px solid #2d7a4a;padding-bottom:20px}.pl-order-brand{font-size:31px;letter-spacing:4px}.pl-order-sheet header span{display:block;color:#2d7a4a;font-size:10px;letter-spacing:2px;font-weight:900;margin-top:8px}.pl-order-sheet h2{font-family:var(--font-serif);font-size:34px;margin:9px 0 3px}.pl-order-sheet header p{color:#766d64!important;margin:0}.pl-order-top{display:flex;align-items:flex-start;gap:12px}.pl-order-top b{background:#e4f0e8;color:#2d7a4a!important;border-radius:999px;padding:7px 10px;font-size:10px}.pl-order-top button{border:0;background:transparent;color:#28231e;font-size:28px}.pl-order-highlight{display:grid;grid-template-columns:1.4fr 1fr .7fr;gap:10px;margin:22px 0}.pl-order-highlight>div,.pl-order-grid>div{background:#fff;border:1px solid #ddd5ca;border-radius:9px;padding:12px}.pl-order-sheet small{display:block;color:#81766b!important;font-size:9px;text-transform:uppercase;letter-spacing:1.1px;font-weight:900;margin-bottom:5px}.pl-order-sheet strong{font-size:13px;line-height:1.45}.pl-order-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.pl-order-grid .wide{grid-column:1/-1}.pl-order-sheet>footer{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;border-top:1px solid #ddd5ca;margin-top:24px;padding-top:18px}.pl-order-sheet>footer>div:first-child{display:grid;color:#81766b;font-size:10px}.pl-order-sheet>footer>div:last-child{display:flex;gap:8px;flex-wrap:wrap}.pl-order-sheet>footer button:not(.primary){border:1px solid #cfc5b8;background:#fff;color:#302a24;border-radius:8px;padding:11px 14px;font-weight:900}.pl-order-sheet>footer .primary{border:0;background:#2d7a4a;color:#fff;border-radius:8px;padding:11px 14px;font-weight:900}@media(max-width:760px){.pl-order-bg{padding:0}.pl-order-sheet{min-height:100%;padding:22px 16px}.pl-order-sheet h2{font-size:27px}.pl-order-brand{font-size:24px}.pl-order-highlight,.pl-order-grid{grid-template-columns:1fr}.pl-order-grid .wide{grid-column:auto}.pl-order-sheet>footer{align-items:stretch;flex-direction:column}.pl-order-sheet>footer>div:last-child button{flex:1}.pl-order-top b{display:none}}
 .pl-filters{display:grid;grid-template-columns:minmax(220px,1.4fr) repeat(6,minmax(0,1fr));gap:9px;margin-bottom:14px}
 .pl-filters input,.pl-filters select{background:${THEME.inputBackground};border:1px solid ${THEME.inputBorder};color:${THEME.inputText};border-radius:8px;padding:10px 14px;width:100%;font-size:14px;outline:none;box-sizing:border-box;font-family:inherit}
 .pl-table-wrap{overflow:auto;border:1px solid ${THEME.border};border-radius:14px}
