@@ -1571,18 +1571,19 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
       </div>
 
       <Card titulo="Linha do tempo operacional">
+        <div style={{ color: THEME.muted, fontSize: 11.5, marginBottom: 10 }}>Clique em uma etapa para alterar a fase atual. Depois confirme em <strong style={{ color: THEME.gold }}>Salvar dados do cronograma</strong>.</div>
         <div style={{ display: compacto ? 'flex' : 'grid', gridTemplateColumns: compacto ? undefined : `repeat(${FASES_ORNARE.length}, minmax(0, 1fr))`, gap: 10, overflowX: compacto ? 'auto' : 'visible', paddingBottom: compacto ? 6 : 0 }}>
           {FASES_ORNARE.map((fase, index) => {
             const ativa = fase.key === faseAtual
             const concluida = faseAtualIndex > index
             return (
-              <div key={fase.key} style={{ flex: compacto ? '0 0 120px' : undefined, border: `1px solid ${ativa ? THEME.gold : THEME.border}`, borderTop: ativa ? `4px solid ${fase.cor}` : `1px solid ${concluida ? '#B8DCC4' : THEME.border}`, background: ativa ? `${fase.cor}18` : concluida ? 'rgba(76,175,125,.14)' : THEME.card, borderRadius: 12, padding: '12px 10px', minHeight: 92 }}>
+              <button type="button" key={fase.key} onClick={() => setCampo('fase', fase.key)} aria-pressed={ativa} style={{ flex: compacto ? '0 0 120px' : undefined, border: `1px solid ${ativa ? THEME.gold : THEME.border}`, borderTop: ativa ? `4px solid ${fase.cor}` : `1px solid ${concluida ? '#B8DCC4' : THEME.border}`, background: ativa ? `${fase.cor}18` : concluida ? 'rgba(76,175,125,.14)' : THEME.card, borderRadius: 12, padding: '12px 10px', minHeight: 92, textAlign: 'left', fontFamily: 'inherit', cursor: 'pointer' }}>
                 <div style={{ width: 24, height: 24, borderRadius: 999, background: ativa ? fase.cor : concluida ? '#2D7A4A' : THEME.border, color: ativa || concluida ? '#fff' : THEME.muted, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 900, marginBottom: 9 }}>
                   {concluida ? '✓' : fase.id}
                 </div>
                 <div style={{ fontSize: 12, color: ativa ? THEME.ink : THEME.muted, fontWeight: ativa ? 900 : 700, lineHeight: 1.25 }}>{fase.label}</div>
                 <div style={{ fontSize: 10.5, color: THEME.muted, lineHeight: 1.25, marginTop: 5 }}>{fase.descricao}</div>
-              </div>
+              </button>
             )
           })}
         </div>

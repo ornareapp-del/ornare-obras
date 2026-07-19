@@ -721,8 +721,17 @@ class PlanejamentoPdf {
   kpis(items) { const gap = 3, w = (269 - gap * (items.length - 1)) / items.length; items.forEach((it, i) => { const x = 14 + i * (w + gap), d = this.doc; d.setDrawColor(it.danger ? THEME.danger : THEME.border); d.setLineWidth(it.danger ? .7 : .25); d.roundedRect(x, this.y, w, 20, 2, 2); d.setTextColor(it.danger ? THEME.danger : THEME.gold); d.setFont('helvetica', 'bold'); d.setFontSize(6.2); d.text(String(it.label).toUpperCase(), x + 4, this.y + 6); d.setTextColor(THEME.ink); d.setFontSize(15); d.text(String(it.value), x + 4, this.y + 15) }); this.y += 26 }
   table(cols, rows, title = 'Continuacao') {
     const head = () => { let x = 14; const d = this.doc; d.setFillColor(THEME.ink); d.rect(14, this.y, 269, 8, 'F'); cols.forEach(c => { d.setTextColor('#FFF'); d.setFont('helvetica', 'bold'); d.setFontSize(6.3); d.text(c.label, x + 2, this.y + 5.2); x += c.width }); this.y += 8 }
+    if (this.y + 19 > 195) this.addPage()
     head(); if (!rows.length) { this.doc.setTextColor(THEME.muted); this.doc.setFontSize(7.5); this.doc.text('Nenhum registro encontrado.', 16, this.y + 7); this.y += 12; return }
-    rows.forEach((row, i) => { if (this.y + 11 > 195) { this.addPage(title); head() } const d = this.doc; if (i % 2) { d.setFillColor('#F5F2ED'); d.rect(14, this.y, 269, 11, 'F') } let x = 14; cols.forEach(c => { const v = c.get(row); d.setTextColor(c.color ? c.color(row) : THEME.ink); d.setFont('helvetica', c.bold ? 'bold' : 'normal'); d.setFontSize(6.7); d.text(this.fit(v || '-', c.width - 4), x + 2, this.y + 6.5); x += c.width }); d.setDrawColor(THEME.border); d.line(14, this.y + 11, 283, this.y + 11); this.y += 11 }); this.y += 5
+    let cursor = 0
+    while (cursor < rows.length) {
+      const capacidade = Math.max(1, Math.floor((195 - this.y) / 11))
+      const bloco = rows.slice(cursor, cursor + capacidade)
+      bloco.forEach((row, localIndex) => { const d = this.doc; if ((cursor + localIndex) % 2) { d.setFillColor('#F5F2ED'); d.rect(14, this.y, 269, 11, 'F') } let x = 14; cols.forEach(c => { const v = c.get(row); d.setTextColor(c.color ? c.color(row) : THEME.ink); d.setFont('helvetica', c.bold ? 'bold' : 'normal'); d.setFontSize(6.7); d.text(this.fit(v || '-', c.width - 4), x + 2, this.y + 6.5); x += c.width }); d.setDrawColor(THEME.border); d.line(14, this.y + 11, 283, this.y + 11); this.y += 11 })
+      cursor += bloco.length
+      if (cursor < rows.length) { this.addPage(); this.section(title); head() }
+    }
+    this.y += 5
   }
   save(name) { this.footer(); this.doc.save(name) }
 }
@@ -757,7 +766,8 @@ export async function exportarPlanejamentoPdf({ registros = [], agenda = [], mes
     pdf.table([
       { label: 'OBRA / CLIENTE', width: 52, get: r => r.obra?.nome, bold: true }, { label: 'STATUS', width: 31, get: r => r.status_operacional || r.obra?.status }, { label: 'FASE ATUAL', width: 37, get: r => r.faseLabel || r.fase }, { label: 'PROG.', width: 16, get: r => `${r.percentual_concluido ?? 0}%`, bold: true }, { label: 'PERIODO PREVISTO', width: 43, get: r => `${dataBR(r.data_inicio_prevista)} - ${dataBR(r.data_fim_prevista)}` }, { label: 'RESPONSAVEL / EQUIPE', width: 44, get: r => (r.montadores || []).map(nomePessoa).join(', ') || nomePessoa(r.supervisor) }, { label: 'ALERTAS', width: 46, get: r => alertaPlanejamento(r, ocorrencias), color: r => alertaPlanejamento(r, ocorrencias).startsWith('OK') ? '#2D7A4A' : THEME.danger, bold: true },
     ], carteira, 'Carteira de obras - continuacao')
-    pdf.section('Agenda operacional do mes', 'Periodos de execucao e compromissos confirmados')
+    if (agenda.length > 4 && pdf.y > 125) pdf.addPage()
+    pdf.section('Agenda operacional do periodo', 'Periodos de execucao e compromissos confirmados')
     pdf.table([
       { label: 'DATA / HORARIO', width: 38, get: a => `${dataBR(a.data)}${a.hora_inicio ? `  ${String(a.hora_inicio).slice(0, 5)}` : ''}`, bold: true }, { label: 'OBRA', width: 54, get: a => a.obra?.nome || a.titulo || 'Interno', bold: true }, { label: 'ATIVIDADE', width: 43, get: a => a.compromissoTipo || a.tipo }, { label: 'PERIODO', width: 42, get: a => a.data_fim && a.data_fim !== a.data ? `${dataBR(a.data)} - ${dataBR(a.data_fim)}` : 'No dia' }, { label: 'RESPONSAVEL', width: 43, get: a => nomePessoa(a.supervisor) }, { label: 'EQUIPE ALOCADA', width: 49, get: a => (a.montadores || []).map(nomePessoa).join(', ') || 'Sem equipe definida' },
     ], [...agenda].sort((a, b) => String(a.data).localeCompare(String(b.data))), 'Agenda operacional - continuacao')
