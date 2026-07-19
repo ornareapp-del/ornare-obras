@@ -1130,11 +1130,13 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
   const [salvandoPeriodo, setSalvandoPeriodo] = useState(false)
   const [montadoresDisponiveis, setMontadoresDisponiveis] = useState([])
   const [equipePorPeriodo, setEquipePorPeriodo] = useState({})
+  const [ajudantesDisponiveis,setAjudantesDisponiveis]=useState([])
+  const [ajudantesPorPeriodo,setAjudantesPorPeriodo]=useState({})
   const [dependenciasPorPeriodo, setDependenciasPorPeriodo] = useState({})
   const [calendarioOperacional, setCalendarioOperacional] = useState([])
   const [modeloSelecionado, setModeloSelecionado] = useState('simples')
   const [dataModelo, setDataModelo] = useState('')
-  const [formPeriodo, setFormPeriodo] = useState({ atividade: 'Montagem', data: '', data_fim: '', hora_inicio: '08:00', hora_fim: '17:00', trabalha_sabado: false, responsavel_id: '', equipe_ids: [], status: 'pendente', percentual_concluido: 0, retorno_necessario: false, motivo_pausa: '', dependencias: [], observacao: '', visivel_montador: true, visivel_cliente: false })
+  const [formPeriodo, setFormPeriodo] = useState({ atividade: 'Montagem', data: '', data_fim: '', hora_inicio: '08:00', hora_fim: '17:00', trabalha_sabado: false, responsavel_id: '', equipe_ids: [], ajudante_ids: [], status: 'pendente', percentual_concluido: 0, retorno_necessario: false, motivo_pausa: '', dependencias: [], observacao: '', visivel_montador: true, visivel_cliente: false })
 
   function setCampo(campo, valor) {
     setForm(p => ({ ...p, [campo]: valor }))
@@ -1142,14 +1144,15 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
 
   function novoPeriodo() {
     setPeriodoEditando(null)
-    setFormPeriodo({ atividade: 'Montagem', data: form?.data_inicio_prevista || '', data_fim: form?.data_inicio_prevista || '', hora_inicio: '08:00', hora_fim: '17:00', trabalha_sabado: false, responsavel_id: form?.responsavel_id || '', equipe_ids: [], status: 'pendente', percentual_concluido: 0, retorno_necessario: false, motivo_pausa: '', dependencias: [], observacao: '', visivel_montador: true, visivel_cliente: false })
+    setFormPeriodo({ atividade: 'Montagem', data: form?.data_inicio_prevista || '', data_fim: form?.data_inicio_prevista || '', hora_inicio: '08:00', hora_fim: '17:00', trabalha_sabado: false, responsavel_id: form?.responsavel_id || '', equipe_ids: [], ajudante_ids: [], status: 'pendente', percentual_concluido: 0, retorno_necessario: false, motivo_pausa: '', dependencias: [], observacao: '', visivel_montador: true, visivel_cliente: false })
   }
 
   async function carregarPeriodos() {
-    const [agendaResult, montadoresResult, calendarioResult] = await Promise.all([
+    const [agendaResult, montadoresResult, calendarioResult, ajudantesResult] = await Promise.all([
       supabase.from('agenda').select('*').eq('obra_id', obraId).eq('tipo', TIPO_AGENDA_PERIODO).order('data', { ascending: true }),
       supabase.from('obra_montadores').select('montador_id, montador:profiles!obra_montadores_montador_id_fkey(id, full_name, email)').eq('obra_id', obraId),
       supabase.from('calendario_operacional').select('data, descricao, dia_util'),
+      supabase.from('obra_equipe_operacional').select('pessoa_id,pessoa:equipe_operacional(id,nome,funcao,ativo)').eq('obra_id',obraId),
     ])
     const { data, error } = agendaResult
     if (error) {
@@ -1159,15 +1162,19 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
     const itens = data || []
     setPeriodos(itens)
     setMontadoresDisponiveis((montadoresResult.data || []).map(item => item.montador).filter(Boolean))
+    setAjudantesDisponiveis((ajudantesResult.data||[]).map(v=>v.pessoa).filter(p=>p?.funcao==='ajudante'&&p.ativo!==false))
     const calendario = calendarioResult.data || []
     setCalendarioOperacional(calendario)
     if (itens.length) {
       const { data: vinculos, error: vinculosError } = await supabase.from('agenda_periodo_montadores').select('agenda_id, montador_id').in('agenda_id', itens.map(item => item.id))
       if (!vinculosError) setEquipePorPeriodo((vinculos || []).reduce((mapa, item) => ({ ...mapa, [item.agenda_id]: [...(mapa[item.agenda_id] || []), item.montador_id] }), {}))
+      const {data:vinculosAjudantes,error:ajudantesError}=await supabase.from('agenda_periodo_equipe').select('agenda_id,pessoa_id').in('agenda_id',itens.map(item=>item.id))
+      if(!ajudantesError)setAjudantesPorPeriodo((vinculosAjudantes||[]).reduce((mapa,item)=>({...mapa,[item.agenda_id]:[...(mapa[item.agenda_id]||[]),item.pessoa_id]}),{}))
       const { data: dependencias, error: dependenciasError } = await supabase.from('agenda_periodo_dependencias').select('*').in('agenda_id', itens.map(item => item.id)).order('created_at')
       if (!dependenciasError) setDependenciasPorPeriodo((dependencias || []).reduce((mapa, item) => ({ ...mapa, [item.agenda_id]: [...(mapa[item.agenda_id] || []), item] }), {}))
     } else {
       setEquipePorPeriodo({})
+      setAjudantesPorPeriodo({})
       setDependenciasPorPeriodo({})
     }
     if (itens.length) setForm(atual => atual ? ({ ...atual, dias_previstos: calcularDiasDosPeriodos(itens, calendario), percentual_concluido: calcularProgressoDosPeriodos(itens, calendario) }) : atual)
@@ -1186,7 +1193,7 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
 
   function editarPeriodo(item) {
     setPeriodoEditando(item.id)
-    setFormPeriodo({ atividade: item.titulo || 'Montagem', data: item.data || '', data_fim: item.data_fim || item.data || '', hora_inicio: item.hora_inicio?.slice(0, 5) || '08:00', hora_fim: item.hora_fim?.slice(0, 5) || '17:00', trabalha_sabado: jornadaSabadoNaObservacao(item.observacao), responsavel_id: item.responsavel_id || '', equipe_ids: equipePorPeriodo[item.id] || [], status: item.status || 'pendente', percentual_concluido: Number(item.percentual_concluido) || 0, retorno_necessario: Boolean(item.retorno_necessario), motivo_pausa: item.motivo_pausa || '', dependencias: (dependenciasPorPeriodo[item.id] || []).map(dep => ({ tipo: dep.tipo, descricao: dep.descricao, concluida: dep.concluida })), observacao: String(item.observacao || '').split('\n').filter(linha => !/^Jornada:\s*/i.test(linha.trim())).join('\n'), visivel_montador: item.visivel_montador !== false, visivel_cliente: Boolean(item.visivel_cliente) })
+    setFormPeriodo({ atividade: item.titulo || 'Montagem', data: item.data || '', data_fim: item.data_fim || item.data || '', hora_inicio: item.hora_inicio?.slice(0, 5) || '08:00', hora_fim: item.hora_fim?.slice(0, 5) || '17:00', trabalha_sabado: jornadaSabadoNaObservacao(item.observacao), responsavel_id: item.responsavel_id || '', equipe_ids: equipePorPeriodo[item.id] || [], ajudante_ids: ajudantesPorPeriodo[item.id]||[], status: item.status || 'pendente', percentual_concluido: Number(item.percentual_concluido) || 0, retorno_necessario: Boolean(item.retorno_necessario), motivo_pausa: item.motivo_pausa || '', dependencias: (dependenciasPorPeriodo[item.id] || []).map(dep => ({ tipo: dep.tipo, descricao: dep.descricao, concluida: dep.concluida })), observacao: String(item.observacao || '').split('\n').filter(linha => !/^Jornada:\s*/i.test(linha.trim())).join('\n'), visivel_montador: item.visivel_montador !== false, visivel_cliente: Boolean(item.visivel_cliente) })
   }
 
   async function salvarPeriodo() {
@@ -1231,6 +1238,12 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
         return
       }
     }
+    if(formPeriodo.ajudante_ids.length){
+      const {data:vinculosAjudantes,error:erroAjudantes}=await supabase.from('agenda_periodo_equipe').select('pessoa_id,agenda:agenda_id(id,titulo,data,data_fim,status)').in('pessoa_id',formPeriodo.ajudante_ids)
+      if(erroAjudantes){setMensagem({tipo:'erro',texto:'Não foi possível validar a disponibilidade dos ajudantes.'});setSalvandoPeriodo(false);return}
+      const conflito=(vinculosAjudantes||[]).find(v=>v.agenda&&String(v.agenda.id)!==String(periodoEditando)&&v.agenda.status!=='cancelada'&&v.agenda.data<=fim&&(v.agenda.data_fim||v.agenda.data)>=formPeriodo.data)
+      if(conflito&&!window.confirm(`Um ajudante já está alocado em "${conflito.agenda.titulo}" neste intervalo. Deseja manter a sobreposição?`)){setSalvandoPeriodo(false);return}
+    }
     const payload = { obra_id: obraId, tipo: TIPO_AGENDA_PERIODO, titulo: formPeriodo.atividade.trim(), observacao: observacaoComJornada(formPeriodo.observacao, formPeriodo.trabalha_sabado), data: formPeriodo.data, data_fim: fim, hora_inicio: formPeriodo.hora_inicio || '08:00', hora_fim: formPeriodo.hora_fim || null, responsavel_id: formPeriodo.responsavel_id || null, status: formPeriodo.status || 'pendente', percentual_concluido: Number(formPeriodo.percentual_concluido) || 0, retorno_necessario: Boolean(formPeriodo.retorno_necessario), motivo_pausa: formPeriodo.motivo_pausa || null, reuniao_interna: false, visivel_montador: Boolean(formPeriodo.visivel_montador), visivel_cliente: Boolean(formPeriodo.visivel_cliente) }
     const periodoOriginal = periodos.find(item => String(item.id) === String(periodoEditando))
     const houveReagendamento = periodoOriginal && (periodoOriginal.data !== payload.data || (periodoOriginal.data_fim || periodoOriginal.data) !== payload.data_fim)
@@ -1272,6 +1285,12 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
           setSalvandoPeriodo(false)
           return
         }
+      }
+      const exclusaoAjudantes=await supabase.from('agenda_periodo_equipe').delete().eq('agenda_id',agendaId)
+      if(exclusaoAjudantes.error){setMensagem({tipo:'erro',texto:'O período foi salvo, mas os ajudantes não puderam ser atualizados.'});setSalvandoPeriodo(false);return}
+      if(formPeriodo.ajudante_ids.length){
+        const inclusaoAjudantes=await supabase.from('agenda_periodo_equipe').insert(formPeriodo.ajudante_ids.map(pessoa_id=>({agenda_id:agendaId,pessoa_id})))
+        if(inclusaoAjudantes.error){setMensagem({tipo:'erro',texto:'Não foi possível vincular os ajudantes ao período.'});setSalvandoPeriodo(false);return}
       }
       const exclusaoDependencias = await supabase.from('agenda_periodo_dependencias').delete().eq('agenda_id', agendaId)
       if (exclusaoDependencias.error) {
@@ -1636,7 +1655,7 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
           {lacunas.length > 0 && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>{lacunas.map(item => <span key={`${item.anterior.id}-${item.proximo.id}`} style={{ border: `1px dashed ${THEME.warning}`, background: THEME.warningBg, color: THEME.warning, borderRadius: 999, padding: '6px 10px', fontSize: 11.5, fontWeight: 800 }}>Pausa de {item.dias} dia{item.dias === 1 ? '' : 's'} antes de {item.proximo.titulo}</span>)}</div>}
           {periodos.length ? <div style={{ display: 'grid', gap: 9, marginBottom: 16 }}>{periodos.map(item => {
             const responsavel = responsaveis.find(p => p.id === item.responsavel_id)
-            const equipe = (equipePorPeriodo[item.id] || []).map(id => montadoresDisponiveis.find(p => p.id === id)?.full_name).filter(Boolean)
+            const equipe = [...(equipePorPeriodo[item.id] || []).map(id => montadoresDisponiveis.find(p => p.id === id)?.full_name).filter(Boolean),...(ajudantesPorPeriodo[item.id]||[]).map(id=>{const p=ajudantesDisponiveis.find(a=>a.id===id);return p?`${p.nome} (Ajudante)`:null}).filter(Boolean)]
             return <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', border: `1px solid ${String(periodoEditando) === String(item.id) ? THEME.gold : THEME.border}`, background: String(periodoEditando) === String(item.id) ? THEME.softGold : THEME.elevated, borderRadius: 12, padding: '12px 14px' }}>
               <div style={{ minWidth: 165 }}><div style={{ color: THEME.ink, fontSize: 13.5, fontWeight: 900 }}>{item.titulo}</div><div style={{ color: THEME.gold, fontSize: 12, fontWeight: 800, marginTop: 4 }}>{new Date(`${item.data}T00:00:00`).toLocaleDateString('pt-BR')} — {new Date(`${item.data_fim || item.data}T00:00:00`).toLocaleDateString('pt-BR')}</div></div>
               <div style={{ flex: 1, minWidth: 220, color: THEME.muted, fontSize: 12, lineHeight: 1.5 }}>{responsavel?.full_name || responsavel?.email || 'Sem responsável'} · {rotuloStatusPeriodo(item.status || 'pendente')} · {Number(item.percentual_concluido) || 0}%<br />Equipe: {equipe.length ? equipe.join(', ') : 'não alocada'} {item.retorno_necessario ? '· Retorno necessário' : ''}{(item.data_inicio_real || item.minutos_realizados) && <><br />Realizado: {item.data_inicio_real ? new Date(`${item.data_inicio_real}T00:00:00`).toLocaleDateString('pt-BR') : '-'}{item.data_fim_real ? ` — ${new Date(`${item.data_fim_real}T00:00:00`).toLocaleDateString('pt-BR')}` : ''} · {Math.round(Number(item.minutos_realizados || 0) / 60 * 10) / 10}h</>}</div>
@@ -1673,6 +1692,7 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
               const marcado = formPeriodo.equipe_ids.includes(montador.id)
               return <label key={montador.id} style={{ display: 'flex', alignItems: 'center', gap: 7, border: `1px solid ${marcado ? THEME.gold : THEME.border}`, background: marcado ? THEME.softGold : THEME.elevated, borderRadius: 999, padding: '7px 10px', color: THEME.ink, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}><input type="checkbox" checked={marcado} onChange={() => setFormPeriodo(p => ({ ...p, equipe_ids: marcado ? p.equipe_ids.filter(id => id !== montador.id) : [...p.equipe_ids, montador.id] }))} />{montador.full_name || montador.email}</label>
             })}</div> : <div style={{ color: THEME.warning, fontSize: 12 }}>Cadastre montadores na aba Equipe para alocá-los neste período.</div>}
+            {ajudantesDisponiveis.length>0&&<><div style={{fontSize:11,color:THEME.muted,fontWeight:900,margin:'12px 0 7px',textTransform:'uppercase',letterSpacing:1}}>Ajudantes disponíveis na obra</div><div style={{display:'flex',gap:8,flexWrap:'wrap'}}>{ajudantesDisponiveis.map(p=>{const marcado=formPeriodo.ajudante_ids.includes(p.id);return <label key={p.id} style={{display:'flex',alignItems:'center',gap:7,border:`1px solid ${marcado?'#2D7A4A':THEME.border}`,background:marcado?'#2D7A4A18':THEME.elevated,borderRadius:999,padding:'7px 10px',color:THEME.ink,fontSize:12,fontWeight:700,cursor:'pointer'}}><input type="checkbox" checked={marcado} onChange={()=>setFormPeriodo(atual=>({...atual,ajudante_ids:marcado?atual.ajudante_ids.filter(id=>id!==p.id):[...atual.ajudante_ids,p.id]}))}/>{p.nome} · Ajudante</label>})}</div></>}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap', marginTop: 12 }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: THEME.gold, fontSize: 12.5, fontWeight: 800 }}><input type="checkbox" checked={formPeriodo.trabalha_sabado} onChange={e => setFormPeriodo(p => ({ ...p, trabalha_sabado: e.target.checked, hora_fim: e.target.checked && p.hora_fim === '17:00' ? '12:00' : p.hora_fim }))} />Incluir sábados neste período</label>
@@ -3419,6 +3439,9 @@ function AbaCliente({ obraId }) {
 
 function AbaEquipeObra({ obraId }) {
   const [montadores, setMontadores] = useState([])
+  const [ajudantes, setAjudantes] = useState([])
+  const [todosAjudantes, setTodosAjudantes] = useState([])
+  const [ajudanteSelecionado, setAjudanteSelecionado] = useState('')
   const [todos, setTodos] = useState([])
   const [loading, setLoading] = useState(true)
   const [adicionando, setAdicionando] = useState(false)
@@ -3500,6 +3523,13 @@ function AbaEquipeObra({ obraId }) {
       setTodos(t || [])
     }
 
+    const [ajudantesResult, vinculosAjudantesResult] = await Promise.all([
+      supabase.from('equipe_operacional').select('id,nome,funcao,telefone,especialidades,ativo').eq('funcao','ajudante').eq('ativo',true).order('nome'),
+      supabase.from('obra_equipe_operacional').select('obra_id,pessoa_id,funcao_na_obra').eq('obra_id',obraId),
+    ])
+    setTodosAjudantes(ajudantesResult.data || [])
+    setAjudantes((vinculosAjudantesResult.data || []).map(v=>({...v,pessoa:(ajudantesResult.data||[]).find(p=>p.id===v.pessoa_id)})).filter(v=>v.pessoa?.funcao==='ajudante'))
+
     setMontadores(listaMontadores)
     setLoading(false)
   }
@@ -3565,7 +3595,21 @@ function AbaEquipeObra({ obraId }) {
     avisar('sucesso', 'Montador removido da obra.')
     await carregar()
   }
+  async function alocarAjudante(){
+    if(!ajudanteSelecionado)return
+    setAdicionando(true)
+    const {error}=await supabase.from('obra_equipe_operacional').upsert({obra_id:obraId,pessoa_id:ajudanteSelecionado,funcao_na_obra:'ajudante'},{onConflict:'obra_id,pessoa_id'})
+    if(error) avisar('erro',erroTexto(error,'Não foi possível alocar o ajudante.'))
+    else {setAjudanteSelecionado('');avisar('sucesso','Ajudante alocado na obra.');await carregar()}
+    setAdicionando(false)
+  }
+  async function removerAjudante(id){
+    const {error}=await supabase.from('obra_equipe_operacional').delete().eq('obra_id',obraId).eq('pessoa_id',id)
+    if(error) avisar('erro',erroTexto(error,'Não foi possível remover o ajudante.'))
+    else {avisar('sucesso','Ajudante removido da obra.');await carregar()}
+  }
   const naoAlocados = todos.filter(t => !montadores.find(m => m.montador_id === t.id))
+  const ajudantesNaoAlocados=todosAjudantes.filter(p=>!ajudantes.some(v=>v.pessoa_id===p.id))
   return (
     <Card titulo="Montadores alocados nesta obra">
       {mensagem && (
@@ -3602,6 +3646,7 @@ function AbaEquipeObra({ obraId }) {
           </div>
         ))
       }
+      <div style={{marginTop:24,paddingTop:18,borderTop:'1px solid '+THEME.border}}><div style={{fontSize:14,fontWeight:900,color:THEME.ink,marginBottom:5}}>Ajudantes na obra</div><div style={{fontSize:12,color:THEME.muted,marginBottom:12}}>Equipe operacional sem acesso ao aplicativo.</div><div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:12}}><select value={ajudanteSelecionado} onChange={e=>setAjudanteSelecionado(e.target.value)} style={{background:THEME.inputBackground,border:'1px solid '+THEME.inputBorder,color:THEME.inputText,borderRadius:8,padding:'10px 14px',minHeight:44,flex:'1 1 240px'}}><option value="">-- Selecione ajudante disponível --</option>{ajudantesNaoAlocados.map(p=><option key={p.id} value={p.id}>{p.nome}{p.especialidades?' · '+p.especialidades:''}</option>)}</select><button onClick={alocarAjudante} disabled={!ajudanteSelecionado||adicionando} style={{background:'#2D7A4A',color:'#fff',border:0,borderRadius:8,padding:'10px 16px',fontWeight:800}}>+ Alocar ajudante</button></div>{ajudantes.length===0?<div style={{color:THEME.muted,fontSize:13}}>Nenhum ajudante alocado.</div>:ajudantes.map(v=><div key={v.pessoa_id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:'1px solid '+THEME.border}}><div style={{width:36,height:36,borderRadius:'50%',background:'#2D7A4A18',color:'#2D7A4A',display:'grid',placeItems:'center',fontWeight:900}}>{(v.pessoa?.nome||'?')[0]}</div><div style={{flex:1}}><strong style={{color:THEME.ink}}>{v.pessoa?.nome}</strong><div style={{fontSize:11.5,color:THEME.muted}}>Ajudante · sem acesso</div></div><button onClick={()=>removerAjudante(v.pessoa_id)} style={{background:theme.statusBg.danger,border:'1px solid '+theme.status.danger,color:theme.status.dangerDeep,borderRadius:8,padding:'9px 10px',fontWeight:800}}>Remover</button></div>)}</div>
     </Card>
   )
 }

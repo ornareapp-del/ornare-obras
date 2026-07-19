@@ -61,6 +61,8 @@ export default function Equipe() {
   const [obras, setObras] = useState([])
   const [vinculos, setVinculos] = useState([])
   const [supervisores, setSupervisores] = useState([])
+  const [ajudantes, setAjudantes] = useState([])
+  const [modalAjudante, setModalAjudante] = useState(false)
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState('todos')
   const [busca, setBusca] = useState('')
@@ -81,10 +83,12 @@ export default function Equipe() {
 
   const carregar = useCallback(async () => {
     setLoading(true)
-    const [profilesResult, obrasResult, vinculosResult] = await Promise.all([
+    const [profilesResult, obrasResult, vinculosResult, ajudantesResult, obraEquipeResult] = await Promise.all([
       supabase.from('profiles').select('*').order('full_name'),
       supabase.from('obras').select('id, nome, supervisor_id, comercial_id'),
       supabase.from('obra_montadores').select('obra_id, montador_id'),
+      supabase.from('equipe_operacional').select('*').eq('funcao','ajudante').order('nome'),
+      supabase.from('obra_equipe_operacional').select('obra_id,pessoa_id'),
     ])
     if (profilesResult.error || obrasResult.error || vinculosResult.error) {
       console.error('Erro ao carregar equipe:', {
@@ -99,6 +103,7 @@ export default function Equipe() {
     setObras(obrasResult.data || [])
     setVinculos(vinculosResult.data || [])
     setSupervisores((profilesResult.data || []).filter(p => p.role === 'supervisor' || p.role === 'gestao'))
+    setAjudantes((ajudantesResult.data || []).map(p => ({ ...p, obras_ids: (obraEquipeResult.data || []).filter(v => v.pessoa_id === p.id).map(v => v.obra_id) })))
     setLoading(false)
   }, [mostrarToast])
 
@@ -206,6 +211,7 @@ export default function Equipe() {
     { label: 'Gestão', value: profilesVisiveis.filter(p => p.role === 'gestao').length },
     { label: 'Supervisores', value: profilesVisiveis.filter(p => p.role === 'supervisor').length },
     { label: 'Montadores', value: profilesVisiveis.filter(p => p.role === 'montador').length },
+    { label: 'Ajudantes', value: ajudantes.filter(p => p.ativo !== false).length },
     { label: 'Pós-venda', value: profilesVisiveis.filter(p => p.role === 'pos_venda').length },
     { label: 'Vendedores', value: profilesVisiveis.filter(p => p.role === 'vendedor').length },
   ].filter(k => !supervisorAtual || k.label === 'Montadores')
@@ -251,6 +257,7 @@ export default function Equipe() {
     <div className="ow-page" style={s.page}>
       <style>{css}</style>
       {toast.msg && <Toast msg={toast.msg} tipo={toast.tipo} />}
+      {modalAjudante && <ModalAjudante supervisores={supervisores} onClose={() => setModalAjudante(false)} onSaved={() => { setModalAjudante(false); carregar(); mostrarToast('Ajudante cadastrado sem acesso ao aplicativo.') }} />}
       {modal && <ModalNovoUsuario obras={obras} supervisores={supervisores} rolesDisponiveis={rolesDisponiveis} supervisorAtual={supervisorAtual ? perfilAtual : null} onClose={() => setModal(false)} onSaved={(role) => { setModal(false); carregar(); mostrarToast(role === 'cliente' ? 'Cliente criado, vinculado a obra e convidado por e-mail.' : 'Novo usuario criado com sucesso. A senha inicial nao sera exibida novamente.') }} />}
 
       <div className="eq-header" style={s.header}>
@@ -264,8 +271,14 @@ export default function Equipe() {
             {visao === 'cards' ? 'Tabela compacta' : 'Cards'}
           </button>
           <button className="eq-new" style={s.btnNew} onClick={() => setModal(true)}>+ Novo Usuário</button>
+          <button className="eq-new" style={{...s.btnNew,background:'#2D7A4A'}} onClick={() => setModalAjudante(true)}>+ Novo Ajudante</button>
         </div>
       </div>
+
+      <section style={{ marginBottom: 24 }}>
+        <div style={{ display:'flex',justifyContent:'space-between',alignItems:'end',gap:12,marginBottom:12 }}><div><h2 style={{margin:0,fontFamily:'var(--font-serif)',fontSize:24}}>Ajudantes operacionais</h2><p style={{margin:'5px 0 0',color:theme.textSecondary,fontSize:12}}>Pessoas cadastradas para alocação, sem login no aplicativo.</p></div><strong style={{color:'#2D7A4A'}}>{ajudantes.filter(a=>a.ativo!==false).length} ativos</strong></div>
+        {ajudantes.length === 0 ? <div style={s.empty}>Nenhum ajudante cadastrado.</div> : <div className="eq-grid" style={s.gridList}>{ajudantes.map(a => <article key={a.id} className="eq-card" style={{...s.card,borderTopColor:'#2D7A4A',opacity:a.ativo===false?.6:1}}><div style={s.cardTop}><div className="eq-avatar" style={{...s.avatar,background:'#2D7A4A18',color:'#2D7A4A'}}>{a.nome.split(' ').map(n=>n[0]).slice(0,2).join('').toUpperCase()}</div><div style={s.personInfo}><strong style={s.personName}>{a.nome}</strong><span style={s.personMeta}>Ajudante · sem acesso</span><span style={s.personEmail}>{a.telefone||'Telefone não informado'}</span></div></div><div style={s.badgeRow}><span style={{...s.badge,background:'#EAF5EE',color:'#2D7A4A'}}>Ajudante</span><span style={{...s.badge,background:'#F5F1EA',color:'#8A8175'}}>Sem login</span></div><div className="eq-detail" style={s.detailLine}>{a.obras_ids.length ? `${a.obras_ids.length} obra${a.obras_ids.length===1?'':'s'} vinculada${a.obras_ids.length===1?'':'s'}` : 'Disponível · sem obra vinculada'}</div>{a.especialidades&&<div className="eq-detail" style={s.detailLine}>{a.especialidades}</div>}</article>)}</div>}
+      </section>
 
       <div className="eq-mobile-summary" aria-label="Resumo da equipe">
         <button type="button" onClick={() => setFiltro('todos')}>
@@ -657,6 +670,22 @@ function ModalNovoUsuario({ obras, supervisores, rolesDisponiveis, supervisorAtu
       </div>
     </div>
   )
+}
+
+function ModalAjudante({ supervisores, onClose, onSaved }) {
+  const [form,setForm]=useState({nome:'',telefone:'',supervisor_id:'',especialidades:'',observacoes:''})
+  const [saving,setSaving]=useState(false)
+  const [erro,setErro]=useState('')
+  const set=(k,v)=>setForm(p=>({...p,[k]:v}))
+  async function salvar(){
+    if(!form.nome.trim()){setErro('Informe o nome do ajudante.');return}
+    setSaving(true);setErro('')
+    const {error}=await supabase.from('equipe_operacional').insert({nome:form.nome.trim(),funcao:'ajudante',telefone:form.telefone||null,supervisor_id:form.supervisor_id||null,especialidades:form.especialidades||null,observacoes:form.observacoes||null,ativo:true})
+    setSaving(false)
+    if(error){setErro(detalheErro(error,'Não foi possível cadastrar. Verifique a migração da Equipe Operacional.'));return}
+    onSaved()
+  }
+  return <div style={s.modalBg} onClick={e=>e.target===e.currentTarget&&onClose()}><div style={s.modal}><div style={s.modalHead}><h2>Novo ajudante</h2><button onClick={onClose}>X</button></div><div style={s.modalBody}>{erro&&<div style={s.error}>{erro}</div>}<div style={s.editGrid}><Field label="Nome completo"><input style={s.input} value={form.nome} onChange={e=>set('nome',e.target.value)}/></Field><Field label="Telefone opcional"><input style={s.input} value={form.telefone} onChange={e=>set('telefone',e.target.value)}/></Field><Field label="Supervisor responsável"><select style={s.input} value={form.supervisor_id} onChange={e=>set('supervisor_id',e.target.value)}><option value="">Sem supervisor</option>{supervisores.map(p=><option key={p.id} value={p.id}>{p.full_name}</option>)}</select></Field><Field label="Especialidades"><input style={s.input} value={form.especialidades} onChange={e=>set('especialidades',e.target.value)} placeholder="Ex.: montagem, carga e descarga"/></Field><Field label="Observações"><textarea style={s.input} value={form.observacoes} onChange={e=>set('observacoes',e.target.value)}/></Field></div><div style={s.roleHint}>Este cadastro não cria senha nem acesso. O ajudante ficará disponível para alocação nas obras e períodos.</div></div><div style={s.modalFoot}><button style={s.btnEdit} onClick={onClose}>Cancelar</button><button style={{...s.btnEdit,background:'#2D7A4A',color:'#fff',borderColor:'#2D7A4A'}} onClick={salvar} disabled={saving}>{saving?'Salvando...':'Cadastrar ajudante'}</button></div></div></div>
 }
 
 function Field({ label, children }) {

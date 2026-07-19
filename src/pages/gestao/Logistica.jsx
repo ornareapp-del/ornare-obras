@@ -24,7 +24,7 @@ function classeStatus(status) { return ['atrasada','recusada','avaria'].includes
 export default function Logistica() {
   const { user, profile } = useStore()
   const [params, setParams] = useSearchParams()
-  const [dados, setDados] = useState({ entregas: [], obras: [], profiles: [], vinculos: [], equipes: [] })
+  const [dados, setDados] = useState({ entregas: [], obras: [], profiles: [], vinculos: [], equipes: [], equipeOperacional: [], obraEquipe: [], logisticaEquipe: [] })
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState('')
   const [toast, setToast] = useState('')
@@ -32,21 +32,25 @@ export default function Logistica() {
   const [detalhe, setDetalhe] = useState(null)
   const [form, setForm] = useState(vazio)
   const [montadores, setMontadores] = useState([])
+  const [ajudantes, setAjudantes] = useState([])
   const [salvando, setSalvando] = useState(false)
   const [filtros, setFiltros] = useState({ busca: '', status: '', mes: new Date().toISOString().slice(0,7) })
   const somenteLeitura = !['gestao','supervisor'].includes(profile?.role)
 
   async function carregar() {
     setLoading(true); setErro('')
-    const [entregas, obras, profiles, vinculos, equipes] = await Promise.all([
+    const [entregas, obras, profiles, vinculos, equipes, equipeOperacional, obraEquipe, logisticaEquipe] = await Promise.all([
       supabase.from('logistica_entregas').select('*').order('data_entrega').order('hora_inicio'),
       supabase.from('obras').select('id,nome,cliente_nome,endereco,cidade,uf,supervisor_id,status').order('nome'),
       supabase.from('profiles').select('id,full_name,email,role'),
       supabase.from('logistica_montadores').select('logistica_id,montador_id'),
       supabase.from('obra_montadores').select('obra_id,montador_id'),
+      supabase.from('equipe_operacional').select('id,nome,funcao,ativo').eq('ativo',true),
+      supabase.from('obra_equipe_operacional').select('obra_id,pessoa_id'),
+      supabase.from('logistica_equipe').select('logistica_id,pessoa_id'),
     ])
     if (entregas.error) setErro(entregas.error.message?.includes('logistica_entregas') ? 'O banco ainda precisa receber a migração do módulo Logística (docs/supabase-logistica.sql).' : entregas.error.message)
-    setDados({ entregas: safe(entregas), obras: safe(obras), profiles: safe(profiles), vinculos: safe(vinculos), equipes: safe(equipes) })
+    setDados({ entregas: safe(entregas), obras: safe(obras), profiles: safe(profiles), vinculos: safe(vinculos), equipes: safe(equipes), equipeOperacional:safe(equipeOperacional), obraEquipe:safe(obraEquipe), logisticaEquipe:safe(logisticaEquipe) })
     setLoading(false)
   }
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -77,8 +81,9 @@ export default function Logistica() {
     if (item) {
       setForm({ ...vazio, ...item, hora_inicio: hora(item.hora_inicio), hora_fim: hora(item.hora_fim) })
       setMontadores(dados.vinculos.filter(v => v.logistica_id === item.id).map(v => v.montador_id))
+      setAjudantes(dados.logisticaEquipe.filter(v=>v.logistica_id===item.id).map(v=>v.pessoa_id))
       setParams({ entrega: item.id })
-    } else { setForm(vazio); setMontadores([]); setParams({}) }
+    } else { setForm(vazio); setMontadores([]); setAjudantes([]); setParams({}) }
     setModal(true)
   }
   function abrirDetalhe(item) { setDetalhe(item); setParams({ entrega: item.id }) }
@@ -89,6 +94,7 @@ export default function Logistica() {
     const obra = obraPorId.get(id)
     setForm(f => ({ ...f, obra_id: id, endereco_destino: obra ? [obra.endereco, obra.cidade, obra.uf].filter(Boolean).join(' · ') : '' }))
     setMontadores(dados.equipes.filter(v => v.obra_id === id).map(v => v.montador_id))
+    setAjudantes(dados.obraEquipe.filter(v=>v.obra_id===id).map(v=>v.pessoa_id))
   }
   function setCampo(campo, valor) { setForm(f => ({ ...f, [campo]: valor })) }
 
@@ -103,6 +109,8 @@ export default function Logistica() {
     const id = result.data.id
     await supabase.from('logistica_montadores').delete().eq('logistica_id', id)
     if (montadores.length) await supabase.from('logistica_montadores').insert(montadores.map(montador_id => ({ logistica_id: id, montador_id })))
+    await supabase.from('logistica_equipe').delete().eq('logistica_id',id)
+    if(ajudantes.length) await supabase.from('logistica_equipe').insert(ajudantes.map(pessoa_id=>({logistica_id:id,pessoa_id})))
     const obra = obraPorId.get(form.obra_id) || {}
     const destinatarios = new Set([obra.supervisor_id, form.responsavel_recebimento_id, ...montadores].filter(Boolean))
     await criarNotificacoes([...destinatarios].map(usuario_id => ({ usuario_id, obra_id: form.obra_id, tipo: 'logistica_entrega', titulo: form.id ? 'Entrega logística atualizada' : 'Nova entrega programada', descricao: `${form.tipo} em ${dataBR(form.data_entrega)}${form.hora_inicio ? ` às ${form.hora_inicio}` : ''} · ${obra.nome || obra.cliente_nome || 'Obra'}`, prioridade: 'alta', entidade_tipo: 'logistica', entidade_id: id, rota: `/logistica?entrega=${id}` })))
@@ -118,7 +126,7 @@ export default function Logistica() {
 
   function imprimirEntrega(item) {
     const obra = obraPorId.get(item.obra_id) || {}
-    const equipe = dados.vinculos.filter(v => v.logistica_id === item.id).map(v => pessoaPorId.get(v.montador_id)?.full_name).filter(Boolean)
+    const equipe = [...dados.vinculos.filter(v => v.logistica_id === item.id).map(v => pessoaPorId.get(v.montador_id)?.full_name).filter(Boolean),...dados.logisticaEquipe.filter(v=>v.logistica_id===item.id).map(v=>{const p=dados.equipeOperacional.find(x=>x.id===v.pessoa_id);return p?`${p.nome} (Ajudante)`:null}).filter(Boolean)]
     const responsavel = pessoaPorId.get(item.responsavel_recebimento_id)
     const esc = value => String(value || '—').replace(/[&<>"']/g, char => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' })[char])
     const linha = (label, value) => `<div><small>${esc(label)}</small><strong>${esc(value)}</strong></div>`
@@ -130,7 +138,7 @@ export default function Logistica() {
 
   async function baixarPdf(item) {
     const obra = obraPorId.get(item.obra_id) || {}
-    const equipe = dados.vinculos.filter(v => v.logistica_id === item.id).map(v => pessoaPorId.get(v.montador_id)?.full_name).filter(Boolean)
+    const equipe = [...dados.vinculos.filter(v => v.logistica_id === item.id).map(v => pessoaPorId.get(v.montador_id)?.full_name).filter(Boolean),...dados.logisticaEquipe.filter(v=>v.logistica_id===item.id).map(v=>{const p=dados.equipeOperacional.find(x=>x.id===v.pessoa_id);return p?`${p.nome} (Ajudante)`:null}).filter(Boolean)]
     const responsavel = pessoaPorId.get(item.responsavel_recebimento_id)
     const { jsPDF } = await import('jspdf')
     const doc = new jsPDF({ unit: 'mm', format: 'a4' })
@@ -147,6 +155,7 @@ export default function Logistica() {
   }
 
   const montadoresDisponiveis = dados.equipes.filter(v => v.obra_id === form.obra_id).map(v => pessoaPorId.get(v.montador_id)).filter(Boolean)
+  const ajudantesDisponiveis = dados.obraEquipe.filter(v=>v.obra_id===form.obra_id).map(v=>dados.equipeOperacional.find(p=>p.id===v.pessoa_id)).filter(p=>p?.funcao==='ajudante')
 
   return <div className="log-page">
     <style>{css}</style>
@@ -155,9 +164,9 @@ export default function Logistica() {
     {erro && <div className="alert"><strong>Módulo aguardando configuração</strong><span>{erro}</span></div>}
     <section className="kpis"><Kpi label="Entregas previstas" value={kpis.previstas}/><Kpi label="Em trânsito" value={kpis.transito}/><Kpi label="Exigem atenção" value={kpis.atencao} danger/><Kpi label="Concluídas" value={kpis.concluidas}/></section>
     <section className="panel"><div className="toolbar"><input placeholder="Buscar obra, transportadora, placa..." value={filtros.busca} onChange={e => setFiltros({...filtros,busca:e.target.value})}/><input type="month" value={filtros.mes} onChange={e => setFiltros({...filtros,mes:e.target.value})}/><select value={filtros.status} onChange={e => setFiltros({...filtros,status:e.target.value})}><option value="">Todos os status</option>{STATUS.map(([v,l]) => <option key={v} value={v}>{l}</option>)}</select></div>
-      {loading ? <div className="empty">Carregando logística...</div> : !lista.length ? <div className="empty"><b>Nenhum transporte encontrado.</b><span>Crie a primeira entrega para ela aparecer aqui e no Planejamento.</span></div> : <div className="cards">{lista.map(item => { const obra=obraPorId.get(item.obra_id)||{}; const equipe=dados.vinculos.filter(v=>v.logistica_id===item.id).map(v=>pessoaPorId.get(v.montador_id)?.full_name).filter(Boolean); return <article className="delivery" key={item.id} onClick={() => abrirDetalhe(item)}><div className="date"><strong>{dataBR(item.data_entrega)}</strong><span>{hora(item.hora_inicio)}{item.hora_fim ? `–${hora(item.hora_fim)}` : ''}</span></div><div className="delivery-main"><div className="line"><h3>{obra.nome || obra.cliente_nome || 'Obra'}</h3><span className={`badge ${classeStatus(item.status)}`}>{STATUS_LABEL[item.status] || item.status}</span></div><p><b>{item.tipo}</b> · {item.transportadora || 'Transportadora não definida'}{item.placa ? ` · ${item.placa}` : ''}</p><small>{item.endereco_destino || 'Destino não informado'}</small>{equipe.length > 0 && <small>Equipe avisada: {equipe.join(', ')}</small>}</div><div className="quick" onClick={e=>e.stopPropagation()}>{item.status==='confirmado'&&<button onClick={()=>mudarStatus(item,'em_transito')}>Saiu para entrega</button>}{item.status==='em_transito'&&<button onClick={()=>mudarStatus(item,'chegou')}>Chegou</button>}{['chegou','conferencia'].includes(item.status)&&<button onClick={()=>mudarStatus(item,'concluida')}>Concluir</button>}</div></article>})}</div>}
+      {loading ? <div className="empty">Carregando logística...</div> : !lista.length ? <div className="empty"><b>Nenhum transporte encontrado.</b><span>Crie a primeira entrega para ela aparecer aqui e no Planejamento.</span></div> : <div className="cards">{lista.map(item => { const obra=obraPorId.get(item.obra_id)||{}; const equipe=[...dados.vinculos.filter(v=>v.logistica_id===item.id).map(v=>pessoaPorId.get(v.montador_id)?.full_name).filter(Boolean),...dados.logisticaEquipe.filter(v=>v.logistica_id===item.id).map(v=>{const p=dados.equipeOperacional.find(x=>x.id===v.pessoa_id);return p?`${p.nome} (Ajudante)`:null}).filter(Boolean)]; return <article className="delivery" key={item.id} onClick={() => abrirDetalhe(item)}><div className="date"><strong>{dataBR(item.data_entrega)}</strong><span>{hora(item.hora_inicio)}{item.hora_fim ? `–${hora(item.hora_fim)}` : ''}</span></div><div className="delivery-main"><div className="line"><h3>{obra.nome || obra.cliente_nome || 'Obra'}</h3><span className={`badge ${classeStatus(item.status)}`}>{STATUS_LABEL[item.status] || item.status}</span></div><p><b>{item.tipo}</b> · {item.transportadora || 'Transportadora não definida'}{item.placa ? ` · ${item.placa}` : ''}</p><small>{item.endereco_destino || 'Destino não informado'}</small>{equipe.length > 0 && <small>Equipe envolvida: {equipe.join(', ')}</small>}</div><div className="quick" onClick={e=>e.stopPropagation()}>{item.status==='confirmado'&&<button onClick={()=>mudarStatus(item,'em_transito')}>Saiu para entrega</button>}{item.status==='em_transito'&&<button onClick={()=>mudarStatus(item,'chegou')}>Chegou</button>}{['chegou','conferencia'].includes(item.status)&&<button onClick={()=>mudarStatus(item,'concluida')}>Concluir</button>}</div></article>})}</div>}
     </section>
-    {detalhe && <DetalheEntrega item={detalhe} obra={obraPorId.get(detalhe.obra_id)||{}} equipe={dados.vinculos.filter(v=>v.logistica_id===detalhe.id).map(v=>pessoaPorId.get(v.montador_id)?.full_name).filter(Boolean)} responsavel={pessoaPorId.get(detalhe.responsavel_recebimento_id)} somenteLeitura={somenteLeitura} onClose={fecharDetalhe} onEdit={editarDetalhe} onPrint={()=>imprimirEntrega(detalhe)} onPdf={()=>baixarPdf(detalhe)}/>} 
+    {detalhe && <DetalheEntrega item={detalhe} obra={obraPorId.get(detalhe.obra_id)||{}} equipe={[...dados.vinculos.filter(v=>v.logistica_id===detalhe.id).map(v=>pessoaPorId.get(v.montador_id)?.full_name).filter(Boolean),...dados.logisticaEquipe.filter(v=>v.logistica_id===detalhe.id).map(v=>{const p=dados.equipeOperacional.find(x=>x.id===v.pessoa_id);return p?`${p.nome} (Ajudante)`:null}).filter(Boolean)]} responsavel={pessoaPorId.get(detalhe.responsavel_recebimento_id)} somenteLeitura={somenteLeitura} onClose={fecharDetalhe} onEdit={editarDetalhe} onPrint={()=>imprimirEntrega(detalhe)} onPdf={()=>baixarPdf(detalhe)}/>} 
     {modal && <div className="overlay" onMouseDown={e=>e.target===e.currentTarget&&fechar()}><form className="modal" onSubmit={salvar}><div className="modal-head"><div><span className="eyebrow">TRANSPORTE LOGÍSTICO</span><h2>{form.id ? 'Detalhes da entrega' : 'Nova entrega'}</h2></div><button type="button" className="close" onClick={fechar}>×</button></div><div className="form-grid">
       <Field label="Obra / cliente *" wide><select value={form.obra_id} onChange={e=>alterarObra(e.target.value)} disabled={somenteLeitura}><option value="">Selecione...</option>{dados.obras.map(o=><option key={o.id} value={o.id}>{o.nome || o.cliente_nome}</option>)}</select></Field>
       <Field label="Operação"><select value={form.tipo} onChange={e=>setCampo('tipo',e.target.value)} disabled={somenteLeitura}>{TIPOS.map(t=><option key={t}>{t}</option>)}</select></Field><Field label="Status"><select value={form.status} onChange={e=>setCampo('status',e.target.value)} disabled={somenteLeitura}>{STATUS.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></Field>
@@ -167,6 +176,7 @@ export default function Logistica() {
       <Field label="Responsável pelo recebimento"><select value={form.responsavel_recebimento_id} onChange={e=>setCampo('responsavel_recebimento_id',e.target.value)} disabled={somenteLeitura}><option value="">Não definido</option>{dados.profiles.filter(p=>['gestao','supervisor','montador'].includes(p.role)).map(p=><option key={p.id} value={p.id}>{p.full_name || p.email}</option>)}</select></Field><Field label="Documentos"><div className="inline"><input placeholder="NF" value={form.nota_fiscal} onChange={e=>setCampo('nota_fiscal',e.target.value)} disabled={somenteLeitura}/><input placeholder="Romaneio" value={form.romaneio} onChange={e=>setCampo('romaneio',e.target.value)} disabled={somenteLeitura}/><input placeholder="Pedido" value={form.pedido} onChange={e=>setCampo('pedido',e.target.value)} disabled={somenteLeitura}/></div></Field>
       <Field label="Carga" wide><textarea value={form.descricao_carga} onChange={e=>setCampo('descricao_carga',e.target.value)} disabled={somenteLeitura}/></Field><Field label="Acesso e descarga" wide><textarea value={form.instrucoes_acesso} onChange={e=>setCampo('instrucoes_acesso',e.target.value)} disabled={somenteLeitura}/></Field>
       <Field label="Montadores envolvidos" wide><div className="checks">{montadoresDisponiveis.length ? montadoresDisponiveis.map(p=><label key={p.id}><input type="checkbox" checked={montadores.includes(p.id)} onChange={e=>setMontadores(v=>e.target.checked?[...new Set([...v,p.id])]:v.filter(id=>id!==p.id))} disabled={somenteLeitura}/>{p.full_name || p.email}</label>) : <span>Selecione uma obra com equipe alocada.</span>}</div></Field>
+      <Field label="Ajudantes envolvidos" wide><div className="checks">{ajudantesDisponiveis.length?ajudantesDisponiveis.map(p=><label key={p.id}><input type="checkbox" checked={ajudantes.includes(p.id)} onChange={e=>setAjudantes(v=>e.target.checked?[...new Set([...v,p.id])]:v.filter(id=>id!==p.id))} disabled={somenteLeitura}/>{p.nome} · Ajudante</label>):<span>Nenhum ajudante vinculado à obra.</span>}</div></Field>
       <Field label="Visibilidade" wide><div className="checks"><label><input type="checkbox" checked={form.visivel_montador} onChange={e=>setCampo('visivel_montador',e.target.checked)} disabled={somenteLeitura}/>Montadores podem ver</label><label><input type="checkbox" checked={form.visivel_cliente} onChange={e=>setCampo('visivel_cliente',e.target.checked)} disabled={somenteLeitura}/>Cliente pode ver</label></div></Field>
     </div><div className="modal-actions"><button type="button" onClick={fechar}>Fechar</button>{!somenteLeitura&&<button className="primary" disabled={salvando}>{salvando?'Salvando...':'Salvar e avisar envolvidos'}</button>}</div></form></div>}
   </div>

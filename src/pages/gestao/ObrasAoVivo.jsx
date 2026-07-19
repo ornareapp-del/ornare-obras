@@ -161,6 +161,8 @@ function criarDadosVazios() {
     profiles: [],
     montadores: [],
     checklist: [],
+    equipeOperacional: [],
+    obraEquipe: [],
   }
 }
 
@@ -186,6 +188,8 @@ export default function ObrasAoVivo() {
         profilesResult,
         montadoresResult,
         checklistResult,
+        equipeOperacionalResult,
+        obraEquipeResult,
       ] = await Promise.all([
         supabase.from('obras').select('*').order('created_at', { ascending: false }),
         buscarTodosRegistros('agenda', 'data', true),
@@ -196,6 +200,8 @@ export default function ObrasAoVivo() {
         supabase.from('profiles').select('id, full_name, email, role'),
         supabase.from('obra_montadores').select('obra_id, montador_id, montador:profiles!obra_montadores_montador_id_fkey(full_name)'),
         buscarTodosRegistros('checklist_items', 'id', false, 'id, obra_id, descricao, concluido'),
+        supabase.from('equipe_operacional').select('id,nome,funcao,ativo').eq('ativo',true),
+        supabase.from('obra_equipe_operacional').select('obra_id,pessoa_id'),
       ])
 
       const falhas = [
@@ -222,6 +228,8 @@ export default function ObrasAoVivo() {
         profiles: safeArray(profilesResult),
         montadores: safeArray(montadoresResult),
         checklist: safeArray(checklistResult),
+        equipeOperacional: safeArray(equipeOperacionalResult),
+        obraEquipe: safeArray(obraEquipeResult),
       })
       setErroDados(falhas.join(' / '))
     } catch (error) {
@@ -303,6 +311,13 @@ export default function ObrasAoVivo() {
       if (!vinculo.obra_id) return
       const nome = limparNome(vinculo.montador?.full_name) || 'Montador'
       montadoresPorObra.set(vinculo.obra_id, [...(montadoresPorObra.get(vinculo.obra_id) || []), nome])
+    })
+    const pessoaPorId=new Map(dados.equipeOperacional.map(p=>[p.id,p]))
+    dados.obraEquipe.forEach(v=>{
+      const pessoa=pessoaPorId.get(v.pessoa_id)
+      if(!pessoa||pessoa.funcao!=='ajudante')return
+      const nome=`${limparNome(pessoa.nome)||'Ajudante'} (Ajudante)`
+      montadoresPorObra.set(v.obra_id,[...(montadoresPorObra.get(v.obra_id)||[]),nome])
     })
 
     const agendaPorObra = new Map()

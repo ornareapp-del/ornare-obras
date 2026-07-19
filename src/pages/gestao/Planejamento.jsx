@@ -159,6 +159,11 @@ function nomePessoa(profile) {
   return profile?.full_name || profile?.email || '-'
 }
 
+function nomeEquipe(profile) {
+  const nome = nomePessoa(profile)
+  return profile?.role === 'ajudante' ? `${nome} (Ajudante)` : nome
+}
+
 function montadoresNaObservacao(observacao, profiles) {
   const linha = String(observacao || '').split('\n').find(item => norm(item).startsWith('montadores:'))
   if (!linha) return []
@@ -177,7 +182,7 @@ function periodoTrabalhaSabado(item) {
 
 export default function Planejamento() {
   const navigate = useNavigate()
-  const [dados, setDados] = useState({ cronogramas: [], obras: [], profiles: [], montadores: [], agenda: [], equipesPeriodo: [], calendario: [], logistica: [], logisticaMontadores: [] })
+  const [dados, setDados] = useState({ cronogramas: [], obras: [], profiles: [], montadores: [], agenda: [], equipesPeriodo: [], calendario: [], logistica: [], logisticaMontadores: [], equipeOperacional: [], obraEquipe: [], periodoEquipe: [] })
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState('')
   const [salvando, setSalvando] = useState(false)
@@ -199,7 +204,7 @@ export default function Planejamento() {
     setLoading(true)
     setErro('')
 
-    const [cronogramas, obras, profiles, montadores, agenda, equipesPeriodo, calendario, logistica, logisticaMontadores] = await Promise.all([
+    const [cronogramas, obras, profiles, montadores, agenda, equipesPeriodo, calendario, logistica, logisticaMontadores, equipeOperacional, obraEquipe, periodoEquipe] = await Promise.all([
       supabase.from('obra_cronograma').select('*').order('data_inicio_prevista', { ascending: true }),
       supabase.from('obras').select('id, nome, cliente_nome, endereco, cidade, uf, status, supervisor_id, comercial_id, data_previsao').order('nome'),
       supabase.from('profiles').select('id, full_name, email, role'),
@@ -209,6 +214,9 @@ export default function Planejamento() {
       supabase.from('calendario_operacional').select('data, descricao, dia_util'),
       supabase.from('logistica_entregas').select('*').order('data_entrega'),
       supabase.from('logistica_montadores').select('logistica_id, montador_id'),
+      supabase.from('equipe_operacional').select('id,nome,funcao,profile_id,ativo'),
+      supabase.from('obra_equipe_operacional').select('obra_id,pessoa_id'),
+      supabase.from('agenda_periodo_equipe').select('agenda_id,pessoa_id'),
     ])
 
     const falha = [cronogramas, obras, profiles, montadores, agenda, equipesPeriodo, calendario].find(r => r.error)
@@ -224,6 +232,9 @@ export default function Planejamento() {
       calendario: safeArray(calendario),
       logistica: safeArray(logistica),
       logisticaMontadores: safeArray(logisticaMontadores),
+      equipeOperacional: safeArray(equipeOperacional),
+      obraEquipe: safeArray(obraEquipe),
+      periodoEquipe: safeArray(periodoEquipe),
     })
     setLoading(false)
   }
@@ -239,6 +250,7 @@ export default function Planejamento() {
     }
     const obraPorId = new Map(dados.obras.map(o => [o.id, o]))
     const profilePorId = new Map(dados.profiles.map(p => [p.id, p]))
+    const pessoaPorId = new Map(dados.equipeOperacional.map(p => [p.id, { ...p, id: p.profile_id || p.id, pessoa_operacional_id: p.id, full_name: p.nome, role: p.funcao }]))
     const montadoresPorObra = new Map()
 
     dados.montadores.forEach(v => {
@@ -251,7 +263,8 @@ export default function Planejamento() {
       const obra = obraPorId.get(c.obra_id) || {}
       const supervisor = profilePorId.get(c.supervisor_id || obra.supervisor_id)
       const montadorIds = montadoresPorObra.get(c.obra_id) || []
-      const montadores = montadorIds.map(id => profilePorId.get(id)).filter(Boolean)
+      const ajudantes = dados.obraEquipe.filter(v=>v.obra_id===c.obra_id).map(v=>pessoaPorId.get(v.pessoa_id)).filter(p=>p&&p.role==='ajudante')
+      const montadores = [...montadorIds.map(id => profilePorId.get(id)).filter(Boolean),...ajudantes]
       const inicio = dateOnly(c.data_inicio_prevista)
       const fim = dateOnly(c.data_fim_prevista) || inicio
       const faseInfo = faseOperacional(c.fase)
@@ -274,7 +287,10 @@ export default function Planejamento() {
       const montadoresTexto = montadoresNaObservacao(a.observacao, dados.profiles)
       const equipeIds = dados.equipesPeriodo.filter(item => item.agenda_id === a.id).map(item => item.montador_id)
       const montadorIds = equipeIds.length ? equipeIds : (montadoresPorObra.get(a.obra_id) || [])
-      const montadores = montadoresTexto.length ? montadoresTexto : montadorIds.map(id => profilePorId.get(id)).filter(Boolean)
+      const ajudantesPeriodo=dados.periodoEquipe.filter(v=>v.agenda_id===a.id).map(v=>pessoaPorId.get(v.pessoa_id)).filter(p=>p&&p.role==='ajudante')
+      const ajudantesObra=dados.obraEquipe.filter(v=>v.obra_id===a.obra_id).map(v=>pessoaPorId.get(v.pessoa_id)).filter(p=>p&&p.role==='ajudante')
+      const montadoresBase = montadoresTexto.length ? montadoresTexto : montadorIds.map(id => profilePorId.get(id)).filter(Boolean)
+      const montadores = [...montadoresBase,...(ajudantesPeriodo.length?ajudantesPeriodo:ajudantesObra)]
       const inicio = dateOnly(a.data)
       const fim = dateOnly(a.data_fim) || inicio
       const periodoExecucao = norm(a.tipo) === 'periodo de execucao'
@@ -833,7 +849,7 @@ function ResumoDiaModal({ dia, onClose, onOpenItem, onAdd }) {
             <div className="pl-day-detail-list">
               {dia.obras.map(item => {
                 const cor = item.origem === 'logistica' ? '#E47D3C' : obraColor(item.obra).accent
-                const equipe = (item.montadores || []).map(nomePessoa).filter(nome => nome !== '-')
+                const equipe = (item.montadores || []).map(nomeEquipe).filter(nome => nome !== '-')
                 const local = [item.obra?.cidade, item.obra?.uf].filter(Boolean).join(' / ')
                 return (
                   <article key={`${item.origem}-${item.id}`} style={{ borderLeftColor: cor }}>
@@ -863,7 +879,7 @@ function ResumoDiaModal({ dia, onClose, onOpenItem, onAdd }) {
 
 function OrdemMontagemModal({ item, onClose, onEdit }) {
   const obra = item.obra || {}
-  const equipe = (item.montadores || []).map(nomePessoa).filter(nome => nome !== '-')
+  const equipe = (item.montadores || []).map(nomeEquipe).filter(nome => nome !== '-')
   const jornada = `${item.hora_inicio ? String(item.hora_inicio).slice(0,5) : '08:00'}${item.hora_fim ? `–${String(item.hora_fim).slice(0,5)}` : ''}`
   const periodo = `${dataBR(item.data)}${item.data_fim && item.data_fim !== item.data ? ` a ${dataBR(item.data_fim)}` : ''}`
   const local = [obra.endereco, obra.cidade, obra.uf].filter(Boolean).join(' · ')
