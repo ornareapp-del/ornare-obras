@@ -203,7 +203,7 @@ export default function Planejamento() {
       supabase.from('obras').select('id, nome, cliente_nome, cidade, uf, status, supervisor_id, comercial_id, data_previsao').order('nome'),
       supabase.from('profiles').select('id, full_name, email, role'),
       supabase.from('obra_montadores').select('obra_id, montador_id'),
-      supabase.from('agenda').select('id, obra_id, tipo, titulo, data, data_fim, hora_inicio, hora_fim, responsavel_id, observacao, reuniao_interna, visivel_montador, percentual_concluido, retorno_necessario, motivo_pausa').order('data'),
+      supabase.from('agenda').select('id, obra_id, tipo, titulo, status, data, data_fim, hora_inicio, hora_fim, responsavel_id, observacao, reuniao_interna, visivel_montador, percentual_concluido, retorno_necessario, motivo_pausa').order('data'),
       supabase.from('agenda_periodo_montadores').select('agenda_id, montador_id'),
       supabase.from('calendario_operacional').select('data, descricao, dia_util'),
       supabase.from('logistica_entregas').select('*').order('data_entrega'),
@@ -276,6 +276,8 @@ export default function Planejamento() {
       const montadores = montadoresTexto.length ? montadoresTexto : montadorIds.map(id => profilePorId.get(id)).filter(Boolean)
       const inicio = dateOnly(a.data)
       const fim = dateOnly(a.data_fim) || inicio
+      const periodoExecucao = norm(a.tipo) === 'periodo de execucao'
+      const atividade = periodoExecucao ? (a.titulo || 'Montagem') : (a.tipo || a.titulo || 'Compromisso')
       return {
         ...a,
         origem: 'agenda',
@@ -284,9 +286,9 @@ export default function Planejamento() {
         montadores,
         inicio,
         fim,
-        faseCor: corCompromisso(a.tipo || a.titulo),
-        tom: tomCompromisso(a.tipo || a.titulo),
-        compromissoTipo: a.tipo || a.titulo || 'Compromisso',
+        faseCor: corCompromisso(atividade),
+        tom: tomCompromisso(atividade),
+        compromissoTipo: atividade,
       }
     })
 
@@ -368,27 +370,20 @@ export default function Planejamento() {
 
     const agendaMes = compromissosAgenda.filter(a => a.inicio && overlapsRange(a.inicio, a.fim, mesInicio, mesFim))
     const logisticaMes = entregasLogistica.filter(a => a.inicio && overlapsRange(a.inicio, a.fim, mesInicio, mesFim))
-    const obrasProgramadasIds = new Set([
-      ...registros.filter(r => overlapsRange(r.inicio, r.fim, mesInicio, mesFim)).map(r => r.obra_id),
-      ...agendaMes.map(a => a.obra_id),
-    ].filter(Boolean))
     const obrasComEquipeIds = new Set(dados.montadores.map(m => m.obra_id).filter(Boolean))
     const obrasComCronogramaIds = new Set(dados.cronogramas.map(c => c.obra_id).filter(Boolean))
     const obrasSemEquipe = dados.obras.filter(o => !obrasComEquipeIds.has(o.id))
     const obrasSemCronograma = dados.obras.filter(o => !obrasComCronogramaIds.has(o.id))
     const obrasSemData = registros.filter(r => !r.data_inicio_prevista || !r.data_fim_prevista)
-    const obrasRisco = registros.filter(r => r.travado || norm(r.risco).includes('alto') || norm(r.status_operacional).includes('risco') || norm(r.status_operacional).includes('trav'))
     const hojeOperacional = new Date()
     hojeOperacional.setHours(0, 0, 0, 0)
     const atrasosCronograma = registros.filter(r => r.fim && r.fim < hojeOperacional && Number(r.percentual_concluido || 0) < 100 && !norm(r.status_operacional).includes('conclu'))
+    const montagensMesIds = new Set([
+      ...agendaMes.filter(a => norm([a.compromissoTipo, a.titulo, a.tipo].join(' ')).includes('montagem') && norm(a.status) !== 'cancelada').map(a => a.obra_id),
+      ...registros.filter(r => r.faseKey === 'montagem' && overlapsRange(r.inicio, r.fim, mesInicio, mesFim)).map(r => r.obra_id),
+    ].filter(Boolean))
     const kpis = {
-      montagensMes: agendaMes.filter(a => norm(a.compromissoTipo).includes('montagem')).length,
-      obrasProgramadas: obrasProgramadasIds.size,
-      obrasSemEquipe: obrasSemEquipe.length,
-      obrasSemCronograma: obrasSemCronograma.length,
-      obrasSemData: obrasSemData.length,
-      atrasosCronograma: atrasosCronograma.length,
-      obrasRisco: obrasRisco.length,
+      montagensMes: montagensMesIds.size,
       entregasPrevistas: logisticaMes.length + agendaMes.filter(a => norm(a.compromissoTipo).includes('entrega')).length + registros.filter(r => r.faseKey === 'entrega_moveis' && r.fim && r.fim >= mesInicio && r.fim <= mesFim).length,
     }
 
@@ -615,12 +610,6 @@ export default function Planejamento() {
 
       <section className="pl-kpis">
         <Kpi label="Montagens no mês" value={vm.kpis.montagensMes} />
-        <Kpi label="Obras programadas" value={vm.kpis.obrasProgramadas} />
-        <Kpi label="Obras sem equipe" value={vm.kpis.obrasSemEquipe} danger={vm.kpis.obrasSemEquipe > 0} />
-        <Kpi label="Sem cronograma" value={vm.kpis.obrasSemCronograma} danger={vm.kpis.obrasSemCronograma > 0} />
-        <Kpi label="Atrasos" value={vm.kpis.atrasosCronograma} danger={vm.kpis.atrasosCronograma > 0} />
-        <Kpi label="Sem data" value={vm.kpis.obrasSemData} danger={vm.kpis.obrasSemData > 0} />
-        <Kpi label="Obras em risco" value={vm.kpis.obrasRisco} danger={vm.kpis.obrasRisco > 0} />
         <Kpi label="Entregas previstas" value={vm.kpis.entregasPrevistas} />
       </section>
 
@@ -745,7 +734,8 @@ function Calendario({ dias, mesAtual, abrirDia, mudarMes }) {
         <span>{MESES[mesAtual.getMonth()]} {mesAtual.getFullYear()}</span>
       </div>
       <div className="pl-calendar-legend" aria-label="Legenda de tipos de compromisso">
-        <span className="meaning"><b>Cor do cartão = obra</b></span>
+        <span className="meaning"><b>Fundo e borda = cor da obra</b></span>
+        <span className="meaning"><b>Selo = atividade</b></span>
         {[
           ['Vistoria', COMPROMISSO_CORES.vistoria],
           ['Montagem', COMPROMISSO_CORES.montagem],
@@ -773,7 +763,7 @@ function Calendario({ dias, mesAtual, abrirDia, mudarMes }) {
                 >
                   <strong>{item.obra.nome || 'Obra'}</strong>
                   <span>{item.montadores[0] ? nomePessoa(item.montadores[0]) : nomePessoa(item.supervisor)}</span>
-                  <em style={{ color: item.tom?.cor || item.faseCor }}>{item.compromissoTipo}</em>
+                  <em style={{ color: item.tom?.cor || item.faseCor, background: item.tom?.bg, border: `1px solid ${item.tom?.cor || item.faseCor}55` }}>{item.compromissoTipo}</em>
                   <small>{item.origem === 'logistica' ? 'Logística · entrega' : item.origem === 'cronograma' ? 'Previsão macro' : norm(item.tipo) === 'periodo de execucao' ? 'Execução da equipe' : 'Agenda'}</small>
                 </div>
               ))}
@@ -1167,7 +1157,7 @@ const css = `
 .pl-alert{width:100%;max-width:none;margin:0 0 14px;border:1px solid rgba(224,82,82,.34);background:rgba(224,82,82,.12);color:${THEME.danger};border-radius:12px;padding:11px 14px;font-size:13px;font-weight:700}
 .pl-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:1200;background:${THEME.ink};color:#fff;border-left:3px solid ${THEME.gold};border-radius:13px;padding:12px 18px;font-size:13px;font-weight:800;box-shadow:0 14px 34px rgba(29,28,25,.18)}
 .pl-mobile-actions{display:none}
-.pl-kpis{width:100%;max-width:none;margin:0 0 16px;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:12px}
+.pl-kpis{width:100%;max-width:none;margin:0 0 16px;display:grid;grid-template-columns:repeat(2,minmax(0,260px));gap:12px}
 .pl-kpi{background:${THEME.card};border:1px solid ${THEME.border};border-radius:12px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,.3)}
 .pl-kpi.danger{border-top-color:${THEME.danger}}
 .pl-kpi span{display:block;font-size:10px;letter-spacing:1.7px;text-transform:uppercase;color:${THEME.gold};font-weight:800;margin-bottom:9px;white-space:nowrap}
