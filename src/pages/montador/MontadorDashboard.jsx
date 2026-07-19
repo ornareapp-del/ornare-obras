@@ -278,6 +278,7 @@ async function buscarDadosOperacionais(obraId, userId) {
     ocorrenciasResult,
     agendaResult,
     cronogramaResult,
+    logisticaResult,
   ] = await Promise.all([
     supabase.from('tarefas').select('*').eq('obra_id', obraId).eq('responsavel_id', userId).order('prazo'),
     supabase.from('checkins').select('*').eq('user_id', userId).eq('obra_id', obraId).order('created_at', { ascending: false }).limit(20),
@@ -287,6 +288,7 @@ async function buscarDadosOperacionais(obraId, userId) {
     supabase.from('ocorrencias').select('*').eq('obra_id', obraId).order('created_at', { ascending: false }).limit(40),
     supabase.from('agenda').select('*').eq('obra_id', obraId).or('visivel_montador.eq.true,visivel_montador.is.null').order('data').order('hora_inicio'),
     supabase.from('obra_cronograma').select('fase, status_operacional, percentual_concluido, data_inicio_prevista, data_fim_prevista, data_inicio_real, data_fim_real').eq('obra_id', obraId).maybeSingle(),
+    supabase.from('logistica_entregas').select('*').eq('obra_id', obraId).eq('visivel_montador', true).neq('status', 'cancelada').order('data_entrega').order('hora_inicio'),
   ])
 
   return {
@@ -298,6 +300,7 @@ async function buscarDadosOperacionais(obraId, userId) {
     ocorrenciasResult,
     agendaResult,
     cronogramaResult,
+    logisticaResult,
   }
 }
 
@@ -311,6 +314,7 @@ function registrarErrosOperacionais(contexto, dados) {
     ocorrencias: dados.ocorrenciasResult,
     agenda: dados.agendaResult,
     cronograma: dados.cronogramaResult,
+    logistica: dados.logisticaResult,
   }).forEach(([nome, result]) => {
     if (result?.error) console.error(`Erro ao carregar ${nome} (${contexto}):`, result.error)
   })
@@ -346,6 +350,8 @@ export default function MontadorDashboard() {
   const [ocorrencias, setOcorrencias] = useState([])
   const [agenda, setAgenda] = useState([])
   const [agendaCalendario, setAgendaCalendario] = useState([])
+  const [logistica, setLogistica] = useState([])
+  const [confirmandoEntrega, setConfirmandoEntrega] = useState('')
 
   const [loading, setLoading] = useState(true)
   const [loadingObra, setLoadingObra] = useState(false)
@@ -480,6 +486,7 @@ export default function MontadorDashboard() {
       setFotos(fotosVisiveisParaMontador(dados.fotosResult, user.id))
       setOcorrencias(safeArray(dados.ocorrenciasResult))
       setAgenda(agendaMontador(dados.agendaResult))
+      setLogistica(safeArray(dados.logisticaResult))
       if (dados.cronogramaResult?.data) {
         const cronograma = dados.cronogramaResult.data
         setObraAtiva(atual => atual?.id === obra.id ? ({ ...atual, fase: cronograma.fase, fase_atual: cronograma.fase, progresso: cronograma.percentual_concluido, data_inicio_real: cronograma.data_inicio_real || atual.data_inicio_real, data_previsao_inicio: cronograma.data_inicio_prevista || atual.data_previsao_inicio, data_previsao: cronograma.data_fim_prevista || atual.data_previsao }) : atual)
@@ -652,6 +659,7 @@ export default function MontadorDashboard() {
     else if (entidadeTipo === 'ocorrencias') rota = `/obras/${obraAtiva.id}?aba=Ocorrencias&ocorrencia=${entidadeId || ''}`
     else if (entidadeTipo === 'checklist_items') rota = `/obras/${obraAtiva.id}?aba=Checklist&checklist=${entidadeId || ''}`
     else if (entidadeTipo === 'tarefas') rota = `/tarefas?tarefa=${entidadeId || ''}`
+    else if (entidadeTipo === 'logistica') rota = `/logistica?entrega=${entidadeId || ''}`
     else if (entidadeTipo === 'checkin') rota = agendaId ? `/agenda?compromisso=${agendaId}` : `/obras/${obraAtiva.id}?aba=Agenda`
     else if (agendaId) rota = `/agenda?compromisso=${agendaId}`
 
@@ -1249,6 +1257,17 @@ export default function MontadorDashboard() {
     if (obra) setObraAtiva(obra)
   }
 
+  async function confirmarRecebimento(item, status) {
+    const observacao = status === 'concluida' ? 'Carga recebida e conferida pelo montador.' : window.prompt(status === 'parcial' ? 'O que veio incompleto?' : 'Descreva o problema ou avaria:')
+    if (status !== 'concluida' && !observacao?.trim()) return
+    setConfirmandoEntrega(item.id)
+    const { error } = await supabase.rpc('montador_confirmar_logistica', { p_logistica_id: item.id, p_status: status, p_observacao: observacao })
+    if (error) { mostrarSucesso(`Não foi possível registrar: ${error.message}`); setConfirmandoEntrega(''); return }
+    await criarNotificacoesOperacionais({ tipo: 'logistica_recebimento', titulo: status === 'concluida' ? 'Carga recebida na obra' : status === 'parcial' ? 'Entrega recebida parcialmente' : 'Problema na entrega', descricao: `${obraAtiva?.nome || 'Obra'} · ${observacao}`, entidadeTipo: 'logistica', entidadeId: item.id, prioridade: status === 'concluida' ? 'normal' : 'alta' })
+    mostrarSucesso(status === 'concluida' ? 'Recebimento confirmado.' : 'Ocorrência logística enviada ao supervisor.')
+    await carregarDadosObra(); setConfirmandoEntrega('')
+  }
+
   const vm = useMemo(() => {
     const hoje = new Date()
     hoje.setHours(0, 0, 0, 0)
@@ -1627,6 +1646,26 @@ export default function MontadorDashboard() {
           return <div className="md-work-day muted">{faseMontador.label}</div>
         })()}
       </section>
+
+      {telaAtiva === 'hoje' && logistica.length > 0 && (
+        <section className="md-card" style={{ borderLeft: '5px solid #E47D3C' }}>
+          <div className="md-card-head compact"><div><h2>Previsão de entrega</h2><small className="md-card-sub">Logística vinculada a esta obra</small></div><span style={{ background: '#E47D3C25', color: '#FF9A5C' }}>{logistica.length}</span></div>
+          <div style={{ display: 'grid', gap: 10 }}>
+            {logistica.map(item => <article key={item.id} style={{ border: '1px solid rgba(228,125,60,.42)', borderRadius: 12, padding: 14, background: 'rgba(228,125,60,.08)' }}>
+              <strong style={{ color: '#fff', display: 'block' }}>{item.tipo || 'Entrega de móveis'} · {dataBR(item.data_entrega)}</strong>
+              <small style={{ display: 'block', marginTop: 5 }}>{item.hora_inicio ? `${horaBR(item.hora_inicio)}${item.hora_fim ? `–${horaBR(item.hora_fim)}` : ''}` : 'Horário a confirmar'} · {item.transportadora || 'Transportadora a confirmar'}</small>
+              {item.motorista_nome && <small style={{ display: 'block' }}>Motorista: {item.motorista_nome}{item.placa ? ` · ${item.placa}` : ''}</small>}
+              {item.descricao_carga && <p style={{ margin: '9px 0', fontSize: 12 }}>{item.descricao_carga}</p>}
+              {['chegou','conferencia','em_transito','confirmado'].includes(item.status) && <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginTop: 10 }}>
+                <button className="md-start-work secondary" style={{ width: 'auto', padding: '9px 11px' }} disabled={confirmandoEntrega === item.id} onClick={() => confirmarRecebimento(item,'concluida')}>Carga recebida</button>
+                <button className="md-start-work secondary" style={{ width: 'auto', padding: '9px 11px' }} disabled={confirmandoEntrega === item.id} onClick={() => confirmarRecebimento(item,'parcial')}>Chegou incompleta</button>
+                <button className="md-start-work secondary" style={{ width: 'auto', padding: '9px 11px', borderColor: '#B74B42' }} disabled={confirmandoEntrega === item.id} onClick={() => confirmarRecebimento(item,'avaria')}>Registrar problema</button>
+              </div>}
+              {['concluida','parcial','avaria','recusada'].includes(item.status) && <div className="md-work-day gold" style={{ marginTop: 10 }}>{item.status === 'concluida' ? 'Recebimento confirmado' : 'Ocorrência logística registrada'}</div>}
+            </article>)}
+          </div>
+        </section>
+      )}
 
       <section className={vm.emServico ? 'md-check-card active' : 'md-check-card'} style={telaAtiva === 'hoje' ? undefined : { display: 'none' }}>
         <div className="md-check-info">

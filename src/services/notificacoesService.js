@@ -7,6 +7,10 @@ export function resolverDestinoNotificacao(notificacao = {}) {
   const entidadeId = notificacao.entidade_id
   const obraId = notificacao.obra_id
 
+  if (tipo.includes('logistica') || tipo.includes('entrega') || tipo.includes('transporte')) {
+    return entidadeId ? `/logistica?entrega=${entidadeId}` : '/logistica'
+  }
+
   if (tipo.includes('agenda') || tipo.includes('compromisso') || tipo.includes('vistoria') || tipo.includes('checkin') || tipo.includes('checkout')) {
     return entidadeId ? `/agenda?compromisso=${entidadeId}` : '/agenda'
   }

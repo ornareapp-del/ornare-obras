@@ -177,7 +177,7 @@ function periodoTrabalhaSabado(item) {
 
 export default function Planejamento() {
   const navigate = useNavigate()
-  const [dados, setDados] = useState({ cronogramas: [], obras: [], profiles: [], montadores: [], agenda: [], equipesPeriodo: [], calendario: [] })
+  const [dados, setDados] = useState({ cronogramas: [], obras: [], profiles: [], montadores: [], agenda: [], equipesPeriodo: [], calendario: [], logistica: [], logisticaMontadores: [] })
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState('')
   const [salvando, setSalvando] = useState(false)
@@ -198,7 +198,7 @@ export default function Planejamento() {
     setLoading(true)
     setErro('')
 
-    const [cronogramas, obras, profiles, montadores, agenda, equipesPeriodo, calendario] = await Promise.all([
+    const [cronogramas, obras, profiles, montadores, agenda, equipesPeriodo, calendario, logistica, logisticaMontadores] = await Promise.all([
       supabase.from('obra_cronograma').select('*').order('data_inicio_prevista', { ascending: true }),
       supabase.from('obras').select('id, nome, cliente_nome, cidade, uf, status, supervisor_id, comercial_id, data_previsao').order('nome'),
       supabase.from('profiles').select('id, full_name, email, role'),
@@ -206,6 +206,8 @@ export default function Planejamento() {
       supabase.from('agenda').select('id, obra_id, tipo, titulo, data, data_fim, hora_inicio, hora_fim, responsavel_id, observacao, reuniao_interna, visivel_montador, percentual_concluido, retorno_necessario, motivo_pausa').order('data'),
       supabase.from('agenda_periodo_montadores').select('agenda_id, montador_id'),
       supabase.from('calendario_operacional').select('data, descricao, dia_util'),
+      supabase.from('logistica_entregas').select('*').order('data_entrega'),
+      supabase.from('logistica_montadores').select('logistica_id, montador_id'),
     ])
 
     const falha = [cronogramas, obras, profiles, montadores, agenda, equipesPeriodo, calendario].find(r => r.error)
@@ -219,6 +221,8 @@ export default function Planejamento() {
       agenda: safeArray(agenda),
       equipesPeriodo: safeArray(equipesPeriodo),
       calendario: safeArray(calendario),
+      logistica: safeArray(logistica),
+      logisticaMontadores: safeArray(logisticaMontadores),
     })
     setLoading(false)
   }
@@ -286,6 +290,24 @@ export default function Planejamento() {
       }
     })
 
+    const entregasLogistica = dados.logistica.filter(item => item.status !== 'cancelada').map(item => {
+      const obra = obraPorId.get(item.obra_id) || {}
+      const montadorIds = dados.logisticaMontadores.filter(v => v.logistica_id === item.id).map(v => v.montador_id)
+      return {
+        ...item,
+        origem: 'logistica',
+        obra,
+        supervisor: profilePorId.get(item.responsavel_recebimento_id || obra.supervisor_id),
+        montadores: montadorIds.map(id => profilePorId.get(id)).filter(Boolean),
+        inicio: dateOnly(item.data_entrega),
+        fim: dateOnly(item.data_entrega),
+        titulo: item.tipo || 'Entrega logística',
+        compromissoTipo: item.tipo || 'Entrega logística',
+        faseCor: '#E47D3C',
+        tom: { cor: '#E47D3C', bg: '#E47D3C20', border: '#E47D3C' },
+      }
+    })
+
     const mesInicio = new Date(mesAtual.getFullYear(), mesAtual.getMonth(), 1)
     const mesFim = new Date(mesAtual.getFullYear(), mesAtual.getMonth() + 1, 0)
     const dias = []
@@ -308,12 +330,13 @@ export default function Planejamento() {
         if (diaSemana === 6) return periodoTrabalhaSabado(r) || r.data === r.data_fim
         return !naoUtil
       })
+      const logisticaDia = entregasLogistica.filter(r => r.inicio && isoDate(r.inicio) === isoDate(atual))
       dias.push({
         data: atual,
         key: isoDate(atual),
         noMes: atual.getMonth() === mesAtual.getMonth(),
         naoUtil,
-        obras: [...agendaDia, ...obrasCronograma],
+        obras: [...logisticaDia, ...agendaDia, ...obrasCronograma],
       })
     }
 
@@ -344,6 +367,7 @@ export default function Planejamento() {
     }
 
     const agendaMes = compromissosAgenda.filter(a => a.inicio && overlapsRange(a.inicio, a.fim, mesInicio, mesFim))
+    const logisticaMes = entregasLogistica.filter(a => a.inicio && overlapsRange(a.inicio, a.fim, mesInicio, mesFim))
     const obrasProgramadasIds = new Set([
       ...registros.filter(r => overlapsRange(r.inicio, r.fim, mesInicio, mesFim)).map(r => r.obra_id),
       ...agendaMes.map(a => a.obra_id),
@@ -365,7 +389,7 @@ export default function Planejamento() {
       obrasSemData: obrasSemData.length,
       atrasosCronograma: atrasosCronograma.length,
       obrasRisco: obrasRisco.length,
-      entregasPrevistas: agendaMes.filter(a => norm(a.compromissoTipo).includes('entrega')).length + registros.filter(r => r.faseKey === 'entrega_moveis' && r.fim && r.fim >= mesInicio && r.fim <= mesFim).length,
+      entregasPrevistas: logisticaMes.length + agendaMes.filter(a => norm(a.compromissoTipo).includes('entrega')).length + registros.filter(r => r.faseKey === 'entrega_moveis' && r.fim && r.fim >= mesInicio && r.fim <= mesFim).length,
     }
 
     const hoje = new Date()
@@ -423,6 +447,10 @@ export default function Planejamento() {
     if (!alvo) return
     if (typeof alvo === 'string') {
       navigate(`/obras/${alvo}`)
+      return
+    }
+    if (alvo.origem === 'logistica') {
+      navigate(`/logistica?entrega=${alvo.id}`)
       return
     }
     if (!alvo.obra_id) return
@@ -741,12 +769,12 @@ function Calendario({ dias, mesAtual, abrirDia, mudarMes }) {
                 <div
                   key={`${dia.key}-${item.origem}-${item.id}`}
                   className={item.origem === 'agenda' ? 'agenda-item' : 'cronograma-item'}
-                  style={{ borderLeftColor: obraColor(item.obra).accent, background: obraColor(item.obra).soft }}
+                  style={{ borderLeftColor: item.origem === 'logistica' ? '#E47D3C' : obraColor(item.obra).accent, background: item.origem === 'logistica' ? '#E47D3C22' : obraColor(item.obra).soft }}
                 >
                   <strong>{item.obra.nome || 'Obra'}</strong>
                   <span>{item.montadores[0] ? nomePessoa(item.montadores[0]) : nomePessoa(item.supervisor)}</span>
                   <em style={{ color: item.tom?.cor || item.faseCor }}>{item.compromissoTipo}</em>
-                  <small>{item.origem === 'cronograma' ? 'Previsão macro' : norm(item.tipo) === 'periodo de execucao' ? 'Execução da equipe' : 'Agenda'}</small>
+                  <small>{item.origem === 'logistica' ? 'Logística · entrega' : item.origem === 'cronograma' ? 'Previsão macro' : norm(item.tipo) === 'periodo de execucao' ? 'Execução da equipe' : 'Agenda'}</small>
                 </div>
               ))}
               {dia.obras.length > 4 && <small>+{dia.obras.length - 4} obras</small>}
@@ -805,7 +833,7 @@ function ResumoDiaModal({ dia, onClose, onOpenItem, onAdd }) {
           ) : (
             <div className="pl-day-detail-list">
               {dia.obras.map(item => {
-                const cor = obraColor(item.obra).accent
+                const cor = item.origem === 'logistica' ? '#E47D3C' : obraColor(item.obra).accent
                 const equipe = (item.montadores || []).map(nomePessoa).filter(nome => nome !== '-')
                 const local = [item.obra?.cidade, item.obra?.uf].filter(Boolean).join(' / ')
                 return (
@@ -818,7 +846,7 @@ function ResumoDiaModal({ dia, onClose, onOpenItem, onAdd }) {
                       <div><span>Local</span><strong>{local || 'Não informado'}</strong></div>
                       <div><span>Responsável</span><strong>{nomePessoa(item.supervisor)}</strong></div>
                       <div><span>Equipe alocada</span><strong>{equipe.join(', ') || 'Sem equipe definida'}</strong></div>
-                      <div><span>Origem</span><strong>{item.origem === 'cronograma' ? 'Previsão macro' : norm(item.tipo) === 'periodo de execucao' ? 'Execução da equipe' : 'Agenda manual'}</strong></div>
+                      <div><span>Origem</span><strong>{item.origem === 'logistica' ? 'Logística' : item.origem === 'cronograma' ? 'Previsão macro' : norm(item.tipo) === 'periodo de execucao' ? 'Execução da equipe' : 'Agenda manual'}</strong></div>
                     </div>
                     {item.observacao && <p>{String(item.observacao).split('\n')[0]}</p>}
                     {item.obra_id && <button onClick={() => onOpenItem(item)}>Abrir obra e detalhes →</button>}
