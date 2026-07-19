@@ -24,7 +24,7 @@ const THEME = {
 const STATUS = {
   producao: ['Em produção', 'Em producao'],
   montagem: ['Em montagem', 'Montagem agendada'],
-  concluidas: ['Concluída', 'Concluida'],
+  concluidas: ['Concluída', 'Concluida', 'Finalizada', 'Obra concluída', 'Encerrada'],
   canceladas: ['Cancelada'],
   travadas: ['Pausada', 'Cancelada'],
 }
@@ -59,6 +59,14 @@ function diasDesde(value) {
   hoje.setHours(0, 0, 0, 0)
   data.setHours(0, 0, 0, 0)
   return Math.max(0, Math.floor((hoje - data) / 86400000))
+}
+
+function textoUltimoCheckin(value) {
+  if (!value) return 'nenhum check-in'
+  const dias = diasDesde(value)
+  if (dias === 0) return 'último hoje'
+  if (dias === 1) return 'último há 1 dia'
+  return `último há ${dias} dias`
 }
 
 function diasAte(value) {
@@ -105,6 +113,17 @@ function fotoPendenteAprovacao(foto) {
 
 function safeArray(result) {
   return result?.data || []
+}
+
+async function buscarTodosRegistros(tabela, ordem, ascending = false, select = '*') {
+  const pageSize = 1000
+  const data = []
+  for (let inicio = 0; ; inicio += pageSize) {
+    const result = await supabase.from(tabela).select(select).order(ordem, { ascending }).range(inicio, inicio + pageSize - 1)
+    if (result.error) return { data, error: result.error }
+    data.push(...(result.data || []))
+    if ((result.data || []).length < pageSize) return { data, error: null }
+  }
 }
 
 function erroConsulta(label, result) {
@@ -169,14 +188,14 @@ export default function ObrasAoVivo() {
         checklistResult,
       ] = await Promise.all([
         supabase.from('obras').select('*').order('created_at', { ascending: false }),
-        supabase.from('agenda').select('*').order('data', { ascending: true }).limit(240),
-        supabase.from('ocorrencias').select('*').order('created_at', { ascending: false }).limit(240),
-        supabase.from('checkins').select('*').order('created_at', { ascending: false }).limit(500),
-        supabase.from('fotos').select('*').order('created_at', { ascending: false }).limit(240),
-        supabase.from('obra_cronograma').select('*').limit(300),
+        buscarTodosRegistros('agenda', 'data', true),
+        buscarTodosRegistros('ocorrencias', 'created_at'),
+        buscarTodosRegistros('checkins', 'created_at'),
+        buscarTodosRegistros('fotos', 'created_at'),
+        buscarTodosRegistros('obra_cronograma', 'data_inicio_prevista', true),
         supabase.from('profiles').select('id, full_name, email, role'),
         supabase.from('obra_montadores').select('obra_id, montador_id, montador:profiles!obra_montadores_montador_id_fkey(full_name)'),
-        supabase.from('checklist_items').select('id, obra_id, descricao, concluido').limit(900),
+        buscarTodosRegistros('checklist_items', 'id', false, 'id, obra_id, descricao, concluido'),
       ])
 
       const falhas = [
@@ -273,6 +292,12 @@ export default function ObrasAoVivo() {
       checkinsHojePorObra.set(checkin.obra_id, [...(checkinsHojePorObra.get(checkin.obra_id) || []), checkin])
     })
 
+    const checkinsPorObra = new Map()
+    dados.checkins.forEach(checkin => {
+      if (!checkin.obra_id) return
+      checkinsPorObra.set(checkin.obra_id, [...(checkinsPorObra.get(checkin.obra_id) || []), checkin])
+    })
+
     const montadoresPorObra = new Map()
     dados.montadores.forEach(vinculo => {
       if (!vinculo.obra_id) return
@@ -296,7 +321,7 @@ export default function ObrasAoVivo() {
         (checklistPorObra.get(obra.id) || []).some(item => !item.concluido) ? 'Checklist' : null,
         (fotosPorObra.get(obra.id) || []).some(fotoPendenteAprovacao) ? 'Fotos' : null,
       ].filter(Boolean)
-      const fim = operacao.fimReal || operacao.fimPrevisto || fimObra(obra)
+      const fim = operacao.fimPrevisto || fimObra(obra)
       const inicio = operacao.inicioReal || operacao.inicioPrevisto || inicioObra(obra)
       const diasFim = diasAte(fim)
       const travada = operacao.travado || ['alto', 'critico', 'critica'].includes(normalizar(operacao.risco)) || inStatus(obra, STATUS.travadas) || (ocorrPorObra.get(obra.id) || []).some(oc => ['alta', 'critica'].includes(normalizar(oc.gravidade)))
@@ -304,6 +329,7 @@ export default function ObrasAoVivo() {
       const proximo = (agendaPorObra.get(obra.id) || [])[0]
       const emCampo = nomesUnicos(abertos.map(c => limparNome(c.profiles?.full_name) || 'Montador'))
       const checkinsHojeObra = nomesUnicos((checkinsHojePorObra.get(obra.id) || []).map(c => limparNome(c.profiles?.full_name) || 'Montador'))
+      const checkinsObra = checkinsPorObra.get(obra.id) || []
       const montadores = nomesUnicos(montadoresPorObra.get(obra.id) || [])
       let situacao = 'ok'
       if (travada || (diasFim !== null && diasFim < 0)) situacao = 'danger'
@@ -319,6 +345,7 @@ export default function ObrasAoVivo() {
         checkinsHoje: checkinsHojeObra,
         equipeResumo: nomesUnicos([...emCampo, ...checkinsHojeObra, ...montadores]),
         ultimoCheckin,
+        totalCheckins: checkinsObra.length,
         pendencias,
         travada,
         semCheckin,
@@ -427,7 +454,7 @@ export default function ObrasAoVivo() {
 
 function LiveCard({ item, onOpen, onRoute }) {
   const obra = item.obra
-  const status = statusBadge(obra.status)
+  const status = statusBadge(item.operacao.faseLabel || obra.status)
   const cor = obraColor(obra)
   const ultimo = item.ultimoCheckin?.entrada || item.ultimoCheckin?.created_at
   const progresso = item.operacao.progresso
@@ -481,11 +508,11 @@ function LiveCard({ item, onOpen, onRoute }) {
       </button>
 
       <div className="oa-live-metrics">
-        <button onClick={event => irPara(event, rotaObra('Cronograma'))}><small>Início macro</small><b>{item.inicio ? dataBR(item.inicio) : '-'}</b></button>
-        <button onClick={event => irPara(event, rotaObra('Cronograma'))}><small>Término macro</small><b>{item.fim ? dataBR(item.fim) : '-'}</b></button>
-        <button onClick={event => irPara(event, rotaObra('Cronograma'))}><small>Prazo macro</small><b>{prazoTexto(item.fim)}</b></button>
-        <button onClick={event => irPara(event, rotaObra('Equipe'))}><small>Check-in</small><b>{ultimo ? `${diasDesde(ultimo)}d` : 'Nunca'}</b></button>
-        <button onClick={event => irPara(event, rotaObra('Cronograma'))}><small>Progresso</small><b>{progresso}%</b></button>
+        <button onClick={event => irPara(event, rotaObra('Cronograma'))}><small>Início da fase</small><b>{item.inicio ? dataBR(item.inicio) : '-'}</b></button>
+        <button onClick={event => irPara(event, rotaObra('Cronograma'))}><small>Término previsto</small><b>{item.fim ? dataBR(item.fim) : '-'}</b></button>
+        <button onClick={event => irPara(event, rotaObra('Cronograma'))}><small>Situação do prazo</small><b>{prazoTexto(item.fim)}</b></button>
+        <button onClick={event => irPara(event, rotaObra('Equipe'))}><small>Check-ins registrados</small><b>{item.totalCheckins} {item.totalCheckins === 1 ? 'registro' : 'registros'}</b><span className="oa-metric-note">{textoUltimoCheckin(ultimo)}</span></button>
+        <button onClick={event => irPara(event, rotaObra('Cronograma'))}><small>Progresso da fase</small><b>{progresso}%</b></button>
         <button onClick={event => {
           const ehExecucao = normalizar(item.proximo?.tipo) === 'periodo de execucao'
           irPara(event, item.proximo?.id ? `${rotaObra(ehExecucao ? 'Cronograma' : 'Agenda')}&compromisso=${item.proximo.id}` : rotaObra('Agenda'))
@@ -545,7 +572,7 @@ function LiveRow({ item, onOpen, onRoute }) {
       <div><small>Fase</small><b>{item.operacao.faseLabel}</b></div>
       <div><small>Prazo</small><b>{prazoTexto(item.fim)}</b></div>
       <div><small>Progresso</small><b>{item.operacao.progresso}%</b></div>
-      <div><small>Check-in</small><b>{ultimo ? `${diasDesde(ultimo)}d` : 'Nunca'}</b></div>
+      <div><small>Check-ins</small><b>{item.totalCheckins} · {textoUltimoCheckin(ultimo)}</b></div>
       <div className="oa-row-actions">
         {item.pendencias.slice(0, 2).map(p => (
           <button key={p} type="button" onClick={event => irPara(event, rotaObra(abaPendencia(p)))}>{p}</button>
@@ -611,6 +638,7 @@ const css = `
 .oa-live-metrics button:hover{border-color:var(--obra-border);background:var(--obra-soft)}
 .oa-live-metrics small,.oa-live-flow small{display:block;font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:${THEME.muted};font-weight:900;margin-bottom:4px}
 .oa-live-metrics b,.oa-live-flow b{display:block;font-size:12px;color:${THEME.ink};line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.oa-metric-note{display:block;margin-top:3px;color:${THEME.muted};font-size:9.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .oa-live-flow{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;margin-top:auto}
 .oa-live-flow button{border:0;background:transparent;padding:0;text-align:left;color:inherit;cursor:pointer}
 .oa-live-flow small{display:flex;align-items:center;gap:6px}

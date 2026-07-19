@@ -391,9 +391,9 @@ export default function PortalCliente() {
   const [modalReagendamento, setModalReagendamento] = useState(null)
   const [badgesLidos, setBadgesLidos] = useState({ agenda: false, mensagens: false })
 
-  async function carregar() {
-    setLoading(true)
-    setErro('')
+  async function carregar(silencioso = false) {
+    if (!silencioso) setLoading(true)
+    if (!silencioso) setErro('')
     try {
     const { data: authData } = await supabase.auth.getUser()
     setUsuario(authData?.user || null)
@@ -401,7 +401,7 @@ export default function PortalCliente() {
     if (!authData?.user || !user || profile?.role !== 'cliente' || !profile?.obra_id || String(profile.obra_id) !== String(id)) {
       setDados(prev => ({ ...prev, obra: null }))
       setErro('Acesso não autorizado.')
-      setLoading(false)
+      if (!silencioso) setLoading(false)
       return
     }
 
@@ -409,7 +409,7 @@ export default function PortalCliente() {
     if (obra.error) {
       console.error('Erro ao carregar obra no portal cliente:', obra.error)
       setErro(detalheErro(obra.error, 'Não foi possível abrir esta obra no momento.'))
-      setLoading(false)
+      if (!silencioso) setLoading(false)
       return
     }
 
@@ -457,7 +457,7 @@ export default function PortalCliente() {
     if (obra.error) {
       console.error('Erro ao carregar obra no portal cliente:', obra.error)
       setErro('Não foi possível abrir esta obra no momento.')
-      setLoading(false)
+      if (!silencioso) setLoading(false)
       return
     }
 
@@ -490,7 +490,7 @@ export default function PortalCliente() {
       setDados(prev => ({ ...prev, obra: null }))
       setErro(error?.message || 'Não foi possível carregar o Portal Cliente.')
     } finally {
-      setLoading(false)
+      if (!silencioso) setLoading(false)
     }
   }
 
@@ -501,8 +501,27 @@ export default function PortalCliente() {
     window.location.href = '/login'
   }
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
-  useEffect(() => { carregar() }, [id, user?.id, profile?.role, profile?.obra_id])
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    carregar()
+    const atualizarAoVoltar = () => {
+      if (document.visibilityState === 'visible') carregar(true)
+    }
+    const canal = supabase
+      .channel(`portal-cliente-fotos-${id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'fotos', filter: `obra_id=eq.${id}` }, () => carregar(true))
+      .subscribe()
+    const intervalo = window.setInterval(() => carregar(true), 30000)
+    document.addEventListener('visibilitychange', atualizarAoVoltar)
+    window.addEventListener('focus', atualizarAoVoltar)
+    return () => {
+      window.clearInterval(intervalo)
+      document.removeEventListener('visibilitychange', atualizarAoVoltar)
+      window.removeEventListener('focus', atualizarAoVoltar)
+      supabase.removeChannel(canal)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, user?.id, profile?.role, profile?.obra_id])
 
   const vm = useMemo(() => {
     const obra = dados.obra || {}
@@ -778,6 +797,7 @@ export default function PortalCliente() {
             filtros={filtrosFoto}
             setFiltros={setFiltrosFoto}
             abrirFoto={setPreview}
+            atualizar={() => carregar(true)}
           />
         )}
         {aba === 'mensagens' && <MensagensCliente mensagens={vm.mensagens} texto={textoMensagem} setTexto={setTextoMensagem} enviando={enviandoMensagem} status={mensagemStatus} onEnviar={enviarMensagemCliente} />}
@@ -915,7 +935,7 @@ function AgendaCliente({ agenda, status, onConfirmar, onReagendar }) {
   )
 }
 
-function FotosCliente({ vm, ambientes, filtros, setFiltros, abrirFoto }) {
+function FotosCliente({ vm, ambientes, filtros, setFiltros, abrirFoto, atualizar }) {
   return (
     <div className="pc-stack">
       <div className="pc-filter-card">
@@ -927,6 +947,7 @@ function FotosCliente({ vm, ambientes, filtros, setFiltros, abrirFoto }) {
           <option value="">Todas as categorias</option>
           {vm.categorias.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
+        <button type="button" className="pc-refresh" onClick={atualizar}>Atualizar fotos</button>
       </div>
       {vm.fotos.length === 0 ? (
         <Empty icon="camera" title="Nenhuma foto ainda" text="As fotos da sua obra aparecerão aqui conforme o andamento." />
@@ -1170,8 +1191,9 @@ const css = `
 .pc-timeline i{display:flex;width:22px;height:22px;border-radius:50%;background:#E8E0D5;color:#6F665C;margin:0 auto 8px;align-items:center;justify-content:center;font-style:normal;font-size:10px;font-weight:950}
 .pc-timeline div.done i{background:${THEME.ink};color:#fff}
 .pc-timeline div.active i{background:#1F1B16;color:#fff}
-.pc-filter-card{display:grid;grid-template-columns:1fr 1fr;gap:10px;background:${THEME.card};border:1px solid ${THEME.border};border-radius:16px;padding:12px}
+.pc-filter-card{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;background:${THEME.card};border:1px solid ${THEME.border};border-radius:16px;padding:12px}
 .pc-filter-card select{background:${THEME.inputBackground};border:1px solid ${THEME.inputBorder};color:${THEME.inputText};border-radius:8px;padding:10px 14px;width:100%;font-size:14px;outline:none;font-family:inherit}
+.pc-refresh{border:1px solid ${THEME.goldText};background:transparent;color:${THEME.goldText};border-radius:9px;padding:10px 14px;font-weight:900;white-space:nowrap;cursor:pointer}
 .pc-gallery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .pc-gallery button{border:0;background:${THEME.card};border-radius:17px;overflow:hidden;padding:0;text-align:left;cursor:zoom-in;box-shadow:0 18px 42px rgba(29,28,25,.055)}
 .pc-gallery img,.pc-gallery button>span{display:block;width:100%;height:250px;object-fit:cover;background:#E8E0D5}
