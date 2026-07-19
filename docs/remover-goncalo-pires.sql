@@ -42,6 +42,12 @@ begin
     raise exception 'Exclusao cancelada: Gonçalo ainda esta responsavel por uma ou mais obras. Realoque-as primeiro.';
   end if;
 
+  -- Preserva as ocorrencias e apenas remove o vinculo com o autor excluido.
+  -- A ocorrencia continua existindo normalmente no historico da obra.
+  update public.ocorrencias
+  set criado_por = null
+  where criado_por = v_id;
+
   -- Remove primeiro o perfil do aplicativo. FKs configuradas com cascade/set null
   -- tratam vinculos operacionais; qualquer FK restritiva cancela a transacao inteira.
   delete from public.profiles where id = v_id;
