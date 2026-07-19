@@ -366,6 +366,7 @@ export default function MontadorDashboard() {
   const [tarefaAberta, setTarefaAberta] = useState(null)
   const [observacaoTarefa, setObservacaoTarefa] = useState('')
   const [calendarioAberto, setCalendarioAberto] = useState(false)
+  const [datasExpandidas, setDatasExpandidas] = useState(false)
   const [mesCalendario, setMesCalendario] = useState(new Date())
   const [diaCalendario, setDiaCalendario] = useState('')
   const [problema, setProblema] = useState('')
@@ -1758,37 +1759,12 @@ export default function MontadorDashboard() {
       <section className="md-card" ref={checklistRef} style={telaAtiva === 'checklist' ? undefined : { display: 'none' }}>
         <div className="md-card-head">
           <div>
-            <h2>Checklist · Selecione o ambiente</h2>
-            <small className="md-card-sub">{vm.checklistConcluidos.length} de {checklist.length} itens</small>
+            <h2>Checklist da montagem</h2>
+            <small className="md-card-sub">{vm.checklistConcluidos.length} de {checklist.length} itens · selecione um ambiente</small>
           </div>
           <span>{vm.pctChecklist}%</span>
         </div>
         <div className="md-progress soft"><i style={{ width: `${vm.pctChecklist}%` }} /></div>
-        <div className="md-next-dates">
-          <div className="md-card-head">
-            <h2>Próximas datas</h2>
-            <button onClick={() => setCalendarioAberto(true)}>Ver calendário completo {'>'}</button>
-          </div>
-          {vm.proximasDatas.length === 0 ? (
-            <div className="md-empty-compact">Nenhuma data programada</div>
-          ) : (
-            <div className="md-date-list">
-              {vm.proximasDatas.map(item => {
-                const cor = corDataOperacional(item)
-                return (
-                <button key={item.id} onClick={() => { selecionarObraPorId(item.obra_id); setDiaCalendario(item.data); setMesCalendario(new Date(`${item.data}T00:00:00`)); setCalendarioAberto(true) }}>
-                  <strong style={{ color: cor.color }}>{dataCurtaMes(item.data)}</strong>
-                  <span>
-                    <i style={{ background: cor.bg, borderColor: cor.border, color: cor.color }}>{tipoAgenda(item)}</i>
-                    <b>{item.obra_nome || 'Obra'}</b>
-                    {item.hora_inicio ? <small>{item.hora_inicio.slice(0, 5)}</small> : null}
-                  </span>
-                </button>
-                )
-              })}
-            </div>
-          )}
-        </div>
         <div className="md-env-chips">
           {vm.checklistGrupos.map(grupo => {
             const feitos = grupo.itens.filter(i => i.concluido).length
@@ -1822,6 +1798,42 @@ export default function MontadorDashboard() {
             </div>
           ))
         })()}
+        <div className={`md-next-dates ${datasExpandidas ? 'expanded' : 'collapsed'}`}>
+          <button className="md-next-dates-toggle" type="button" aria-expanded={datasExpandidas} onClick={() => setDatasExpandidas(valor => !valor)}>
+            <span>
+              <small>Agenda operacional</small>
+              <strong>Próximas datas</strong>
+            </span>
+            <span className="md-next-dates-summary">
+              {vm.proximasDatas.length > 0 ? `${dataCurtaMes(vm.proximasDatas[0].data)} · ${vm.proximasDatas.length} evento${vm.proximasDatas.length === 1 ? '' : 's'}` : 'Nenhuma data'}
+              <i>{datasExpandidas ? '−' : '+'}</i>
+            </span>
+          </button>
+          {datasExpandidas && (
+            <>
+              {vm.proximasDatas.length === 0 ? (
+                <div className="md-empty-compact">Nenhuma data programada</div>
+              ) : (
+                <div className="md-date-list">
+                  {vm.proximasDatas.map(item => {
+                    const cor = corDataOperacional(item)
+                    return (
+                      <button key={item.id} onClick={() => { selecionarObraPorId(item.obra_id); setDiaCalendario(item.data); setMesCalendario(new Date(`${item.data}T00:00:00`)); setCalendarioAberto(true) }}>
+                        <strong style={{ color: cor.color }}>{dataCurtaMes(item.data)}</strong>
+                        <span>
+                          <i style={{ background: cor.bg, borderColor: cor.border, color: cor.color }}>{tipoAgenda(item)}</i>
+                          <b>{item.obra_nome || 'Obra'}</b>
+                          {item.hora_inicio ? <small>{item.hora_inicio.slice(0, 5)}</small> : null}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+              <button className="md-calendar-link" type="button" onClick={() => setCalendarioAberto(true)}>Ver calendário completo {'>'}</button>
+            </>
+          )}
+        </div>
       </section>
 
       {telaAtiva === 'fotos' && (
@@ -2035,7 +2047,15 @@ const css = `
 .md-card-head button{min-height:44px;border:0;background:transparent;color:${THEME.gold};font-size:12px;font-weight:900;cursor:pointer}
 .md-card-sub{display:block;font-size:11px;color:${THEME.muted};font-weight:800;margin-top:3px}
 .md-card-note{margin:-3px 0 12px;color:${THEME.muted};font-size:12.5px;line-height:1.45}
-.md-next-dates{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:15px;padding:13px;margin:12px 0 14px}
+.md-next-dates{border:1px solid ${THEME.border};background:${THEME.elevated};color:${THEME.ink};border-radius:15px;padding:10px;margin:18px 0 0}
+.md-next-dates.collapsed{padding:0;overflow:hidden}
+.md-next-dates-toggle{width:100%;min-height:58px;border:0;background:transparent;color:${THEME.ink};padding:10px 11px;display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;font-family:inherit;cursor:pointer}
+.md-next-dates-toggle>span:first-child{min-width:0}
+.md-next-dates-toggle small{display:block;color:${THEME.muted};font-size:9px;letter-spacing:1.2px;text-transform:uppercase;font-weight:900;margin-bottom:3px}
+.md-next-dates-toggle strong{display:block;color:${THEME.ink};font-size:14px}
+.md-next-dates-summary{display:flex;align-items:center;justify-content:flex-end;gap:8px;color:${THEME.gold};font-size:11px;font-weight:900;white-space:nowrap}
+.md-next-dates-summary i{width:25px;height:25px;border-radius:999px;border:1px solid ${THEME.border};display:flex;align-items:center;justify-content:center;background:${THEME.card};font-style:normal;font-size:16px;line-height:1}
+.md-calendar-link{width:100%;min-height:42px;margin-top:9px;border:1px solid ${THEME.border};background:${THEME.card};color:${THEME.gold};border-radius:11px;font-size:11px;font-weight:900;font-family:inherit;cursor:pointer}
 .md-next-dates .md-card-head{margin-bottom:10px}
 .md-next-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:5px}
 .md-next strong{display:block;font-size:16px;color:${THEME.ink};margin-bottom:0}
@@ -2102,11 +2122,11 @@ const css = `
 .md-add-check button{width:100%;min-height:44px;border:1px solid ${THEME.gold};background:${THEME.elevated};color:${THEME.gold};border-radius:12px;padding:12px;font-size:13px;font-weight:900;font-family:inherit;cursor:pointer}
 .md-add-check button:disabled{opacity:.45;cursor:not-allowed}
 .md-check-item{width:100%;min-height:48px;border:1px solid ${THEME.border};background:${THEME.card};color:${THEME.ink};border-radius:13px;padding:13px;display:flex;align-items:center;gap:11px;text-align:left;margin-top:8px;font-family:inherit;cursor:pointer}
-.md-check-item.done{background:#F4FBF6;border-color:#C8E1D0;opacity:.5}
+.md-check-item.done{background:rgba(45,122,74,.12);border-color:rgba(76,175,125,.38);opacity:.78}
 .md-check-item i{width:23px;height:23px;border-radius:7px;border:2px solid ${THEME.border};display:flex;align-items:center;justify-content:center;font-style:normal;font-size:13px;font-weight:900;flex-shrink:0}
 .md-check-item.done i{background:${THEME.success};border-color:${THEME.success};color:#fff}
 .md-check-item span{font-size:14px;color:${THEME.ink};line-height:1.35}
-.md-check-item.done span{color:#9A938A;text-decoration:line-through}
+.md-check-item.done span{color:${THEME.muted};text-decoration:line-through}
 .md-check-delete{margin-left:auto;min-height:44px;border:0;background:#FFF1F1;color:${THEME.danger};border-radius:10px;padding:8px 9px;font-size:11px;font-weight:900;cursor:pointer}
 .md-upload{display:flex;flex-direction:column;gap:9px;margin-bottom:14px}
 .md-file-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
