@@ -277,6 +277,7 @@ async function buscarDadosOperacionais(obraId, userId) {
     fotosResult,
     ocorrenciasResult,
     agendaResult,
+    cronogramaResult,
   ] = await Promise.all([
     supabase.from('tarefas').select('*').eq('obra_id', obraId).eq('responsavel_id', userId).order('prazo'),
     supabase.from('checkins').select('*').eq('user_id', userId).eq('obra_id', obraId).order('created_at', { ascending: false }).limit(20),
@@ -285,6 +286,7 @@ async function buscarDadosOperacionais(obraId, userId) {
     supabase.from('fotos').select('*').eq('obra_id', obraId).order('created_at', { ascending: false }).limit(60),
     supabase.from('ocorrencias').select('*').eq('obra_id', obraId).order('created_at', { ascending: false }).limit(40),
     supabase.from('agenda').select('*').eq('obra_id', obraId).or('visivel_montador.eq.true,visivel_montador.is.null').order('data').order('hora_inicio'),
+    supabase.from('obra_cronograma').select('fase, status_operacional, percentual_concluido, data_inicio_prevista, data_fim_prevista, data_inicio_real, data_fim_real').eq('obra_id', obraId).maybeSingle(),
   ])
 
   return {
@@ -295,6 +297,7 @@ async function buscarDadosOperacionais(obraId, userId) {
     fotosResult,
     ocorrenciasResult,
     agendaResult,
+    cronogramaResult,
   }
 }
 
@@ -307,6 +310,7 @@ function registrarErrosOperacionais(contexto, dados) {
     fotos: dados.fotosResult,
     ocorrencias: dados.ocorrenciasResult,
     agenda: dados.agendaResult,
+    cronograma: dados.cronogramaResult,
   }).forEach(([nome, result]) => {
     if (result?.error) console.error(`Erro ao carregar ${nome} (${contexto}):`, result.error)
   })
@@ -350,6 +354,7 @@ export default function MontadorDashboard() {
   const [uploadFeedback, setUploadFeedback] = useState('')
   const [checklistSalvando, setChecklistSalvando] = useState('')
   const [salvandoProblema, setSalvandoProblema] = useState(false)
+  const [solicitandoAnalise, setSolicitandoAnalise] = useState(false)
   const [modalProblema, setModalProblema] = useState(null)
   const [tarefaAberta, setTarefaAberta] = useState(null)
   const [observacaoTarefa, setObservacaoTarefa] = useState('')
@@ -475,6 +480,10 @@ export default function MontadorDashboard() {
       setFotos(fotosVisiveisParaMontador(dados.fotosResult, user.id))
       setOcorrencias(safeArray(dados.ocorrenciasResult))
       setAgenda(agendaMontador(dados.agendaResult))
+      if (dados.cronogramaResult?.data) {
+        const cronograma = dados.cronogramaResult.data
+        setObraAtiva(atual => atual?.id === obra.id ? ({ ...atual, fase: cronograma.fase, fase_atual: cronograma.fase, progresso: cronograma.percentual_concluido, data_inicio_real: cronograma.data_inicio_real || atual.data_inicio_real, data_previsao_inicio: cronograma.data_inicio_prevista || atual.data_previsao_inicio, data_previsao: cronograma.data_fim_prevista || atual.data_previsao }) : atual)
+      }
     } catch (error) {
       console.error('Erro inesperado ao recarregar dados da obra:', error)
       mostrarSucesso('Não foi possível atualizar os dados da obra.')
@@ -562,6 +571,10 @@ export default function MontadorDashboard() {
         setFotos(fotosVisiveisParaMontador(dados.fotosResult, user.id))
         setOcorrencias(safeArray(dados.ocorrenciasResult))
         setAgenda(agendaMontador(dados.agendaResult))
+        if (dados.cronogramaResult?.data) {
+          const cronograma = dados.cronogramaResult.data
+          setObraAtiva(atual => atual?.id === obraAtiva.id ? ({ ...atual, fase: cronograma.fase, fase_atual: cronograma.fase, progresso: cronograma.percentual_concluido, data_inicio_real: cronograma.data_inicio_real || atual.data_inicio_real, data_previsao_inicio: cronograma.data_inicio_prevista || atual.data_previsao_inicio, data_previsao: cronograma.data_fim_prevista || atual.data_previsao }) : atual)
+        }
       } catch (error) {
         console.error('Erro inesperado ao carregar dados da obra ativa:', error)
         if (ativo) mostrarSucesso('Não foi possível carregar os dados da obra.')
@@ -827,6 +840,69 @@ export default function MontadorDashboard() {
     mostrarSucesso('Check-out registrado.')
     await carregarDadosObra()
     setCheckando(false)
+  }
+
+  async function solicitarAnaliseMontagem() {
+    if (!obraAtiva || !user || solicitandoAnalise) return
+    if (isAppOffline()) {
+      mostrarSucesso('Conecte-se à internet para solicitar a análise da montagem.')
+      return
+    }
+    if (checkins.some(item => !item.saida)) {
+      mostrarSucesso('Faça o check-out antes de solicitar a análise.')
+      return
+    }
+    const pendentes = checklist.filter(item => !item.concluido)
+    if (pendentes.length) {
+      mostrarSucesso(`Conclua os ${pendentes.length} item(ns) pendente(s) do checklist antes de solicitar a análise.`)
+      return
+    }
+    if (!fotos.length) {
+      mostrarSucesso('Envie ao menos uma foto da montagem antes de solicitar a análise.')
+      return
+    }
+    const existente = agenda.find(item => norm(item.tipo).includes('vistoria') && norm(item.titulo).includes('analise final da montagem') && !isConcluido(item.status) && norm(item.status) !== 'cancelada')
+    if (existente) {
+      mostrarSucesso('A análise da montagem já foi solicitada ao supervisor.')
+      return
+    }
+
+    setSolicitandoAnalise(true)
+    const hoje = new Date().toISOString().split('T')[0]
+    const { data: solicitacao, error } = await supabase.from('agenda').insert([{
+      obra_id: obraAtiva.id,
+      tipo: 'Vistoria',
+      titulo: `Análise final da montagem - ${obraAtiva.nome || 'Obra'}`,
+      data: hoje,
+      data_fim: hoje,
+      hora_inicio: '08:00',
+      responsavel_id: obraAtiva.supervisor_id || null,
+      status: 'pendente',
+      observacao: `Solicitada pelo montador ${profile?.full_name || user.email || ''}. Revisar checklist, fotos e acabamento antes de liberar a fase Montagem Finalizada.`,
+      reuniao_interna: false,
+      visivel_montador: true,
+      visivel_cliente: false,
+    }]).select('id').single()
+
+    if (error) {
+      logError('montagem.analise_request_failed', error, { obraId: obraAtiva.id })
+      mostrarSucesso('Não foi possível solicitar a análise da montagem.')
+      setSolicitandoAnalise(false)
+      return
+    }
+
+    await criarNotificacoesOperacionais({
+      tipo: 'vistoria_solicitada',
+      titulo: 'Montagem aguardando análise',
+      descricao: `${profile?.full_name || 'Montador'} informou que a montagem de ${obraAtiva.nome || 'obra'} está pronta para análise.`,
+      entidadeTipo: 'agenda',
+      entidadeId: solicitacao?.id,
+      agendaId: solicitacao?.id,
+      prioridade: 'alta',
+    })
+    mostrarSucesso('Supervisor avisado. A montagem está aguardando análise.')
+    await carregarDadosObra()
+    setSolicitandoAnalise(false)
   }
 
   function abrirTarefa(tarefa) {
@@ -1529,11 +1605,18 @@ export default function MontadorDashboard() {
         </div>
         {(() => {
           const faseMontador = faseObraMontador(obraAtiva)
+          const analiseSolicitada = agenda.some(item => norm(item.tipo).includes('vistoria') && norm(item.titulo).includes('analise final da montagem') && !isConcluido(item.status) && norm(item.status) !== 'cancelada')
           if (obraAguardandoInicio(obraAtiva)) {
             return <div className="md-work-day muted">Aguardando liberação para montagem</div>
           }
+          if (analiseSolicitada) {
+            return <div className="md-work-day gold">Análise solicitada · aguardando supervisor</div>
+          }
+          if (faseMontador.key === 'montagem') {
+            return <button className="md-start-work secondary" onClick={solicitarAnaliseMontagem} disabled={solicitandoAnalise}>{solicitandoAnalise ? 'Enviando solicitação...' : 'Informar montagem pronta para análise'}</button>
+          }
           if (faseMontador.solicitarVistoria) {
-            return <button className="md-start-work secondary" onClick={() => setModalProblema({ titulo: 'Solicitar vistoria final', agenda_id: null })}>Solicitar vistoria final</button>
+            return <div className="md-work-day gold">Montagem finalizada · aguardando vistoria final</div>
           }
           if (faseMontador.key === 'vistoria_final') {
             return <div className="md-work-day gold">Vistoria final pendente</div>

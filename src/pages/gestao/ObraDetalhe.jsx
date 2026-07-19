@@ -1454,6 +1454,7 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
 
   async function salvar() {
     if (!form) return
+    if (form.fase === 'obra_concluida' && cronograma?.fase !== 'obra_concluida' && !window.confirm('Concluir definitivamente esta obra? Ela sairá da carteira de obras ativas.')) return
     setSalvando(true)
     setMensagem(null)
 
@@ -1491,6 +1492,15 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
     if (error) {
       setMensagem({ tipo: 'erro', texto: 'Erro ao salvar cronograma: ' + error.message })
     } else {
+      const obraConcluida = data.fase === 'obra_concluida'
+      if (obraConcluida) {
+        const statusResult = await supabase.from('obras').update({ status: 'Concluída' }).eq('id', obraId)
+        if (statusResult.error) {
+          setMensagem({ tipo: 'erro', texto: 'A fase foi salva, mas não foi possível marcar a obra como Concluída: ' + statusResult.error.message })
+          setSalvando(false)
+          return
+        }
+      }
       setCronograma(data)
       setForm(data)
       onSaved?.(data)
@@ -1572,6 +1582,7 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
 
       <Card titulo="Linha do tempo operacional">
         <div style={{ color: THEME.muted, fontSize: 11.5, marginBottom: 10 }}>Clique em uma etapa para alterar a fase atual. Depois confirme em <strong style={{ color: THEME.gold }}>Salvar dados do cronograma</strong>.</div>
+        <div style={{ border: `1px solid ${THEME.border}`, background: THEME.elevated, color: THEME.muted, borderRadius: 10, padding: '9px 11px', fontSize: 11.5, lineHeight: 1.45, marginBottom: 10 }}><strong style={{ color: THEME.ink }}>Montagem Finalizada</strong> ainda aguarda a vistoria final. Selecione <strong style={{ color: THEME.success }}>Obra Concluída</strong> somente depois da aprovação final; ao salvar, a obra será encerrada e sairá da carteira ativa.</div>
         <div style={{ display: compacto ? 'flex' : 'grid', gridTemplateColumns: compacto ? undefined : `repeat(${FASES_ORNARE.length}, minmax(0, 1fr))`, gap: 10, overflowX: compacto ? 'auto' : 'visible', paddingBottom: compacto ? 6 : 0 }}>
           {FASES_ORNARE.map((fase, index) => {
             const ativa = fase.key === faseAtual
@@ -3347,13 +3358,13 @@ function AbaCliente({ obraId }) {
           <div style={{ fontSize: 11, color: 'var(--color-gold)', fontWeight: 600, marginBottom: 4 }}>Link do Portal do Cliente</div>
           <div style={{ fontSize: 12, color: 'var(--color-ink-muted)', wordBreak: 'break-all' }}>{linkPortal}</div>
         </div>
-        <button onClick={() => navigator.clipboard.writeText(linkPortal)} style={{ background: 'var(--color-ink)', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 12, cursor: 'pointer', flexShrink: 0 }}>Copiar link</button>
+        <button onClick={() => navigator.clipboard.writeText(linkPortal)} style={{ background: THEME.gold, color: THEME.bg, border: `1px solid ${THEME.gold}`, borderRadius: 8, padding: '8px 16px', fontSize: 12, fontWeight: 900, cursor: 'pointer', flexShrink: 0 }}>Copiar link</button>
       </div>
       {erro && <div style={{ background: THEME.dangerBg, color: THEME.danger, borderLeft: '3px solid ' + THEME.danger, borderRadius: 8, padding: '10px 12px', fontSize: 12, fontWeight: 700, marginBottom: 14 }}>{erro}</div>}
       <div style={{ marginBottom: 28 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase' }}>Comunicados ao cliente</div>
-          <button onClick={() => setShowComForm(!showComForm)} style={{ background: 'var(--color-ink)', color: '#fff', border: 'none', borderRadius: 7, padding: '7px 14px', fontSize: 12, cursor: 'pointer' }}>{showComForm ? 'Cancelar' : '+ Comunicado'}</button>
+          <button onClick={() => setShowComForm(!showComForm)} style={{ background: THEME.ink, color: THEME.bg, border: `1px solid ${THEME.ink}`, borderRadius: 7, padding: '7px 14px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>{showComForm ? 'Cancelar' : '+ Comunicado'}</button>
         </div>
         {showComForm && (
           <div style={{ background: THEME.card, border: '1px solid ' + THEME.border, borderRadius: 10, padding: 18, marginBottom: 14 }}>
@@ -3379,7 +3390,7 @@ function AbaCliente({ obraId }) {
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <div style={{ fontSize: 9, letterSpacing: 2, color: 'var(--color-gold)', textTransform: 'uppercase' }}>Contatos visíveis ao cliente</div>
-          <button onClick={() => setShowConForm(!showConForm)} style={{ background: 'var(--color-ink)', color: '#fff', border: 'none', borderRadius: 7, padding: '7px 14px', fontSize: 12, cursor: 'pointer' }}>{showConForm ? 'Cancelar' : '+ Contato'}</button>
+          <button onClick={() => setShowConForm(!showConForm)} style={{ background: THEME.ink, color: THEME.bg, border: `1px solid ${THEME.ink}`, borderRadius: 7, padding: '7px 14px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>{showConForm ? 'Cancelar' : '+ Contato'}</button>
         </div>
         {showConForm && (
           <div style={{ background: THEME.card, border: '1px solid ' + THEME.border, borderRadius: 10, padding: 18, marginBottom: 14 }}>
