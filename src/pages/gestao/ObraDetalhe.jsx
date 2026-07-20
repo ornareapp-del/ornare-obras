@@ -1519,6 +1519,13 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
           setSalvando(false)
           return
         }
+      } else if (data.fase === 'montagem' && data.data_inicio_real) {
+        const statusResult = await supabase.from('obras').update({ status: 'Em montagem' }).eq('id', obraId)
+        if (statusResult.error) {
+          setMensagem({ tipo: 'erro', texto: 'A fase foi salva, mas não foi possível liberar o check-in: ' + statusResult.error.message })
+          setSalvando(false)
+          return
+        }
       }
       setCronograma(data)
       setForm(data)
@@ -1538,6 +1545,53 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
     setSalvando(false)
   }
 
+  async function liberarMontagemCheckin() {
+    if (!window.confirm('Liberar a montagem e o check-in dos montadores agora? A data de início real será registrada como hoje.')) return
+    const hoje = new Date().toISOString().slice(0, 10)
+    setSalvando(true)
+    setMensagem(null)
+    const payload = {
+      fase: 'montagem',
+      status_operacional: 'Montagem',
+      etapa_atual: form.etapa_atual || 'Montagem liberada para execução',
+      data_inicio_real: form.data_inicio_real || hoje,
+      travado: false,
+      motivo_trava: null,
+    }
+    const cronogramaResult = cronograma?.id
+      ? await supabase.from('obra_cronograma').update(payload).eq('id', cronograma.id).select().single()
+      : await supabase.from('obra_cronograma').insert([{ ...form, ...payload, obra_id: obraId }]).select().single()
+
+    if (cronogramaResult.error) {
+      setMensagem({ tipo: 'erro', texto: 'Não foi possível liberar a montagem: ' + cronogramaResult.error.message })
+      setSalvando(false)
+      return
+    }
+
+    const obraResult = await supabase.from('obras').update({ status: 'Em montagem' }).eq('id', obraId)
+    if (obraResult.error) {
+      setMensagem({ tipo: 'erro', texto: 'O cronograma foi atualizado, mas não foi possível liberar o status da obra: ' + obraResult.error.message })
+      setSalvando(false)
+      return
+    }
+
+    setCronograma(cronogramaResult.data)
+    setForm(cronogramaResult.data)
+    onSaved?.(cronogramaResult.data)
+    setMensagem({ tipo: 'sucesso', texto: 'Montagem liberada. Os montadores já podem fazer check-in nesta obra.' })
+    await criarNotificacoesObra({
+      obraId,
+      tipo: 'cronograma',
+      titulo: 'Montagem e check-in liberados',
+      descricao: `Execução liberada em ${new Date(`${payload.data_inicio_real}T00:00:00`).toLocaleDateString('pt-BR')}.`,
+      prioridade: 'alta',
+      entidadeTipo: 'cronograma',
+      entidadeId: cronogramaResult.data.id,
+      rota: `/obras/${obraId}?aba=Cronograma&cronograma=${cronogramaResult.data.id}`,
+    })
+    setSalvando(false)
+  }
+
   if (loading) return <div style={{ color: THEME.muted }}>Carregando cronograma...</div>
   if (!form) return <div style={{ color: THEME.danger }}>Cronograma indisponível.</div>
 
@@ -1546,6 +1600,7 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
   const posVenda = responsaveis.filter(p => ['gestao', 'pos_venda', 'vendedor'].includes(p.role))
   const faseAtualObj = faseOrnarePorKey(form.fase) || faseOrnarePorTexto(form.fase) || FASES_ORNARE[0]
   const faseAtual = faseAtualObj.key
+  const checkinLiberado = faseAtual === 'montagem' && Boolean(form.data_inicio_real)
   const faseAtualIndex = Math.max(0, indiceFaseOrnare(faseAtual))
   const porcentagem = Math.max(0, Math.min(100, Number(form.percentual_concluido) || 0))
   const destaqueCronograma = Boolean(cronogramaDestaque && cronograma?.id === cronogramaDestaque)
@@ -1621,6 +1676,13 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
 
       <Card titulo="Dados do cronograma">
         <div style={{ color: THEME.muted, fontSize: 12.5, lineHeight: 1.5, marginBottom: 14 }}><strong style={{ color: THEME.ink }}>Previsão macro da obra.</strong> Define fase, prazo geral e responsáveis; não cria uma ida da equipe. As datas efetivamente trabalhadas são cadastradas em “Períodos de execução” abaixo.</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', border: `1px solid ${checkinLiberado ? '#2D7A4A' : THEME.gold}`, background: checkinLiberado ? THEME.successBg : THEME.softGold, borderRadius: 12, padding: '12px 14px', marginBottom: 14 }}>
+          <div style={{ minWidth: 220, flex: 1 }}>
+            <strong style={{ color: checkinLiberado ? '#2D7A4A' : THEME.ink, fontSize: 13 }}>{checkinLiberado ? 'Check-in dos montadores liberado' : 'Montagem ainda não liberada para check-in'}</strong>
+            <div style={{ color: THEME.muted, fontSize: 11.5, marginTop: 4, lineHeight: 1.4 }}>{checkinLiberado ? `Início real registrado em ${new Date(`${form.data_inicio_real}T00:00:00`).toLocaleDateString('pt-BR')}.` : 'Use esta ação somente quando a equipe estiver autorizada a iniciar o trabalho em campo.'}</div>
+          </div>
+          {!checkinLiberado && <button type="button" onClick={liberarMontagemCheckin} disabled={salvando} style={{ border: 'none', background: THEME.gold, color: '#fff', minHeight: 42, borderRadius: 9, padding: '9px 14px', fontWeight: 900, cursor: salvando ? 'wait' : 'pointer' }}>{salvando ? 'Liberando...' : 'Liberar montagem e check-in agora'}</button>}
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12 }}>
           <div><Label>Fase / status operacional</Label><FSelect value={faseAtual} onChange={v => setCampo('fase', v)}>{FASES_ORNARE.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}</FSelect></div>
           <div><Label>Descrição da etapa atual</Label><FInput value={form.etapa_atual || ''} onChange={v => setCampo('etapa_atual', v)} /></div>
