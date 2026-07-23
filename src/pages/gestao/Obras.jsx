@@ -5,6 +5,10 @@ import { obraColor } from '../../utils/obraColor'
 import { mapearCronogramasPorObra, resolverOperacaoObra } from '../../utils/obraOperacional'
 import { progressBarStyle, progressFillStyle, statusBadgeBaseStyle } from '../../utils/ui'
 import { theme } from '../../constants/theme'
+import { ACTIONS, can } from '../../constants/permissions'
+import { useStore } from '../../store/useStore'
+import { obrasService } from '../../services/obrasService'
+import { logError } from '../../services/logService'
 
 const ST = {
   'Em produção':       { label: 'Em produção',       bg: '#edf7f0', color: '#2D7A4A', dot: '#2D7A4A' },
@@ -48,6 +52,10 @@ function dataCurta(data) {
 
 export default function Obras() {
   const navigate = useNavigate()
+  const { profile } = useStore()
+  const podeCriar = can(profile?.role, ACTIONS.OBRA_CREATE)
+  const podeEditar = can(profile?.role, ACTIONS.OBRA_EDIT)
+  const podeArquivar = can(profile?.role, ACTIONS.OBRA_ARCHIVE)
   const [obras, setObras] = useState([])
   const [cronogramas, setCronogramas] = useState([])
   const [profiles, setProfiles] = useState([])
@@ -64,8 +72,8 @@ export default function Obras() {
   async function carregar() {
     setErro('')
     const [obrasResult, cronogramasResult, profilesResult] = await Promise.all([
-      supabase.from('obras').select('*').order('created_at', { ascending: false }),
-      supabase.from('obra_cronograma').select('*').limit(300),
+      supabase.from('obras').select('id, nome, status, progresso, data_previsao, cliente_nome, observacoes, cidade, uf, numero_contrato, pedido_ornare, supervisor_id, fase_atual, arquivada_em, arquivada_por, created_at').order('created_at', { ascending: false }),
+      supabase.from('obra_cronograma').select('id, obra_id, fase, status_operacional, etapa_atual, percentual_concluido, data_inicio_prevista, data_fim_prevista, data_inicio_real, data_fim_real, prioridade, risco, travado').limit(300),
       supabase.from('profiles').select('id, full_name, role'),
     ])
     if (obrasResult.error || cronogramasResult.error || profilesResult.error) {
@@ -79,36 +87,66 @@ export default function Obras() {
     setLoading(false)
   }
 
-  async function excluir(obra, e) {
+  async function arquivar(obra, e) {
     e.stopPropagation()
-    if (!window.confirm('Excluir a obra "' + obra.nome + '"? Esta ação não pode ser desfeita.')) return
+    if (!podeArquivar) {
+      setErro('Seu perfil não possui permissão para arquivar obras.')
+      return
+    }
+    if (!window.confirm('Arquivar a obra "' + obra.nome + '"? Ela deixará a carteira ativa, mas poderá ser restaurada.')) return
     setErro('')
-    const { error } = await supabase.from('obras').delete().eq('id', obra.id)
+    const { error } = await supabase.from('obras').update({
+      arquivada_em: new Date().toISOString(),
+      arquivada_por: profile?.id || null,
+    }).eq('id', obra.id)
     if (error) {
-      console.error('Erro ao excluir obra:', error)
-      setErro(error.message || 'Não foi possível excluir a obra.')
+      console.error('Erro ao arquivar obra:', error)
+      setErro(error.message || 'Não foi possível arquivar a obra.')
+      return
+    }
+    await carregar()
+  }
+
+  async function restaurar(obra, e) {
+    e.stopPropagation()
+    if (!podeArquivar) {
+      setErro('Seu perfil não possui permissão para restaurar obras.')
+      return
+    }
+    const { error } = await supabase.from('obras').update({
+      arquivada_em: null,
+      arquivada_por: null,
+    }).eq('id', obra.id)
+    if (error) {
+      console.error('Erro ao restaurar obra:', error)
+      setErro(error.message || 'Não foi possível restaurar a obra.')
       return
     }
     await carregar()
   }
 
   async function salvarEdicao() {
+    if (!podeEditar) {
+      setErro('Seu perfil possui acesso somente para consulta.')
+      return
+    }
     setSalvando(true)
     setErro('')
     try {
-      const { error } = await supabase.from('obras').update({
-        nome: editModal.nome,
-        status: editModal.status,
-        progresso: parseInt(editModal.progresso) || 0,
-        data_previsao: editModal.data_previsao || null,
-        cliente_nome: editModal.cliente_nome,
-        observacoes: editModal.observacoes,
-      }).eq('id', editModal.id)
+      const percentual = Math.max(0, Math.min(100, parseInt(editModal.progresso, 10) || 0))
+      const cronograma = cronogramasPorObra.get(editModal.id)
+      const { error } = await obrasService.atualizarResumo({
+        obra: editModal,
+        cronogramaId: cronograma?.id || null,
+        percentual,
+      })
       if (error) throw error
+
       setEditModal(null)
       await carregar()
     } catch (error) {
       console.error('Erro ao salvar obra:', error)
+      logError('obras.edicao_resumo', error, { obra_id: editModal?.id })
       setErro(error.message || 'Não foi possível salvar a obra.')
     } finally {
       setSalvando(false)
@@ -116,7 +154,10 @@ export default function Obras() {
   }
 
   const buscaNormalizada = normalizar(busca)
-  const obrasFiltradas = (filtro === 'Todas' ? obras : obras.filter(o => normalizar(o.status) === normalizar(filtro)))
+  const obrasAtivas = obras.filter(obra => !obra.arquivada_em)
+  const obrasArquivadas = obras.filter(obra => Boolean(obra.arquivada_em))
+  const baseFiltro = filtro === 'Arquivadas' ? obrasArquivadas : obrasAtivas
+  const obrasFiltradas = (['Todas', 'Arquivadas'].includes(filtro) ? baseFiltro : baseFiltro.filter(o => normalizar(o.status) === normalizar(filtro)))
     .filter(obra => {
       if (!buscaNormalizada) return true
       return [
@@ -131,17 +172,26 @@ export default function Obras() {
   const profilePorId = new Map(profiles.map(p => [p.id, p]))
   const cronogramasPorObra = mapearCronogramasPorObra(cronogramas)
   const operacaoDaObra = obra => resolverOperacaoObra(obra, cronogramasPorObra.get(obra.id))
+  const abrirEdicao = obra => {
+    const operacao = operacaoDaObra(obra)
+    setEditModal({
+      ...obra,
+      progresso: operacao.progresso,
+      data_previsao: operacao.fimPrevisto || '',
+    })
+    setMenuAberto(null)
+  }
   const isStatus = (obra, termos) => termos.some(t => normalizar(obra.status).includes(t))
   const kpis = [
-    { label: 'Obras Ativas', value: obras.filter(o => !isStatus(o, ['concluida', 'cancelada'])).length },
-    { label: 'Em Produção', value: obras.filter(o => operacaoDaObra(o).faseKey === 'producao').length },
-    { label: 'Em Montagem', value: obras.filter(o => ['montagem', 'montagem_finalizada'].includes(operacaoDaObra(o).faseKey)).length },
-    { label: 'Aguard. Produção', value: obras.filter(o => ['vistoria_medida', 'executivo', 'vistoria_tecnica', 'entrega_moveis'].includes(operacaoDaObra(o).faseKey)).length },
-    { label: 'Travadas', value: obras.filter(o => {
+    { label: 'Obras Ativas', value: obrasAtivas.filter(o => !isStatus(o, ['concluida', 'cancelada'])).length },
+    { label: 'Em Produção', value: obrasAtivas.filter(o => operacaoDaObra(o).faseKey === 'producao').length },
+    { label: 'Em Montagem', value: obrasAtivas.filter(o => ['montagem', 'montagem_finalizada'].includes(operacaoDaObra(o).faseKey)).length },
+    { label: 'Aguard. Produção', value: obrasAtivas.filter(o => ['vistoria_medida', 'executivo', 'vistoria_tecnica', 'entrega_moveis'].includes(operacaoDaObra(o).faseKey)).length },
+    { label: 'Travadas', value: obrasAtivas.filter(o => {
       const operacao = operacaoDaObra(o)
       return isStatus(o, ['pausada', 'cancelada']) || operacao.travado || ['alto', 'critico', 'critica'].includes(normalizar(operacao.risco))
     }).length },
-    { label: 'Concluídas', value: obras.filter(o => isStatus(o, ['concluida'])).length },
+    { label: 'Concluídas', value: obrasAtivas.filter(o => isStatus(o, ['concluida'])).length },
   ]
 
   return (
@@ -201,7 +251,7 @@ export default function Obras() {
           <h1 style={s.title}>Central de Obras</h1>
           <p style={s.sub}>Operação, status e andamento das obras Ornare</p>
         </div>
-        <button className="ob-new" style={s.btnNew} onClick={() => navigate('/obras/nova')}>+ Nova Obra</button>
+        {podeCriar && <button className="ob-new" style={s.btnNew} onClick={() => navigate('/obras/nova')}>+ Nova Obra</button>}
       </div>
 
       {erro && <div style={s.errorBox}>{erro}</div>}
@@ -230,14 +280,14 @@ export default function Obras() {
           <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Cliente, contrato ou cidade" />
         </label>
         <div className="ob-filters" style={s.filtros}>
-          {['Todas', ...STATUS_LISTA].map(f => (
+          {['Todas', ...STATUS_LISTA, ...(podeArquivar ? ['Arquivadas'] : [])].map(f => (
             <button key={f} onClick={() => setFiltro(f)} style={{
               ...s.filtroBtn,
               background: filtro === f ? theme.gold : theme.surfaceElevated,
               color: filtro === f ? '#141210' : theme.textSecondary,
               border: filtro === f ? '1px solid ' + theme.gold : '1px solid ' + theme.border,
             }}>
-              {f === 'Todas' ? 'Todas' : getStatus(f).label}
+              {f === 'Todas' || f === 'Arquivadas' ? f : getStatus(f).label}
             </button>
           ))}
         </div>
@@ -249,7 +299,7 @@ export default function Obras() {
         <div style={s.emptyBox}>
           <div style={s.emptyIcon}>🏗️</div>
           <div style={s.emptyTitle}>Nenhuma obra encontrada</div>
-          <button style={s.btnNew} onClick={() => navigate('/obras/nova')}>+ Criar Nova Obra</button>
+          {podeCriar && <button style={s.btnNew} onClick={() => navigate('/obras/nova')}>+ Criar Nova Obra</button>}
         </div>
       ) : (
         <div className="ob-list" style={s.list}>
@@ -322,7 +372,7 @@ export default function Obras() {
                   )}
                   <div style={s.arrow}>›</div>
                 </div>
-                <div className="ob-card-actions" style={s.cardActions}>
+                {(podeEditar || podeArquivar) && <div className="ob-card-actions" style={s.cardActions}>
                   <button
                     style={s.btnMenu}
                     onClick={e => {
@@ -336,11 +386,12 @@ export default function Obras() {
                   </button>
                   {menuAberto === obra.id && (
                     <div className="ob-context-menu" onClick={e => e.stopPropagation()}>
-                      <button onClick={() => { setEditModal({ ...obra }); setMenuAberto(null) }}>Editar</button>
-                      <button onClick={e => { setMenuAberto(null); excluir(obra, e) }} className="danger">Excluir</button>
+                      {podeEditar && !obra.arquivada_em && <button onClick={() => abrirEdicao(obra)}>Editar</button>}
+                      {podeArquivar && !obra.arquivada_em && <button onClick={e => { setMenuAberto(null); arquivar(obra, e) }} className="danger">Arquivar</button>}
+                      {podeArquivar && obra.arquivada_em && <button onClick={e => { setMenuAberto(null); restaurar(obra, e) }}>Restaurar</button>}
                     </div>
                   )}
-                </div>
+                </div>}
               </div>
             )
           })}

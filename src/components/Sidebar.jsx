@@ -63,6 +63,14 @@ const NAV_ITEMS = [
     readOnly: ['pos_venda'],
   },
   {
+    to: '/pendencias',
+    label: 'Pendências',
+    icon: IconAlert,
+    group: 'Controle',
+    color: theme.status.warning,
+    roles: ['gestao', 'supervisor'],
+  },
+  {
     to: '/tarefas',
     label: 'Tarefas',
     icon: IconCheck,

@@ -21,6 +21,7 @@ const Tarefas = lazy(() => import('./pages/gestao/Tarefas'))
 const Planejamento = lazy(() => import('./pages/gestao/Planejamento'))
 const Logistica = lazy(() => import('./pages/gestao/Logistica'))
 const BibliotecaMestre = lazy(() => import('./pages/gestao/BibliotecaMestre'))
+const Pendencias = lazy(() => import('./pages/gestao/Pendencias'))
 const DashboardSupervisor = lazy(() => import('./pages/supervisor/DashboardSupervisor'))
 const MontadorDashboard = lazy(() => import('./pages/montador/MontadorDashboard'))
 
@@ -408,6 +409,15 @@ export default function App() {
               element={
                 <RoleGuard allowedRoles={['gestao', 'supervisor', 'pos_venda', 'vendedor']}>
                   <ObraDetalhe />
+                </RoleGuard>
+              }
+            />
+
+            <Route
+              path="/pendencias"
+              element={
+                <RoleGuard allowedRoles={['gestao', 'supervisor']}>
+                  <Pendencias />
                 </RoleGuard>
               }
             />

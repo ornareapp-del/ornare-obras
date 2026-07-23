@@ -102,6 +102,9 @@ export async function copiarChecklistPadrao(obraId) {
       ambiente_id:  ambiente?.id || null,
       descricao:    item.descricao,
       concluido:    false,
+      exige_foto: Boolean(item.exige_foto),
+      exige_observacao: Boolean(item.exige_observacao),
+      exige_validacao_supervisor: Boolean(item.exige_validacao_supervisor),
     })
   })
 
@@ -126,6 +129,9 @@ function montarItemObra(item, obraId, ambienteId) {
     responsavel_perfil: item.responsavel || item.perfil_responsavel || null,
     criticidade: item.criticidade || null,
     status: 'pendente',
+    exige_foto: Boolean(item.exige_foto),
+    exige_observacao: Boolean(item.exige_observacao),
+    exige_validacao_supervisor: Boolean(item.exige_validacao_supervisor),
   }
 }
 

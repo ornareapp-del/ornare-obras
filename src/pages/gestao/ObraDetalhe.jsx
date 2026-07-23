@@ -12,7 +12,9 @@ import { formatFileSize, prepararImagemUpload } from '../../utils/imageUpload'
 import { FASES_ORNARE, faseOrnarePorKey, faseOrnarePorTexto, indiceFaseOrnare } from '../../constants/fasesOrnare'
 import { resolverOperacaoObra } from '../../utils/obraOperacional'
 import { MODELOS_EXECUCAO, MOTIVOS_PAUSA, TIPOS_DEPENDENCIA, criarPeriodosDoModelo, validarEncerramento } from '../../utils/planejamentoOperacional'
+import { validarEncerramentoObra } from '../../services/encerramentoService'
 import { theme } from '../../constants/theme'
+import { ACTIONS, can } from '../../constants/permissions'
 import ObraPdfExportControls from './components/ObraPdfExportControls'
 
 const ST = {
@@ -279,6 +281,8 @@ export default function ObraDetalhe() {
   const { id }      = useParams()
   const navigate    = useNavigate()
   const location    = useLocation()
+  const { profile } = useStore()
+  const podeEditarObra = can(profile?.role, ACTIONS.OBRA_EDIT)
 
   const [obra,      setObra]      = useState(null)
   const [cronogramaOperacional, setCronogramaOperacional] = useState(null)
@@ -422,6 +426,10 @@ export default function ObraDetalhe() {
   }
 
   async function salvarEdicaoObra() {
+    if (!podeEditarObra) {
+      mostrarToast('Seu perfil possui acesso somente para consulta.', 'erro')
+      return
+    }
     setSalvando(true)
     const progressoInformado = Math.max(0, Math.min(100, parseInt(formObra.progresso, 10) || 0))
     const { error } = await supabase.from('obras').update({
@@ -561,9 +569,9 @@ export default function ObraDetalhe() {
                 acaoBtn={acaoBtn}
                 theme={THEME}
               />
-              <button onClick={() => { setEditando(!editando); setFormObra(obra) }} style={acaoBtn(true, editando)}>
+              {podeEditarObra && <button onClick={() => { setEditando(!editando); setFormObra(obra) }} style={acaoBtn(true, editando)}>
                 {editando ? 'Cancelar edição' : 'Editar'}
-              </button>
+              </button>}
             </div>
           </div>
         </div>
@@ -587,14 +595,14 @@ export default function ObraDetalhe() {
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <span style={{ padding: '5px 14px', borderRadius: 20, background: st.bg, color: st.color, fontSize: 12, fontWeight: 500 }}>{st.label}</span>
-          <button onClick={() => { setEditando(!editando); setFormObra(obra) }} style={{ background: editando ? THEME.dangerBg : 'var(--color-ink)', color: editando ? THEME.danger : '#f9f7f4', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 12, cursor: 'pointer' }}>
+          {podeEditarObra && <button onClick={() => { setEditando(!editando); setFormObra(obra) }} style={{ background: editando ? THEME.dangerBg : 'var(--color-ink)', color: editando ? THEME.danger : '#f9f7f4', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 12, cursor: 'pointer' }}>
             {editando ? 'Cancelar edição' : 'Editar obra'}
-          </button>
+          </button>}
         </div>
       </div>
 
       {/* ── FORM EDICAO COMPLETO ── */}
-      {editando && (
+      {editando && podeEditarObra && (
         <div style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderLeft: `4px solid ${THEME.gold}`, borderRadius: 16, padding: compacto ? 18 : 26, marginBottom: 24, marginTop: 16, boxShadow: '0 16px 36px rgba(29,28,25,0.05)' }}>
 
           <SecaoEdit titulo="Identificacao">
@@ -1192,18 +1200,21 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
       setAjudantesPorPeriodo({})
       setDependenciasPorPeriodo({})
     }
-    if (itens.length) setForm(atual => atual ? ({ ...atual, dias_previstos: calcularDiasDosPeriodos(itens, calendario), percentual_concluido: calcularProgressoDosPeriodos(itens, calendario) }) : atual)
+    if (itens.length) {
+      const percentual = calcularProgressoDosPeriodos(itens, calendario)
+      setForm(atual => atual ? ({ ...atual, dias_previstos: calcularDiasDosPeriodos(itens, calendario), percentual_concluido: percentual, progresso_fisico: percentual }) : atual)
+    }
     return itens
   }
 
   async function sincronizarCronogramaDosPeriodos(itens) {
     const dias = calcularDiasDosPeriodos(itens, calendarioOperacional)
     const percentual = calcularProgressoDosPeriodos(itens, calendarioOperacional)
-    setForm(atual => atual ? ({ ...atual, dias_previstos: dias, percentual_concluido: percentual }) : atual)
+    setForm(atual => atual ? ({ ...atual, dias_previstos: dias, percentual_concluido: percentual, progresso_fisico: percentual }) : atual)
     if (!cronograma?.id) return
-    const { error } = await supabase.from('obra_cronograma').update({ dias_previstos: dias, percentual_concluido: percentual }).eq('id', cronograma.id)
+    const { error } = await supabase.from('obra_cronograma').update({ dias_previstos: dias, percentual_concluido: percentual, progresso_fisico: percentual }).eq('id', cronograma.id)
     if (error) throw error
-    setCronograma(atual => atual ? ({ ...atual, dias_previstos: dias, percentual_concluido: percentual }) : atual)
+    setCronograma(atual => atual ? ({ ...atual, dias_previstos: dias, percentual_concluido: percentual, progresso_fisico: percentual }) : atual)
   }
 
   function editarPeriodo(item) {
@@ -1399,6 +1410,8 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
       hora_inicio: '08:00',
       status: 'pendente',
       percentual_concluido: 0,
+      progresso_fisico: 0,
+      aceite_status: 'pendente',
       retorno_necessario: etapa.retorno_necessario,
       motivo_pausa: etapa.retorno_necessario ? 'Retorno planejado' : null,
       responsavel_id: form?.responsavel_id || null,
@@ -1488,7 +1501,19 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
 
   async function salvar() {
     if (!form) return
-    if (form.fase === 'obra_concluida' && cronograma?.fase !== 'obra_concluida' && !window.confirm('Concluir definitivamente esta obra? Ela sairá da carteira de obras ativas.')) return
+    if (form.fase === 'obra_concluida' && cronograma?.fase !== 'obra_concluida') {
+      setMensagem(null)
+      const validacao = await validarEncerramentoObra({ obraId, periodos, aceiteStatus: form.aceite_status })
+      if (validacao.error) {
+        setMensagem({ tipo: 'erro', texto: 'Não foi possível validar o encerramento: ' + validacao.error.message })
+        return
+      }
+      if (validacao.pendencias.length) {
+        setMensagem({ tipo: 'erro', texto: `Encerramento bloqueado: ${validacao.pendencias.join('; ')}.` })
+        return
+      }
+      if (!window.confirm('Todas as validações foram aprovadas. Concluir definitivamente esta obra?')) return
+    }
     setSalvando(true)
     setMensagem(null)
 
@@ -1503,6 +1528,8 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
       data_fim_real: form.data_fim_real || null,
       dias_previstos: form.dias_previstos ? parseInt(form.dias_previstos, 10) : null,
       percentual_concluido: form.percentual_concluido === '' || form.percentual_concluido === null ? 0 : Number(form.percentual_concluido),
+      progresso_fisico: form.progresso_fisico === '' || form.progresso_fisico === null ? Number(form.percentual_concluido || 0) : Number(form.progresso_fisico),
+      aceite_status: form.aceite_status || 'pendente',
       prioridade: form.prioridade || 'media',
       risco: form.risco || 'medio',
       alertas_observacoes: form.alertas_observacoes || null,
@@ -1522,7 +1549,17 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
       ? supabase.from('obra_cronograma').update(payload).eq('id', cronograma.id).select().single()
       : supabase.from('obra_cronograma').insert([{ ...payload, obra_id: obraId }]).select().single()
 
-    const { data, error } = await query
+    let { data, error } = await query
+    if (error && ['progresso_fisico', 'aceite_status'].some(coluna => String(error.message || '').includes(coluna))) {
+      const payloadCompativel = { ...payload }
+      delete payloadCompativel.progresso_fisico
+      delete payloadCompativel.aceite_status
+      const fallback = cronograma?.id
+        ? await supabase.from('obra_cronograma').update(payloadCompativel).eq('id', cronograma.id).select().single()
+        : await supabase.from('obra_cronograma').insert([{ ...payloadCompativel, obra_id: obraId }]).select().single()
+      data = fallback.data
+      error = fallback.error
+    }
     if (error) {
       setMensagem({ tipo: 'erro', texto: 'Erro ao salvar cronograma: ' + error.message })
     } else {
@@ -1618,6 +1655,7 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
   const checkinLiberado = faseAtual === 'montagem' && Boolean(form.data_inicio_real)
   const faseAtualIndex = Math.max(0, indiceFaseOrnare(faseAtual))
   const porcentagem = Math.max(0, Math.min(100, Number(form.percentual_concluido) || 0))
+  const progressoFisico = Math.max(0, Math.min(100, Number(form.progresso_fisico ?? form.percentual_concluido) || 0))
   const destaqueCronograma = Boolean(cronogramaDestaque && cronograma?.id === cronogramaDestaque)
   const hojeIso = new Date().toISOString().slice(0, 10)
   const periodosAtivos = periodos.filter(item => item.status !== 'cancelada').sort((a, b) => String(a.data).localeCompare(String(b.data)))
@@ -1654,11 +1692,12 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: compacto ? '1fr 1fr' : 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: compacto ? '1fr 1fr' : 'repeat(5, minmax(0, 1fr))', gap: 12 }}>
         <KpiCard label="Fase" value={faseAtualObj.label} helper={faseAtualObj.descricao} />
         <KpiCard label="Etapa" value={form.etapa_atual || '-'} helper="detalhe interno" />
         <KpiCard label="Prioridade" value={form.prioridade || '-'} helper={`risco ${form.risco || '-'}`} />
-        <KpiCard label="Percentual" value={`${porcentagem}%`} helper="concluido" />
+        <KpiCard label="Jornada geral" value={`${porcentagem}%`} helper="avanço global" />
+        <KpiCard label="Progresso físico" value={`${progressoFisico}%`} helper={`aceite ${form.aceite_status || 'pendente'}`} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: compacto ? '1fr' : 'repeat(5, minmax(0, 1fr))', gap: 12 }}>
@@ -1705,6 +1744,8 @@ function AbaCronograma({ obraId, profiles, compacto, cronogramaDestaque, onSaved
           <div><Label>Prioridade</Label><FSelect value={form.prioridade || 'media'} onChange={v => setCampo('prioridade', v)}>{PRIORIDADES_CRONOGRAMA.map(p => <option key={p} value={p}>{rotuloPrioridade(p)}</option>)}</FSelect></div>
           <div><Label>Risco</Label><FSelect value={form.risco || 'medio'} onChange={v => setCampo('risco', v)}>{RISCOS_CRONOGRAMA.map(r => <option key={r} value={r}>{rotuloRisco(r)}</option>)}</FSelect></div>
           <div><Label>Percentual concluído</Label><FInput type="number" min="0" max="100" readOnly={periodos.length > 0} value={form.percentual_concluido ?? 0} onChange={v => setCampo('percentual_concluido', v)} />{periodos.length > 0 && <div style={{ color: THEME.muted, fontSize: 10.5, marginTop: 5 }}>Consolidado automaticamente pelo progresso e duração dos períodos.</div>}</div>
+          <div><Label>Progresso físico da montagem (%)</Label><FInput type="number" min="0" max="100" value={form.progresso_fisico ?? form.percentual_concluido ?? 0} onChange={v => setCampo('progresso_fisico', v)} /><div style={{ color: THEME.muted, fontSize: 10.5, marginTop: 5 }}>Execução física, independente da fase e do aceite final.</div></div>
+          <div><Label>Aceite final</Label><FSelect value={form.aceite_status || 'pendente'} onChange={v => setCampo('aceite_status', v)}><option value="pendente">Pendente</option><option value="aprovado">Aprovado</option><option value="reprovado">Reprovado / ajustes</option><option value="nao_se_aplica">Não se aplica</option></FSelect></div>
           <div>
             <Label>Dias estimados de execução</Label>
             <FInput type="number" min="0" readOnly={periodos.length > 0} value={form.dias_previstos ?? ''} onChange={v => setCampo('dias_previstos', v)} />
@@ -3320,15 +3361,22 @@ function AbaFotos({ obraId, fotoDestaque }) {
 }
 
 function AbaHistorico({ obraId }) {
+  const PAGE_SIZE = 25
   const [historico, setHistorico] = useState([])
   const [loading, setLoading] = useState(true)
+  const [carregandoMais, setCarregandoMais] = useState(false)
+  const [pagina, setPagina] = useState(0)
+  const [temMais, setTemMais] = useState(false)
   const [erro, setErro] = useState('')
 
-  async function carregar() {
+  async function carregar(paginaAlvo = 0, acumular = false) {
     setErro('')
+    if (acumular) setCarregandoMais(true)
+    const inicio = paginaAlvo * PAGE_SIZE
+    const fim = inicio + PAGE_SIZE - 1
     const [historicoResult, checkinsResult] = await Promise.all([
-      supabase.from('historico_obra').select('*').eq('obra_id', obraId).order('created_at', { ascending: false }),
-      supabase.from('checkins').select('id, user_id, entrada, saida, created_at').eq('obra_id', obraId).order('created_at', { ascending: false }),
+      supabase.from('historico_obra').select('id, obra_id, user_id, profile_id, usuario_id, descricao, acao, created_at').eq('obra_id', obraId).order('created_at', { ascending: false }).range(inicio, fim),
+      supabase.from('checkins').select('id, user_id, entrada, saida, created_at').eq('obra_id', obraId).order('created_at', { ascending: false }).range(inicio, fim),
     ])
     const falha = [historicoResult, checkinsResult].find(result => result.error)
     if (falha?.error) setErro(mensagemErro(falha.error, 'Nao foi possivel carregar todo o historico da obra.'))
@@ -3366,8 +3414,17 @@ function AbaHistorico({ obraId }) {
         item.saida ? `Saida ${new Date(item.saida).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : '',
       ].filter(Boolean).join(' - '),
     }))
-    setHistorico([...historicoLinhas, ...checkinLinhas].sort((a, b) => new Date(b.dataLinha || 0) - new Date(a.dataLinha || 0)))
+    const novasLinhas = [...historicoLinhas, ...checkinLinhas].sort((a, b) => new Date(b.dataLinha || 0) - new Date(a.dataLinha || 0))
+    setHistorico(atual => {
+      if (!acumular) return novasLinhas
+      const ids = new Set(atual.map(item => item.id))
+      return [...atual, ...novasLinhas.filter(item => !ids.has(item.id))]
+        .sort((a, b) => new Date(b.dataLinha || 0) - new Date(a.dataLinha || 0))
+    })
+    setTemMais((historicoResult.data || []).length === PAGE_SIZE || (checkinsResult.data || []).length === PAGE_SIZE)
+    setPagina(paginaAlvo)
     setLoading(false)
+    setCarregandoMais(false)
   }
 
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
@@ -3391,6 +3448,11 @@ function AbaHistorico({ obraId }) {
           </div>
         </div>
       ))}
+      {temMais && (
+        <button type="button" onClick={() => carregar(pagina + 1, true)} disabled={carregandoMais} style={{ border: `1px solid ${THEME.border}`, background: THEME.card, color: THEME.ink, borderRadius: 9, minHeight: 42, padding: '9px 15px', fontWeight: 800, cursor: carregandoMais ? 'wait' : 'pointer' }}>
+          {carregandoMais ? 'Carregando...' : 'Carregar mais registros'}
+        </button>
+      )}
     </div>
   )
 }

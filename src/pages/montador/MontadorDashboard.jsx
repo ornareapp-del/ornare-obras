@@ -9,6 +9,7 @@ import useOnlineStatus, { isAppOffline } from '../../hooks/useOnlineStatus'
 import { criarNotificacoes } from '../../services/notificacoesService'
 import { logError } from '../../services/logService'
 import { formatFileSize, prepararImagemUpload } from '../../utils/imageUpload'
+import { createLocalQueue } from '../../services/offlineQueue'
 
 const THEME = {
   bg: theme.background,
@@ -40,6 +41,7 @@ const FOTO_CATEGORIAS = [
   'Geral',
 ]
 const OFFLINE_QUEUE_KEY = 'ornare_montador_acoes_offline'
+const offlineQueue = createLocalQueue(OFFLINE_QUEUE_KEY)
 
 const VISTORIA_CHECKLIST = [
   'Conferir acesso à obra, elevador, carga e descarga.',
@@ -63,31 +65,6 @@ function mensagemGeolocalizacao(error, acao) {
   if (error?.code === 2) return `Localizacao indisponivel. ${acao} sera registrado sem coordenadas.`
   if (error?.code === 3) return `Tempo esgotado ao buscar localizacao. ${acao} sera registrado sem coordenadas.`
   return `${acao} sera registrado sem coordenadas.`
-}
-
-function carregarAcoesOffline() {
-  if (typeof localStorage === 'undefined') return []
-  try {
-    return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]')
-  } catch {
-    return []
-  }
-}
-
-function salvarAcoesOffline(acoes) {
-  if (typeof localStorage === 'undefined') return
-  localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(acoes.slice(-30)))
-}
-
-function registrarAcaoOffline(acao) {
-  const registro = {
-    ...acao,
-    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    criado_em: new Date().toISOString(),
-  }
-  const proximas = [...carregarAcoesOffline(), registro]
-  salvarAcoesOffline(proximas)
-  return proximas
 }
 
 function isChecklistVistoriaCampo(item) {
@@ -391,8 +368,8 @@ export default function MontadorDashboard() {
   const [servicoFeedback, setServicoFeedback] = useState('')
   const [preview, setPreview] = useState(null)
   const [fotoSelecionada, setFotoSelecionada] = useState(null)
-  const [formFoto, setFormFoto] = useState({ categoria: '', ambiente_id: '', agenda_id: '', observacao: '' })
-  const [acoesOffline, setAcoesOffline] = useState(() => carregarAcoesOffline())
+  const [formFoto, setFormFoto] = useState({ categoria: '', ambiente_id: '', agenda_id: '', checklist_item_id: '', observacao: '' })
+  const [acoesOffline, setAcoesOffline] = useState(() => offlineQueue.read())
   const [ambienteSelecionado, setAmbienteSelecionado] = useState('geral')
   const [itemAcao, setItemAcao] = useState('')
   const [novoChecklist, setNovoChecklist] = useState('')
@@ -417,7 +394,7 @@ export default function MontadorDashboard() {
   }, [loadingObra])
 
   function guardarAcaoOffline(acao) {
-    const proximas = registrarAcaoOffline({
+    const proximas = offlineQueue.add({
       ...acao,
       obra_id: obraAtiva?.id || null,
       obra_nome: obraAtiva?.nome || null,
@@ -428,8 +405,7 @@ export default function MontadorDashboard() {
   }
 
   function limparAcoesOffline() {
-    salvarAcoesOffline([])
-    setAcoesOffline([])
+    setAcoesOffline(offlineQueue.clear())
   }
 
   function limparFotoSelecionada() {
@@ -638,7 +614,7 @@ export default function MontadorDashboard() {
   }, [obraAtiva?.id])
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setAcoesOffline(carregarAcoesOffline()), 0)
+    const timer = window.setTimeout(() => setAcoesOffline(offlineQueue.read()), 0)
     return () => window.clearTimeout(timer)
   }, [online])
 
@@ -1033,12 +1009,35 @@ export default function MontadorDashboard() {
       return
     }
     const concluindo = !item.concluido
+    if (concluindo && item.exige_foto && !fotos.some(foto => String(foto.checklist_item_id || '') === String(item.id))) {
+      setFormFoto(p => ({ ...p, checklist_item_id: item.id, ambiente_id: item.ambiente_id || p.ambiente_id, categoria: p.categoria || 'Finalizado' }))
+      setTelaAtiva('fotos')
+      mostrarSucesso('Este item exige uma foto. Envie a evidência antes de concluí-lo.')
+      return
+    }
+    let observacaoExecucao = item.observacao_execucao || null
+    if (concluindo && item.exige_observacao && !observacaoExecucao) {
+      observacaoExecucao = window.prompt('Este item exige uma observação para ser concluído:')?.trim()
+      if (!observacaoExecucao) {
+        mostrarSucesso('Informe a observação obrigatória para concluir o item.')
+        return
+      }
+    }
     setChecklistSalvando(item.id)
-    const { error } = await supabase.from('checklist_items').update({
+    const checklistPayload = {
       concluido: concluindo,
       concluido_por: concluindo ? user.id : null,
       concluido_em: concluindo ? new Date().toISOString() : null,
-    }).eq('id', item.id)
+      observacao_execucao: concluindo ? observacaoExecucao : null,
+      validado_supervisor: concluindo && item.exige_validacao_supervisor ? false : item.validado_supervisor,
+    }
+    let { error } = await supabase.from('checklist_items').update(checklistPayload).eq('id', item.id)
+    if (error && String(error.message || '').includes('observacao_execucao')) {
+      delete checklistPayload.observacao_execucao
+      delete checklistPayload.validado_supervisor
+      const fallback = await supabase.from('checklist_items').update(checklistPayload).eq('id', item.id)
+      error = fallback.error
+    }
     if (error) {
       logError('checklist.montador_update_failed', error, { obraId: obraAtiva?.id, checklistId: item.id, concluindo })
       console.error('Erro ao salvar checklist:', { error, item })
@@ -1152,6 +1151,7 @@ export default function MontadorDashboard() {
         categoria: formFoto.categoria || '',
         ambiente_id: formFoto.ambiente_id || null,
         agenda_id: formFoto.agenda_id || null,
+        checklist_item_id: formFoto.checklist_item_id || null,
         observacao: formFoto.observacao || '',
         quantidade: arquivos.length,
         totalSize: arquivos.reduce((total, item) => total + (item.file?.size || item.size || 0), 0),
@@ -1193,19 +1193,27 @@ export default function MontadorDashboard() {
         }
 
         setUploadFeedback(`Foto ${index + 1}/${arquivos.length} enviada. Vinculando a obra...`)
-        const { data: fotoCriada, error: insertError } = await supabase.from('fotos').insert([{
+        const fotoPayload = {
           obra_id: obraAtiva.id,
           enviada_por: user.id,
           categoria: formFoto.categoria,
           ambiente_id: formFoto.ambiente_id || null,
           agenda_id: formFoto.agenda_id || null,
+          checklist_item_id: formFoto.checklist_item_id || null,
           aprovada: false,
           aprovada_gestao: false,
           visivel_cliente: false,
           visibilidade: 'interna',
           observacao: formFoto.observacao || file.name,
           storage_path: path,
-        }]).select('id, agenda_id, categoria').single()
+        }
+        let { data: fotoCriada, error: insertError } = await supabase.from('fotos').insert([fotoPayload]).select('id, agenda_id, categoria').single()
+        if (insertError && String(insertError.message || '').includes('checklist_item_id')) {
+          delete fotoPayload.checklist_item_id
+          const fallback = await supabase.from('fotos').insert([fotoPayload]).select('id, agenda_id, categoria').single()
+          fotoCriada = fallback.data
+          insertError = fallback.error
+        }
 
         if (insertError) {
           logError('upload.montador_insert_failed', insertError, { obraId: obraAtiva.id, categoria: formFoto.categoria, storagePath: path, index })
@@ -1605,14 +1613,14 @@ export default function MontadorDashboard() {
       {sucesso && <div className="md-toast">{sucesso}</div>}
       {!online && (
         <div className="md-offline-alert">
-          Sem conexao. Acoes criticas ficam guardadas neste aparelho como lembrete local e devem ser refeitas quando a internet voltar.
-          {acoesOffline.length > 0 && <strong>{acoesOffline.length} pendente{acoesOffline.length === 1 ? '' : 's'} local{acoesOffline.length === 1 ? '' : 'is'}</strong>}
+          Sem conexão. Estas ações não são enviadas automaticamente: o aparelho guarda somente um lembrete para conferência quando a internet voltar.
+          {acoesOffline.length > 0 && <strong>{acoesOffline.length} ação{acoesOffline.length === 1 ? '' : 'ões'} não enviada{acoesOffline.length === 1 ? '' : 's'}</strong>}
         </div>
       )}
       {online && acoesOffline.length > 0 && (
         <div className="md-offline-alert online">
-          Existem {acoesOffline.length} ação{acoesOffline.length === 1 ? '' : 'ões'} offline guardada{acoesOffline.length === 1 ? '' : 's'} neste aparelho. Confira check-in, fotos e checklist e refaça o que ainda não foi enviado.
-          <button type="button" onClick={limparAcoesOffline}>Limpar lembretes</button>
+          Atenção: {acoesOffline.length} ação{acoesOffline.length === 1 ? '' : 'ões'} não foi{acoesOffline.length === 1 ? '' : 'ram'} enviada{acoesOffline.length === 1 ? '' : 's'}. Confira check-in, fotos e checklist e refaça somente o que não aparece no sistema.
+          <button type="button" onClick={limparAcoesOffline}>Já conferi · descartar lembretes</button>
         </div>
       )}
 
@@ -1879,6 +1887,10 @@ export default function MontadorDashboard() {
           <select value={formFoto.agenda_id} onChange={e => setFormFoto(p => ({ ...p, agenda_id: e.target.value }))}>
             <option value="">Sem compromisso vinculado</option>
             {(formFoto.categoria === 'Vistoria' ? vistoriasAgenda : agenda).map(item => <option key={item.id} value={item.id}>{item.titulo || item.tipo || 'Compromisso'}{item.data ? ` - ${dataBR(item.data)}` : ''}</option>)}
+          </select>
+          <select value={formFoto.checklist_item_id} onChange={e => setFormFoto(p => ({ ...p, checklist_item_id: e.target.value }))}>
+            <option value="">Sem item de checklist vinculado</option>
+            {checklist.filter(item => !item.concluido).map(item => <option key={item.id} value={item.id}>{item.descricao || 'Item de checklist'}</option>)}
           </select>
           <input value={formFoto.observacao} onChange={e => setFormFoto(p => ({ ...p, observacao: e.target.value }))} placeholder="Observação opcional" />
           <div className="md-file-actions">

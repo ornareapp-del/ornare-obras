@@ -349,6 +349,10 @@ async function atualizarAgendaCliente(id, payload) {
   delete minimo.solicitacao_reagendamento_cliente
   delete minimo.solicitacao_reagendamento_em
   delete minimo.solicitacao_reagendamento_por
+  delete minimo.reagendamento_status
+  delete minimo.reagendamento_resposta
+  delete minimo.reagendamento_respondido_em
+  delete minimo.reagendamento_respondido_por
   console.warn('Update completo da agenda do cliente falhou. Tentando payload minimo:', completa.error)
   return supabase.from('agenda').update(minimo).eq('id', id)
 }
@@ -660,6 +664,10 @@ export default function PortalCliente() {
         solicitacao_reagendamento_cliente: texto,
         solicitacao_reagendamento_em: new Date().toISOString(),
         solicitacao_reagendamento_por: usuario?.id || null,
+        reagendamento_status: 'solicitado',
+        reagendamento_resposta: null,
+        reagendamento_respondido_em: null,
+        reagendamento_respondido_por: null,
         status: evento.status === 'realizada' ? evento.status : 'reagendamento solicitado',
       }),
     ])

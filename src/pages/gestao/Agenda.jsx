@@ -142,6 +142,9 @@ export default function Agenda() {
     visivel_montador: false,
     visivel_cliente: false,
     confirmado_cliente: false,
+    solicitacao_reagendamento_cliente: '',
+    reagendamento_status: '',
+    reagendamento_resposta: '',
   })
 
   useEffect(() => { carregar() }, [])
@@ -183,6 +186,9 @@ export default function Agenda() {
       visivel_montador: false,
       visivel_cliente: false,
       confirmado_cliente: false,
+      solicitacao_reagendamento_cliente: '',
+      reagendamento_status: '',
+      reagendamento_resposta: '',
     }
   }
 
@@ -212,6 +218,9 @@ export default function Agenda() {
       visivel_montador: !ev.reuniao_interna && Boolean(ev.obra_id) && ev.visivel_montador !== false,
       visivel_cliente: Boolean(ev.visivel_cliente),
       confirmado_cliente: Boolean(ev.confirmado_cliente),
+      solicitacao_reagendamento_cliente: ev.solicitacao_reagendamento_cliente || '',
+      reagendamento_status: ev.reagendamento_status || '',
+      reagendamento_resposta: ev.reagendamento_resposta || '',
     })
   }
 
@@ -597,6 +606,48 @@ export default function Agenda() {
     await carregar()
   }
 
+  async function decidirReagendamento(decisao) {
+    if (!editandoId) return
+    const aprovado = decisao === 'aprovado'
+    const resposta = window.prompt(
+      aprovado
+        ? 'Confirme a resposta ao cliente. As datas atualmente preenchidas serão mantidas:'
+        : 'Informe o motivo da recusa ou uma orientação ao cliente:',
+      aprovado ? 'Reagendamento aprovado pela equipe.' : '',
+    )
+    if (resposta === null || !resposta.trim()) return
+    setSalvando(true)
+    setErroModal('')
+    const { data: authData } = await supabase.auth.getUser()
+    const decisaoPayload = {
+      status: aprovado ? 'remarcada' : 'pendente',
+      data: form.data,
+      data_fim: form.data_fim || form.data,
+      reagendamento_status: decisao,
+      reagendamento_resposta: resposta.trim(),
+      reagendamento_respondido_em: new Date().toISOString(),
+      reagendamento_respondido_por: authData?.user?.id || null,
+    }
+    let { error } = await supabase.from('agenda').update(decisaoPayload).eq('id', editandoId)
+    if (error && String(error.message || '').includes('reagendamento_')) {
+      const fallback = await supabase.from('agenda').update({
+        status: decisaoPayload.status,
+        data: decisaoPayload.data,
+        data_fim: decisaoPayload.data_fim,
+      }).eq('id', editandoId)
+      error = fallback.error
+    }
+    if (error) {
+      setErroModal('Não foi possível registrar a decisão do reagendamento: ' + error.message)
+      setSalvando(false)
+      return
+    }
+    setForm(p => ({ ...p, status: aprovado ? 'remarcada' : 'pendente', reagendamento_status: decisao, reagendamento_resposta: resposta.trim() }))
+    setToast(aprovado ? 'Reagendamento aprovado e registrado.' : 'Solicitação de reagendamento recusada.')
+    await carregar()
+    setSalvando(false)
+  }
+
   async function gerarChecklistVistoria() {
     if (!editandoId || !form.obra_id) {
       setAcaoStatus('Vincule uma obra antes de gerar o checklist.')
@@ -722,6 +773,17 @@ export default function Agenda() {
                 <span className={`ag-status tone-${statusForm.tone}`}>{statusForm.label}</span>
               </div>
               <div style={s.grid}>
+                {editandoId && form.solicitacao_reagendamento_cliente && (
+                  <div style={{ ...s.full, border: '1px solid #E0A852', background: 'rgba(224,168,82,.10)', borderRadius: 10, padding: 13 }}>
+                    <strong style={{ display: 'block', color: '#E0A852', fontSize: 12 }}>Reagendamento solicitado pelo cliente</strong>
+                    <p style={{ margin: '6px 0 10px', color: theme.textSecondary, fontSize: 12.5, lineHeight: 1.45 }}>{form.solicitacao_reagendamento_cliente}</p>
+                    {form.reagendamento_resposta && <p style={{ margin: '0 0 10px', color: theme.textPrimary, fontSize: 12 }}>Resposta: {form.reagendamento_resposta}</p>}
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button type="button" style={s.vistoriaPrimary} onClick={() => decidirReagendamento('aprovado')} disabled={salvando}>Aprovar datas preenchidas</button>
+                      <button type="button" style={s.vistoriaButton} onClick={() => decidirReagendamento('recusado')} disabled={salvando}>Recusar solicitação</button>
+                    </div>
+                  </div>
+                )}
                 <div style={s.full}>
                   <L>Título *</L>
                   <I value={form.titulo} onChange={v => setForm(p => ({ ...p, titulo: v }))} placeholder="Nome do evento" />
