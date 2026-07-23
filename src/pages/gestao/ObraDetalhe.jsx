@@ -423,12 +423,13 @@ export default function ObraDetalhe() {
 
   async function salvarEdicaoObra() {
     setSalvando(true)
+    const progressoInformado = Math.max(0, Math.min(100, parseInt(formObra.progresso, 10) || 0))
     const { error } = await supabase.from('obras').update({
       nome:               formObra.nome,
       numero_contrato:    formObra.numero_contrato    || null,
       pedido_ornare:      formObra.pedido_ornare      || null,
       status:             formObra.status,
-      progresso:          parseInt(formObra.progresso) || 0,
+      progresso:          progressoInformado,
       data_inicio:        formObra.data_inicio        || null,
       data_previsao:      formObra.data_previsao      || null,
       observacoes:        formObra.observacoes        || null,
@@ -456,6 +457,20 @@ export default function ObraDetalhe() {
     if (error) {
       mostrarToast('Erro ao salvar: ' + error.message, 'erro')
     } else {
+      const cronogramaResult = await supabase
+        .from('obra_cronograma')
+        .update({ percentual_concluido: progressoInformado })
+        .eq('obra_id', id)
+        .select()
+        .maybeSingle()
+
+      if (cronogramaResult.error) {
+        mostrarToast('Os dados da obra foram salvos, mas o percentual do cronograma não foi atualizado: ' + cronogramaResult.error.message, 'erro')
+        setSalvando(false)
+        return
+      }
+
+      if (cronogramaResult.data) setCronogramaOperacional(cronogramaResult.data)
       await carregarObra()
       await carregarResumo()
       setEditando(false)
