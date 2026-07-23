@@ -1652,6 +1652,7 @@ export default function MontadorDashboard() {
             <h2 style={{ color: '#FFFFFF', fontFamily: 'var(--font-sans, system-ui, sans-serif)', fontSize: 20, fontWeight: 900, lineHeight: 1.12, margin: '2px 0 0', letterSpacing: 0 }}>
               {obraAtiva.nome || 'Obra sem nome'}
             </h2>
+            <small className="md-architect">Arq. Resp.: {obraAtiva.arquiteto_nome || 'não informado'}</small>
           </div>
           <strong>{obraAtiva.progresso || 0}%</strong>
         </div>
@@ -1771,7 +1772,7 @@ export default function MontadorDashboard() {
       <section className="md-card md-check-progress-card" style={telaAtiva === 'hoje' ? undefined : { display: 'none' }}>
         <div className="md-card-head compact">
           <div>
-            <h2>Checklist do dia</h2>
+            <h2>Checklist da obra</h2>
             <small className="md-card-sub">{vm.checklistConcluidos.length} de {checklist.length} itens concluídos</small>
           </div>
           <span>{vm.pctChecklist}%</span>
@@ -2027,6 +2028,7 @@ const css = `
 .md-phase-badge{display:inline-flex;align-items:center;border:1px solid ${THEME.gold};border-radius:999px;padding:5px 9px;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;font-weight:900;margin-bottom:6px}
 .md-obra-status{display:block!important;font-size:10px!important;letter-spacing:1.2px;text-transform:uppercase;color:#BDB0A0!important;font-weight:800!important;margin:0 0 7px!important}
 .md-obra-head h2{font-family:var(--font-sans, system-ui, sans-serif);font-size:20px;line-height:1.12;margin:2px 0 0;font-weight:900;color:#FFFFFF!important;letter-spacing:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.md-obra-head .md-architect{margin-top:5px;color:#D7CABA;font-size:11px}
 .md-obra-head strong{font-size:26px;color:${THEME.gold};line-height:1}
 .md-obra-card p{font-size:12px;line-height:1.45;color:#D7CABA;margin:10px 0 12px}
 .md-obra-card small{display:block;font-size:11px;color:#BDB0A0;margin-top:10px}
