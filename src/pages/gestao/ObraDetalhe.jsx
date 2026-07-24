@@ -2414,6 +2414,7 @@ function AbaOcorrencias({ obraId, ocorrenciaDestaque }) {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [salvando, setSalvando] = useState(false)
+  const [alterandoStatus, setAlterandoStatus] = useState('')
   const [erro, setErro] = useState('')
   const [nova, setNova] = useState({ titulo: '', descricao: '', categoria: 'geral', gravidade: 'baixa' })
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2451,6 +2452,31 @@ function AbaOcorrencias({ obraId, ocorrenciaDestaque }) {
     setNova({ titulo: '', descricao: '', categoria: 'geral', gravidade: 'baixa' })
     setShowForm(false); await carregar(); setSalvando(false)
   }
+  async function alterarStatus(ocorrencia, status) {
+    const concluindo = status === 'Resolvida'
+    if (concluindo && !window.confirm(`Concluir a ocorrência "${ocorrencia.titulo}"?`)) return
+    setAlterandoStatus(ocorrencia.id)
+    setErro('')
+    const { error } = await supabase.from('ocorrencias').update({ status }).eq('id', ocorrencia.id)
+    if (error) {
+      setErro(mensagemErro(error, 'Não foi possível atualizar a ocorrência.'))
+      setAlterandoStatus('')
+      return
+    }
+    await criarNotificacoesObra({
+      obraId,
+      tipo: 'ocorrencia',
+      titulo: concluindo ? 'Ocorrência resolvida' : 'Ocorrência reaberta',
+      descricao: ocorrencia.titulo,
+      prioridade: concluindo ? 'normal' : 'alta',
+      entidadeTipo: 'ocorrencias',
+      entidadeId: ocorrencia.id,
+      rota: `/obras/${obraId}?aba=Ocorrencias&ocorrencia=${ocorrencia.id}`,
+      excluirUsuarioId: user?.id,
+    })
+    await carregar()
+    setAlterandoStatus('')
+  }
   const gravCor = { baixa: '#5aab6e', media: '#b09a7a', alta: '#d94a4a' }
   return (
     <div>
@@ -2479,15 +2505,22 @@ function AbaOcorrencias({ obraId, ocorrenciaDestaque }) {
         : ocorrencias.length === 0 ? <div style={{ textAlign: 'center', padding: '50px 0', color: '#bbb' }}>Nenhuma ocorrência registrada.</div>
         : ocorrencias.map(oc => {
           const destaque = ocorrenciaDestaque && oc.id === ocorrenciaDestaque
+          const resolvida = String(oc.status || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes('resolvid')
           return (
-          <div key={oc.id} data-destaque-id={oc.id} style={{ background: destaque ? THEME.elevated : THEME.card, border: destaque ? `2px solid ${THEME.gold}` : '1px solid ' + THEME.border, borderLeft: '4px solid ' + (gravCor[oc.gravidade] || '#ccc'), borderRadius: 10, padding: '16px 18px', marginBottom: 10, boxShadow: destaque ? '0 12px 30px rgba(184,150,94,.16)' : 'none' }}>
+          <div key={oc.id} data-destaque-id={oc.id} style={{ background: destaque ? THEME.elevated : THEME.card, border: destaque ? `2px solid ${THEME.gold}` : '1px solid ' + THEME.border, borderLeft: '4px solid ' + (resolvida ? THEME.success : gravCor[oc.gravidade] || '#ccc'), borderRadius: 10, padding: '16px 18px', marginBottom: 10, boxShadow: destaque ? '0 12px 30px rgba(184,150,94,.16)' : 'none', opacity: resolvida ? 0.72 : 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-ink)' }}>{oc.titulo}</span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-ink)', textDecoration: resolvida ? 'line-through' : 'none' }}>{oc.titulo}</span>
               <span style={{ fontSize: 10, padding: '2px 9px', borderRadius: 20, background: '#f0ece6', color: '#888', marginLeft: 'auto' }}>{oc.categoria}</span>
               <span style={{ fontSize: 10, padding: '2px 9px', borderRadius: 20, background: (gravCor[oc.gravidade] || '#ccc') + '22', color: gravCor[oc.gravidade] || '#888' }}>{oc.gravidade}</span>
+              <span style={{ fontSize: 10, padding: '2px 9px', borderRadius: 20, background: resolvida ? THEME.successBg : THEME.warningBg, color: resolvida ? THEME.success : THEME.warning }}>{resolvida ? 'Resolvida' : oc.status || 'Aberta'}</span>
             </div>
             {oc.descricao && <p style={{ margin: 0, fontSize: 13, color: 'var(--color-ink-muted)', lineHeight: 1.5 }}>{oc.descricao}</p>}
-            <div style={{ fontSize: 11, color: '#bbb', marginTop: 8 }}>{new Date(oc.created_at).toLocaleDateString('pt-BR')}</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginTop: 10 }}>
+              <div style={{ fontSize: 11, color: '#bbb' }}>{new Date(oc.created_at).toLocaleDateString('pt-BR')}</div>
+              <button type="button" onClick={() => alterarStatus(oc, resolvida ? 'Aberta' : 'Resolvida')} disabled={Boolean(alterandoStatus)} style={{ border: `1px solid ${resolvida ? THEME.border : THEME.success}`, background: resolvida ? THEME.elevated : THEME.successBg, color: resolvida ? THEME.muted : THEME.success, borderRadius: 8, minHeight: 40, padding: '8px 12px', fontWeight: 900, cursor: alterandoStatus ? 'wait' : 'pointer' }}>
+                {alterandoStatus === oc.id ? 'Salvando...' : resolvida ? 'Reabrir ocorrência' : 'Concluir ocorrência'}
+              </button>
+            </div>
           </div>
         )})
       }

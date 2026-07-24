@@ -12,6 +12,7 @@ export default function Pendencias() {
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState('')
   const [filtro, setFiltro] = useState('todas')
+  const [resolvendo, setResolvendo] = useState('')
 
   useEffect(() => {
     let ativo = true
@@ -24,7 +25,7 @@ export default function Pendencias() {
         supabase.from('agenda').select('id, obra_id, titulo, tipo, data, data_fim, status, responsavel_id, solicitacao_reagendamento_cliente'),
         supabase.from('fotos').select('id, obra_id, observacao, categoria, created_at, aprovada_gestao').eq('aprovada_gestao', false).limit(150),
         supabase.from('gastos').select('id, obra_id, descricao, valor, status, created_at').eq('status', 'pendente').limit(150),
-        supabase.from('checklist_items').select('id, obra_id, descricao, concluido, created_at').eq('concluido', false).limit(200),
+        supabase.from('checklist_items').select('id, obra_id, descricao, concluido').eq('concluido', false).limit(200),
         supabase.from('ocorrencias').select('id, obra_id, titulo, descricao, status, gravidade, created_at').limit(200),
       ])
       const falha = [obras, cronogramas, agenda, fotos, gastos, checklist, ocorrencias].find(result => result.error)
@@ -76,6 +77,21 @@ export default function Pendencias() {
   const criticas = itens.filter(itemAtual => itemAtual.prioridade === 'critica').length
   const altas = itens.filter(itemAtual => itemAtual.prioridade === 'alta').length
 
+  async function concluirOcorrencia(event, pendencia) {
+    event.stopPropagation()
+    if (!pendencia.entidadeId || !window.confirm(`Concluir a ocorrência "${pendencia.detalhe}"?`)) return
+    setResolvendo(pendencia.entidadeId)
+    setErro('')
+    const { error } = await supabase.from('ocorrencias').update({ status: 'Resolvida' }).eq('id', pendencia.entidadeId)
+    if (error) {
+      setErro(error.message || 'Não foi possível concluir a ocorrência.')
+      setResolvendo('')
+      return
+    }
+    setItens(atuais => atuais.filter(itemAtual => itemAtual.key !== pendencia.key))
+    setResolvendo('')
+  }
+
   return (
     <div className="ow-page" style={{ minHeight: '100%', padding: '30px clamp(16px, 3vw, 42px)', background: theme.background, color: theme.textPrimary }}>
       <div style={{ marginBottom: 22 }}>
@@ -99,14 +115,19 @@ export default function Pendencias() {
       {loading ? <div style={empty}>Carregando pendências...</div> : visiveis.length === 0 ? <div style={empty}>Nenhuma pendência neste filtro.</div> : (
         <div style={{ display: 'grid', gap: 9 }} aria-live="polite">
           {visiveis.map(pendencia => (
-            <button key={pendencia.key} onClick={() => navigate(pendencia.rota)} style={card}>
+            <div key={pendencia.key} role="button" tabIndex={0} onClick={() => navigate(pendencia.rota)} onKeyDown={event => { if (event.key === 'Enter') navigate(pendencia.rota) }} style={card}>
               <span style={badge(pendencia.prioridade)}>{pendencia.prioridade}</span>
               <span style={{ minWidth: 0, textAlign: 'left', flex: 1 }}>
                 <strong style={{ display: 'block', color: theme.textPrimary, fontSize: 13.5 }}>{pendencia.titulo}</strong>
                 <span style={{ display: 'block', color: theme.textSecondary, fontSize: 12, marginTop: 3 }}>{pendencia.obra} · {pendencia.detalhe}</span>
               </span>
+              {pendencia.tipo === 'ocorrencia' && (
+                <button type="button" onClick={event => concluirOcorrencia(event, pendencia)} onKeyDown={event => event.stopPropagation()} disabled={Boolean(resolvendo)} style={{ border: `1px solid ${theme.success}`, background: theme.statusBg.success, color: theme.success, borderRadius: 8, minHeight: 36, padding: '8px 10px', fontSize: 10.5, fontWeight: 900, display: 'inline-flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
+                  {resolvendo === pendencia.entidadeId ? 'Salvando...' : 'Concluir ocorrência'}
+                </button>
+              )}
               <span style={{ color: theme.gold, fontWeight: 900 }}>›</span>
-            </button>
+            </div>
           ))}
         </div>
       )}
@@ -115,7 +136,7 @@ export default function Pendencias() {
 }
 
 function item(tipo, prioridade, obraId, obra, titulo, detalhe, aba, entidadeId = '') {
-  return { key: `${tipo}-${entidadeId || obraId}-${titulo}`, tipo, prioridade, obra, titulo, detalhe, rota: `/obras/${obraId}?aba=${encodeURIComponent(aba)}${entidadeId ? `&${tipo}=${entidadeId}` : ''}` }
+  return { key: `${tipo}-${entidadeId || obraId}-${titulo}`, tipo, prioridade, obra, titulo, detalhe, entidadeId, rota: `/obras/${obraId}?aba=${encodeURIComponent(aba)}${entidadeId ? `&${tipo}=${entidadeId}` : ''}` }
 }
 function dataBR(data) { return data ? new Date(`${data}T00:00:00`).toLocaleDateString('pt-BR') : '-' }
 function moeda(valor) { return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }
